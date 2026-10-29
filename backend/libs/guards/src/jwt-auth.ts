@@ -78,20 +78,16 @@ export function isPublicRoute(path: string, method: string): boolean {
   // own clause — `startsWith("/services/")` does NOT match "/services", and
   // the resulting 401 is invisible if you only ever test the trailing-slash
   // form.
-  if (isRead && (path === "/services" || path.startsWith("/services/"))) return true;
   // Booking — public storefront read of a vendor's active branches
   // (GET /booking/vendors/:id/locations). Vendor booking management lives under
   // /vendor/booking and stays gated.
-  if (isRead && path.startsWith("/booking/vendors/") && path.endsWith("/locations")) return true;
   // Booking — public storefront read of an offering's eligible staff
   // (GET /booking/offerings/:id/staff), Task 0A / Phase 7 prerequisite. Tight
   // match mirroring the feed.ics bypass's precision below: GET/HEAD only,
   // exact prefix+suffix shape — not a broad /booking/ prefix (vendor booking
   // management lives under /vendor/booking and stays gated).
-  if (isRead && path.startsWith("/booking/offerings/") && path.endsWith("/staff")) return true;
   // Gifting storefront — public read (occasions + predefined boxes).
   // Admin gift management lives under /admin/gift and stays gated.
-  if (isRead && path.startsWith("/gift/")) return true;
   // BNPL provider thresholds power the PDP installment strip — published
   // numbers Tabby/Tamara show on their own marketing pages.
   if (isRead && path === "/checkout/bnpl-thresholds") return true;
@@ -102,7 +98,6 @@ export function isPublicRoute(path: string, method: string): boolean {
   if (path.startsWith("/webhooks/")) return true;
   // Reels webhooks — authenticated via HMAC signature inside the handler,
   // not JWT. Currently Cloudflare Stream video.ready / video.error events.
-  if (path.startsWith("/reels/webhooks/")) return true;
   // Outbound signed iCal feed (Phase 6 Task 5) — authenticated via a signed
   // token inside the handler (ical-feed-token.ts), not JWT. A vendor's other
   // platform (Google Calendar, Fresha, ...) polls this URL unattended, with
@@ -115,11 +110,8 @@ export function isPublicRoute(path: string, method: string): boolean {
   // `GET .../feed.ics` exists today, so this stays exactly as permissive as
   // required and fails safe against any future `/calendar/staff/:id/<...>`
   // route landing under the same prefix.
-  if (isRead && path.startsWith("/calendar/staff/") && path.endsWith("/feed.ics")) return true;
   // Featured licensed reels — public storefront/PDP read (GET /reels/featured)
-  if (isRead && path === "/reels/featured") return true;
   // Public open-brief board (GET /reels/briefs/open) — non-sensitive fields only.
-  if (isRead && path === "/reels/briefs/open") return true;
   // CMS public routes
   if (path.startsWith("/layouts/")) return true;
   // Header navigation (public mega-menu data)
@@ -154,57 +146,11 @@ function isOptionalAuthRoute(path: string, method: string): boolean {
   if (path === "/cart/items") return true;
   // Cart item by variant (PATCH /cart/items/:variantId)
   if (/^\/cart\/items\/[^/]+$/.test(path)) return true;
-  // Cart gift box (POST /cart/gift-box)
-  if (path === "/cart/gift-box") return true;
-  // Cart gift box by id (DELETE /cart/gift-box/:id)
-  if (/^\/cart\/gift-box\/[^/]+$/.test(path)) return true;
-  // Cart affiliate-code capture (POST /cart/affiliate) — logged-in stamps the
-  // user cart, guests stamp the guest-session cart; neither must 401.
-  if (path === "/cart/affiliate" && method === "POST") return true;
-  // Collab opportunity board (GET /reels/collab-board) — a signed-in creator
-  // gets a per-row eligibility block; guests get the listing without one.
-  // Deliberately NOT in isPublicRoute: that would short-circuit with user=null
-  // and make every row report itself ineligible.
-  if ((method === "GET" || method === "HEAD") && path === "/reels/collab-board") return true;
-  // Reels single-reel permalink (GET /reels/:uuid)
-  if (/^\/reels\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(path))
-    return true;
-  // Reels feed (GET /reels/feed, /reels/feed/...) — authenticated users get
-  // personalized dedup via viewed-history; anonymous gets the raw cohort.
   const isRead = method === "GET" || method === "HEAD";
-  if (
-    isRead &&
-    (path === "/reels/feed" || path === "/reels/feed/" || path.startsWith("/reels/feed/"))
-  ) {
-    return true;
-  }
-  // Reels view tracking — anonymous posts are no-ops (see social.routes.ts)
-  if (
-    method === "POST" &&
-    /^\/reels\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/views$/.test(path)
-  ) {
-    return true;
-  }
-  // Reels product-tag taps — anonymous viewers get the drawer payload
-  // without earning attribution (see attribution.routes.ts).
-  if (
-    method === "POST" &&
-    /^\/reels\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/tags\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/taps$/.test(
-      path,
-    )
-  ) {
-    return true;
-  }
-  // Public user profile lookup (GET /users/:handle) — a signed-in viewer
-  // gets `isSelf` set, anonymous viewers still see the public profile.
-  if (isRead && /^\/users\/[^/]+$/.test(path)) return true;
   // Newsletter: subscribe stamps user_id when a token is present; status reads
   // the authenticated user's email. Both tolerate anonymous callers.
   if (path === "/newsletter/subscribe" && method === "POST") return true;
   if (path === "/newsletter/status" && (method === "GET" || method === "HEAD")) return true;
-  // Affiliate attribution capture (POST /a/track) — a logged-in buyer is
-  // attributed by user_id; anonymous falls back to x-guest-session. NOT public.
-  if (path === "/a/track" && method === "POST") return true;
   // Customer support — guests chat via the x-guest-session header; logged-in
   // users are attributed via user_id. Admin (/support/admin/*) stays gated.
   if (path === "/support/tickets") return true; // POST create, GET list

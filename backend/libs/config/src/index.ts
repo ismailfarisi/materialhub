@@ -20,9 +20,7 @@ export const config = {
     vendor: Number(process.env.VENDOR_PORT) || 3004,
     notification: Number(process.env.NOTIFICATION_PORT) || 3005,
     cms: Number(process.env.CMS_PORT) || 3006,
-    reels: Number(process.env.REELS_PORT) || 3007,
     integration: Number(process.env.INTEGRATION_PORT) || 3008,
-    booking: Number(process.env.BOOKING_PORT) || 3009,
   },
   serviceHost: {
     auth: process.env.AUTH_HOST || "localhost",
@@ -31,9 +29,7 @@ export const config = {
     vendor: process.env.VENDOR_HOST || "localhost",
     notification: process.env.NOTIFICATION_HOST || "localhost",
     cms: process.env.CMS_HOST || "localhost",
-    reels: process.env.REELS_HOST || "localhost",
     integration: process.env.INTEGRATION_HOST || "localhost",
-    booking: process.env.BOOKING_HOST || "localhost",
   },
   database: {
     host: process.env.DB_HOST || "127.0.0.1",
@@ -195,71 +191,12 @@ export const config = {
   orders: {
     pendingExpiryMinutes: Number(process.env.ORDER_PENDING_EXPIRY_MINUTES) || 60,
   },
-  bookings: {
-    pendingExpiryMinutes: Number(process.env.BOOKING_PENDING_EXPIRY_MINUTES) || 60,
-    // Phase 5 Task 5b (spec §5.3 "Auto-complete"): grace period between
-    // `ends_at` and the auto-complete fire time. DEFAULT MUST STAY 24h —
-    // booking-auth.service.ts's AUTO_COMPLETE_DELAY_HOURS constant hardcodes
-    // this same 24h in its own captureDeadline clamp math (the auth job's
-    // fire-time -> Stripe-auth-validity safety margin assumes capture happens
-    // by `ends_at + 24h`). Changing this env var in a real deployment without
-    // also updating that constant would silently desync the two and could
-    // let a Stripe authorization expire before auto-complete ever captures
-    // it — see that file's AUTO_COMPLETE_DELAY_HOURS comment.
-    autoCompleteGraceHours: Number(process.env.BOOKING_AUTOCOMPLETE_GRACE_HOURS) || 24,
-    // Phase 5 Task 5 (spec §5.3 no-show strikes): pay_at_venue is revoked for a
-    // customer at a vendor once their DERIVED per-vendor no_show count reaches
-    // this threshold (default 3), and revoked EVERYWHERE once their platform-wide
-    // no_show count reaches the higher platform backstop (default 8). Counts are
-    // never stored — always `count(bookings WHERE status='no_show' AND customer=...
-    // [AND vendor=...])` (StrikeService). Config-driven, mirroring
-    // pendingExpiryMinutes / autoCompleteGraceHours above.
-    noShowVendorStrikeThreshold: Number(process.env.BOOKING_NOSHOW_VENDOR_STRIKE_THRESHOLD) || 3,
-    noShowPlatformStrikeThreshold:
-      Number(process.env.BOOKING_NOSHOW_PLATFORM_STRIKE_THRESHOLD) || 8,
-    // Base URL for customer-facing deep links in booking notifications (the
-    // no-show dispute/support link, spec §5.3 amended §5.3). Reuses the shared
-    // WEB_URL env the tamara.* URLs already fall back to, so there's one storefront
-    // base across the monorepo; a dev default keeps this usable without env.
-    appUrl: process.env.WEB_URL || "http://localhost:4000",
-    // Phase 6 Task 5 (outbound signed iCal feed) — HMAC secret for
-    // ical-feed-token.ts. The token itself is long-lived (a subscribed
-    // calendar app polls this URL indefinitely, no expiry baked in) —
-    // revocation is ONLY a global secret rotation (invalidates every issued
-    // feed URL at once); per-staff revocation is a Phase 7+ concern. See
-    // ical-feed-token.ts's header for the full rationale.
-    //
-    // Fail-closed in production, but LAZILY (fix cycle 2, review finding
-    // "BOOKING_ICAL_FEED_SECRET can crash-loop EVERY service").
-    //
-    // The security property is unchanged from the eager version: in
-    // production an unset/empty secret throws, so booking-service can never
-    // sign or verify a feed token with the public-repo dev string — every
-    // staff feed URL would otherwise be forgeable by anyone who read this
-    // file. Staging runs NODE_ENV=production too, so there is no
-    // forgeable-dev-key window there either.
-    //
-    // What changed is WHEN it throws. `config` is a single eagerly-evaluated
-    // module-level object imported by all 10 services, so evaluating
-    // requireEnv() at construction time took down api-gateway, auth, order,
-    // product… on a missing secret, even though booking-service is the only
-    // consumer. As a getter the check runs on FIRST ACCESS instead, so the
-    // blast radius is exactly the code path that needs the secret
-    // (booking-service's container.ts / ical-feed.routes.ts). Call sites are
-    // unchanged — `config.bookings.icalFeedSecret` still reads as a string.
-    get icalFeedSecret(): string {
-      return isProduction
-        ? requireEnv("BOOKING_ICAL_FEED_SECRET")
-        : (process.env.BOOKING_ICAL_FEED_SECRET ?? "dev-only-ical-feed-key");
-    },
-  },
   cache: {
     categoryTreeTtl: Number(process.env.CATEGORY_TREE_CACHE_TTL) || 3600,
     productDetailTtl: Number(process.env.PRODUCT_DETAIL_CACHE_TTL) || 600,
     productListTtl: Number(process.env.PRODUCT_LIST_CACHE_TTL) || 300,
     // Per-staff/day free-window read-model. Short TTL also caps staleness if a
     // holiday write-path invalidation is ever missed (Phase 3 fallback).
-    availabilityTtl: Number(process.env.AVAILABILITY_CACHE_TTL) || 300,
   },
   typesense: {
     host: process.env.TYPESENSE_HOST || "127.0.0.1",
@@ -269,17 +206,6 @@ export const config = {
       ? requireEnv("TYPESENSE_API_KEY")
       : process.env.TYPESENSE_API_KEY || "dev-typesense-key",
     collectionName: process.env.TYPESENSE_COLLECTION || "products",
-    servicesCollectionName: process.env.TYPESENSE_SERVICES_COLLECTION || "service_offerings",
-  },
-  cloudflareStream: {
-    accountId: process.env.CLOUDFLARE_STREAM_ACCOUNT_ID ?? "",
-    apiToken: process.env.CLOUDFLARE_STREAM_API_TOKEN ?? "",
-    webhookSecret: process.env.CLOUDFLARE_STREAM_WEBHOOK_SECRET ?? "",
-    // Overridden only in local dev to point at the `local-stream` docker-compose
-    // service. Staging/prod leave both unset and talk to Cloudflare.
-    apiBaseUrl:
-      process.env.CLOUDFLARE_STREAM_API_BASE_URL || "https://api.cloudflare.com/client/v4",
-    deliveryBaseUrl: process.env.CLOUDFLARE_STREAM_DELIVERY_BASE_URL || "https://videodelivery.net",
   },
   google: {
     /** Public API key for Drive v3 files.list. If null, folder URLs in

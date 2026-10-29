@@ -18,12 +18,6 @@ export { getS3Client, getCloudFrontClient } from "./s3-client.ts";
 export { EncryptionService } from "./encryption.service.ts";
 export { maxCommissionForNet } from "./commission-cap.ts";
 export { encodeCursor, decodeCursor, type CursorData, type PaginatedResult } from "./pagination.ts";
-export {
-  computeGiftBoxPrice,
-  type PricingItem,
-  type GiftBoxPriceInput,
-  type GiftBoxPriceResult,
-} from "./gift-box-pricing.ts";
 
 /**
  * Convert AED amount to fils (smallest currency unit).

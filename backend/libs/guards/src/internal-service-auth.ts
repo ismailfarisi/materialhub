@@ -5,7 +5,6 @@ const ALLOWED_ISSUERS = new Set([
   "integration-service",
   "order-service",
   "product-service",
-  "booking-service",
 ]);
 
 type AuthError = "missing_token" | "secret_unset" | "invalid_issuer" | "invalid_token";

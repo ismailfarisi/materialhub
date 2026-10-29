@@ -38,17 +38,8 @@ export * from "./support.dto.ts";
 export * from "./reason-keys.ts";
 export * from "./checkout-quote.dto.ts";
 export * from "./admin-payout.dto.ts";
-export * from "./beauty-profile.dto.ts";
 export * from "./newsletter.dto.ts";
-export * from "./creator-application.dto.ts";
-export * from "./creator-media-kit.dto.ts";
-export * from "./creator-portfolio.dto.ts";
 export * from "./product-group.dto.ts";
-export * from "./service-offering.dto.ts";
-export * from "./booking-scheduling.dto.ts";
-export * from "./booking-payment.dto.ts";
-export * from "./booking.dto.ts";
-export * from "./booking-manage.dto.ts";
 
 // Re-export typebox for convenience
 export { Type, type Static } from "@sinclair/typebox";
