@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
-import { getTemplate } from "../domain/templates.ts";
 import {
   type DispatchEvent,
   NotificationDispatcherService,
@@ -33,17 +32,7 @@ function makePreferences(
     "return_requested",
     "dispute_opened",
     "dispute_resolved",
-    "booking_confirmed",
-    "booking_reminder",
-    "booking_rescheduled",
-    "booking_cancelled",
-    "booking_no_show",
-    "booking_completed",
-    "booking_review_request",
-    "booking_payment_failed",
-    "vendor_new_booking",
-    "vendor_booking_cancelled",
-    "vendor_booking_conflict",
+    "vendor_new_order",
   ];
 
   const matrix: Record<string, Record<string, boolean>> = {};
@@ -240,450 +229,12 @@ describe("NotificationDispatcherService", () => {
     expect(data).toEqual({ orderId: "order-001" });
   });
 
-  // ─── Phase 5 Task 8: booking notification types ───────────────────────────
-  // makePreferences() seeds an EXPLICIT preference row for every type
-  // (including the 11 booking types) — these tests exercise the dispatcher's
-  // rendering + channel routing against a fully-seeded user. The
-  // absent-preference-row path (a user with NO rows for booking types — every
-  // user seeded before the booking enum values existed) is covered separately
-  // below in "absent preference rows (real getPreferences shape)", which
-  // drives the REAL NotificationPreferenceService.getPreferences() output
-  // instead of this hand-built matrix.
-
-  const ALL_BOOKING_TYPES = [
-    "booking_confirmed",
-    "booking_reminder",
-    "booking_rescheduled",
-    "booking_cancelled",
-    "booking_no_show",
-    "booking_completed",
-    "booking_review_request",
-    "booking_payment_failed",
-    "vendor_new_booking",
-    "vendor_booking_cancelled",
-    "vendor_booking_conflict",
-  ];
-
-  describe("booking notification types (Phase 5 Task 8)", () => {
-    it("all 11 booking types have a registered template", () => {
-      for (const type of ALL_BOOKING_TYPES) {
-        expect(getTemplate(type)).not.toBeNull();
-      }
-    });
-
-    it("handler renders each of the 11 booking types without throwing, producing a non-empty title/body", async () => {
-      const fixtures: Record<string, DispatchEvent> = {
-        booking_confirmed: {
-          type: "booking_confirmed",
-          userId: "cust-1",
-          variables: {
-            bookingId: "bk-1",
-            service_name: "Deep Tissue Massage",
-            booking_number: "BK-001",
-            starts_at: "2026-08-10T10:00:00.000Z",
-            ends_at: "2026-08-10T10:30:00.000Z",
-          },
-          data: { bookingId: "bk-1" },
-        },
-        vendor_new_booking: {
-          type: "vendor_new_booking",
-          userId: "vendor-owner-1",
-          variables: {
-            bookingId: "bk-1",
-            service_name: "Deep Tissue Massage",
-            booking_number: "BK-001",
-            starts_at: "2026-08-10T10:00:00.000Z",
-            ends_at: "2026-08-10T10:30:00.000Z",
-          },
-          data: { bookingId: "bk-1", customerUserId: "cust-1" },
-        },
-        booking_completed: {
-          type: "booking_completed",
-          userId: "cust-1",
-          variables: {
-            bookingId: "bk-1",
-            service_name: "Deep Tissue Massage",
-            booking_number: "BK-001",
-            starts_at: "2026-08-10T10:00:00.000Z",
-            ends_at: "2026-08-10T10:30:00.000Z",
-          },
-          data: { bookingId: "bk-1" },
-        },
-        booking_review_request: {
-          type: "booking_review_request",
-          userId: "cust-1",
-          variables: {
-            bookingId: "bk-1",
-            service_name: "Deep Tissue Massage",
-            booking_number: "BK-001",
-            starts_at: "2026-08-10T10:00:00.000Z",
-            ends_at: "2026-08-10T10:30:00.000Z",
-          },
-          data: { bookingId: "bk-1" },
-        },
-        booking_rescheduled: {
-          type: "booking_rescheduled",
-          userId: "cust-1",
-          variables: {
-            service_name: "Deep Tissue Massage",
-            booking_number: "BK-001",
-            starts_at: "2026-08-12T10:00:00.000Z",
-            ends_at: "2026-08-12T10:30:00.000Z",
-          },
-          data: { bookingId: "bk-1" },
-        },
-        booking_cancelled: {
-          type: "booking_cancelled",
-          userId: "cust-1",
-          variables: {
-            service_name: "Deep Tissue Massage",
-            booking_number: "BK-001",
-            starts_at: "2026-08-10T10:00:00.000Z",
-            ends_at: "2026-08-10T10:30:00.000Z",
-            refund_fils: "3000",
-            forfeit_fils: "2000",
-            action: "refund",
-          },
-          data: { bookingId: "bk-1", action: "refund" },
-        },
-        vendor_booking_cancelled: {
-          type: "vendor_booking_cancelled",
-          userId: "vendor-owner-1",
-          variables: {
-            service_name: "Deep Tissue Massage",
-            booking_number: "BK-001",
-            starts_at: "2026-08-10T10:00:00.000Z",
-            ends_at: "2026-08-10T10:30:00.000Z",
-            refund_fils: "3000",
-            forfeit_fils: "2000",
-            action: "refund",
-          },
-          data: { bookingId: "bk-1", action: "refund", customerUserId: "cust-1" },
-        },
-        booking_no_show: {
-          type: "booking_no_show",
-          userId: "cust-1",
-          variables: {
-            service_name: "Deep Tissue Massage",
-            booking_number: "BK-001",
-            starts_at: "2026-08-10T10:00:00.000Z",
-            ends_at: "2026-08-10T10:30:00.000Z",
-            policy: "percent",
-            forfeit_fils: "1000",
-            refund_fils: "0",
-            dispute_url: "https://app.materialhubuae.com/support/bookings/bk-1",
-          },
-          data: { bookingId: "bk-1" },
-        },
-        booking_payment_failed: {
-          type: "booking_payment_failed",
-          userId: "cust-1",
-          variables: {
-            service_name: "Deep Tissue Massage",
-            booking_number: "BK-001",
-            starts_at: "2026-08-10T10:00:00.000Z",
-            reason: "Your card was declined.",
-            pay_now_url: "https://app.materialhubuae.com/bookings/bk-1",
-          },
-          data: { bookingId: "bk-1" },
-        },
-        vendor_booking_conflict: {
-          type: "vendor_booking_conflict",
-          userId: "vendor-owner-1",
-          variables: {
-            staff_name: "Amina K.",
-            existing_summary: "Booking BK-002 — Haircut",
-            existing_starts_at: "2026-08-10T10:00:00.000Z",
-            existing_ends_at: "2026-08-10T10:30:00.000Z",
-            conflicting_summary: "Imported: Dentist appointment",
-            conflicting_starts_at: "2026-08-10T10:15:00.000Z",
-            conflicting_ends_at: "2026-08-10T11:00:00.000Z",
-          },
-          data: {},
-        },
-        booking_reminder: {
-          type: "booking_reminder",
-          userId: "cust-1",
-          variables: {
-            service_name: "Deep Tissue Massage",
-            booking_number: "BK-001",
-            starts_at: "2026-08-10T10:00:00.000Z",
-            offset: "24h",
-            vendor_name: "Glow Spa",
-            location_name: "Glow Spa — Marina",
-          },
-          data: {
-            bookingId: "bk-1",
-            ics: {
-              uid: "booking-bk-1@materialhubuae.com",
-              summary: "Deep Tissue Massage",
-              text: "BEGIN:VCALENDAR\nEND:VCALENDAR",
-            },
-          },
-        },
-      };
-
-      for (const type of ALL_BOOKING_TYPES) {
-        const ctx2 = buildMocks();
-        const event = fixtures[type];
-        expect(event).toBeTruthy();
-        await ctx2.service.dispatch(event!);
-
-        expect(ctx2.notificationService.send).toHaveBeenCalledTimes(1);
-        const sendArg = ctx2.notificationService.send.mock.calls[0]![0] as any;
-        expect(sendArg.type).toBe(type);
-        expect(typeof sendArg.title).toBe("string");
-        expect(sendArg.title.length).toBeGreaterThan(0);
-        expect(typeof sendArg.body).toBe("string");
-        expect(sendArg.body.length).toBeGreaterThan(0);
-        // No unresolved {token} left in the rendered body/title for any type.
-        expect(sendArg.body).not.toMatch(/\{[a-zA-Z_]+\}/);
-        expect(sendArg.title).not.toMatch(/\{[a-zA-Z_]+\}/);
-      }
-    });
-
-    it("in-app rows are created for BOTH audiences of booking_rescheduled (customer + vendor, same type)", async () => {
-      const ctx2 = buildMocks();
-      const shared = {
-        service_name: "Deep Tissue Massage",
-        booking_number: "BK-001",
-        starts_at: "2026-08-12T10:00:00.000Z",
-        ends_at: "2026-08-12T10:30:00.000Z",
-      };
-      await ctx2.service.dispatch({
-        type: "booking_rescheduled",
-        userId: "cust-1",
-        variables: shared,
-        data: { bookingId: "bk-1" },
-      });
-      await ctx2.service.dispatch({
-        type: "booking_rescheduled",
-        userId: "vendor-owner-1",
-        variables: shared,
-        data: { bookingId: "bk-1", customerUserId: "cust-1" },
-      });
-
-      expect(ctx2.notificationService.send).toHaveBeenCalledTimes(2);
-      const calls = ctx2.notificationService.send.mock.calls as any[];
-      const customerRow = calls.find((c) => c[0].user_id === "cust-1")[0];
-      const vendorRow = calls.find((c) => c[0].user_id === "vendor-owner-1")[0];
-      expect(customerRow.channel).toBe("in_app");
-      expect(vendorRow.channel).toBe("in_app");
-      // The vendor copy is worded differently (customer-vs-vendor branch in
-      // templates.ts's render hook) — proves both audiences got REAL content,
-      // not just two identical rows.
-      expect(customerRow.title).toBe("Booking Rescheduled");
-      expect(vendorRow.title).toBe("Customer Booking Rescheduled");
-    });
-
-    it("in-app rows are created for BOTH audiences of a cancellation (booking_cancelled to the customer, vendor_booking_cancelled to the vendor)", async () => {
-      const ctx2 = buildMocks();
-      const shared = {
-        service_name: "Deep Tissue Massage",
-        booking_number: "BK-001",
-        starts_at: "2026-08-10T10:00:00.000Z",
-        ends_at: "2026-08-10T10:30:00.000Z",
-        refund_fils: "0",
-        forfeit_fils: "0",
-        action: "void",
-      };
-      await ctx2.service.dispatch({
-        type: "booking_cancelled",
-        userId: "cust-1",
-        variables: shared,
-        data: { bookingId: "bk-1", action: "void" },
-      });
-      await ctx2.service.dispatch({
-        type: "vendor_booking_cancelled",
-        userId: "vendor-owner-1",
-        variables: shared,
-        data: { bookingId: "bk-1", action: "void", customerUserId: "cust-1" },
-      });
-
-      expect(ctx2.notificationService.send).toHaveBeenCalledTimes(2);
-      const calls = ctx2.notificationService.send.mock.calls as any[];
-      expect(calls.find((c) => c[0].user_id === "cust-1")[0].channel).toBe("in_app");
-      expect(calls.find((c) => c[0].user_id === "vendor-owner-1")[0].channel).toBe("in_app");
-    });
-
-    it("booking_cancelled: `void` never says 'refunded' — it says the authorization hold was released", async () => {
-      const ctx2 = buildMocks();
-      await ctx2.service.dispatch({
-        type: "booking_cancelled",
-        userId: "cust-1",
-        variables: {
-          service_name: "Deep Tissue Massage",
-          booking_number: "BK-001",
-          starts_at: "2026-08-10T10:00:00.000Z",
-          ends_at: "2026-08-10T10:30:00.000Z",
-          refund_fils: "0",
-          forfeit_fils: "0",
-          action: "void",
-        },
-        data: { action: "void" },
-      });
-
-      const body = (ctx2.notificationService.send.mock.calls[0]![0] as any).body as string;
-      expect(body.toLowerCase()).not.toContain("refund");
-      expect(body).toContain("authorization hold has been released");
-    });
-
-    it("booking_cancelled: `refund` states the refunded amount", async () => {
-      const ctx2 = buildMocks();
-      await ctx2.service.dispatch({
-        type: "booking_cancelled",
-        userId: "cust-1",
-        variables: {
-          service_name: "Deep Tissue Massage",
-          booking_number: "BK-001",
-          starts_at: "2026-08-10T10:00:00.000Z",
-          ends_at: "2026-08-10T10:30:00.000Z",
-          refund_fils: "3000",
-          forfeit_fils: "2000",
-          action: "refund",
-        },
-        data: { action: "refund" },
-      });
-
-      const body = (ctx2.notificationService.send.mock.calls[0]![0] as any).body as string;
-      expect(body).toContain("refunded AED 30.00");
-    });
-
-    it("booking_no_show: in-app body includes the penalty breakdown + dispute link; action_url points at the dispute link", async () => {
-      const ctx2 = buildMocks();
-      await ctx2.service.dispatch({
-        type: "booking_no_show",
-        userId: "cust-1",
-        variables: {
-          service_name: "Deep Tissue Massage",
-          booking_number: "BK-001",
-          starts_at: "2026-08-10T10:00:00.000Z",
-          ends_at: "2026-08-10T10:30:00.000Z",
-          policy: "percent",
-          forfeit_fils: "1000",
-          refund_fils: "500",
-          dispute_url: "https://app.materialhubuae.com/support/bookings/bk-1",
-        },
-        data: {},
-      });
-
-      const sendArg = ctx2.notificationService.send.mock.calls[0]![0] as any;
-      expect(sendArg.body).toContain("AED 10.00");
-      expect(sendArg.body).toContain("AED 5.00");
-      expect(sendArg.body).toContain("https://app.materialhubuae.com/support/bookings/bk-1");
-      expect(sendArg.action_url).toBe("https://app.materialhubuae.com/support/bookings/bk-1");
-    });
-
-    it("booking_payment_failed: action_url is the pay-now link and the body includes it", async () => {
-      const ctx2 = buildMocks();
-      await ctx2.service.dispatch({
-        type: "booking_payment_failed",
-        userId: "cust-1",
-        variables: {
-          service_name: "Deep Tissue Massage",
-          booking_number: "BK-001",
-          starts_at: "2026-08-10T10:00:00.000Z",
-          reason: "Your card was declined.",
-          pay_now_url: "https://app.materialhubuae.com/bookings/bk-1",
-        },
-        data: {},
-      });
-
-      const sendArg = ctx2.notificationService.send.mock.calls[0]![0] as any;
-      expect(sendArg.action_url).toBe("https://app.materialhubuae.com/bookings/bk-1");
-      expect(sendArg.body).toContain("https://app.materialhubuae.com/bookings/bk-1");
-      expect(sendArg.body).toContain("Your card was declined.");
-    });
-
-    it("vendor_booking_conflict: names both colliding engagements", async () => {
-      const ctx2 = buildMocks();
-      await ctx2.service.dispatch({
-        type: "vendor_booking_conflict",
-        userId: "vendor-owner-1",
-        variables: {
-          staff_name: "Amina K.",
-          existing_summary: "Booking BK-002 — Haircut",
-          existing_starts_at: "2026-08-10T10:00:00.000Z",
-          existing_ends_at: "2026-08-10T10:30:00.000Z",
-          conflicting_summary: "Imported: Dentist appointment",
-          conflicting_starts_at: "2026-08-10T10:15:00.000Z",
-          conflicting_ends_at: "2026-08-10T11:00:00.000Z",
-        },
-        data: {},
-      });
-
-      const body = (ctx2.notificationService.send.mock.calls[0]![0] as any).body as string;
-      expect(body).toContain("Booking BK-002 — Haircut");
-      expect(body).toContain("Imported: Dentist appointment");
-      expect(body).toContain("Amina K.");
-    });
-
-    it("booking_reminder: email includes a data:text/calendar 'Add to calendar' link built from the .ics text (attachment fallback); in-app body has no raw HTML", async () => {
-      const ctx2 = buildMocks();
-      ctx2.preferenceService.getPreferences.mockImplementation(() =>
-        Promise.resolve(makePreferences({ email: true })),
-      );
-
-      await ctx2.service.dispatch({
-        type: "booking_reminder",
-        userId: "cust-1",
-        variables: {
-          service_name: "Deep Tissue Massage",
-          booking_number: "BK-001",
-          starts_at: "2026-08-10T10:00:00.000Z",
-          offset: "24h",
-        },
-        data: {
-          bookingId: "bk-1",
-          ics: {
-            uid: "booking-bk-1@materialhubuae.com",
-            summary: "Deep Tissue Massage",
-            text: "BEGIN:VCALENDAR\nEND:VCALENDAR",
-          },
-        },
-      });
-
-      const inAppArg = ctx2.notificationService.send.mock.calls[0]![0] as any;
-      expect(inAppArg.body).not.toContain("<a ");
-      expect(inAppArg.body).toContain("24 hours");
-
-      expect(ctx2.emailDispatcher.send).toHaveBeenCalledTimes(1);
-      const [, , html] = ctx2.emailDispatcher.send.mock.calls[0]! as any;
-      expect(html).toContain("data:text/calendar;charset=utf-8;base64,");
-      expect(html).toContain("Add to calendar");
-    });
-
-    it("booking_reminder: no .ics data -> no calendar link, still renders", async () => {
-      const ctx2 = buildMocks();
-      ctx2.preferenceService.getPreferences.mockImplementation(() =>
-        Promise.resolve(makePreferences({ email: true })),
-      );
-
-      await ctx2.service.dispatch({
-        type: "booking_reminder",
-        userId: "cust-1",
-        variables: {
-          service_name: "Deep Tissue Massage",
-          booking_number: "BK-001",
-          starts_at: "2026-08-10T10:00:00.000Z",
-          offset: "1h",
-        },
-        data: {},
-      });
-
-      const [, , html] = ctx2.emailDispatcher.send.mock.calls[0]! as any;
-      expect(html).not.toContain("data:text/calendar");
-    });
-  });
-
-  // ─── Task 8 fix: absent preference rows (real getPreferences shape) ───────
   // Uses the REAL NotificationPreferenceService over a mocked repo (not this
   // file's hand-built makePreferences matrix), because the bug lived exactly
   // in the gap between the two: getPreferences() used to pre-fill every
   // missing {type, channel} cell with a hard `false`, so the dispatcher's
   // `typePrefs?.in_app ?? true` default-enabled intent never fired for any
-  // type added to the enum after a user's rows were seeded (all 11 booking
-  // types, for every pre-existing user).
+  // type added to the enum after a user's rows were seeded.
   describe("absent preference rows (real getPreferences shape)", () => {
     function buildMocksWithRealPreferences(preferenceRows: any[]) {
       const base = buildMocks();
@@ -707,53 +258,58 @@ describe("NotificationDispatcherService", () => {
       return { ...base, service };
     }
 
-    const BOOKING_EVENT: DispatchEvent = {
-      type: "booking_confirmed",
-      userId: "cust-1",
-      variables: {
-        bookingId: "bk-1",
-        service_name: "Deep Tissue Massage",
-        booking_number: "BK-001",
-        starts_at: "2026-08-10T10:00:00.000Z",
-        ends_at: "2026-08-10T10:30:00.000Z",
-      },
-      data: { bookingId: "bk-1" },
+    // vendor_new_order post-dates every existing user's seeded rows, so it is
+    // the type an absent row must default in-app ON for.
+    const VENDOR_ORDER_EVENT: DispatchEvent = {
+      type: "vendor_new_order",
+      userId: "vendor-member-1",
+      variables: { order_number: "VO-001", amount: "AED 250.00", vendorOrderId: "vo-1" },
+      data: { orderId: "order-001", vendorOrderId: "vo-1" },
     };
 
-    it("user with ZERO preference rows: booking in-app notification IS created (absent row = default enabled), email/push stay off", async () => {
+    it("user with ZERO preference rows: vendor_new_order in-app notification IS created (absent row = default enabled), email/push stay off", async () => {
       const m = buildMocksWithRealPreferences([]);
 
-      await m.service.dispatch(BOOKING_EVENT);
+      await m.service.dispatch(VENDOR_ORDER_EVENT);
 
       expect(m.notificationService.send).toHaveBeenCalledTimes(1);
       const sendArg = m.notificationService.send.mock.calls[0]![0] as any;
       expect(sendArg.channel).toBe("in_app");
-      expect(sendArg.type).toBe("booking_confirmed");
+      expect(sendArg.type).toBe("vendor_new_order");
       // Absent rows must NOT silently enable email/push (dispatcher intent:
       // those default false).
       expect(m.emailDispatcher.send).not.toHaveBeenCalled();
       expect(m.pushDispatcher.send).not.toHaveBeenCalled();
     });
 
-    it("explicit in_app=false DB row: booking in-app notification is suppressed (real opt-outs keep working)", async () => {
+    it("explicit in_app=false DB row: vendor_new_order in-app notification is suppressed (real opt-outs keep working)", async () => {
       const m = buildMocksWithRealPreferences([
-        { notification_type: "booking_confirmed", channel: "in_app", enabled: false },
+        { notification_type: "vendor_new_order", channel: "in_app", enabled: false },
       ]);
 
-      await m.service.dispatch(BOOKING_EVENT);
+      await m.service.dispatch(VENDOR_ORDER_EVENT);
 
       expect(m.notificationService.send).not.toHaveBeenCalled();
     });
 
-    it("explicit email=true DB row (in_app row absent): email fires AND in-app still defaults enabled", async () => {
+    it("pre-existing type with ZERO rows keeps its historical in_app=false default (no silent behaviour change)", async () => {
+      const m = buildMocksWithRealPreferences([]);
+
+      await m.service.dispatch(EMAIL_EVENT);
+
+      expect(m.notificationService.send).not.toHaveBeenCalled();
+      expect(m.emailDispatcher.send).not.toHaveBeenCalled();
+    });
+
+    it("explicit email=true DB row (in_app row absent): email fires for a generic-email type", async () => {
       const m = buildMocksWithRealPreferences([
-        { notification_type: "booking_confirmed", channel: "email", enabled: true },
+        { notification_type: "order_shipped", channel: "email", enabled: true },
       ]);
 
-      await m.service.dispatch(BOOKING_EVENT);
+      await m.service.dispatch(EMAIL_EVENT);
 
-      expect(m.notificationService.send).toHaveBeenCalledTimes(1);
       expect(m.emailDispatcher.send).toHaveBeenCalledTimes(1);
+      expect(m.notificationService.send).not.toHaveBeenCalled();
     });
   });
 

@@ -18,8 +18,4 @@ export class UserAdminController {
   updateRole(userId: string, role: string) {
     return this.userAdminService.updateRole(userId, role);
   }
-
-  updateCreatorTier(userId: string, tier: string) {
-    return this.userAdminService.updateCreatorTier(userId, tier);
-  }
 }

@@ -22,14 +22,14 @@ describe("BidService.issuePreviewToken", () => {
       }),
     };
     (service as any)._layoutRepo = {
-      findOne: async () => ({ slug: "beauty-fragrance" }),
+      findOne: async () => ({ slug: "packaging-papers" }),
     };
 
     const result = await service.issuePreviewToken("11111111-1111-1111-1111-111111111111", {
       requestor: "admin",
     });
 
-    expect(result.layout_slug).toBe("beauty-fragrance");
+    expect(result.layout_slug).toBe("packaging-papers");
     expect(typeof result.token).toBe("string");
     const payload = jwt.verify(result.token, config.jwt.accessSecret) as Record<string, unknown>;
     expect(payload.bid_id).toBe("11111111-1111-1111-1111-111111111111");
@@ -86,9 +86,9 @@ describe("BidService.listAll enrichment", () => {
     };
     (service as any).vendorLookup = async () => ({
       id: "v1",
-      name: "Acme Beauty",
+      name: "Acme Packaging",
       business_name: "Acme Trading LLC",
-      slug: "acme-beauty",
+      slug: "acme-packaging",
       logo_url: "https://cdn/acme.png",
     });
     (service as any).sectionContextLookup = async () => ({
@@ -96,7 +96,7 @@ describe("BidService.listAll enrichment", () => {
       position: 3,
       type_name: "promotional_banner",
       type_label: { en: "Promotional Banner" },
-      layout_slug: "beauty-fragrance",
+      layout_slug: "packaging-papers",
       layout_title: { en: "Homepage" },
       slots: 2,
     });
@@ -108,8 +108,8 @@ describe("BidService.listAll enrichment", () => {
     const result = await service.listAll({});
     const bid = result.data[0] as any;
     expect(result.total).toBe(1);
-    expect(bid.vendor.name).toBe("Acme Beauty");
-    expect(bid.section.layout_slug).toBe("beauty-fragrance");
+    expect(bid.vendor.name).toBe("Acme Packaging");
+    expect(bid.section.layout_slug).toBe("packaging-papers");
     expect(bid.section.position).toBe(3);
     expect(bid.outranked.is_outranked).toBe(false);
   });
@@ -148,13 +148,13 @@ describe("BidService.availableSections enrichment", () => {
       position: 3,
       type_name: "promotional_banner",
       type_label: { en: "Promotional Banner" },
-      layout_slug: "beauty-fragrance",
+      layout_slug: "packaging-papers",
       layout_title: { en: "Homepage" },
       slots: 2,
     });
 
     const result: any[] = await service.availableSections();
-    expect(result[0].layout_slug).toBe("beauty-fragrance");
+    expect(result[0].layout_slug).toBe("packaging-papers");
     expect(result[0].layout_title?.en).toBe("Homepage");
     expect(result[0].position).toBe(3);
   });
@@ -178,12 +178,12 @@ describe("BidService.computeOutranked", () => {
       { id: "b-low", vendor_id: "v-low", bid_amount_fils: 10000 },
     ];
     (service as any).vendorNameLookup = async (id: string) =>
-      id === "v-high" ? "Acme Beauty" : "Other Vendor";
+      id === "v-high" ? "Acme Packaging" : "Other Vendor";
 
     const result = await (service as any).computeOutranked(target);
     expect(result.is_outranked).toBe(true);
     expect(result.cutoff_bid_amount_fils).toBe(30000);
-    expect(result.cutoff_vendor_name).toBe("Acme Beauty");
+    expect(result.cutoff_vendor_name).toBe("Acme Packaging");
     expect(result.slots).toBe(1);
   });
 

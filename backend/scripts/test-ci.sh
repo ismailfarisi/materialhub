@@ -25,15 +25,10 @@ APPS=(
   notification-service
   cms-service
   integration-service
-  reels-service
-  booking-service
 )
 
 # Running total of integration files CI did NOT run, reported at the end. A
-# green check here covers unit tests only; booking-service in particular keeps
-# most of its money/state-machine coverage in integration files that are
-# further gated behind `BOOKING_LIVE_DB=1` and a reachable order-service, so
-# without this line the check reads as far more coverage than it is.
+# green check here covers unit tests only.
 excluded_total=0
 
 # Two complementary measures make this deterministic:
@@ -77,11 +72,9 @@ done
 echo
 echo "──────────────────────────────────────────────────────────────────"
 echo "UNIT TESTS ONLY. ${excluded_total} integration test file(s) were NOT run."
-echo "A pass here does NOT cover DB-backed flows (booking money movement,"
+echo "A pass here does NOT cover DB-backed flows (order money movement,"
 echo "state-machine transitions, carrier/webhook paths). Run those against a"
 echo "live stack: docker compose up, then \`bun test\` from backend/apps/<svc>"
-echo "(booking-service additionally needs BOOKING_LIVE_DB=1 and a reachable"
-echo "order-service, or its money-path tests self-skip)."
 echo "──────────────────────────────────────────────────────────────────"
 
 exit $fail

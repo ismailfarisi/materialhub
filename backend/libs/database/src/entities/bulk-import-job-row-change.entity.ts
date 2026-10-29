@@ -26,7 +26,7 @@ export class BulkImportJobRowChange {
   row_number!: number;
 
   @Column({ type: "varchar", length: 32 })
-  entity_type!: "product" | "product_variant" | "inventory" | "flash_deal";
+  entity_type!: "product" | "product_variant" | "inventory";
 
   @Column({ type: "uuid" })
   entity_id!: string;

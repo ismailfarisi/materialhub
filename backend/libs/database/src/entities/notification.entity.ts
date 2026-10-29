@@ -11,7 +11,7 @@ import {
 import { NotificationChannel, NotificationType } from "../enums.ts";
 import type { User } from "./user.entity.ts";
 
-@Entity("notifications")
+@Entity("notifications", { synchronize: false })
 export class Notification {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

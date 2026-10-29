@@ -50,9 +50,7 @@ jobs:
           --filter='@materialhub/vendor-service'
           --filter='@materialhub/notification-service'
           --filter='@materialhub/cms-service'
-          --filter='@materialhub/integration-service'
-          --filter='@materialhub/reels-service'
-          --filter='@materialhub/booking-service'
+          --filter='@materialhub/integration-service'
 
       # Unit tests only. Integration tests (*.integration.test.ts,
       # tests/integration/**) need live Postgres/Redis not present in CI and are
@@ -70,6 +68,4 @@ jobs:
           --filter='@materialhub/vendor-service'
           --filter='@materialhub/notification-service'
           --filter='@materialhub/cms-service'
-          --filter='@materialhub/integration-service'
-          --filter='@materialhub/reels-service'
-          --filter='@materialhub/booking-service'
+          --filter='@materialhub/integration-service'

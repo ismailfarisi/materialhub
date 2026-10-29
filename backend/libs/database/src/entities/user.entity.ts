@@ -96,9 +96,6 @@ export class User {
   @Column({ type: "varchar", length: 3, default: "AED" })
   wallet_currency!: string;
 
-  @Column({ type: "boolean", default: false })
-  can_tag_unowned!: boolean;
-
   @Column({ type: "int", default: 0 })
   follower_count!: number;
 

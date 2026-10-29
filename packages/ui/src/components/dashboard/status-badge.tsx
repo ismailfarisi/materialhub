@@ -25,11 +25,8 @@ const DEFAULT_COLOR_MAP: Record<string, string> = {
 	cancelled: "bg-russet/10 text-russet border border-russet/30",
 	refunded: "bg-caramel/10 text-caramel border border-caramel/30",
 	failed: "bg-russet/10 text-russet border border-russet/30",
-	// Booking states (booking-service). `confirmed`, `completed` and `cancelled`
-	// are shared with the order vocabulary above and already mapped.
+	// Payment and hold states
 	pending_payment: "bg-caramel/10 text-caramel border border-caramel/30",
-	rescheduled: "bg-caramel/10 text-caramel border border-caramel/30",
-	no_show: "bg-russet/10 text-russet border border-russet/30",
 	expired: "bg-pearl/20 text-taupe border border-pearl/30",
 	held: "bg-taupe/10 text-taupe border border-taupe/30",
 	// Vendor / KYC

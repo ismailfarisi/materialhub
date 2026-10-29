@@ -6,8 +6,6 @@ This directory contains the bulk upload implementation for MaterialHub product m
 
 - `inventory_update` — update stock levels by SKU or external ID
 - `catalog_import` — import/update products, variants, starting inventory, attributes, and images
-- `flash_deal_import` — bulk create or update flash deals
-- `flash_deal_delete` — bulk remove flash deals by SKU
 
 ## Supported file formats
 
@@ -21,7 +19,6 @@ The product-service exposes the following bulk endpoints under `/bulk`:
 - `POST /bulk/uploads/initiate` — create a bulk upload job and get an upload URL
 - `POST /bulk/jobs/:id/start` — start processing an uploaded bulk file
 - `POST /bulk/jobs/:id/cancel` — cancel an in-flight job
-- `POST /bulk/jobs/:id/revert` — revert a completed catalog import job if supported
 - `GET /bulk/jobs` — list bulk jobs
 - `GET /bulk/jobs/:id` — bulk job status and summary
 - `GET /bulk/jobs/:id/error-report` — download row-level error report

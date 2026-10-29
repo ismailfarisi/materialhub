@@ -128,9 +128,8 @@ export function createEventConsumerWorker(
 
       if (event.userId && event.notificationType) {
         // `eventId` (optional) is the producer's stable dedupe key for an
-        // at-least-once event — booking-service's reminder scheduler stamps
-        // one per (booking, offset, slot), same event_id contract the Slack
-        // support relay uses. Passing it as the dispatch job's jobId makes a
+        // at-least-once event — the same event_id contract the Slack support
+        // relay uses. Passing it as the dispatch job's jobId makes a
         // replayed/retried source job a no-op here (BullMQ ignores an `add`
         // for an id it already holds) instead of a duplicate email/push.
         // Absent eventId keeps the previous auto-id behaviour.

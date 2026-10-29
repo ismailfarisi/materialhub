@@ -1,4 +1,4 @@
-import { AppDataSource, CreatorTier, User } from "@materialhub/database";
+import { AppDataSource, User } from "@materialhub/database";
 import { HttpError } from "@materialhub/plugins";
 import type { Repository } from "typeorm";
 
@@ -30,7 +30,6 @@ export class UserAdminService {
         "user.role",
         "user.status",
         "user.avatar_url",
-        "user.creator_tier",
         "user.last_login_at",
         "user.created_at",
       ])
@@ -75,33 +74,12 @@ export class UserAdminService {
         apple_id: true,
         wallet_balance: true,
         wallet_currency: true,
-        can_tag_unowned: true,
-        follower_count: true,
-        following_count: true,
-        published_reel_count: true,
-        creator_tier: true,
-        creator_tier_earned_at: true,
         last_login_at: true,
         created_at: true,
       },
     });
     if (!user) throw new HttpError(404, "User not found", "USER_NOT_FOUND");
     return user;
-  }
-
-  async updateCreatorTier(userId: string, tier: string) {
-    const valid: string[] = [CreatorTier.regular, CreatorTier.creator, CreatorTier.influencer];
-    if (!valid.includes(tier)) {
-      throw new HttpError(400, "Invalid creator tier", "INVALID_CREATOR_TIER");
-    }
-    const user = await this.userRepo.findOne({ where: { id: userId } });
-    if (!user) throw new HttpError(404, "User not found", "USER_NOT_FOUND");
-    const previousTier = user.creator_tier;
-    user.creator_tier = tier as CreatorTier;
-    // Stamp the earned-at when promoting; clear it when demoting to regular.
-    user.creator_tier_earned_at = (tier === CreatorTier.regular ? null : new Date()) as any;
-    await this.userRepo.save(user);
-    return { id: user.id, creator_tier: user.creator_tier, previous_tier: previousTier };
   }
 
   async updateStatus(userId: string, status: string) {

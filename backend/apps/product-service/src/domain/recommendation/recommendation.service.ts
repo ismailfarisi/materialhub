@@ -20,10 +20,7 @@ export class RecommendationService {
       take: limit,
     });
 
-    // Post-filter relation results to exclude gift-only products
-    const filteredRelations = relations.filter(
-      (r) => r.relatedProduct && !r.relatedProduct.is_gift_only,
-    );
+    const filteredRelations = relations.filter((r) => r.relatedProduct);
 
     if (filteredRelations.length >= limit) {
       return filteredRelations.map((r) => r.relatedProduct);
@@ -45,7 +42,6 @@ export class RecommendationService {
       .andWhere("p.status = :status", { status: "published" })
       .andWhere("p.price BETWEEN :priceMin AND :priceMax", { priceMin, priceMax })
       .andWhere("p.deleted_at IS NULL")
-      .andWhere("p.is_gift_only IS NOT TRUE")
       .orderBy("p.sales_count", "DESC")
       .take(limit - filteredRelations.length);
 
@@ -67,7 +63,7 @@ export class RecommendationService {
 
     if (topCategories.length === 0) {
       return this.productRepo.find({
-        where: { status: "published" as any, is_gift_only: false },
+        where: { status: "published" as any },
         relations: ["images"],
         order: { sales_count: "DESC" },
         take: limit,
@@ -87,8 +83,7 @@ export class RecommendationService {
       .leftJoinAndSelect("p.images", "img")
       .where("p.category_id IN (:...categoryIds)", { categoryIds })
       .andWhere("p.status = :status", { status: "published" })
-      .andWhere("p.deleted_at IS NULL")
-      .andWhere("p.is_gift_only IS NOT TRUE");
+      .andWhere("p.deleted_at IS NULL");
 
     if (excludeIds.length > 0) {
       qb.andWhere("p.id NOT IN (:...excludeIds)", { excludeIds });
@@ -109,7 +104,6 @@ export class RecommendationService {
         vendor_id: product.vendor_id,
         status: "published" as any,
         id: Not(productId),
-        is_gift_only: false,
       },
       relations: ["images"],
       order: { sales_count: "DESC" },
@@ -124,7 +118,7 @@ export class RecommendationService {
       order: { sort_order: "ASC" },
       take: limit,
     });
-    return relations.map((r) => r.relatedProduct).filter((p) => p && !p.is_gift_only);
+    return relations.map((r) => r.relatedProduct).filter((p) => p);
   }
 
   async crossBrand(productId: string, limit = 5): Promise<Product[]> {
@@ -134,9 +128,7 @@ export class RecommendationService {
       order: { sort_order: "ASC" },
       take: limit,
     });
-    const sameVendorRelations = relations.filter(
-      (r) => r.relatedProduct && !r.relatedProduct.is_gift_only,
-    );
+    const sameVendorRelations = relations.filter((r) => r.relatedProduct);
     if (sameVendorRelations.length >= limit) {
       return sameVendorRelations.map((r) => r.relatedProduct);
     }
@@ -155,7 +147,6 @@ export class RecommendationService {
       .andWhere("p.vendor_id <> :vendorId", { vendorId: product.vendor_id })
       .andWhere("p.status = :status", { status: "published" })
       .andWhere("p.deleted_at IS NULL")
-      .andWhere("p.is_gift_only IS NOT TRUE")
       .orderBy("p.sales_count", "DESC")
       .take(limit - sameVendorRelations.length);
 
@@ -170,7 +161,6 @@ export class RecommendationService {
       where: {
         category_id: product.category_id,
         status: "published" as any,
-        is_gift_only: false,
       },
       relations: ["images"],
       order: { sales_count: "DESC" },

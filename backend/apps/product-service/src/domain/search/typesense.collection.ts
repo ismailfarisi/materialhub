@@ -82,40 +82,15 @@ export interface GroupInfoForIndex {
   from_price: number;
 }
 
-export interface ActiveDealForIndex {
-  id: string;
-  deal_price: number;
-  original_price: number;
-  expires_at: Date | string;
-}
-
 export function productToDocument(
   product: any,
   ancestors?: CategoryAncestors,
-  activeDeal?: ActiveDealForIndex | null,
   groupInfo?: GroupInfoForIndex | null,
 ): ProductDocument {
   const variants = product.variants?.filter((v: any) => v.is_active) ?? [];
   const prices = variants.length > 0 ? variants.map((v: any) => v.price) : [product.price];
   const minPrice = Math.min(...prices);
   const maxPrice = Math.max(...prices);
-
-  // Active flash deal beats both variant prices and compare_at_price for
-  // listing/card display. Both price_min AND price_max collapse to the deal
-  // price so the card renders a single price (not a misleading "AED 50–65"
-  // range that suggests variants). compare_at_price becomes the deal's
-  // original_price so the strike-through reflects the actual saving (not
-  // historical MSRP). When the deal expires, a delayed BullMQ job re-fires
-  // the indexer and these overrides are dropped naturally.
-  //
-  // v1: deal applies to whole product (covers all variants). Variant-specific
-  // deals could later split price_min/price_max if needed.
-  const dealLive = !!activeDeal && new Date(activeDeal.expires_at).getTime() > Date.now();
-  const effectiveMinPrice = dealLive ? activeDeal.deal_price : minPrice;
-  const effectiveMaxPrice = dealLive ? activeDeal.deal_price : maxPrice;
-  const effectiveCompareAtPrice = dealLive
-    ? activeDeal.original_price
-    : product.compare_at_price || undefined;
 
   // Determine stock from inventory data (joined or pre-computed)
   let inStock = false;
@@ -186,9 +161,9 @@ export function productToDocument(
     vendor_name: product.vendor?.name || "Unknown",
     vendor_id: product.vendor_id,
     vendor_slug: product.vendor?.slug || undefined,
-    price_min: effectiveMinPrice,
-    price_max: effectiveMaxPrice,
-    compare_at_price: effectiveCompareAtPrice,
+    price_min: minPrice,
+    price_max: maxPrice,
+    compare_at_price: product.compare_at_price || undefined,
     tags: product.tags || undefined,
     rating_avg: product.rating_avg ? Number(product.rating_avg) : undefined,
     in_stock: inStock,

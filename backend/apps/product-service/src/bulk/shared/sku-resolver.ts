@@ -19,7 +19,7 @@ export interface SkuResolverMaps {
  * Variants index first; products fall back. Duplicate skus across catalog → tracked
  * in `duplicateSkus` so the caller can emit AMBIGUOUS_PRODUCT for them.
  *
- * Used by inventory-update, flash-deal-import, and flash-deal-delete.
+ * Used by inventory-update.
  */
 export async function buildSkuResolverMaps(
   dataSource: DataSource,

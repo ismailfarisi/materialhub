@@ -2,6 +2,7 @@ import "reflect-metadata";
 import { IsNull } from "typeorm";
 import { AppDataSource } from "../data-source.ts";
 import { Category } from "../entities/category.entity.ts";
+import { PaymentMethodThreshold } from "../entities/payment-method-threshold.entity.ts";
 import { SiteSetting } from "../entities/site-setting.entity.ts";
 import { TaxRate } from "../entities/tax-rate.entity.ts";
 import { User } from "../entities/user.entity.ts";
@@ -57,101 +58,151 @@ async function seed() {
   const catRepo = ds.getRepository(Category);
   const catCount = await catRepo.count();
   if (catCount === 0) {
-    const topCategories = await catRepo.save([
-      catRepo.create({
-        name: "Electronics",
-        slug: "electronics",
-        sort_order: 1,
-        is_featured: true,
-        depth: 0,
-        path: "electronics",
-      }),
-      catRepo.create({
-        name: "Fashion",
-        slug: "fashion",
-        sort_order: 2,
-        is_featured: true,
-        depth: 0,
-        path: "fashion",
-      }),
-      catRepo.create({
-        name: "Home & Garden",
-        slug: "home-garden",
-        sort_order: 3,
-        is_featured: true,
-        depth: 0,
-        path: "home-garden",
-      }),
-      catRepo.create({
-        name: "Beauty & Health",
-        slug: "beauty-health",
-        sort_order: 4,
-        is_featured: true,
-        depth: 0,
-        path: "beauty-health",
-      }),
-      catRepo.create({
-        name: "Sports & Outdoors",
-        slug: "sports-outdoors",
-        sort_order: 5,
-        is_featured: false,
-        depth: 0,
-        path: "sports-outdoors",
-      }),
-    ]);
-
-    // Subcategories for Electronics
-    const electronics = topCategories[0]!;
-    await catRepo.save([
-      catRepo.create({
-        name: "Smartphones",
-        slug: "smartphones",
-        parent_id: electronics.id,
-        sort_order: 1,
-        depth: 1,
-        path: "electronics/smartphones",
-      }),
-      catRepo.create({
-        name: "Laptops",
-        slug: "laptops",
-        parent_id: electronics.id,
-        sort_order: 2,
-        depth: 1,
-        path: "electronics/laptops",
-      }),
-      catRepo.create({
-        name: "Audio",
-        slug: "audio",
-        parent_id: electronics.id,
-        sort_order: 3,
-        depth: 1,
-        path: "electronics/audio",
-      }),
-    ]);
-
-    // Subcategories for Fashion
-    const fashion = topCategories[1]!;
-    await catRepo.save([
-      catRepo.create({
-        name: "Men",
-        slug: "mens-fashion",
-        parent_id: fashion.id,
-        sort_order: 1,
-        depth: 1,
-        path: "fashion/mens-fashion",
-      }),
-      catRepo.create({
-        name: "Women",
-        slug: "womens-fashion",
-        parent_id: fashion.id,
-        sort_order: 2,
-        depth: 1,
-        path: "fashion/womens-fashion",
-      }),
-    ]);
-    console.log("  ✓ Created 10 categories (5 top-level + 5 subcategories)");
+    type SeedCat = {
+      name: string;
+      slug: string;
+      featured?: boolean;
+      children: Array<[string, string]>;
+    };
+    const tree: SeedCat[] = [
+      {
+        name: "Papers & Boards",
+        slug: "papers-boards",
+        featured: true,
+        children: [
+          ["Art Papers", "art-papers"],
+          ["Kraft Papers", "kraft-papers"],
+          ["Speciality & Textured Papers", "speciality-papers"],
+          ["Greyboard & Chipboard", "greyboard-chipboard"],
+          ["Corrugated Boards", "corrugated-boards"],
+          ["Paper Sample Books", "paper-sample-books"],
+        ],
+      },
+      {
+        name: "Leather & Fabrics",
+        slug: "leather-fabrics",
+        featured: true,
+        children: [
+          ["PU Leather", "pu-leather"],
+          ["Bonded Leather", "bonded-leather"],
+          ["Linen & Book Cloth", "linen-book-cloth"],
+          ["Velvet & Suede", "velvet-suede"],
+        ],
+      },
+      {
+        name: "Hardware & Fittings",
+        slug: "hardware-fittings",
+        featured: true,
+        children: [
+          ["Hinges", "hinges"],
+          ["Magnets & Closures", "magnets-closures"],
+          ["Handles & Corners", "handles-corners"],
+          ["Rivets, Eyelets & Studs", "rivets-eyelets-studs"],
+        ],
+      },
+      {
+        name: "Adhesives & Finishing",
+        slug: "adhesives-finishing",
+        featured: true,
+        children: [
+          ["Glues & Adhesives", "glues-adhesives"],
+          ["Double-sided Tapes", "double-sided-tapes"],
+          ["Foils & Laminates", "foils-laminates"],
+          ["Inks & Coatings", "inks-coatings"],
+        ],
+      },
+      {
+        name: "Boxes & Packaging",
+        slug: "boxes-packaging",
+        featured: true,
+        children: [
+          ["Rigid Boxes", "rigid-boxes"],
+          ["Folding Cartons", "folding-cartons"],
+          ["Mailer Boxes", "mailer-boxes"],
+          ["Paper Bags", "paper-bags"],
+          ["Inserts & Fillers", "inserts-fillers"],
+        ],
+      },
+      {
+        name: "Ribbons & Trims",
+        slug: "ribbons-trims",
+        children: [
+          ["Satin & Grosgrain Ribbons", "satin-grosgrain-ribbons"],
+          ["Cords & Elastics", "cords-elastics"],
+          ["Tags & Labels", "tags-labels"],
+        ],
+      },
+      {
+        name: "Decoration & Craft",
+        slug: "decoration-craft",
+        featured: true,
+        children: [
+          ["Paper Samples & Swatches", "paper-samples-swatches"],
+          ["Decorative Papers", "decorative-papers"],
+          ["Party & Event Decor", "party-event-decor"],
+          ["Craft Kits", "craft-kits"],
+          ["Stationery", "stationery"],
+        ],
+      },
+    ];
+    let created = 0;
+    for (const [i, top] of tree.entries()) {
+      const parent = await catRepo.save(
+        catRepo.create({
+          name: top.name,
+          slug: top.slug,
+          sort_order: i + 1,
+          is_featured: top.featured ?? false,
+          depth: 0,
+          path: top.slug,
+        }),
+      );
+      created += 1;
+      await catRepo.save(
+        top.children.map(([name, slug], j) =>
+          catRepo.create({
+            name,
+            slug,
+            parent_id: parent.id,
+            sort_order: j + 1,
+            depth: 1,
+            path: `${top.slug}/${slug}`,
+          }),
+        ),
+      );
+      created += top.children.length;
+    }
+    console.log(`  ✓ Created ${created} categories (${tree.length} top-level)`);
   } else {
     console.log("  – Categories already seeded, skipping");
+  }
+
+  // ── BNPL payment thresholds (checkout quote rules) ──────────────
+  const thresholdRepo = ds.getRepository(PaymentMethodThreshold);
+  const thresholdCount = await thresholdRepo.count();
+  if (thresholdCount === 0) {
+    await thresholdRepo.save([
+      thresholdRepo.create({
+        provider: "tabby",
+        min_amount_fils: 10000,
+        max_amount_fils: 500000,
+        plans: [
+          { installments: 4, interval_days: 30 },
+          { installments: 3, interval_days: 30 },
+        ],
+        is_active: true,
+      }),
+      thresholdRepo.create({
+        provider: "tamara",
+        min_amount_fils: 5000,
+        max_amount_fils: 300000,
+        plans: [{ installments: 3, interval_days: 30 }],
+        is_active: true,
+      }),
+    ]);
+    console.log("  ✓ Created BNPL thresholds (Tabby, Tamara)");
+  } else {
+    console.log("  – BNPL thresholds already seeded, skipping");
   }
 
   // ── Tax rates (UAE VAT) ─────────────────────────────────────────
@@ -195,7 +246,7 @@ async function seed() {
       }),
       settingRepo.create({
         key: "site_tagline",
-        value: "UAE's Funkiest Marketplace",
+        value: "Packaging materials and craft supplies for the UAE",
         value_type: "string",
         group: "general",
         description: "Tagline shown in header",
@@ -283,11 +334,10 @@ async function seed() {
     console.log("  – Site settings already seeded, skipping");
   }
 
-  // ── Default platform hub warehouse (gift fulfillment) ──────────
-  // gift_orders.hub_warehouse_id references the platform hub
-  // (vendor_id IS NULL, is_default TRUE). Without it, hub_warehouse_id
-  // is stored as null and gift assembly cannot proceed. This seed ensures
-  // exactly one default platform hub exists. Ops MUST update the address
+  // ── Default platform hub warehouse ──────────────────────────────
+  // The platform hub (vendor_id IS NULL, is_default TRUE) receives
+  // consolidated shipments and sample packs. This seed ensures exactly one
+  // default platform hub exists. Ops MUST update the address
   // fields via the admin panel before going live.
   const warehouseRepo = ds.getRepository(Warehouse);
   const hubExists = await warehouseRepo.findOne({

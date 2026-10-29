@@ -8,7 +8,7 @@ import { describe, expect, mock, test } from "bun:test";
  *     does NOT write users.role = 'vendor'.
  *   - createByAdmin() flow: creates user with role='customer', inserts vendor_members owner row.
  *
- * Uses the same stub-via-Object.defineProperty pattern as vendor-reels-program.test.ts,
+ * Uses a stub-via-Object.defineProperty pattern,
  * plus mock.module for @materialhub/database and @materialhub/guards (module-level imports).
  */
 

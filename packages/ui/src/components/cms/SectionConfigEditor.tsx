@@ -438,7 +438,6 @@ function BidConfigEditor({
 						onValueChange={(v) => setFallbackType(v)}
 						options={[
 							{ label: "Products", value: "products" },
-							{ label: "Flash Deals", value: "flash_deals" },
 						]}
 					/>
 				</FieldItem>
@@ -1060,7 +1059,6 @@ function ProductCarouselEditor({
 											onValueChange={setDataSourceType}
 											options={[
 												{ label: "Products", value: "products" },
-												{ label: "Flash Deals", value: "flash_deals" },
 												{ label: "Collection", value: "collection" },
 											]}
 										/>
@@ -1117,88 +1115,6 @@ function ProductCarouselEditor({
 					onBidConfigChange={onBidConfigChange}
 				/>
 			)}
-		</div>
-	);
-}
-
-// ─── 4. flash_deals ──────────────────────────────────────────────────────────
-
-function FlashDealsEditor({
-	settings,
-	dataSource,
-	onSettingsChange,
-	onDataSourceChange,
-}: Pick<
-	SectionConfigEditorProps,
-	"settings" | "dataSource" | "onSettingsChange" | "onDataSourceChange"
->) {
-	const title = (settings.title as Record<string, unknown>) ?? {};
-
-	return (
-		<div className="space-y-5">
-			<FieldGroup>
-				<SectionLabel>Settings</SectionLabel>
-				<FieldRow>
-					<FieldItem label="Title EN">
-						<Input
-							value={(title.en as string) ?? ""}
-							onChange={(e) =>
-								onSettingsChange({
-									...settings,
-									title: { ...title, en: e.target.value },
-								})
-							}
-							className="h-9 text-sm"
-						/>
-					</FieldItem>
-					<FieldItem label="Title AR">
-						<Input
-							value={(title.ar as string) ?? ""}
-							onChange={(e) =>
-								onSettingsChange({
-									...settings,
-									title: { ...title, ar: e.target.value },
-								})
-							}
-							dir="rtl"
-							className="h-9 text-sm"
-						/>
-					</FieldItem>
-				</FieldRow>
-				<SwitchField
-					label="Show Countdown"
-					checked={Boolean(settings.show_countdown)}
-					onCheckedChange={(v) =>
-						onSettingsChange({ ...settings, show_countdown: v })
-					}
-				/>
-			</FieldGroup>
-
-			<Separator />
-
-			<FieldGroup>
-				<SectionLabel>Data Source</SectionLabel>
-				<FieldItem label="Limit">
-					<Input
-						type="number"
-						min={1}
-						value={
-							((dataSource.query as Record<string, unknown>)
-								?.limit as number) ?? ""
-						}
-						onChange={(e) =>
-							onDataSourceChange({
-								...dataSource,
-								query: {
-									...((dataSource.query as Record<string, unknown>) ?? {}),
-									limit: Number(e.target.value),
-								},
-							})
-						}
-						className="h-9 text-sm"
-					/>
-				</FieldItem>
-			</FieldGroup>
 		</div>
 	);
 }
@@ -1832,15 +1748,6 @@ function SectionConfigEditorBody(
 				/>
 			);
 
-		case "flash_deals":
-			return (
-				<FlashDealsEditor
-					settings={settings}
-					dataSource={dataSource}
-					onSettingsChange={onSettingsChange}
-					onDataSourceChange={onDataSourceChange}
-				/>
-			);
 
 		case "vendor_showcase":
 			return (

@@ -45,7 +45,6 @@ mock.module("@materialhub/database", () => ({
   Attribute: class {},
   Brand: class {},
   Category: class {},
-  FlashDeal: class {},
   Product: class {},
   ProductAttributeValue: class {},
   ProductCategory: class {},
@@ -74,7 +73,11 @@ mock.module("@materialhub/utils", () => ({
   generateSlug: (v: string) => v,
 }));
 
+// Spread the real module so other exports (SearchSyncProcessor, used by
+// search-sync.job.test.ts in the same bun process) survive the mock.
+const realSearchSync = await import("../search/search-sync.job.ts");
 mock.module("../search/search-sync.job.ts", () => ({
+  ...realSearchSync,
   enqueueSearchSync: async () => {},
 }));
 

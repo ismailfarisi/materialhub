@@ -3,7 +3,6 @@ import {
   Attribute,
   Brand,
   Category,
-  FlashDeal,
   Product,
   ProductAttributeValue,
   ProductCategory,
@@ -83,14 +82,6 @@ export class ProductService {
       relations: ProductService.SEARCH_RELATIONS,
     });
     if (full) {
-      // Gift-only products are never exposed in the storefront search index.
-      // If one somehow makes it here (e.g. admin edits), remove it from the
-      // index rather than upsert it.
-      if (full.is_gift_only) {
-        await this.searchService.removeProduct(productId);
-        await enqueueSearchSync({ type: "delete", productId });
-        return;
-      }
       await this.searchService.indexProduct(full);
       await enqueueSearchSync({ type: "upsert", product: full });
     }
@@ -523,7 +514,7 @@ export class ProductService {
 
   async getBySlug(slug: string) {
     const product = await this.repo.findOne({
-      where: { slug, status: "published" as any, is_gift_only: false },
+      where: { slug, status: "published" as any },
       relations: [
         "images",
         "variants",
@@ -547,36 +538,12 @@ export class ProductService {
     (product as any).in_stock = totalAvailable > 0;
     (product as any).quantity_available = totalAvailable;
 
-    // Enrich with active flash deal
-    const flashDealRepo = AppDataSource.getRepository(FlashDeal);
-    const flashDeal = await flashDealRepo
-      .createQueryBuilder("fd")
-      .where("fd.product_id = :productId", { productId: product.id })
-      .andWhere("fd.is_active = true")
-      .andWhere("fd.starts_at <= NOW()")
-      .andWhere("fd.expires_at > NOW()")
-      .andWhere("(fd.quantity_limit IS NULL OR fd.quantity_sold < fd.quantity_limit)")
-      .getOne();
-
-    if (flashDeal) {
-      (product as any).flash_deal = {
-        id: flashDeal.id,
-        deal_price: flashDeal.deal_price,
-        original_price: flashDeal.original_price,
-        discount_percentage: flashDeal.discount_percentage,
-        expires_at: flashDeal.expires_at,
-        quantity_remaining: flashDeal.quantity_limit
-          ? flashDeal.quantity_limit - flashDeal.quantity_sold
-          : null,
-      };
-    }
-
     return product;
   }
 
   async getById(id: string) {
     const product = await this.repo.findOne({
-      where: { id, is_gift_only: false },
+      where: { id },
       relations: [
         "images",
         "variants",
@@ -591,34 +558,10 @@ export class ProductService {
     });
     if (!product) throw new HttpError(404, "Product not found", "PRODUCT_NOT_FOUND");
 
-    // Enrich with active flash deal
-    const flashDealRepo = AppDataSource.getRepository(FlashDeal);
-    const flashDeal = await flashDealRepo
-      .createQueryBuilder("fd")
-      .where("fd.product_id = :productId", { productId: product.id })
-      .andWhere("fd.is_active = true")
-      .andWhere("fd.starts_at <= NOW()")
-      .andWhere("fd.expires_at > NOW()")
-      .andWhere("(fd.quantity_limit IS NULL OR fd.quantity_sold < fd.quantity_limit)")
-      .getOne();
-
-    if (flashDeal) {
-      (product as any).flash_deal = {
-        id: flashDeal.id,
-        deal_price: flashDeal.deal_price,
-        original_price: flashDeal.original_price,
-        discount_percentage: flashDeal.discount_percentage,
-        expires_at: flashDeal.expires_at,
-        quantity_remaining: flashDeal.quantity_limit
-          ? flashDeal.quantity_limit - flashDeal.quantity_sold
-          : null,
-      };
-    }
-
     return product;
   }
 
-  /** Admin-only variant: no is_gift_only filter so gift-only products remain visible. */
+  /** Admin-only variant: also loads translations. */
   async getByIdForAdmin(id: string) {
     const product = await this.repo.findOne({
       where: { id },
@@ -636,30 +579,6 @@ export class ProductService {
       ],
     });
     if (!product) throw new HttpError(404, "Product not found", "PRODUCT_NOT_FOUND");
-
-    // Enrich with active flash deal
-    const flashDealRepo = AppDataSource.getRepository(FlashDeal);
-    const flashDeal = await flashDealRepo
-      .createQueryBuilder("fd")
-      .where("fd.product_id = :productId", { productId: product.id })
-      .andWhere("fd.is_active = true")
-      .andWhere("fd.starts_at <= NOW()")
-      .andWhere("fd.expires_at > NOW()")
-      .andWhere("(fd.quantity_limit IS NULL OR fd.quantity_sold < fd.quantity_limit)")
-      .getOne();
-
-    if (flashDeal) {
-      (product as any).flash_deal = {
-        id: flashDeal.id,
-        deal_price: flashDeal.deal_price,
-        original_price: flashDeal.original_price,
-        discount_percentage: flashDeal.discount_percentage,
-        expires_at: flashDeal.expires_at,
-        quantity_remaining: flashDeal.quantity_limit
-          ? flashDeal.quantity_limit - flashDeal.quantity_sold
-          : null,
-      };
-    }
 
     return product;
   }
@@ -886,37 +805,6 @@ export class ProductService {
     const sortOrder = (filters.order ?? "desc").toUpperCase() as "ASC" | "DESC";
     qb.orderBy(`p.${sortField}`, sortOrder);
     const [items, total] = await qb.skip(skip).take(limit).getManyAndCount();
-
-    // Batch flash deal enrichment
-    const productIds = items.map((p: any) => p.id);
-    if (productIds.length > 0) {
-      const flashDealRepo = AppDataSource.getRepository(FlashDeal);
-      const activeDeals = await flashDealRepo
-        .createQueryBuilder("fd")
-        .where("fd.product_id IN (:...productIds)", { productIds })
-        .andWhere("fd.is_active = true")
-        .andWhere("fd.starts_at <= NOW()")
-        .andWhere("fd.expires_at > NOW()")
-        .andWhere("(fd.quantity_limit IS NULL OR fd.quantity_sold < fd.quantity_limit)")
-        .getMany();
-
-      const dealMap = new Map(activeDeals.map((d: any) => [d.product_id, d]));
-      for (const product of items) {
-        const deal = dealMap.get((product as any).id);
-        if (deal) {
-          (product as any).flash_deal = {
-            id: deal.id,
-            deal_price: deal.deal_price,
-            original_price: deal.original_price,
-            discount_percentage: deal.discount_percentage,
-            expires_at: deal.expires_at,
-            quantity_remaining: deal.quantity_limit
-              ? deal.quantity_limit - deal.quantity_sold
-              : null,
-          };
-        }
-      }
-    }
 
     return { items, total, page, limit };
   }

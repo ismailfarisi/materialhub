@@ -69,7 +69,7 @@ describe("auth-service", () => {
   test("email normalization lowercases and trims", () => {
     const normalize = (email: string) => email.toLowerCase().trim();
     expect(normalize("  User@Example.COM  ")).toBe("user@example.com");
-    expect(normalize("ADMIN@materialhub.COM")).toBe("admin@materialhubuae.com");
+    expect(normalize("ADMIN@materialhubUAE.COM")).toBe("admin@materialhubuae.com");
   });
 
   // ─── Device info extraction ───

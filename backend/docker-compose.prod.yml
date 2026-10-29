@@ -60,11 +60,8 @@ services:
       - VENDOR_HOST=${VENDOR_HOST}
       - NOTIFICATION_HOST=${NOTIFICATION_HOST}
       - CMS_HOST=${CMS_HOST}
-      - REELS_HOST=${REELS_HOST}
       - INTEGRATION_HOST=${INTEGRATION_HOST}
       - INTEGRATION_PORT=${INTEGRATION_PORT}
-      - BOOKING_HOST=${BOOKING_HOST:-booking-service}
-      - BOOKING_PORT=${BOOKING_PORT:-3009}
     depends_on:
       postgres:
         condition: service_healthy
@@ -126,34 +123,6 @@ services:
       redis:
         condition: service_healthy
       typesense:
-        condition: service_healthy
-    restart: unless-stopped
-
-  booking-service:
-    image: ${ECR_REGISTRY}/materialhub-booking-service:${IMAGE_TAG:-latest}
-    ports:
-      - "3009:3009"
-    environment:
-      - NODE_ENV=production
-      - REDIS_HOST=redis
-      - DB_HOST=postgres
-      - PORT=${BOOKING_PORT:-3009}
-      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
-      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
-      # Signs internal calls to order-service (payments/refunds).
-      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET}
-      # HMAC key for outbound signed .ics feed tokens. Config fails closed in
-      # production if this is unset, so booking-service will not boot without it.
-      - BOOKING_ICAL_FEED_SECRET=${BOOKING_ICAL_FEED_SECRET}
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
-      # Storefront base for customer deep links in booking notifications.
-      - WEB_URL=${WEB_URL}
-      # Public gateway base used to build the absolute .ics feed URL handed to vendors.
-      - PUBLIC_API_URL=${PUBLIC_API_URL}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     restart: unless-stopped
 
@@ -242,27 +211,6 @@ services:
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - S3_MEDIA_BUCKET=${S3_MEDIA_BUCKET}
       - CLOUDFRONT_DOMAIN=${CLOUDFRONT_DOMAIN}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
-
-  reels-service:
-    image: ${ECR_REGISTRY}/materialhub-reels-service:${IMAGE_TAG:-latest}
-    ports:
-      - "3007:3007"
-    environment:
-      - NODE_ENV=production
-      - REDIS_HOST=redis
-      - DB_HOST=postgres
-      - PORT=${REELS_PORT}
-      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET}
-      - ORDER_HOST=${ORDER_HOST}
-      - CLOUDFLARE_STREAM_ACCOUNT_ID=${CLOUDFLARE_STREAM_ACCOUNT_ID}
-      - CLOUDFLARE_STREAM_API_TOKEN=${CLOUDFLARE_STREAM_API_TOKEN}
-      - CLOUDFLARE_STREAM_WEBHOOK_SECRET=${CLOUDFLARE_STREAM_WEBHOOK_SECRET}
     depends_on:
       postgres:
         condition: service_healthy

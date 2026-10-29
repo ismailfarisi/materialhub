@@ -39,7 +39,6 @@ mock.module("@materialhub/database", () => ({
   Attribute: class {},
   Brand: class {},
   Category: class {},
-  FlashDeal: class {},
   Product: class {},
   ProductAttributeValue: class {},
   ProductCategory: class {},

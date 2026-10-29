@@ -36,8 +36,8 @@ describe("internalServiceAuth", () => {
     expect(await res.text()).toBe("ok");
   });
 
-  it("accepts a valid signed token with iss=booking-service", async () => {
-    const token = jwt.sign({ iss: "booking-service" }, SECRET, {
+  it("accepts a valid signed token with iss=order-service", async () => {
+    const token = jwt.sign({ iss: "order-service" }, SECRET, {
       expiresIn: "1m",
     });
     const res = await app.handle(

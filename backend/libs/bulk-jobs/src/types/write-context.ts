@@ -11,7 +11,7 @@ export interface WriteContext {
   /** Log a diff-log entry for an update. Worker base provides the implementation. */
   logChange: (entry: {
     rowNumber: number;
-    entityType: "product" | "product_variant" | "inventory" | "flash_deal";
+    entityType: "product" | "product_variant" | "inventory";
     entityId: string;
     field: string;
     oldValue: unknown;

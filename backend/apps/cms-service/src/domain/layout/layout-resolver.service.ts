@@ -247,8 +247,6 @@ export class LayoutResolverService {
     // Vendor-page query allowlist: only types that semantically scope to a single vendor.
     // The map value is the QUERY-PARAM NAME the upstream service expects — naming differs:
     //   /products            → vendorId       (camelCase, postgres-search.adapter)
-    //   /products/flash-deals → vendor_id     (snake_case)
-    //   /reels/feed          → vendorId       (camelCase)
     //   /categories/tree     → vendor_id      (snake_case, see category.service.ts)
     // `vendors` (other-vendor lists) and `brands` are intentionally excluded — they have
     // no meaningful vendor-scope and would produce confusing or empty results.
@@ -256,8 +254,6 @@ export class LayoutResolverService {
     // and confirm the param-name convention of the upstream endpoint.
     const VENDOR_SCOPE_PARAM: Record<string, string | null> = {
       products: "vendorId",
-      flash_deals: "vendor_id",
-      reels: "vendorId",
       categories: "vendor_id",
       collection: null,
     };
@@ -281,7 +277,6 @@ export class LayoutResolverService {
 
     const productHost = config.serviceHost.product;
     const vendorHost = config.serviceHost.vendor;
-    const reelsHost = config.serviceHost.reels;
     const collectionSlug =
       typeof safeQuery.collection_slug === "string" ? safeQuery.collection_slug.trim() : "";
     const serviceMap: Record<string, string> = {
@@ -290,8 +285,6 @@ export class LayoutResolverService {
       vendors: `http://${vendorHost}:${config.port.vendor}/vendors`,
       brands: `http://${productHost}:${config.port.product}/brands`,
       brand_spotlight: `http://${productHost}:${config.port.product}/brands/spotlight`,
-      flash_deals: `http://${productHost}:${config.port.product}/products/flash-deals`,
-      reels: `http://${reelsHost}:${config.port.reels}/reels/feed`,
       ...(collectionSlug
         ? {
             collection: `http://${productHost}:${config.port.product}/collections/${encodeURIComponent(collectionSlug)}`,

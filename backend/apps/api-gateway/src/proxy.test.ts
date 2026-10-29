@@ -29,19 +29,6 @@ describe("resolveUpstream", () => {
     expect(result!.upstreamPath).toBe("/products/123");
   });
 
-  test("resolves /services/:slug (PDP) to product service", () => {
-    const result = resolveUpstream("/services/glow-facial");
-    expect(result).not.toBeNull();
-    expect(result!.target).toContain("3002");
-  });
-
-  test("resolves /services/:slug/availability to booking service", () => {
-    const result = resolveUpstream("/services/glow-facial/availability");
-    expect(result).not.toBeNull();
-    expect(result!.target).toContain("3009");
-    expect(result!.upstreamPath).toBe("/services/glow-facial/availability");
-  });
-
   test("resolves /orders to order service", () => {
     const result = resolveUpstream("/orders");
     expect(result).not.toBeNull();
@@ -104,13 +91,6 @@ describe("resolveUpstream", () => {
     expect(result!.target).toContain("3004");
   });
 
-  test("resolves /vendor/reels-program to vendor service", () => {
-    const result = resolveUpstream("/vendor/reels-program");
-    expect(result).not.toBeNull();
-    expect(result!.target).toContain("3004");
-    expect(result!.upstreamPath).toBe("/vendor/reels-program");
-  });
-
   test("resolves /me/follows/vendors/:id to vendor service", () => {
     const single = resolveUpstream("/me/follows/vendors/abc-123");
     const recent = resolveUpstream("/me/follows/vendors/recent");
@@ -120,13 +100,6 @@ describe("resolveUpstream", () => {
     expect(recent!.target).toContain("3004");
     expect(single!.upstreamPath).toBe("/me/follows/vendors/abc-123");
     expect(recent!.upstreamPath).toBe("/me/follows/vendors/recent");
-  });
-
-  test("resolves /vendor/reels-program/opt-in to vendor service", () => {
-    const result = resolveUpstream("/vendor/reels-program/opt-in");
-    expect(result).not.toBeNull();
-    expect(result!.target).toContain("3004");
-    expect(result!.upstreamPath).toBe("/vendor/reels-program/opt-in");
   });
 
   test("resolves /notifications to notification service", () => {
@@ -190,36 +163,48 @@ describe("resolveUpstream", () => {
     expect(result!.target).toContain("3002");
   });
 
-  test("resolves /gift/boxes to product service", () => {
-    const boxes = resolveUpstream("/gift/boxes");
-    const occasions = resolveUpstream("/gift/occasions");
-    const admin = resolveUpstream("/admin/gift/occasions");
-    expect(boxes).not.toBeNull();
-    expect(occasions).not.toBeNull();
-    expect(admin).not.toBeNull();
-    expect(boxes!.target).toContain("3002");
-    expect(occasions!.target).toContain("3002");
-    expect(admin!.target).toContain("3002");
-    expect(boxes!.upstreamPath).toBe("/gift/boxes");
-    expect(admin!.upstreamPath).toBe("/admin/gift/occasions");
-  });
-
-  test("resolves /admin/gift-fulfillment to order service", () => {
-    const list = resolveUpstream("/admin/gift-fulfillment");
-    const detail = resolveUpstream("/admin/gift-fulfillment/abc-123");
-    const slip = resolveUpstream("/admin/gift-fulfillment/abc-123/packing-slip");
-    expect(list).not.toBeNull();
-    expect(detail).not.toBeNull();
-    expect(slip).not.toBeNull();
-    expect(list!.target).toContain("3003");
-    expect(detail!.target).toContain("3003");
-    expect(slip!.target).toContain("3003");
-  });
-
   test("returns null for unknown paths", () => {
     expect(resolveUpstream("/unknown")).toBeNull();
     expect(resolveUpstream("/")).toBeNull();
     expect(resolveUpstream("/api/something")).toBeNull();
+  });
+
+  test("returns null for removed domains (reels, booking, gifting, flash deals, affiliates, referrals)", () => {
+    for (const path of [
+      "/reels",
+      "/users/abc-123",
+      "/me/reels",
+      "/me/creator",
+      "/admin/reels",
+      "/admin/creators",
+      "/vendor/reels",
+      "/vendor/reels-program",
+      "/booking",
+      "/bookings",
+      "/admin/bookings",
+      "/me/bookings",
+      "/vendor/booking",
+      "/services/glow-facial",
+      "/services/glow-facial/availability",
+      "/admin/service-offerings",
+      "/vendor/services",
+      "/manage/blocks",
+      "/calendar/staff/abc/feed.ics",
+      "/gift/boxes",
+      "/admin/gift",
+      "/admin/gift-fulfillment",
+      "/admin/flash-deals",
+      "/vendor/flash-deals",
+      "/admin/affiliates",
+      "/vendor/affiliates",
+      "/me/affiliate",
+      "/a/AFF-ABC12345",
+      "/ref/CODE",
+      "/me/referral-code",
+      "/me/referrals",
+    ]) {
+      expect(resolveUpstream(path)).toBeNull();
+    }
   });
 
   test("does not match partial prefix (e.g. /authorize)", () => {

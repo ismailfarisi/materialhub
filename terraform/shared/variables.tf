@@ -23,9 +23,7 @@ variable "services" {
     "order-service",
     "vendor-service",
     "notification-service",
-    "cms-service",
-    "reels-service",
-    "integration-service",
-    "booking-service",
+    "cms-service",
+    "integration-service",
   ]
 }

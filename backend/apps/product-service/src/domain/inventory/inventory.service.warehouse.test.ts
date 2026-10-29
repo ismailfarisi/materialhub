@@ -65,6 +65,7 @@ mock.module("@materialhub/database", () => ({
     transaction: async (fn: (m: unknown) => unknown) => fn(fakeManager),
   },
   Inventory: class Inventory {},
+  Product: class Product {},
   InventoryMovement: class InventoryMovement {},
   Warehouse: class Warehouse {},
   WarehouseVendorPermission: class WarehouseVendorPermission {},
@@ -84,8 +85,12 @@ mock.module("@materialhub/plugins", () => ({
 
 // enqueueSearchSync opens a BullMQ/Redis connection at call time; this is a
 // mocked-repo unit test with no Redis, so the real module hangs the suite.
+// Spread the real module so other exports (SearchSyncProcessor, used by
+// search-sync.job.test.ts in the same bun process) survive the mock.
+const realSearchSync = await import("../search/search-sync.job.ts");
 const searchSyncs: any[] = [];
 mock.module("../search/search-sync.job.ts", () => ({
+  ...realSearchSync,
   enqueueSearchSync: async (job: any) => {
     // Stands in for a Redis outage, so the best-effort contract is exercised
     // rather than assumed.

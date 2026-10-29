@@ -435,15 +435,7 @@ export class TypesenseSearchAdapter implements SearchService {
       }));
   }
 
-  async indexProduct(
-    product: any,
-    activeDeal?: {
-      id: string;
-      deal_price: number;
-      original_price: number;
-      expires_at: Date | string;
-    } | null,
-  ): Promise<void> {
+  async indexProduct(product: any): Promise<void> {
     const ts = getClient();
     const ancestors = product.category_id
       ? await loadCategoryAncestors(product.category_id)
@@ -470,7 +462,7 @@ export class TypesenseSearchAdapter implements SearchService {
       };
     }
 
-    const doc = productToDocument(product, ancestors, activeDeal, groupInfo);
+    const doc = productToDocument(product, ancestors, groupInfo);
     await ts
       .collections(this.collectionName)
       .documents()

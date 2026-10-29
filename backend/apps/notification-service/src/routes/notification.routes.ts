@@ -18,7 +18,7 @@ export const notificationRoutes = new Elysia({ prefix: "/notifications" })
   // Internal service-to-service send endpoint gated by x-internal-secret.
   // Placed BEFORE `.use(jwtAuth)` so it does NOT inherit JWT gating, matching
   // the notification-preference.routes.ts `/seed-internal` pattern.
-  // reels-service's PostDeliveryNudgeService notifier calls this route.
+  // Other backend services call this route to send a notification on a user's behalf.
   .post(
     "/send-internal",
     ({ body, request, set, notificationController }: any) => {

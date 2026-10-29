@@ -13,25 +13,10 @@ export interface DispatchEvent {
   data?: Record<string, unknown>;
 }
 
-// A template's rendered output, normalized whether it came from the plain
-// bodyTemplate interpolation or a type's custom `render` hook (see
-// templates.ts's NotificationTemplate doc comment).
-interface RenderedTemplate {
-  title: string;
-  body: string;
-  actionUrl?: string;
-  emailHtmlExtra?: string;
-}
-
 // Types whose email is delivered as a rich, standalone transactional message by
 // OrderEmailService. The generic dispatcher still sends their in-app (and push)
 // copy, but must NOT also send a plain email or the customer gets two.
 //
-// Booking types (Phase 5 Task 8) are DELIBERATELY NOT in this set: unlike
-// order_confirmed, nothing else sends their email — they get their full
-// (conditional) content straight from this generic pipeline via
-// templates.ts's per-type `render` hook (see that file's NotificationTemplate
-// doc comment). Adding a booking type here would silence its only email path.
 // vendor_new_order belongs here for the same reason as order_confirmed:
 // OrderEmailService.sendForConfirmedOrder already mails every vendor member
 // the rich new-order alert unconditionally, so without this entry a member
@@ -54,27 +39,12 @@ export class NotificationDispatcherService {
     const template = getTemplate(event.type);
     if (!template) return;
 
-    // 2. Render title, body, actionUrl — plain {key} interpolation for most
-    // types; booking types (Phase 5 Task 8) with conditional content (e.g.
-    // booking_cancelled's void-vs-refund wording) go through the template's
-    // own `render` hook instead (see templates.ts's NotificationTemplate doc
-    // comment). `render`'s `actionUrl`, when present, wins over
-    // actionUrlTemplate — it's for cases where the emitter already built the
-    // full right-shaped link (a dispute/pay-now URL) into `variables` rather
-    // than something assemblable from a static `{token}` template string.
-    const rendered: RenderedTemplate = template.render
-      ? template.render(event.variables, event.data ?? {})
-      : {
-          title: renderTemplate(template.title, event.variables),
-          body: renderTemplate(template.bodyTemplate, event.variables),
-        };
-    const title = rendered.title;
-    const body = rendered.body;
-    const actionUrl =
-      rendered.actionUrl ??
-      (template.actionUrlTemplate
-        ? renderTemplate(template.actionUrlTemplate, event.variables)
-        : undefined);
+    // 2. Render title, body, actionUrl via plain {key} interpolation
+    const title = renderTemplate(template.title, event.variables);
+    const body = renderTemplate(template.bodyTemplate, event.variables);
+    const actionUrl = template.actionUrlTemplate
+      ? renderTemplate(template.actionUrlTemplate, event.variables)
+      : undefined;
 
     // 3. Get user preferences
     const preferences = await this.preferenceService.getPreferences(event.userId);
@@ -114,12 +84,9 @@ export class NotificationDispatcherService {
       }
     }
 
-    // 6. Email channel — emailHtmlExtra (booking_reminder's .ics download
-    // link) is appended to the EMAIL body only, never shown in-app (step 5
-    // above already sent the plain `body` there).
+    // 6. Email channel
     if (emailEnabled && user?.email) {
-      const emailBody = rendered.emailHtmlExtra ? body + rendered.emailHtmlExtra : body;
-      const html = renderHtmlEmail(title, emailBody, actionUrl);
+      const html = renderHtmlEmail(title, body, actionUrl);
       await this.emailDispatcher.send(user.email, title, html);
     }
 

@@ -142,7 +142,7 @@ describe("LayoutResolverService.resolveBidded — vendor_showcase hydration", ()
         {
           id: "v-1",
           slug: "alpha",
-          name: "Alpha Beauty",
+          name: "Alpha Packaging",
           logo_url: "alpha.png",
           rating_avg: "4.50",
           total_orders: 12,
@@ -167,7 +167,7 @@ describe("LayoutResolverService.resolveBidded — vendor_showcase hydration", ()
       id: "v-1",
       bid_id: "bid-1",
       sponsored: true,
-      name: "Alpha Beauty",
+      name: "Alpha Packaging",
       slug: "alpha",
       logo_url: "alpha.png",
       rating_avg: "4.50",
@@ -393,8 +393,8 @@ describe("LayoutResolverService.resolve — vendor context", () => {
 
   const buildVendor = () => ({
     id: "vendor-1",
-    slug: "luxe-beauty",
-    name: "Luxe Beauty",
+    slug: "luxe-boards",
+    name: "Luxe Boards",
     logo_url: "https://example.com/logo.png",
     banner_url: "https://example.com/banner.jpg",
   });

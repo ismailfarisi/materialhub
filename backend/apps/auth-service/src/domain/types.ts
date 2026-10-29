@@ -8,8 +8,6 @@ export interface RegisterData {
   first_name: string;
   last_name: string;
   phone?: string;
-  referral_code?: string;
-  device_fingerprint?: string;
 }
 
 export interface DeviceInfo {

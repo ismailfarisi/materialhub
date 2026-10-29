@@ -122,9 +122,6 @@ export function isPublicRoute(path: string, method: string): boolean {
   // stamping) while guests still pass without a 401. Listing it as public would
   // short-circuit with user=null and silently break logged-in attribution.
   if (path === "/newsletter/unsubscribe") return true;
-  // Public affiliate resolve+click: GET /a/:slug (attribution capture at
-  // POST /a/track is optional-auth, NOT public — see isOptionalAuthRoute).
-  if (isRead && /^\/a\/[^/]+$/.test(path)) return true;
   // Slack Events API webhook — authenticated by Slack request signature, not JWT.
   if (path === "/support/slack/events") return true;
   return false;
@@ -146,7 +143,6 @@ function isOptionalAuthRoute(path: string, method: string): boolean {
   if (path === "/cart/items") return true;
   // Cart item by variant (PATCH /cart/items/:variantId)
   if (/^\/cart\/items\/[^/]+$/.test(path)) return true;
-  const isRead = method === "GET" || method === "HEAD";
   // Newsletter: subscribe stamps user_id when a token is present; status reads
   // the authenticated user's email. Both tolerate anonymous callers.
   if (path === "/newsletter/subscribe" && method === "POST") return true;

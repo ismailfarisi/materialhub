@@ -12,7 +12,6 @@ const dbMockExports: Record<string, any> = {
   Attribute: class {},
   Brand: class {},
   Category: class {},
-  FlashDeal: class {},
   Product: class {},
   ProductAttributeValue: class {},
   ProductCategory: class {},
@@ -60,64 +59,6 @@ mock.module("@materialhub/utils", () => ({
 }));
 
 const { ProductService } = await import("./product.service.ts");
-
-describe("ProductService.getById — gift-only filter", () => {
-  test("passes is_gift_only: false in the where clause so gift-only products return 404", async () => {
-    const captured: any[] = [];
-    const origGetRepository = dbMockExports.AppDataSource.getRepository;
-    dbMockExports.AppDataSource.getRepository = (_entity: any) => ({
-      findOne: async (opts: any) => {
-        captured.push(opts);
-        return null; // null → HttpError 404 inside getById
-      },
-      find: async () => [],
-      count: async () => 0,
-    });
-
-    const svc = new ProductService({ searchProducts: async () => ({ data: [], total: 0 }) } as any);
-    try {
-      await svc.getById("00000000-0000-0000-0000-000000000001");
-    } catch {
-      // Expected: HttpError 404
-    }
-
-    dbMockExports.AppDataSource.getRepository = origGetRepository;
-
-    expect(captured.length).toBeGreaterThan(0);
-    expect(captured[0].where).toMatchObject({ is_gift_only: false });
-  });
-});
-
-describe("ProductService.getBySlug — gift-only filter", () => {
-  test("passes is_gift_only: false in the where clause so gift-only products return 404", async () => {
-    const captured: any[] = [];
-    // Patch the shared AppDataSource mock's getRepository in-place so the
-    // already-imported service sees the updated behaviour (named imports
-    // capture the reference at import time, so we mutate the property).
-    const origGetRepository = dbMockExports.AppDataSource.getRepository;
-    dbMockExports.AppDataSource.getRepository = (entity: any) => ({
-      findOne: async (opts: any) => {
-        captured.push(opts);
-        return null; // null → HttpError 404 inside getBySlug
-      },
-      find: async () => [],
-      count: async () => 0,
-    });
-
-    const svc = new ProductService({ searchProducts: async () => ({ data: [], total: 0 }) } as any);
-    try {
-      await svc.getBySlug("some-gift-product");
-    } catch {
-      // Expected: HttpError 404
-    }
-
-    // Restore original mock
-    dbMockExports.AppDataSource.getRepository = origGetRepository;
-
-    expect(captured.length).toBeGreaterThan(0);
-    expect(captured[0].where).toMatchObject({ is_gift_only: false });
-  });
-});
 
 describe("ProductService.search — URL param normalization", () => {
   test("maps ?q=dior to filters.query so the adapter receives full-text query", async () => {

@@ -257,11 +257,8 @@ export class AuthController {
   }
 
   async getMe(userId: string) {
-    const [user, beauty_profile_completed] = await Promise.all([
-      this.authService.getUserById(userId),
-      this.authService.isBeautyProfileCompleted(userId),
-    ]);
-    return { user: { ...user, beauty_profile_completed } };
+    const user = await this.authService.getUserById(userId);
+    return { user };
   }
 
   async changePassword(userId: string, currentPassword: string, newPassword: string) {

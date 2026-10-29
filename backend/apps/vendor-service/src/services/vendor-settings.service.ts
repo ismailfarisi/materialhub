@@ -1,4 +1,4 @@
-import { AppDataSource, Vendor, VendorHoliday, VendorTranslation } from "@materialhub/database";
+import { AppDataSource, Vendor, VendorTranslation } from "@materialhub/database";
 import { HttpError } from "@materialhub/plugins";
 
 export class VendorSettingsService {
@@ -7,9 +7,6 @@ export class VendorSettingsService {
   }
   private get translationRepo() {
     return AppDataSource.getRepository(VendorTranslation);
-  }
-  private get holidayRepo() {
-    return AppDataSource.getRepository(VendorHoliday);
   }
 
   async updateSettings(
@@ -54,44 +51,5 @@ export class VendorSettingsService {
     }
 
     return this.translationRepo.save(translation);
-  }
-
-  async createHoliday(
-    vendorId: string,
-    data: {
-      name: string;
-      starts_at: Date;
-      ends_at: Date;
-      auto_extend_sla?: boolean;
-      notify_customers?: boolean;
-    },
-  ) {
-    if (data.ends_at < data.starts_at) {
-      throw new HttpError(400, "End date must be after start date", "INVALID_DATE_RANGE");
-    }
-
-    try {
-      return await this.holidayRepo.save(this.holidayRepo.create({ vendor_id: vendorId, ...data }));
-    } catch (err: any) {
-      if (err.code === "23P01") {
-        throw new HttpError(409, "Holiday dates overlap with existing holiday", "HOLIDAY_OVERLAP");
-      }
-      throw err;
-    }
-  }
-
-  async listHolidays(vendorId: string) {
-    return this.holidayRepo.find({
-      where: { vendor_id: vendorId },
-      order: { starts_at: "ASC" },
-    });
-  }
-
-  async deleteHoliday(vendorId: string, holidayId: string) {
-    const holiday = await this.holidayRepo.findOne({
-      where: { id: holidayId, vendor_id: vendorId },
-    });
-    if (!holiday) throw new HttpError(404, "Holiday not found", "HOLIDAY_NOT_FOUND");
-    await this.holidayRepo.softRemove(holiday);
   }
 }

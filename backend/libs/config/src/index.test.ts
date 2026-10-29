@@ -131,13 +131,19 @@ describe("config", () => {
       );
 
       expect(reimported.config.isProduction).toBe(true);
-      expect(reimported.config.tamara.allowedRedirectOrigins).toContain("https://materialhubuae.com");
-      expect(reimported.config.tamara.allowedRedirectOrigins).toContain("https://www.materialhubuae.com");
+      expect(reimported.config.tamara.allowedRedirectOrigins).toContain(
+        "https://materialhubuae.com",
+      );
+      expect(reimported.config.tamara.allowedRedirectOrigins).toContain(
+        "https://www.materialhubuae.com",
+      );
       // The malformed inputs themselves must not have leaked through as
       // literal origins (that would mean safeOrigin()/the fallback did
       // nothing rather than failing safe).
       expect(reimported.config.tamara.allowedRedirectOrigins).not.toContain("materialhubuae.com");
-      expect(reimported.config.tamara.allowedRedirectOrigins).not.toContain("www.materialhubuae.com");
+      expect(reimported.config.tamara.allowedRedirectOrigins).not.toContain(
+        "www.materialhubuae.com",
+      );
     } finally {
       for (const key of keysToRestore) {
         const original = originalValues[key];

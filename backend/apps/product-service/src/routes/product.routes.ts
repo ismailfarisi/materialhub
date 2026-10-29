@@ -50,37 +50,6 @@ export const productRoutes = new Elysia({ prefix: "/products" })
   })
 
   .get(
-    "/flash-deals",
-    async ({
-      query,
-      flashDealController,
-    }: {
-      query: { vendor_id?: string; category?: string; limit?: number | string };
-      flashDealController: {
-        listPublic: (filters: {
-          vendor_id?: string;
-          category?: string;
-          limit?: number;
-        }) => Promise<unknown>;
-      };
-    }) => {
-      const data = await flashDealController.listPublic({
-        vendor_id: query.vendor_id,
-        category: query.category,
-        limit: query.limit ? Number(query.limit) : undefined,
-      });
-      return { statusCode: 200, data, timestamp: new Date().toISOString() };
-    },
-    {
-      query: t.Object({
-        vendor_id: t.Optional(t.String()),
-        category: t.Optional(t.String()),
-        limit: t.Optional(t.Numeric({ minimum: 1, maximum: 50 })),
-      }),
-    },
-  )
-
-  .get(
     "/by-slug/:slug",
     async ({ params, productController }) => {
       const data = await productController.getBySlug(params.slug);

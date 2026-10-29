@@ -55,7 +55,7 @@ describe("MetaWhatsAppDispatcher", () => {
   it("returns false without calling Meta for a type with no template mapping", async () => {
     const { dispatcher, whatsapp } = buildDispatcher();
 
-    const sent = await dispatcher.send("+971501234567", "booking_confirmed", {});
+    const sent = await dispatcher.send("+971501234567", "low_stock", {});
 
     expect(sent).toBe(false);
     expect(whatsapp.sendTemplate).not.toHaveBeenCalled();

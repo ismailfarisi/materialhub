@@ -138,38 +138,6 @@ export function buildBulkRoutes(
         { params: JobIdParam },
       )
 
-      // ─── Revert ─────────────────────────────────────────────────────────
-      .post(
-        "/jobs/:id/revert",
-        async ({ params, bulkAccess, user, set, audit }: any) => {
-          if (!bulkAccess) return unauth(set);
-          const access = bulkAccess as BulkAccessHelper;
-          const job = await service.getById(params.id);
-          if (!job) {
-            set.status = 404;
-            return { error: "not_found" };
-          }
-          await access.assertCanView(job);
-          try {
-            const result = await service.revert(params.id, user!.id);
-            audit.action = `bulk.${job.job_type}_revert`;
-            audit.entity_type = "bulk_job";
-            audit.entity_id = params.id;
-            audit.metadata = {
-              jobType: job.job_type,
-              vendorId: job.vendor_id,
-              ...result,
-            };
-            return { ok: true, ...result };
-          } catch (err: any) {
-            const status = err.statusCode ?? 500;
-            set.status = status;
-            return { error: err.message, code: err.code ?? null };
-          }
-        },
-        { params: JobIdParam },
-      )
-
       // ─── List ───────────────────────────────────────────────────────────
       .get(
         "/jobs",

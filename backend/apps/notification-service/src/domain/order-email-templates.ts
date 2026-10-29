@@ -205,7 +205,7 @@ function shell(opts: {
         <tr>
           <td style="background:${COLORS.pearl};padding:24px 32px;border-top:1px solid ${COLORS.border};">
             <p style="margin:0;color:${COLORS.russet};font-size:13px;line-height:1.6;">${opts.footerNote ? opts.footerNote : `Questions about your order? Reach us at <a href="mailto:support@materialhubuae.com" style="color:${COLORS.amber};text-decoration:none;">support@materialhubuae.com</a>.`}</p>
-            <p style="margin:14px 0 0;color:${COLORS.russet};font-size:12px;">MaterialHub — Beauty &amp; Fragrance Marketplace, United Arab Emirates</p>
+            <p style="margin:14px 0 0;color:${COLORS.russet};font-size:12px;">MaterialHub UAE — Materials &amp; Packaging Marketplace, United Arab Emirates</p>
           </td>
         </tr>
       </table>

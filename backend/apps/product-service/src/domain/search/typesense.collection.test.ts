@@ -66,7 +66,7 @@ describe("productToDocument", () => {
       id: "uuid-images",
       name: "Image Product",
       slug: "image-product",
-      category: { name: "Beauty" },
+      category: { name: "Packaging" },
       vendor: {},
       vendor_id: "v",
       price: 1000,
@@ -106,11 +106,11 @@ describe("productToDocument", () => {
       created_at: new Date("2026-01-01"),
     };
     const doc = productToDocument(product as any, {
-      ids: ["leaf-id", "fragrance-id", "beauty-id"],
-      slugs: ["perfume-oils-attars", "fragrance", "beauty-fragrance"],
+      ids: ["leaf-id", "papers-id", "packaging-id"],
+      slugs: ["kraft-paper", "papers", "packaging-papers"],
     });
-    expect(doc.category_ids).toEqual(["leaf-id", "fragrance-id", "beauty-id"]);
-    expect(doc.category_slugs).toEqual(["perfume-oils-attars", "fragrance", "beauty-fragrance"]);
+    expect(doc.category_ids).toEqual(["leaf-id", "papers-id", "packaging-id"]);
+    expect(doc.category_slugs).toEqual(["kraft-paper", "papers", "packaging-papers"]);
   });
 
   it("falls back to leaf-only when ancestors are not provided", () => {
@@ -149,62 +149,11 @@ describe("productToDocument", () => {
     expect(doc.in_stock).toBe(false);
   });
 
-  it("active deal collapses price_min AND price_max + overrides compare_at_price", () => {
+  it("uses product price and compare_at_price (MSRP) as-is", () => {
     const product = {
-      id: "uuid-deal-1",
-      name: "Deal Product",
-      category: { name: "Beauty" },
-      vendor: {},
-      vendor_id: "v",
-      price: 6500,
-      compare_at_price: 8000, // historical MSRP
-      status: "published",
-      variants: [],
-      inventoryRecords: [{ quantity_on_hand: 10, quantity_reserved: 0 }],
-      created_at: new Date("2026-01-01"),
-    };
-    const doc = productToDocument(product as any, undefined, {
-      id: "deal-id",
-      deal_price: 5000,
-      original_price: 6500,
-      expires_at: new Date(Date.now() + 60_000), // 1min in the future
-    });
-    expect(doc.price_min).toBe(5000);
-    // price_max collapses to the deal price too — otherwise cards render
-    // a misleading "AED 50–65" range that suggests variants.
-    expect(doc.price_max).toBe(5000);
-    expect(doc.compare_at_price).toBe(6500); // deal's original_price wins over MSRP
-  });
-
-  it("ignores expired deal — falls back to product price + MSRP", () => {
-    const product = {
-      id: "uuid-deal-2",
-      name: "Expired Deal Product",
-      category: { name: "Beauty" },
-      vendor: {},
-      vendor_id: "v",
-      price: 6500,
-      compare_at_price: 8000,
-      status: "published",
-      variants: [],
-      inventoryRecords: [],
-      created_at: new Date("2026-01-01"),
-    };
-    const doc = productToDocument(product as any, undefined, {
-      id: "deal-id",
-      deal_price: 5000,
-      original_price: 6500,
-      expires_at: new Date(Date.now() - 60_000), // 1min in the past
-    });
-    expect(doc.price_min).toBe(6500);
-    expect(doc.compare_at_price).toBe(8000);
-  });
-
-  it("no deal passed: behavior unchanged", () => {
-    const product = {
-      id: "uuid-no-deal",
-      name: "No Deal Product",
-      category: { name: "Beauty" },
+      id: "uuid-plain",
+      name: "Plain Product",
+      category: { name: "Packaging" },
       vendor: {},
       vendor_id: "v",
       price: 6500,

@@ -107,21 +107,6 @@ services:
         condition: service_started
     restart: unless-stopped
 
-  booking-service:
-    image: ghcr.io/${GHCR_OWNER}/materialhub-booking-service:${IMAGE_TAG:-staging}
-    env_file: .env
-    environment:
-      - NODE_ENV=production
-      - REDIS_HOST=redis
-      - DB_HOST=postgres
-      - PORT=${BOOKING_PORT}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
-
   order-service:
     image: ghcr.io/${GHCR_OWNER}/materialhub-order-service:${IMAGE_TAG:-staging}
     env_file: .env
@@ -181,22 +166,6 @@ services:
       - REDIS_HOST=redis
       - DB_HOST=postgres
       - PORT=${CMS_PORT}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
-
-  reels-service:
-    image: ghcr.io/${GHCR_OWNER}/materialhub-reels-service:${IMAGE_TAG:-staging}
-    env_file: .env
-    environment:
-      - NODE_ENV=production
-      - REDIS_HOST=redis
-      - DB_HOST=postgres
-      - PORT=${REELS_PORT}
-      - ORDER_HOST=${ORDER_HOST}
     depends_on:
       postgres:
         condition: service_healthy

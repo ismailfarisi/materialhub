@@ -6,7 +6,11 @@ const searchSyncs: any[] = [];
 
 // enqueueSearchSync opens a BullMQ/Redis connection at call time; these are
 // mocked-repo unit tests with no Redis, so the real module hangs the suite.
+// Spread the real module so other exports (SearchSyncProcessor, used by
+// search-sync.job.test.ts in the same bun process) survive the mock.
+const realSearchSync = await import("../search/search-sync.job.ts");
 mock.module("../search/search-sync.job.ts", () => ({
+  ...realSearchSync,
   enqueueSearchSync: async (job: any) => {
     searchSyncs.push(job);
   },

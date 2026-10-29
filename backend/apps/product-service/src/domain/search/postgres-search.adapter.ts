@@ -9,10 +9,7 @@ export class PostgresSearchAdapter implements SearchService {
       .createQueryBuilder("p")
       .leftJoinAndSelect("p.images", "img", "img.is_primary = true")
       .leftJoinAndSelect("p.vendor", "v")
-      .where("p.deleted_at IS NULL")
-      // Gift-only products are sold exclusively inside gift boxes and must
-      // never appear in the public storefront catalog or search results.
-      .andWhere("p.is_gift_only IS NOT TRUE");
+      .where("p.deleted_at IS NULL");
 
     // Status filter (default: published for public)
     if (filters.status) {
@@ -143,9 +140,7 @@ export class PostgresSearchAdapter implements SearchService {
       .createQueryBuilder("p")
       .select("p.id", "id")
       .where("p.deleted_at IS NULL")
-      .andWhere("p.status = :status", { status: filters.status ?? "published" })
-      // Gift-only products must not surface in any public catalog query.
-      .andWhere("p.is_gift_only IS NOT TRUE");
+      .andWhere("p.status = :status", { status: filters.status ?? "published" });
 
     if (filters.ids?.length) qb.andWhere("p.id IN (:...ids)", { ids: filters.ids });
 

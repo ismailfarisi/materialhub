@@ -43,7 +43,7 @@ const fakeManager = {
 
 // Reversible monkey-patch on AppDataSource — `mock.module` would pollute the
 // module cache for the entire test process, breaking unrelated test files (e.g.
-// flash-deal.service.test.ts) that import entity classes from this module.
+// product.service.search.test.ts) that import entity classes from this module.
 import { AppDataSource } from "@materialhub/database";
 
 // biome-ignore lint/suspicious/noExplicitAny: capture for restore in afterAll

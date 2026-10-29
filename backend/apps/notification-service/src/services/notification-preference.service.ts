@@ -5,8 +5,7 @@ import type {
   PreferenceUpdate,
 } from "../domain/types.ts";
 
-// What an ABSENT preference row means, per channel (Phase 5 Task 8 fix,
-// RE-SCOPED in Phase 7 review — see POST_SEED_DEFAULT_IN_APP_TYPES below).
+// What an ABSENT preference row means, per channel.
 //
 // The dispatcher's own `??` fallbacks (notification-dispatcher.service.ts:
 // `typePrefs?.email ?? false`, `typePrefs?.push ?? false`,
@@ -14,17 +13,13 @@ import type {
 // preference -> in-app yes, email/push no". But getPreferences() pre-fills
 // EVERY missing {type, channel} cell, and a pre-filled real `false` means the
 // dispatcher's `?? true` in-app default can never fire: any NotificationType
-// added to the enum AFTER a user's preference rows were seeded (the 11
-// booking types, for every pre-existing user) had its in-app notifications
-// silently disabled.
+// added to the enum AFTER a user's preference rows were seeded would have its
+// in-app notifications silently disabled.
 //
-// Phase 7 review: the original fix applied `in_app: true` to EVERY
-// NotificationType, which silently changed behaviour for pre-existing types
-// too — a user with no explicit rows would suddenly start receiving in-app
-// notifications for `order_shipped`, `dispute_*`, etc. There is no migration
-// and no flag behind that, so it is scoped back: the `in_app: true` default
-// applies ONLY to the booking types that post-date the seeding, and every
-// pre-existing type keeps its historical blanket `false`.
+// The `in_app: true` default is deliberately scoped to the types that
+// post-date the seeding (POST_SEED_DEFAULT_IN_APP_TYPES); every pre-existing
+// type keeps its historical blanket `false` so behaviour does not silently
+// change for users who never expressed a preference.
 const BASE_ABSENT_ROW_CHANNEL_DEFAULTS: Record<NotificationChannel, boolean> = {
   [NotificationChannel.in_app]: false,
   [NotificationChannel.email]: false,
@@ -37,26 +32,14 @@ const BASE_ABSENT_ROW_CHANNEL_DEFAULTS: Record<NotificationChannel, boolean> = {
 };
 
 // NotificationTypes added to the enum AFTER existing users' preference rows
-// were seeded: the 11 booking types (Phase 5 Task 2) plus vendor_new_order.
-// These are exactly the set for which an absent row means "never asked", not
-// "opted out". Everything else in NotificationType predates that seeding and
-// keeps the pre-fix `false`.
+// were seeded. These are exactly the set for which an absent row means "never
+// asked", not "opted out". Everything else in NotificationType predates that
+// seeding and keeps the pre-fix `false`.
 //
 // Any future type added to NotificationType belongs here too — otherwise every
 // pre-existing user gets no in-app notification for it and the new dispatch
 // path is silently dead on arrival.
 const POST_SEED_DEFAULT_IN_APP_TYPES: ReadonlySet<NotificationType> = new Set([
-  NotificationType.booking_confirmed,
-  NotificationType.booking_reminder,
-  NotificationType.booking_rescheduled,
-  NotificationType.booking_cancelled,
-  NotificationType.booking_no_show,
-  NotificationType.booking_completed,
-  NotificationType.booking_review_request,
-  NotificationType.booking_payment_failed,
-  NotificationType.vendor_new_booking,
-  NotificationType.vendor_booking_cancelled,
-  NotificationType.vendor_booking_conflict,
   NotificationType.vendor_new_order,
 ]);
 
@@ -115,7 +98,7 @@ export class NotificationPreferenceService {
       matrix[type] = {} as Record<NotificationChannel, boolean>;
       for (const channel of channels) {
         // Absent row -> the per-(type, channel) default (see
-        // absentRowDefault): `in_app: true` for the booking types only, the
+        // absentRowDefault): `in_app: true` for the post-seed types only, the
         // historical `false` for everything else. Overlaid by any real DB row
         // below, so explicit opt-ins/opt-outs keep working.
         matrix[type][channel] = absentRowDefault(type, channel);

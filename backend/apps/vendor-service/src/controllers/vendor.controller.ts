@@ -122,18 +122,9 @@ export class VendorController {
     return this.documentService.list(vendorId);
   }
 
-  // Settings & holidays
+  // Settings
   async updateSettings(vendorId: string, body: any) {
     return this.settingsService.updateSettings(vendorId, body);
-  }
-  async createHoliday(vendorId: string, body: any) {
-    return this.settingsService.createHoliday(vendorId, body);
-  }
-  async listHolidays(vendorId: string) {
-    return this.settingsService.listHolidays(vendorId);
-  }
-  async deleteHoliday(vendorId: string, holidayId: string) {
-    return this.settingsService.deleteHoliday(vendorId, holidayId);
   }
 
   // Payment connect

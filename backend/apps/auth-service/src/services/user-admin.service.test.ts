@@ -16,7 +16,7 @@ function makeRepo(user: Partial<User> | null) {
 }
 
 describe("UserAdminService.getById", () => {
-  test("returns the full profile/creator/wallet field set", async () => {
+  test("returns the full profile/wallet field set", async () => {
     const full: Partial<User> = {
       id: "u1",
       first_name: "Aya",
@@ -25,27 +25,20 @@ describe("UserAdminService.getById", () => {
       phone: "+971500000000",
       wallet_balance: 12345,
       wallet_currency: "AED",
-      follower_count: 10,
-      creator_tier: "creator" as any,
     };
     const service = new UserAdminService(makeRepo(full) as any);
     const result = await service.getById("u1");
     expect(result.wallet_balance).toBe(12345);
-    expect(result.follower_count).toBe(10);
     expect(result.phone).toBe("+971500000000");
   });
 
-  test("select widens beyond the list projection (wallet + creator counters + verification)", async () => {
+  test("select widens beyond the list projection (wallet + verification)", async () => {
     const repo = makeRepo({ id: "u1" } as any) as any;
     const service = new UserAdminService(repo);
     await service.getById("u1");
     const select = repo.getLastSelect();
     expect(select.wallet_balance).toBe(true);
     expect(select.wallet_currency).toBe(true);
-    expect(select.follower_count).toBe(true);
-    expect(select.following_count).toBe(true);
-    expect(select.published_reel_count).toBe(true);
-    expect(select.creator_tier_earned_at).toBe(true);
     expect(select.phone).toBe(true);
     expect(select.email_verified_at).toBe(true);
     // secrets stay out

@@ -24,7 +24,6 @@ import {
 import type { UserRole } from "@materialhub/guards";
 import type { Queue } from "bullmq";
 import type { DataSource } from "typeorm";
-import { scheduleIndexUpdatesBulk } from "../domain/flash-deal/effects.ts";
 import {
   buildCatalogImportTemplateForCategories,
   buildCatalogTemplateCategoriesFromRows,
@@ -170,79 +169,6 @@ export class BulkService {
     const job = await this.jobRepo.findById(jobId);
     if (!job) throw Object.assign(new Error("not_found"), { statusCode: 404 });
     await this.jobRepo.requestCancel(jobId);
-  }
-
-  async revert(
-    jobId: string,
-    callerUserId: string,
-  ): Promise<{ revertedCount: number; skippedAlreadyDeletedCount: number }> {
-    const job = await this.jobRepo.findById(jobId);
-    if (!job) throw Object.assign(new Error("not_found"), { statusCode: 404 });
-    if (job.job_type !== BulkJobType.FlashDealImport) {
-      throw Object.assign(new Error("unsupported_job_type"), {
-        statusCode: 400,
-      });
-    }
-    if (
-      job.status !== BulkJobStatus.Completed &&
-      job.status !== BulkJobStatus.CompletedWithErrors
-    ) {
-      throw Object.assign(new Error("not_in_terminal_state"), {
-        statusCode: 400,
-      });
-    }
-    if (job.reverted_at !== null) {
-      throw Object.assign(new Error("already_reverted"), { statusCode: 409 });
-    }
-
-    return this.dataSource.transaction(async (manager) => {
-      const created = await manager.query(
-        `SELECT entity_id, new_value FROM bulk_import_job_row_changes
-         WHERE job_id = $1 AND entity_type = 'flash_deal' AND field = '_created'`,
-        [jobId],
-      );
-      if (created.length === 0) {
-        await manager.query(
-          "UPDATE bulk_import_jobs SET reverted_at = now(), reverted_by_user_id = $2 WHERE id = $1",
-          [jobId, callerUserId],
-        );
-        return { revertedCount: 0, skippedAlreadyDeletedCount: 0 };
-      }
-      const ids = created.map((r: { entity_id: string }) => r.entity_id);
-      // TypeORM 0.3.28's manager.query() returns `[rows, rowCount]` for UPDATE/DELETE
-      // (SELECT/INSERT return a flat rows array). Destructure the rows array.
-      const [deleted] = (await manager.query(
-        `UPDATE flash_deals SET deleted_at = now(), updated_at = now()
-         WHERE id = ANY($1::uuid[]) AND deleted_at IS NULL
-         RETURNING id, product_id`,
-        [ids],
-      )) as [Array<{ id: string; product_id: string }>, number];
-      const deletedIdSet = new Set(deleted.map((r: { id: string }) => r.id));
-
-      for (const r of created) {
-        if (!deletedIdSet.has(r.entity_id)) continue;
-        await manager.query(
-          `INSERT INTO bulk_import_job_row_changes
-            (job_id, row_number, entity_type, entity_id, field, old_value, new_value)
-           VALUES ($1, $2, 'flash_deal', $3, '_reverted', $4::jsonb, NULL)`,
-          [jobId, 0, r.entity_id, JSON.stringify(r.new_value)],
-        );
-      }
-      await manager.query(
-        "UPDATE bulk_import_jobs SET reverted_at = now(), reverted_by_user_id = $2 WHERE id = $1",
-        [jobId, callerUserId],
-      );
-
-      const productIds = Array.from(
-        new Set(deleted.map((r: { product_id: string }) => r.product_id)),
-      ) as string[];
-      await scheduleIndexUpdatesBulk(productIds.map((productId) => ({ productId, deals: [] })));
-
-      return {
-        revertedCount: deleted.length,
-        skippedAlreadyDeletedCount: ids.length - deleted.length,
-      };
-    });
   }
 
   async getById(jobId: string): Promise<BulkImportJob | null> {

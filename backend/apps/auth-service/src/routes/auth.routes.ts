@@ -80,8 +80,6 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
         phone: t.Optional(t.String({ maxLength: 20 })),
         device_type: t.Optional(t.String()),
         device_id: t.Optional(t.String()),
-        referral_code: t.Optional(t.String()),
-        device_fingerprint: t.Optional(t.String()),
       }),
     },
   )

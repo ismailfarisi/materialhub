@@ -72,8 +72,8 @@ describe("OrderEmailService.sendForConfirmedOrder", () => {
     },
   ];
   const vendors = [
-    { id: "v1", name: "Glow Co", contact_email: "v1@example.com" },
-    { id: "v2", name: "Pure Skin", contact_email: "v2@example.com" },
+    { id: "v1", name: "Gulf Paper Co", contact_email: "v1@example.com" },
+    { id: "v2", name: "Prime Boards", contact_email: "v2@example.com" },
   ];
   const users = [{ id: "u1", email: "customer@example.com", first_name: "Sara" }];
 
@@ -154,7 +154,7 @@ describe("OrderEmailService.sendForConfirmedOrder", () => {
       makeRepo([order]) as any,
       makeRepo(items) as any,
       makeRepo(vendorOrders) as any,
-      makeRepo([{ id: "v1", name: "Glow Co", contact_email: null }, vendors[1]]) as any,
+      makeRepo([{ id: "v1", name: "Gulf Paper Co", contact_email: null }, vendors[1]]) as any,
       makeRepo([]) as any,
       makeRepo(users) as any,
       makeRepo([{ id: "p1", order_id: "o1", gateway: "stripe", created_at: new Date() }]) as any,
@@ -175,13 +175,31 @@ describe("OrderEmailService.sendForConfirmedOrder", () => {
 
   it("also emails active owner/manager/staff members, deduping contact_email and excluding viewers/inactive", async () => {
     const members = [
-      { id: "m1", vendor_id: "v1", email: "manager@glow.com", role: "manager", status: "active" },
+      {
+        id: "m1",
+        vendor_id: "v1",
+        email: "manager@gulfpaper.com",
+        role: "manager",
+        status: "active",
+      },
       // Same address as v1's contact_email (different case) — must dedupe.
       { id: "m2", vendor_id: "v1", email: "V1@example.com", role: "owner", status: "active" },
       // Viewer role — read-only, must NOT be notified.
-      { id: "m3", vendor_id: "v1", email: "viewer@glow.com", role: "viewer", status: "active" },
+      {
+        id: "m3",
+        vendor_id: "v1",
+        email: "viewer@gulfpaper.com",
+        role: "viewer",
+        status: "active",
+      },
       // Pending member — not active yet, must NOT be notified.
-      { id: "m4", vendor_id: "v1", email: "pending@glow.com", role: "staff", status: "pending" },
+      {
+        id: "m4",
+        vendor_id: "v1",
+        email: "pending@gulfpaper.com",
+        role: "staff",
+        status: "pending",
+      },
     ];
     const svc = build(
       [{ id: "p1", order_id: "o1", gateway: "stripe", created_at: new Date() }],
@@ -192,7 +210,7 @@ describe("OrderEmailService.sendForConfirmedOrder", () => {
     const recipients = sent.map((s) => s.to).sort();
     expect(recipients).toEqual([
       "customer@example.com",
-      "manager@glow.com",
+      "manager@gulfpaper.com",
       "v1@example.com",
       "v2@example.com",
     ]);
@@ -204,9 +222,15 @@ describe("OrderEmailService.sendForConfirmedOrder", () => {
       makeRepo([order]) as any,
       makeRepo(items) as any,
       makeRepo(vendorOrders) as any,
-      makeRepo([{ id: "v1", name: "Glow Co", contact_email: null }, vendors[1]]) as any,
+      makeRepo([{ id: "v1", name: "Gulf Paper Co", contact_email: null }, vendors[1]]) as any,
       makeRepo([
-        { id: "m1", vendor_id: "v1", email: "owner@glow.com", role: "owner", status: "active" },
+        {
+          id: "m1",
+          vendor_id: "v1",
+          email: "owner@gulfpaper.com",
+          role: "owner",
+          status: "active",
+        },
       ]) as any,
       makeRepo(users) as any,
       makeRepo([{ id: "p1", order_id: "o1", gateway: "stripe", created_at: new Date() }]) as any,
@@ -222,7 +246,7 @@ describe("OrderEmailService.sendForConfirmedOrder", () => {
     await svc.sendForConfirmedOrder("o1");
 
     const recipients = sent.map((s) => s.to).sort();
-    expect(recipients).toEqual(["customer@example.com", "owner@glow.com", "v2@example.com"]);
+    expect(recipients).toEqual(["customer@example.com", "owner@gulfpaper.com", "v2@example.com"]);
   });
 
   it("sends a full-detail ops copy to the configured setting with a [New Order] subject", async () => {

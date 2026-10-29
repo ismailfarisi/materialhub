@@ -59,7 +59,6 @@ jobs:
           JWT_ACCESS_SECRET: ${{ secrets.PROD_JWT_ACCESS_SECRET }}
           JWT_REFRESH_SECRET: ${{ secrets.PROD_JWT_REFRESH_SECRET }}
           INTERNAL_SERVICE_SECRET: ${{ secrets.PROD_INTERNAL_SERVICE_SECRET }}
-          BOOKING_ICAL_FEED_SECRET: ${{ secrets.PROD_BOOKING_ICAL_FEED_SECRET }}
           STRIPE_SECRET_KEY: ${{ secrets.PROD_STRIPE_SECRET_KEY }}
           STRIPE_CONNECT_WEBHOOK_SECRET: ${{ secrets.PROD_STRIPE_CONNECT_WEBHOOK_SECRET }}
           VENDOR_ENCRYPTION_KEY: ${{ secrets.PROD_VENDOR_ENCRYPTION_KEY }}
@@ -111,7 +110,6 @@ jobs:
             "jwt/access-secret|JWT_ACCESS_SECRET"
             "jwt/refresh-secret|JWT_REFRESH_SECRET"
             "internal-service-secret|INTERNAL_SERVICE_SECRET"
-            "booking/ical-feed-secret|BOOKING_ICAL_FEED_SECRET"
             "stripe/secret-key|STRIPE_SECRET_KEY"
             "stripe/connect-webhook|STRIPE_CONNECT_WEBHOOK_SECRET"
             "encryption/vendor-key|VENDOR_ENCRYPTION_KEY"
@@ -172,7 +170,6 @@ jobs:
             JWT_ACCESS_SECRET
             JWT_REFRESH_SECRET
             INTERNAL_SERVICE_SECRET
-            BOOKING_ICAL_FEED_SECRET
             ENCRYPTION_KEY
             VENDOR_ENCRYPTION_KEY
             TWO_FA_ENCRYPTION_KEY
@@ -283,15 +280,6 @@ jobs:
       image-tag: ${{ github.ref_name }}
     secrets: inherit
 
-  build-reels-service:
-    needs: backend-checks
-    uses: ./.github/workflows/build-service.yml
-    with:
-      service: reels-service
-      environment: production
-      image-tag: ${{ github.ref_name }}
-    secrets: inherit
-
   build-integration-service:
     needs: backend-checks
     uses: ./.github/workflows/build-service.yml
@@ -301,16 +289,6 @@ jobs:
       image-tag: ${{ github.ref_name }}
     secrets: inherit
 
-  build-booking-service:
-    needs: backend-checks
-    uses: ./.github/workflows/build-service.yml
-    with:
-      service: booking-service
-      environment: production
-      image-tag: ${{ github.ref_name }}
-    secrets: inherit
-
-  # ----- Deploy to EC2 via SSM Run Command -----
   deploy-backend:
     name: Deploy Backend to Production
     needs:
@@ -322,9 +300,7 @@ jobs:
       - build-vendor-service
       - build-notification-service
       - build-cms-service
-      - build-reels-service
       - build-integration-service
-      - build-booking-service
     runs-on: ubuntu-latest
     timeout-minutes: 20
 

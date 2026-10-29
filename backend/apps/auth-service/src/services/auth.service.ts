@@ -3,7 +3,6 @@ import { User } from "@materialhub/database";
 import { UserSession } from "@materialhub/database";
 import { UserToken } from "@materialhub/database";
 import { GuestSession } from "@materialhub/database";
-import { CustomerBeautyProfile } from "@materialhub/database";
 import { HttpError } from "@materialhub/plugins";
 import { IsNull, MoreThan } from "typeorm";
 import type {
@@ -34,12 +33,6 @@ const REFRESH_TOKEN_EXPIRY_DAYS = 7;
 const GUEST_SESSION_EXPIRY_DAYS = 30;
 
 export class AuthService {
-  private referralService: any;
-
-  setReferralService(service: any) {
-    this.referralService = service;
-  }
-
   private get userRepo() {
     return AppDataSource.getRepository(User);
   }
@@ -54,10 +47,6 @@ export class AuthService {
 
   private get guestSessionRepo() {
     return AppDataSource.getRepository(GuestSession);
-  }
-
-  private get beautyProfileRepo() {
-    return AppDataSource.getRepository(CustomerBeautyProfile);
   }
 
   async register(data: RegisterData) {
@@ -88,22 +77,6 @@ export class AuthService {
 
       const savedUser = await this.userRepo.save(existingUser);
       const emailToken = await this.createEmailVerifyToken(savedUser.id);
-
-      // Generate referral code for new user
-      if (this.referralService) {
-        await this.referralService.createReferralCode(savedUser.id);
-      }
-
-      // If user signed up via referral link, attribute the referral
-      if (data.referral_code && this.referralService) {
-        await this.referralService.attributeSignup(
-          data.referral_code,
-          savedUser.id,
-          email,
-          data.device_fingerprint,
-        );
-      }
-
       return {
         user: stripPasswordHash(savedUser),
         emailVerifyToken: emailToken,
@@ -126,22 +99,6 @@ export class AuthService {
 
     const savedUser = await this.userRepo.save(user);
     const emailToken = await this.createEmailVerifyToken(savedUser.id);
-
-    // Generate referral code for new user
-    if (this.referralService) {
-      await this.referralService.createReferralCode(savedUser.id);
-    }
-
-    // If user signed up via referral link, attribute the referral
-    if (data.referral_code && this.referralService) {
-      await this.referralService.attributeSignup(
-        data.referral_code,
-        savedUser.id,
-        email,
-        data.device_fingerprint,
-      );
-    }
-
     return {
       user: stripPasswordHash(savedUser),
       emailVerifyToken: emailToken,
@@ -544,13 +501,6 @@ export class AuthService {
     }
 
     return stripPasswordHash(user);
-  }
-
-  async isBeautyProfileCompleted(userId: string): Promise<boolean> {
-    const profile = await this.beautyProfileRepo.findOne({
-      where: { user_id: userId },
-    });
-    return !!profile?.completed_at;
   }
 
   async changePassword(userId: string, currentPassword: string, newPassword: string) {

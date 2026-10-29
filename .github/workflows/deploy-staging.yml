@@ -31,7 +31,6 @@ jobs:
       vendor-service: ${{ steps.filter.outputs.vendor-service }}
       notification-service: ${{ steps.filter.outputs.notification-service }}
       cms-service: ${{ steps.filter.outputs.cms-service }}
-      reels-service: ${{ steps.filter.outputs.reels-service }}
       integration-service: ${{ steps.filter.outputs.integration-service }}
       any-backend: ${{ steps.filter.outputs.any-backend }}
     steps:
@@ -60,9 +59,6 @@ jobs:
               - 'backend/libs/**'
             cms-service:
               - 'backend/apps/cms-service/**'
-              - 'backend/libs/**'
-            reels-service:
-              - 'backend/apps/reels-service/**'
               - 'backend/libs/**'
             integration-service:
               - 'backend/apps/integration-service/**'
@@ -94,7 +90,6 @@ jobs:
           --filter='@materialhub/vendor-service'
           --filter='@materialhub/notification-service'
           --filter='@materialhub/cms-service'
-          --filter='@materialhub/reels-service'
           --filter='@materialhub/integration-service'
 
   # ----- Sync GitHub Secrets to AWS SSM -----
@@ -308,16 +303,6 @@ jobs:
       image-tag: ${{ github.sha }}
     secrets: inherit
 
-  build-reels-service:
-    needs: [backend-checks, detect-changes]
-    if: needs.detect-changes.outputs.reels-service == 'true'
-    uses: ./.github/workflows/build-service.yml
-    with:
-      service: reels-service
-      environment: staging
-      image-tag: ${{ github.sha }}
-    secrets: inherit
-
   build-integration-service:
     needs: [backend-checks, detect-changes]
     if: needs.detect-changes.outputs.integration-service == 'true'
@@ -341,7 +326,6 @@ jobs:
       - build-vendor-service
       - build-notification-service
       - build-cms-service
-      - build-reels-service
       - build-integration-service
     if: |
       always() &&
@@ -397,7 +381,7 @@ jobs:
             # additions that postdate the original bootstrap. Idempotent —
             # the fragment only lands when the service entry is missing.
             # Aesthetic note: the block lands after the migrate (tools) block
-            # rather than between reels-service and migrate. Functionally
+            # rather than between the services and migrate. Functionally
             # equivalent — docker-compose ignores service order.
             if ! sudo grep -q "^  integration-service:" /opt/materialhub/docker-compose.yml; then
               cat /tmp/compose-fragments/integration-service.staging.yml \

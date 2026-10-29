@@ -1,3 +1,5 @@
+name: materialhub
+
 services:
   # --- Infrastructure ---
   postgres:
@@ -19,7 +21,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redisdata:/data
     healthcheck:
@@ -31,7 +33,7 @@ services:
   typesense:
     image: typesense/typesense:27.1
     ports:
-      - "8108:8108"
+      - "${TYPESENSE_PORT:-8108}:8108"
     volumes:
       - typesensedata:/data
     command: "--data-dir /data --api-key=dev-typesense-key --enable-cors"
@@ -78,24 +80,6 @@ services:
         $$s3 put-bucket-policy --bucket "$$BUCKET" --policy "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":[\"s3:GetObject\"],\"Resource\":[\"arn:aws:s3:::$$BUCKET/*\"]}]}"
         echo "local-s3 bucket $$BUCKET ready"
 
-  # Local stand-in for Cloudflare Stream (reels video, dev only). Transcodes
-  # uploads with ffmpeg into ./.local-stream/<uid>/ and posts the signed
-  # webhook to reels-service running on the host. Enable it in the backend
-  # with CLOUDFLARE_STREAM_API_BASE_URL / _DELIVERY_BASE_URL — see .env.example.
-  local-stream:
-    build: ./docker/local-stream
-    ports:
-      - "7071:7071"
-    environment:
-      PUBLIC_URL: http://localhost:7071
-      ACCOUNT_ID: ${CLOUDFLARE_STREAM_ACCOUNT_ID:-local-dev}
-      API_TOKEN: ${CLOUDFLARE_STREAM_API_TOKEN:-local-dev-token}
-      WEBHOOK_SECRET: ${CLOUDFLARE_STREAM_WEBHOOK_SECRET:-}
-      WEBHOOK_URL: http://host.docker.internal:${REELS_PORT:-3007}/reels/webhooks/cloudflare-stream
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    volumes:
-      - ./.local-stream:/data
 
   # --- Services (dev mode — mount source, use bun --watch) ---
   api-gateway:
@@ -242,32 +226,6 @@ services:
       - NODE_ENV=development
       - REDIS_HOST=redis
       - DB_HOST=postgres
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  reels-service:
-    build:
-      context: .
-      dockerfile: apps/reels-service/Dockerfile
-      target: deps
-    command: bun run --watch apps/reels-service/src/index.ts
-    ports:
-      - "3007:3007"
-    volumes:
-      - .:/app
-      - /app/node_modules
-    environment:
-      - NODE_ENV=development
-      - REDIS_HOST=redis
-      - DB_HOST=postgres
-      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET:-dev-internal-secret}
-      - ORDER_HOST=order-service
-      - CLOUDFLARE_STREAM_ACCOUNT_ID=${CLOUDFLARE_STREAM_ACCOUNT_ID:-}
-      - CLOUDFLARE_STREAM_API_TOKEN=${CLOUDFLARE_STREAM_API_TOKEN:-}
-      - CLOUDFLARE_STREAM_WEBHOOK_SECRET=${CLOUDFLARE_STREAM_WEBHOOK_SECRET:-}
     depends_on:
       postgres:
         condition: service_healthy

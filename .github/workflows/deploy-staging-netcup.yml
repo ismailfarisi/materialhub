@@ -63,9 +63,7 @@ jobs:
           - vendor-service
           - notification-service
           - cms-service
-          - reels-service
           - integration-service
-          - booking-service
     steps:
       - uses: actions/checkout@v4
 
@@ -149,9 +147,7 @@ jobs:
           VENDOR_PORT=3004
           NOTIFICATION_PORT=3005
           CMS_PORT=3006
-          REELS_PORT=3007
           INTEGRATION_PORT=3008
-          BOOKING_PORT=3009
 
           # Service hostnames (docker-compose service names)
           AUTH_HOST=auth-service
@@ -160,9 +156,7 @@ jobs:
           VENDOR_HOST=vendor-service
           NOTIFICATION_HOST=notification-service
           CMS_HOST=cms-service
-          REELS_HOST=reels-service
           INTEGRATION_HOST=integration-service
-          BOOKING_HOST=booking-service
 
           # Auth + encryption
           JWT_ACCESS_SECRET=${{ secrets.STAGING_JWT_ACCESS_SECRET }}
@@ -171,7 +165,6 @@ jobs:
           TWO_FA_ENCRYPTION_KEY=${{ secrets.STAGING_TWO_FA_ENCRYPTION_KEY }}
           VENDOR_ENCRYPTION_KEY=${{ secrets.STAGING_VENDOR_ENCRYPTION_KEY }}
           ENCRYPTION_KEY=${{ secrets.STAGING_ENCRYPTION_KEY }}
-          BOOKING_ICAL_FEED_SECRET=${{ secrets.STAGING_BOOKING_ICAL_FEED_SECRET }}
 
           # Storefront phone OTP
           SMS_OTP_PROVIDER=${{ secrets.STAGING_SMS_OTP_PROVIDER }}
@@ -242,7 +235,6 @@ jobs:
           APP_URL=https://stage.materialhubuae.com
           PUBLIC_API_URL=https://api.stage.materialhubuae.com
 
-          # Cloudflare Stream (reels)
           CLOUDFLARE_STREAM_ACCOUNT_ID=${{ secrets.STAGING_CLOUDFLARE_STREAM_ACCOUNT_ID }}
           CLOUDFLARE_STREAM_API_TOKEN=${{ secrets.STAGING_CLOUDFLARE_STREAM_API_TOKEN }}
           CLOUDFLARE_STREAM_WEBHOOK_SECRET=${{ secrets.STAGING_CLOUDFLARE_STREAM_WEBHOOK_SECRET }}

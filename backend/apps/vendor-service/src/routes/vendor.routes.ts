@@ -69,7 +69,7 @@ export const vendorRoutes = new Elysia({ prefix: "/vendors" })
     },
   )
 
-  // vendor.profile.write — vendor profile, settings, deactivation, documents, holidays
+  // vendor.profile.write — vendor profile, settings, deactivation, documents
   .guard({}, (app) =>
     app
       .use(vendorMembership("vendor.profile.write"))
@@ -126,37 +126,6 @@ export const vendorRoutes = new Elysia({ prefix: "/vendors" })
       .get("/me/documents", async ({ member, vendorController }) => {
         const docs = await vendorController.listDocuments(member.vid);
         return { statusCode: 200, data: docs, timestamp: new Date().toISOString() };
-      })
-      .post(
-        "/me/holidays",
-        async ({ body, member, vendorController, set }) => {
-          const holiday = await vendorController.createHoliday(member.vid, {
-            name: body.name,
-            starts_at: new Date(body.starts_at),
-            ends_at: new Date(body.ends_at),
-          });
-          set.status = 201;
-          return { statusCode: 201, data: holiday, timestamp: new Date().toISOString() };
-        },
-        {
-          body: t.Object({
-            name: t.String({ minLength: 1 }),
-            starts_at: t.String(),
-            ends_at: t.String(),
-          }),
-        },
-      )
-      .get("/me/holidays", async ({ member, vendorController }) => {
-        const holidays = await vendorController.listHolidays(member.vid);
-        return { statusCode: 200, data: holidays, timestamp: new Date().toISOString() };
-      })
-      .delete("/me/holidays/:id", async ({ params, member, vendorController }) => {
-        await vendorController.deleteHoliday(member.vid, params.id);
-        return {
-          statusCode: 200,
-          message: "Holiday deleted",
-          timestamp: new Date().toISOString(),
-        };
       }),
   )
 

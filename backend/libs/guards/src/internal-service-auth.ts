@@ -1,11 +1,7 @@
 import { Elysia } from "elysia";
 import jwt from "jsonwebtoken";
 
-const ALLOWED_ISSUERS = new Set([
-  "integration-service",
-  "order-service",
-  "product-service",
-]);
+const ALLOWED_ISSUERS = new Set(["integration-service", "order-service", "product-service"]);
 
 type AuthError = "missing_token" | "secret_unset" | "invalid_issuer" | "invalid_token";
 

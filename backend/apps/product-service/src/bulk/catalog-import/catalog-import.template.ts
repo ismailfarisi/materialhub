@@ -129,7 +129,7 @@ export const catalogImportTemplate: TemplateDescriptor = {
           key: "tags",
           label: "Tags (pipe-sep)",
           required: false,
-          example: "luxury|fragrance|gifting",
+          example: "premium|eco-friendly|bulk",
         },
         {
           key: "meta_title",

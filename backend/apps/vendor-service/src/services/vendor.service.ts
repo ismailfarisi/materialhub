@@ -15,10 +15,6 @@ import { generateSlug } from "@materialhub/utils";
 import { type VendorApplyData, isValidTransition } from "../domain/types.ts";
 import type { PaymentProviderAdapter } from "../providers/payment/payment-provider.interface.ts";
 
-// ~6 months (180 days) approximation — not calendar-accurate.
-// Used as the reels-program subsidy window when a vendor opts in.
-const SUBSIDY_WINDOW_MS = 6 * 30 * 24 * 60 * 60 * 1000;
-
 export class VendorService {
   private readonly paymentProvider: PaymentProviderAdapter;
 
@@ -551,41 +547,5 @@ export class VendorService {
     (vendor as any).payouts_enabled = result.status.payoutsEnabled;
     (vendor as any).details_submitted = result.status.detailsSubmitted;
     await this.vendorRepo.save(vendor);
-  }
-
-  // --- Reels program (M3 Task 8) -------------------------------------------
-
-  async optIntoReelsProgram(vendorId: string): Promise<Vendor> {
-    const vendor = await this.vendorRepo.findOne({ where: { id: vendorId } });
-    if (!vendor) throw new HttpError(404, "vendor_not_found", "VENDOR_NOT_FOUND");
-    // Idempotent — already enrolled, return as-is.
-    if (vendor.reels_program_joined_at) return vendor;
-    vendor.reels_program_joined_at = new Date();
-    vendor.reels_subsidy_ends_at = new Date(Date.now() + SUBSIDY_WINDOW_MS);
-    return this.vendorRepo.save(vendor);
-  }
-
-  async optOutOfReelsProgram(vendorId: string): Promise<Vendor> {
-    const vendor = await this.vendorRepo.findOne({ where: { id: vendorId } });
-    if (!vendor) throw new HttpError(404, "vendor_not_found", "VENDOR_NOT_FOUND");
-    vendor.reels_program_joined_at = null;
-    vendor.reels_subsidy_ends_at = null;
-    return this.vendorRepo.save(vendor);
-  }
-
-  async getReelsProgramStatus(vendorId: string): Promise<{
-    joinedAt: Date | null;
-    commissionRate: string;
-    subsidyEndsAt: Date | null;
-    isActive: boolean;
-  }> {
-    const vendor = await this.vendorRepo.findOne({ where: { id: vendorId } });
-    if (!vendor) throw new HttpError(404, "vendor_not_found", "VENDOR_NOT_FOUND");
-    return {
-      joinedAt: vendor.reels_program_joined_at ?? null,
-      commissionRate: vendor.reels_commission_rate,
-      subsidyEndsAt: vendor.reels_subsidy_ends_at ?? null,
-      isActive: !!vendor.reels_program_joined_at,
-    };
   }
 }

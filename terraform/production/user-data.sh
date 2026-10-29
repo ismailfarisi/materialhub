@@ -77,9 +77,7 @@ ORDER_PORT=3003
 VENDOR_PORT=3004
 NOTIFICATION_PORT=3005
 CMS_PORT=3006
-REELS_PORT=3007
 INTEGRATION_PORT=3008
-BOOKING_PORT=3009
 
 # ─── Service hosts (docker-compose service names) ────────────
 AUTH_HOST=auth-service
@@ -88,9 +86,7 @@ ORDER_HOST=order-service
 VENDOR_HOST=vendor-service
 NOTIFICATION_HOST=notification-service
 CMS_HOST=cms-service
-REELS_HOST=reels-service
 INTEGRATION_HOST=integration-service
-BOOKING_HOST=booking-service
 
 # ─── Inter-service URLs ───────────────────────────────────────
 NOTIFICATION_SERVICE_URL=http://notification-service:3005
@@ -309,12 +305,6 @@ services:
     mem_limit: 384m
     env_file: .env
 
-  reels-service:
-    image: $${ECR_REGISTRY}/materialhub-reels-service:production
-    restart: always
-    mem_limit: 384m
-    env_file: .env
-
   integration-service:
     image: $${ECR_REGISTRY}/materialhub-integration-service:production
     restart: always
@@ -322,12 +312,6 @@ services:
     # builder hydrates product relations and runs alongside BullMQ workers; 384m
     # OOM-killed Bun during Google Merchant feed builds.
     mem_limit: 1g
-    env_file: .env
-
-  booking-service:
-    image: $${ECR_REGISTRY}/materialhub-booking-service:production
-    restart: always
-    mem_limit: 384m
     env_file: .env
 
   alloy:
@@ -348,7 +332,7 @@ services:
   # One-shot migration runner. profiles: ["tools"] keeps it out of `up`.
   # Invoke:  docker-compose --profile tools run --rm migrate
   migrate:
-    image: $${ECR_REGISTRY}/materialhub-reels-service:production
+    image: $${ECR_REGISTRY}/materialhub-api-gateway:production
     command: bun run libs/database/src/run-migrations.ts
     env_file: .env
     profiles: ["tools"]

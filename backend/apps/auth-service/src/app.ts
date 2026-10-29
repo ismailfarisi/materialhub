@@ -5,9 +5,7 @@ import { addressRoutes, verifiedPhoneRoutes } from "./routes/address.routes.ts";
 import { adminPasswordRoutes } from "./routes/admin-password.routes.ts";
 import { adminUserRoutes } from "./routes/admin-user.routes.ts";
 import { authRoutes } from "./routes/auth.routes.ts";
-import { beautyProfileRoutes } from "./routes/beauty-profile.routes.ts";
 import { passwordRoutes } from "./routes/password.routes.ts";
-import { referralRoutes } from "./routes/referral.routes.ts";
 import { twoFactorRoutes } from "./routes/two-factor.routes.ts";
 
 export const app = new Elysia()
@@ -17,8 +15,6 @@ export const app = new Elysia()
   .use(passwordRoutes)
   .use(twoFactorRoutes)
   .use(adminUserRoutes)
-  .use(referralRoutes)
   .use(addressRoutes)
   .use(verifiedPhoneRoutes)
-  .use(beautyProfileRoutes)
   .use(adminPasswordRoutes(container));

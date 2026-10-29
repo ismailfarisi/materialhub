@@ -11,7 +11,7 @@
  *  1. Load backend/.env. The services don't read it themselves, because Bun
  *     only loads .env from each app's own cwd.
  *  2. docker compose up: postgres, redis, typesense, local-s3 (+ bucket init),
- *     and local-stream. Then wait until each one is healthy.
+ *     Then wait until each one is healthy.
  *  3. Run TypeORM migrations and the idempotent seed.
  *  4. Create the Typesense `products` collection if it's missing. Nothing
  *     creates it at boot.
@@ -34,7 +34,6 @@ const INFRA = [
 	"typesense",
 	"local-s3",
 	"local-s3-init",
-	"local-stream",
 ];
 
 const c = {
@@ -139,7 +138,7 @@ if ((await run(["docker", "info"], { quiet: true })).code !== 0) {
 ok("docker is running");
 ok(`bun ${Bun.version}`);
 
-const servicePorts = [3000, 3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008];
+const servicePorts = [3000, 3001, 3002, 3003, 3004, 3005, 3006, 3008];
 const webPorts = args.has("--no-web") ? [] : [4000, 4001, 4002];
 const busy: number[] = [];
 for (const p of [...servicePorts, ...webPorts])
@@ -213,7 +212,6 @@ await waitFor(`typesense (port ${tsPort})`, async () => {
 	return httpOk(`http://localhost:${tsPort}/health`)();
 });
 await waitFor("local-s3 (port 7070)", httpOk("http://localhost:7070/"));
-await waitFor("local-stream (port 7071)", httpOk("http://localhost:7071/"));
 
 // ── 3. Database ───────────────────────────────────────────────────────────
 step("Database");
@@ -320,9 +318,6 @@ process.on("SIGTERM", stop);
 		console.log(`  ${name.padEnd(17)} ${url.replace(/\/health$/, "")}`);
 	console.log(
 		`  ${"Local S3".padEnd(17)} http://localhost:7070   ${c.dim}(files in backend/.local-s3)${c.off}`,
-	);
-	console.log(
-		`  ${"Local Stream".padEnd(17)} http://localhost:7071   ${c.dim}(videos in backend/.local-stream)${c.off}`,
 	);
 	if (existsSync(join(ROOT, "local-credentials.md"))) {
 		console.log(`  ${c.dim}Logins: see local-credentials.md${c.off}`);

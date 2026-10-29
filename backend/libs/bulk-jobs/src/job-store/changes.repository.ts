@@ -4,7 +4,7 @@ import type { DataSource, EntityManager } from "typeorm";
 export interface ChangeEntry {
   jobId: string;
   rowNumber: number;
-  entityType: "product" | "product_variant" | "inventory" | "flash_deal";
+  entityType: "product" | "product_variant" | "inventory";
   entityId: string;
   field: string;
   oldValue: unknown;

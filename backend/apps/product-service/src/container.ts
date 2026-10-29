@@ -8,7 +8,6 @@ import { ProductImageRepository } from "./domain/media/product-image.repository.
 import { ProductVideoRepository } from "./domain/media/product-video.repository.ts";
 import { VendorAiUsageRepository } from "./domain/media/vendor-ai-usage.repository.ts";
 import { VendorLookupService } from "./domain/media/vendor-lookup.service.ts";
-import { TaggableProductsLookupService } from "./domain/product/taggable-products-lookup.service.ts";
 
 import { CategoryCacheService } from "./domain/category/category-cache.service.ts";
 import { CategoryController } from "./domain/category/category.controller.ts";
@@ -34,10 +33,6 @@ import { CollectionSkuResolverService } from "./domain/collection/collection-sku
 import { CollectionController } from "./domain/collection/collection.controller.ts";
 import { CollectionService } from "./domain/collection/collection.service.ts";
 
-import { GiftBoxService } from "./domain/gifting/gift-box.service.ts";
-import { GiftCatalogService } from "./domain/gifting/gift-catalog.service.ts";
-import { GiftController } from "./domain/gifting/gift.controller.ts";
-
 import {
   createSearchReindexWorker,
   getSearchReindexQueue,
@@ -60,9 +55,6 @@ import { SuggestService } from "./domain/product/suggest.service.ts";
 import { InventoryReservationService } from "./domain/inventory/inventory-reservation.service.ts";
 import { InventoryController } from "./domain/inventory/inventory.controller.ts";
 import { InventoryService } from "./domain/inventory/inventory.service.ts";
-
-import { FlashDealController } from "./domain/flash-deal/flash-deal.controller.ts";
-import { FlashDealService } from "./domain/flash-deal/flash-deal.service.ts";
 
 import { WishlistController } from "./domain/wishlist/wishlist.controller.ts";
 import { WishlistService } from "./domain/wishlist/wishlist.service.ts";
@@ -88,22 +80,9 @@ import { RecentSearchService } from "./domain/recent-search/recent-search.servic
 import { RecommendationController } from "./domain/recommendation/recommendation.controller.ts";
 import { RecommendationService } from "./domain/recommendation/recommendation.service.ts";
 
-import { ServiceOfferingController } from "./domain/service-offering/service-offering.controller.ts";
-import { ServiceOfferingService } from "./domain/service-offering/service-offering.service.ts";
-import { ServiceSearchAdapter } from "./domain/service-search/service-search.adapter.ts";
-
 import { registerTemplate } from "@materialhub/bulk-jobs";
 import { config } from "@materialhub/config";
-import {
-  AppDataSource,
-  Brand,
-  Category,
-  Product,
-  RecentSearch,
-  ServiceOffering,
-  ServiceOfferingTranslation,
-  Vendor,
-} from "@materialhub/database";
+import { AppDataSource, Brand, Category, Product, RecentSearch } from "@materialhub/database";
 import { getS3Client } from "@materialhub/utils";
 import { Queue } from "bullmq";
 import { createClient as createRedisClient } from "redis";
@@ -111,8 +90,6 @@ import { startBulkDispatcherWorker } from "./bulk/bulk-dispatcher.worker.ts";
 import { BulkService } from "./bulk/bulk.service.ts";
 import { catalogImportJobType } from "./bulk/catalog-import/catalog-import.job-type.ts";
 import { catalogImportTemplate } from "./bulk/catalog-import/catalog-import.template.ts";
-import { flashDealDeleteJobType } from "./bulk/flash-deal-delete/flash-deal-delete.job-type.ts";
-import { flashDealImportJobType } from "./bulk/flash-deal-import/flash-deal-import.job-type.ts";
 import { startImageFetchWorker } from "./bulk/image-fetch/image-fetch.worker.ts";
 import { registerJobType } from "./bulk/index.ts";
 import { inventoryUpdateJobType } from "./bulk/inventory-update/inventory-update.job-type.ts";
@@ -260,11 +237,6 @@ const collectionController = new CollectionController(
   collectionSkuResolver,
 );
 
-// ─── Gifting ──────────────────────────────────────────────────────────
-const giftCatalogService = new GiftCatalogService();
-const giftBoxService = new GiftBoxService();
-const giftController = new GiftController(giftCatalogService, giftBoxService);
-
 // ─── Inventory ────────────────────────────────────────────────────────
 const inventoryService = new InventoryService();
 const reservationService = new InventoryReservationService();
@@ -290,11 +262,6 @@ const productController = new ProductController(
   productGroupService,
 );
 const productRepo = AppDataSource.getRepository(Product);
-const taggableProductsLookupService = new TaggableProductsLookupService(productRepo as any);
-
-// ─── Flash Deal ───────────────────────────────────────────────────────
-const flashDealService = new FlashDealService();
-const flashDealController = new FlashDealController(flashDealService);
 
 // ─── Wishlist ────────────────────────────────────────────────────────
 const wishlistService = new WishlistService();
@@ -328,18 +295,6 @@ const recentSearchService = new RecentSearchService(AppDataSource.getRepository(
 const recommendationService = new RecommendationService();
 const recommendationController = new RecommendationController(recommendationService);
 
-// ─── Service Offerings (bookings catalog) ────────────────────────────
-const serviceOfferingService = new ServiceOfferingService(
-  AppDataSource.getRepository(ServiceOffering),
-  AppDataSource.getRepository(ServiceOfferingTranslation),
-  AppDataSource.getRepository(Vendor),
-);
-const serviceSearchAdapter = new ServiceSearchAdapter();
-const serviceOfferingController = new ServiceOfferingController(
-  serviceOfferingService,
-  serviceSearchAdapter,
-);
-
 // ─── Bulk Jobs ────────────────────────────────────────────────────────
 const bulkParentQueue = getBulkParentQueue();
 export const bulkService = new BulkService(AppDataSource, getS3Client(), bulkParentQueue);
@@ -355,9 +310,6 @@ registerTemplate(inventoryUpdateTemplate);
 
 registerJobType(catalogImportJobType as never);
 registerTemplate(catalogImportTemplate);
-
-registerJobType(flashDealImportJobType as never);
-registerJobType(flashDealDeleteJobType as never);
 
 // Inline publisher: forwards bulk-job completion events into the already-existing
 // notification-events queue so notification-service can pick them up.
@@ -384,7 +336,7 @@ const _videoTranscodeWorker = startVideoTranscodeWorker({ mediaService }).catch(
 );
 
 // Export for BullMQ job wiring in index.ts
-export { reservationService, searchService, flashDealService, recentlyViewedService };
+export { reservationService, searchService, recentlyViewedService };
 
 export const container = new Elysia({ name: "product-service-container" })
   .decorate("mediaController", mediaController)
@@ -399,20 +351,15 @@ export const container = new Elysia({ name: "product-service-container" })
   .decorate("inventoryController", inventoryController)
   .decorate("suggestService", suggestService)
   .decorate("searchReindexQueue", searchReindexQueue)
-  .decorate("flashDealController", flashDealController)
-  .decorate("flashDealService", flashDealService)
   .decorate("wishlistController", wishlistController)
   .decorate("recentlyViewedController", recentlyViewedController)
   .decorate("savedSearchController", savedSearchController)
   .decorate("recentSearchService", recentSearchService)
   .decorate("recommendationController", recommendationController)
-  .decorate("taggableProductsLookupService", taggableProductsLookupService)
   .decorate("inventoryService", inventoryService)
   .decorate("productRepo", productRepo)
   .decorate("productService", productService)
   .decorate("productAiSettings", productAiSettings)
   .decorate("productAiEnhance", productAiEnhance)
   .decorate("trendingService", trendingSearchService)
-  .decorate("collectionController", collectionController)
-  .decorate("giftController", giftController)
-  .decorate("serviceOfferingController", serviceOfferingController);
+  .decorate("collectionController", collectionController);

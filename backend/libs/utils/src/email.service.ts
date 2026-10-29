@@ -131,13 +131,13 @@ If you did not expect this invitation, you can decline here: ${params.declineUrl
     const subject = "Welcome to the MaterialHub edit";
     const text = `Thanks for subscribing to MaterialHub.
 
-Exclusive beauty tips, new product launches, and quiet edits — delivered to your inbox once a month. Never more.
+New materials, supplier launches and trade offers — delivered to your inbox once a month. Never more.
 
 Changed your mind? Unsubscribe anytime: ${unsubscribeUrl}
 
 — The MaterialHub team`;
     const html = `<h1>Welcome to the MaterialHub edit</h1>
-<p>Exclusive beauty tips, new product launches, and quiet edits — delivered to your inbox once a month. Never more.</p>
+<p>New materials, supplier launches and trade offers — delivered to your inbox once a month. Never more.</p>
 <p style="color:#666;font-size:12px">Changed your mind? <a href="${unsubscribeUrl}">Unsubscribe anytime</a>.</p>
 <p>— The MaterialHub team</p>`;
 

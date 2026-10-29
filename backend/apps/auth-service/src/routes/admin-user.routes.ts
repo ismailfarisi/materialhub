@@ -114,36 +114,6 @@ export const adminUserRoutes = new Elysia({ prefix: "/admin/users" })
     },
   )
 
-  .patch(
-    "/:id/creator-tier",
-    async ({ params, body, userAdminController, audit }) => {
-      const result = await userAdminController.updateCreatorTier(params.id, body.creator_tier);
-      audit.action = "user.creator_tier_change";
-      audit.entity_type = "user";
-      audit.entity_id = params.id;
-      if (result.previous_tier !== result.creator_tier) {
-        audit.changes = {
-          creator_tier: { old: result.previous_tier, new: result.creator_tier },
-        };
-      }
-      return {
-        statusCode: 200,
-        data: { id: result.id, creator_tier: result.creator_tier },
-        timestamp: new Date().toISOString(),
-      };
-    },
-    {
-      params: t.Object({ id: t.String({ format: "uuid" }) }),
-      body: t.Object({
-        creator_tier: t.Union([
-          t.Literal("regular"),
-          t.Literal("creator"),
-          t.Literal("influencer"),
-        ]),
-      }),
-    },
-  )
-
   // Addresses are user-scoped in AddressService, so these admin handlers pass
   // the target user's id where the customer routes pass the caller's own.
   .get(

@@ -3,8 +3,6 @@
 export enum BulkJobType {
   InventoryUpdate = "inventory_update",
   CatalogImport = "catalog_import",
-  FlashDealImport = "flash_deal_import",
-  FlashDealDelete = "flash_deal_delete",
 }
 
 export enum BulkJobStatus {
