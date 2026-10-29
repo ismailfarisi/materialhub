@@ -1,4 +1,10 @@
-import type { BatchResult, JobType, ParsedRow, RowError, WriteContext } from "@materialhub/bulk-jobs";
+import type {
+  BatchResult,
+  JobType,
+  ParsedRow,
+  RowError,
+  WriteContext,
+} from "@materialhub/bulk-jobs";
 import { type BulkImportJob, BulkImportMode, BulkJobStrictness } from "@materialhub/database";
 import { coerceProductRow, coerceVariantRow } from "./catalog-import.coerce.ts";
 import type { CatalogImportCtx } from "./catalog-import.context.ts";

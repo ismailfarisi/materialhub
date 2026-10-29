@@ -84,13 +84,12 @@ account, the failure surfaces much later, as "Vendor has no primary bank account
 
 `apps/api-gateway/src/app.ts:105` returns `status: "ok"` unconditionally, whatever the per-service
 fan-out found. An uptime monitor pointed at `/health` will never alert. The fan-out also covers
-only five of the nine upstreams — `cms`, `reels`, `integration` and `booking` are not checked.
+only five of the seven upstreams — `cms` and `integration` are not checked.
 
 ### 9. Logging is `console.log`
 
-`libs/plugins/src/index.ts:81` — `TODO: Replace with Winston logger`. `CLAUDE.md` describes
-Winston + Sentry + CloudWatch; none of it is wired. Structured JSON goes to stdout and that is
-all. There is no error reporting service, so a 500 in production is a line in a container log.
+`libs/plugins/src/index.ts:81` — `TODO: Replace with Winston logger`. No Winston, Sentry or
+CloudWatch integration is wired. Structured JSON goes to stdout and that is all. There is no error reporting service, so a 500 in production is a line in a container log.
 
 ### 10. Frontend tests do not run in CI
 
@@ -119,19 +118,13 @@ effective rate limit becomes N × the configured value, with nothing logged at t
 same shape appears in `permission-matrix.ts` (Redis down ⇒ permission changes never propagate
 until restart).
 
-### 14. reels-service is not on a real Redis client
+### 14. No generated API reference
 
-`apps/reels-service/src/container.ts:111` — `TODO(M2): replace with a real Redis client once the
-adapter lands`. The feed cache client is stubbed in this build.
+The gateway's Swagger spec only describes `/health` and the catch-all proxy, and no upstream
+service's Swagger is reachable through the gateway — **there is no generated API reference for
+the platform**.
 
-### 15. reels-service Swagger is unreachable
-
-reels-service mounts `swagger({ path: "/api/docs" })` on its own app, but the gateway routes
-`/api/docs` to its own Swagger and has no prefix that reaches reels-service's. The gateway's own
-spec only describes `/health` and the catch-all — **there is no generated API reference for the
-platform**.
-
-### 16. Integration cron dependency duplication
+### 15. Integration cron dependency duplication
 
 `apps/integration-service/src/index.ts:59,83` — `TODO Phase 4: deduplicate cron deps with
 container.ts`. The crons construct their own repositories and clients rather than reusing the
@@ -141,80 +134,65 @@ container's, so the two can drift.
 
 ## Low — quality and consistency
 
-### 17. Postgres search adapter cannot suggest
+### 16. Postgres search adapter cannot suggest
 
 `apps/product-service/src/domain/search/postgres-search.adapter.ts:209` — `suggest()` is
 unimplemented. If that adapter is ever selected at runtime, typeahead silently returns nothing.
 
-### 18. Suggest rejections are unlogged
+### 17. Suggest rejections are unlogged
 
 `apps/product-service/src/domain/product/suggest.service.ts:28` —
 `TODO: log per-bucket rejections once a logger is in scope`. A suggest returning fewer results
 than expected is undebuggable.
 
-### 19. No malware scanning on uploads
+### 18. No malware scanning on uploads
 
 `libs/utils/src/media.service.ts:205` — `TODO: Integrate malware scanning before processing`.
 Images are validated by magic bytes only. KYC documents and layout videos go through the same
 path.
 
-### 20. The bulk context-threading wart
+### 19. The bulk context-threading wart
 
 `apps/product-service/src/bulk/catalog-import/catalog-import.job-type.ts:31` —
 `TODO(cleanup): threading buffered rows through writeCtx.job.summary is gross`. It also causes
 `buildValidationContext` to be called twice per job (harmless only because the dispatcher's
 wrapper caches it).
 
-### 21. Login lockout is a denial-of-service vector
+### 20. Login lockout is a denial-of-service vector
 
 `auth.service.ts` locks an account for 15 minutes after 5 failed attempts, counted on the **user
 row**. There is no per-IP throttle beyond the gateway's global 100/min, so anyone who knows an
 email address can keep that account locked indefinitely.
 
-### 22. `deactivated` vendors are a dead end
+### 21. `deactivated` vendors are a dead end
 
 `VENDOR_TRANSITIONS` gives `deactivated: []` — no admin route can reverse a self-service
 deactivation. `suspended` can return to `approved`; `deactivated` cannot.
 
-### 23. Unregistered notification types vanish
+### 22. Unregistered notification types vanish
 
 `NotificationDispatcherService.dispatch()` returns silently when `getTemplate(type)` misses.
 Adding a producer without adding a template produces no error, no log, and no message.
 
-### 24. Two encryption keys, silent failure on mix-up
+### 23. Two encryption keys, silent failure on mix-up
 
 `VENDOR_ENCRYPTION_KEY` (bank accounts) and `ENCRYPTION_KEY` (integration secrets, carrier
 credentials, channel credentials) are different keys with the same algorithm. Decrypting with the
 wrong one throws or yields garbage. order-service already constructs two `EncryptionService`
 instances to cope; any new consumer must know which key its data was written with.
 
-### 25. The iCal feed token cannot be revoked per staff member
-
-`config.bookings.icalFeedSecret` signs a **long-lived** token (a subscribed calendar app polls
-indefinitely). Revocation is a global secret rotation, which invalidates every issued feed URL at
-once. Per-staff revocation is documented as a "Phase 7+ concern".
-
-### 26. `bun run dev:backend` starts only seven of the ten services
+### 24. `bun run dev:backend` starts only seven of the eight services
 
 The root `dev:backend` filter lists gateway, auth, product, order, vendor, notification and cms.
-**reels-service, integration-service and booking-service are missing**, so anyone using that
-script gets 502s from the gateway for `/reels/*`, `/bookings/*` and `/vendor/integrations/*` and
-has no obvious reason why. `bun run dev` (everything) is the safe command.
+**integration-service is missing**, so anyone using that script gets 502s from the gateway for
+`/vendor/integrations/*` and `/admin/sales-channels/*` and has no obvious reason why.
+`bun run dev` (everything) is the safe command.
 
-### 27. `CLAUDE.md`'s "Expected Commands" do not exist
+### 25. No root `build` / `test` / `migrate` scripts
 
-`bun run build`, `bun run test`, `bun run test:e2e`, `bun run migrate`, `bun run seed` and
-`bun run search:reindex` are documented as root commands. The root `package.json` defines only
-the `dev*` scripts. `migrate`/`seed` live in `backend/libs/database`; build/test/typecheck are
-Turborepo tasks; there is no reindex script at all (it is an admin endpoint). See
-[01 — Build, test, run](01-architecture.md#build-test-run).
-
-### 28. `CLAUDE.md`'s schema numbers are stale
-
-The root `CLAUDE.md` says "107 tables, 34 enums". `db-design/01-overview.md` and
-`11-table-reference.md` both say **178 tables, 87 enums**, and `ls
-backend/libs/database/src/entities/*.entity.ts | wc -l` returns **178** — so `db-design/` is
-correctly in sync with the entities and only `CLAUDE.md` is out of date.
+The root `package.json` defines only the `dev*` scripts. `migrate`/`seed` live in
+`backend/libs/database`; build/test/typecheck are Turborepo tasks; there is no reindex script at
+all (it is an admin endpoint). See [01 — Build, test, run](01-architecture.md#build-test-run).
 
 ---
 
@@ -230,9 +208,7 @@ Worth recording so nobody "fixes" them:
 | `markOrderPaid` guards on `payment_status`, not `status` | A delayed webhook can arrive after fulfilment advanced the order; guarding on `status` stranded `payment_status` and skipped the order-placed emails. |
 | `order_status_history.changed_by` is NULL for system actors | The column is a `uuid` FK; writing the literal `"system"` aborted the enclosing transaction. The role is preserved in `changed_by_role`. |
 | The Tamara terminal-event handler does not cancel orders | The pending-order reaper owns cancellation and inventory release; doing it here would race it. |
-| Booking `EngagementStatus.conflicted` sits outside the EXCLUDE predicate | So an iCal import can land an overlapping event and surface the clash instead of dropping it. |
 | `payout-period.ts` implements `daily` even though it looks redundant | The admin form offers it; without it, every daily-schedule vendor was silently skipped forever. |
-| `config.bookings.icalFeedSecret` is a lazy getter | Eager `requireEnv` in the shared config object crash-loops all ten services on a secret only booking-service needs. |
 | `previewOriginPatterns()` returns `[]` on a bad regex | Fails closed. `cors({credentials: true})` makes allow-all a real vulnerability, and a throw at module scope restart-looped the gateway. |
 
 ---
@@ -245,7 +221,7 @@ If someone asked me what to do first, in order:
 2. **Align the reservation and reaper clocks** (#3) — pick one number, or extend the reservation
    on payment-intent creation.
 3. **Make `/health` mean something** (#8) — return `degraded` when any upstream is down, and cover
-   all nine services.
+   all seven upstream services.
 4. **Wire real logging and error reporting** (#9) — everything else is harder to diagnose without
    it.
 5. **Decide about Tabby** (#2) — either finish it or take it off the storefront.

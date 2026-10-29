@@ -2,8 +2,7 @@ import { config } from "@materialhub/config";
 /**
  * Channel conversion event publisher.
  *
- * Thin wrapper around a BullMQ `channel-conversion-events` queue. Unlike
- * `reels-commission-events` (which is vendor-keyed via vendor_orders), this is
+ * Thin wrapper around a BullMQ `channel-conversion-events` queue. This is
  * one event per master order — the integration-service conversion worker fans
  * out to each enabled sales channel that supports conversions (Phase 1b:
  * Google Ads Enhanced Conversions Adjustment; Phase 2+: Meta CAPI, TikTok

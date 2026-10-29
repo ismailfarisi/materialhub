@@ -4,10 +4,6 @@ import {
   CHANNEL_CONVERSION_EVENTS_QUEUE,
   __setQueueFactoryForTests as __setChannelsQueueFactoryForTests,
 } from "../order/channel-conversion-events.ts";
-import {
-  REELS_COMMISSIONS_QUEUE,
-  __setQueueFactoryForTests,
-} from "../order/reels-commission-events.ts";
 import { OrderConfirmationService } from "./order-confirmation.service.ts";
 
 describe("OrderConfirmationService", () => {
@@ -30,20 +26,10 @@ describe("OrderConfirmationService", () => {
   };
 
   let service: OrderConfirmationService;
-  let fakeQueueAdd: ReturnType<typeof mock>;
   let fakeChannelsQueueAdd: ReturnType<typeof mock>;
   let fakeEnqueueAutoShipments: ReturnType<typeof mock>;
 
   beforeEach(() => {
-    fakeQueueAdd = mock(async () => ({ id: "job-id" }));
-    __setQueueFactoryForTests(
-      () =>
-        ({
-          name: REELS_COMMISSIONS_QUEUE,
-          add: fakeQueueAdd,
-        }) as any,
-    );
-
     fakeChannelsQueueAdd = mock(async () => ({ id: "ch-job-id" }));
     __setChannelsQueueFactoryForTests(
       () =>
@@ -72,7 +58,6 @@ describe("OrderConfirmationService", () => {
   });
 
   afterEach(() => {
-    __setQueueFactoryForTests(null);
     __setChannelsQueueFactoryForTests(null);
   });
 
@@ -141,24 +126,6 @@ describe("OrderConfirmationService", () => {
     );
   });
 
-  it("markOrderPaid: publishes reels commission event for the master order", async () => {
-    mockOrderRepo.findOne.mockResolvedValueOnce({
-      id: "order-42",
-      user_id: "u-42",
-      status: "pending_payment",
-    });
-
-    await service.markOrderPaid("order-42");
-
-    // fire-and-forget — give the .catch chain a tick to land
-    await Promise.resolve();
-
-    expect(fakeQueueAdd).toHaveBeenCalledTimes(1);
-    const call = fakeQueueAdd.mock.calls[0]!;
-    expect(call[0]).toBe("createCommissionsFromOrder");
-    expect(call[1]).toEqual({ orderId: "order-42" });
-  });
-
   it("markOrderPaid: publishes channel conversion event for the master order", async () => {
     mockOrderRepo.findOne.mockResolvedValueOnce({
       id: "order-77",
@@ -176,9 +143,6 @@ describe("OrderConfirmationService", () => {
     expect(call[0]).toBe("recordChannelConversion");
     expect(call[1]).toEqual({ orderId: "order-77" });
     expect(call[2]).toMatchObject({ removeOnComplete: 1000, attempts: 5 });
-
-    // Both publishes fire on success.
-    expect(fakeQueueAdd).toHaveBeenCalledTimes(1);
   });
 
   it("markOrderPaid: swallows channel conversion publish failures", async () => {
@@ -250,7 +214,6 @@ describe("OrderConfirmationService", () => {
     expect(result.confirmed).toBe(false);
     expect(mockOrderRepo.save).not.toHaveBeenCalled();
     expect(mockCartService.clearCart).not.toHaveBeenCalled();
-    expect(fakeQueueAdd).not.toHaveBeenCalled();
     expect(fakeChannelsQueueAdd).not.toHaveBeenCalled();
     expect(fakeEnqueueAutoShipments).not.toHaveBeenCalled();
   });

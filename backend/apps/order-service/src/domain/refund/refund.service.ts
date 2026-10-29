@@ -1,11 +1,5 @@
 // refund.service.ts
 import type { Payment } from "@materialhub/database";
-import {
-  HttpError,
-  NotFoundError,
-  ServiceUnavailableError,
-  UnprocessableEntityError,
-} from "@materialhub/plugins";
 import type Stripe from "stripe";
 import type { Repository } from "typeorm";
 
@@ -13,17 +7,6 @@ export interface RefundToOriginalPaymentInput {
   orderId: string;
   amount: number;
   referenceType: "return" | "dispute" | "order_cancellation" | "item_cancellation";
-  referenceId: string;
-  reason?: string;
-}
-
-// Booking cancellation / no-show reversal / admin adjustment refunds (Phase 4
-// Task 2) — same gateway dispatch as order refunds, keyed by booking_id
-// instead of order_id.
-export interface RefundBookingPaymentInput {
-  bookingId: string;
-  amount: number;
-  referenceType: "cancellation" | "no_show_reversal" | "admin_adjustment";
   referenceId: string;
   reason?: string;
 }
@@ -85,54 +68,11 @@ export class RefundService {
   }
 
   /**
-   * Booking cancellation / no-show-reversal / admin-adjustment refunds
-   * (Phase 4 Task 2) — same gateway dispatch as `refundToOriginalPayment`,
-   * keyed by `booking_id`. Unlike the order path (whose plain-Error
-   * signatures existing callers/tests depend on), this throws typed
-   * `HttpError` subclasses per the booking-service money-boundary contract.
-   */
-  async refundBookingPayment(input: RefundBookingPaymentInput): Promise<RefundResult> {
-    const payment = await this.paymentRepo.findOne({
-      where: { booking_id: input.bookingId, status: "captured" } as any,
-    });
-    if (!payment) {
-      throw new NotFoundError(`No captured payment found for booking ${input.bookingId}`);
-    }
-
-    const priorRefunded = (payment as any).refunded_amount || 0;
-    if (priorRefunded + input.amount > (payment as any).amount) {
-      throw new UnprocessableEntityError(
-        `Refund amount ${input.amount} exceeds remaining refundable balance ` +
-          `(${(payment as any).amount - priorRefunded}) for booking ${input.bookingId}`,
-      );
-    }
-
-    try {
-      return await this.executeGatewayRefund(
-        payment,
-        priorRefunded,
-        input.amount,
-        input.referenceType,
-        input.referenceId,
-        {
-          booking_id: input.bookingId,
-          reference_type: input.referenceType,
-          reference_id: input.referenceId,
-        },
-        input.reason,
-      );
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      throw new ServiceUnavailableError((err as Error).message);
-    }
-  }
-
-  /**
    * Shared gateway dispatch: given an already-validated captured Payment
    * row, issue the refund with the right provider and update
-   * `refunded_amount`/`refunded_at`. Both `refundToOriginalPayment` and
-   * `refundBookingPayment` validate their own preconditions (existence,
-   * remaining balance) before calling this — this method assumes they hold.
+   * `refunded_amount`/`refunded_at`. `refundToOriginalPayment` validates its
+   * own preconditions (existence, remaining balance) before calling this —
+   * this method assumes they hold.
    */
   private async executeGatewayRefund(
     payment: Payment,

@@ -15,24 +15,20 @@ a new service can register its own job types against the same worker.
 | **Strictness** | `all_or_nothing` — any error aborts before any write. `best_effort` — bad rows are reported, good rows are written. |
 | **Import mode** | `upsert` (create + update) or `update` (update only; unmatched keys error). |
 | **Follow-up task** | Work queued by a job type after its rows are written — today only image fetches. |
-| **Change log** | Every write records `bulk_import_job_row_changes(field, old_value, new_value)`, which is what makes revert possible. |
+| **Change log** | Every write records `bulk_import_job_row_changes(field, old_value, new_value)`, served back through `GET /bulk/jobs/:id/changes`. |
 
 ### Registered job types
 
-| Key | Enum | Revertable | Notes |
-|---|---|---|---|
-| `inventory_update` | `BulkJobType.InventoryUpdate` | no | defaults to **all-or-nothing** |
-| `catalog_import` | `BulkJobType.CatalogImport` | no | products + variants + attributes + images |
-| `flash_deal_import` | `BulkJobType.FlashDealImport` | **yes** | `POST /bulk/jobs/:id/revert` soft-deletes the deals it created |
-| `flash_deal_delete` | `BulkJobType.FlashDealDelete` | no | |
+| Key | Enum | Notes |
+|---|---|---|
+| `inventory_update` | `BulkJobType.InventoryUpdate` | defaults to **all-or-nothing** |
+| `catalog_import` | `BulkJobType.CatalogImport` | products + variants + attributes + images |
 
 Registration happens in `apps/product-service/src/container.ts`:
 
 ```ts
 registerJobType(inventoryUpdateJobType); registerTemplate(inventoryUpdateTemplate);
 registerJobType(catalogImportJobType);   registerTemplate(catalogImportTemplate);
-registerJobType(flashDealImportJobType);
-registerJobType(flashDealDeleteJobType);
 ```
 
 `BulkService.start()` refuses an unregistered type with **501 `not_implemented`**, so the enum
@@ -49,8 +45,6 @@ stateDiagram-v2
     running --> completed_with_errors: some rows failed/skipped
     running --> failed: file-level error, all-or-nothing gate, or worker crash
     running --> cancelled: cancel requested mid-batch
-    completed --> reverted: POST /bulk/jobs/:id/revert (flash_deal_import only)
-    completed_with_errors --> reverted
 ```
 
 `cancel` sets a flag (`JobRepository.requestCancel`); the worker checks it **between batches**,
@@ -199,20 +193,6 @@ via `POST /bulk/jobs/:id/retry-failed-images`.
 Queue retry policy: parent 2 attempts, image fetch 3 attempts, both exponential backoff from
 30 s.
 
-## Revert (flash deals only)
-
-`BulkService.revert(jobId, callerUserId)` — guards: job type must be `flash_deal_import`, status
-must be terminal, `reverted_at` must be null (409 `already_reverted`). Then in one transaction:
-
-1. Read `bulk_import_job_row_changes WHERE entity_type='flash_deal' AND field='_created'`.
-2. Soft-delete those `flash_deals` rows (`RETURNING id, product_id`), skipping any already
-   deleted.
-3. Write a `_reverted` change row for each one actually deleted.
-4. Stamp `reverted_at` / `reverted_by_user_id`.
-5. `scheduleIndexUpdatesBulk` so the search index drops the deal prices.
-
-The result reports `revertedCount` and `skippedAlreadyDeletedCount`.
-
 ## Templates
 
 `libs/bulk-jobs/src/templates/` generates CSV and XLSX (with data-validation dropdowns) from a
@@ -250,7 +230,7 @@ are also audited automatically (the `/bulk` prefix is in `AUDIT_PREFIXES`).
 | Method | Path |
 |---|---|
 | POST | `/bulk/uploads/initiate` |
-| POST | `/bulk/jobs/:id/start` · `/cancel` · `/revert` · `/retry-failed-images` |
+| POST | `/bulk/jobs/:id/start` · `/cancel` · `/retry-failed-images` |
 | GET | `/bulk/jobs` · `/bulk/jobs/:id` |
 | GET | `/bulk/jobs/:id/error-report` (presigned, 10 min) |
 | GET | `/bulk/jobs/:id/changes` (paginated change log) |

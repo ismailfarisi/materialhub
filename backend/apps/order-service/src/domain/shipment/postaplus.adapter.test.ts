@@ -195,7 +195,7 @@ describe("PostaPlusAdapter", () => {
         email: "aisha@example.com",
       },
       shipperAddress: {
-        name: "Glow Beauty Warehouse",
+        name: "Al Quoz Materials Warehouse",
         phone: "971501234568",
         address_line_1: "Warehouse 3, Al Quoz",
         city: "Dubai",

@@ -158,8 +158,6 @@ describe("order-detail cancellations serialization", () => {
       const mockVendorOrderRepo: any = {
         findOne: mock(() => Promise.resolve(vo)),
       };
-      const mockGiftOrderRepo: any = { findOne: mock(() => Promise.resolve(null)) };
-      const mockWarehouseRepo: any = { findOne: mock(() => Promise.resolve(null)) };
       const mockCancellationRepo: any = makeCancellationRepo([
         {
           id: "c1",
@@ -212,12 +210,7 @@ describe("order-detail cancellations serialization", () => {
         },
       ]);
 
-      const service = new VendorOrderService(
-        mockVendorOrderRepo,
-        mockGiftOrderRepo,
-        mockWarehouseRepo,
-        mockCancellationRepo,
-      );
+      const service = new VendorOrderService(mockVendorOrderRepo, mockCancellationRepo);
 
       const result = await service.getForVendor("vo1", "v1");
 
@@ -242,12 +235,7 @@ describe("order-detail cancellations serialization", () => {
     it("returns an empty cancellations array when vendor order not found short-circuits before repo call", async () => {
       const mockVendorOrderRepo: any = { findOne: mock(() => Promise.resolve(null)) };
       const mockCancellationRepo: any = { find: mock(() => Promise.resolve([])) };
-      const service = new VendorOrderService(
-        mockVendorOrderRepo,
-        { findOne: mock(() => Promise.resolve(null)) } as any,
-        { findOne: mock(() => Promise.resolve(null)) } as any,
-        mockCancellationRepo,
-      );
+      const service = new VendorOrderService(mockVendorOrderRepo, mockCancellationRepo);
 
       const result = await service.getForVendor("missing", "v1");
 

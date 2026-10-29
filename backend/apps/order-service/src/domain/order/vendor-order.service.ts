@@ -2,8 +2,10 @@
 import type { OrderItemCancellation } from "@materialhub/database";
 import type { VendorOrder } from "@materialhub/database/src/entities/vendor-order.entity.ts";
 import type { Repository } from "typeorm";
-import { type ShipToAddress, resolveShipTo } from "../gift-fulfillment/ship-to.ts";
 import { vendorVisibleOrderPredicate } from "./vendor-order-visibility.ts";
+
+/** The customer's shipping-address snapshot, as stored on the master order. */
+export type ShipToAddress = Record<string, unknown>;
 
 interface ListFilters {
   page?: number;
@@ -50,8 +52,6 @@ function toVendorCancellation(vendorOrderItemIds: Set<string>) {
 export class VendorOrderService {
   constructor(
     private vendorOrderRepo: Repository<VendorOrder>,
-    private giftOrderRepo: Repository<any>,
-    private warehouseRepo: Repository<any>,
     private cancellationRepo: Repository<OrderItemCancellation>,
   ) {}
 
@@ -94,23 +94,8 @@ export class VendorOrderService {
     });
     if (!vo) return null;
 
-    // Resolve the correct ship-to: gift vendor_orders go to the hub warehouse.
-    let hubWarehouse: any = null;
-    if (vo.gift_order_id) {
-      const giftOrder = await this.giftOrderRepo.findOne({
-        where: { id: vo.gift_order_id },
-      });
-      if (giftOrder?.hub_warehouse_id) {
-        hubWarehouse = await this.warehouseRepo.findOne({
-          where: { id: giftOrder.hub_warehouse_id },
-        });
-      }
-    }
-    const ship_to = resolveShipTo({
-      giftOrderId: vo.gift_order_id ?? null,
-      hub: hubWarehouse,
-      customerAddress: (vo.order?.shipping_address as Record<string, any>) ?? {},
-    });
+    // Vendor sub-orders ship to the customer's address on the master order.
+    const ship_to: ShipToAddress = (vo.order?.shipping_address as ShipToAddress) ?? {};
 
     const vendorOrderItemIds = new Set((vo.items ?? []).map((item: any) => item.id));
     const cancellationRows = await this.cancellationRepo.find({

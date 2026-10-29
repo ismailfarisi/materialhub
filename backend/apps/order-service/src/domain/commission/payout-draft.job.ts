@@ -27,10 +27,10 @@ export interface PayoutDraftDeps {
  *
  * NOTE: the Vendor entity has no `is_active` boolean column — it has a
  * `status` enum instead. `VendorStatus.approved` is this codebase's
- * established "active vendor" predicate (see vendor-service, booking-service,
- * reels-service). Filtering on a nonexistent `is_active` column would make
- * this query error against the real database every run, so this deviates
- * from the brief's literal `{ is_active: true }` filter.
+ * established "active vendor" predicate (see vendor-service). Filtering on a
+ * nonexistent `is_active` column would make this query error against the real
+ * database every run, so this deviates from the brief's literal
+ * `{ is_active: true }` filter.
  */
 export async function runPayoutDraftGeneration(
   deps: PayoutDraftDeps,

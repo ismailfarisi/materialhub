@@ -62,38 +62,6 @@ export const cartRoutes = new Elysia({ prefix: "/cart" })
     await cartController.clear(userId, guestSessionId);
     return { statusCode: 200, message: "Cart cleared", timestamp: new Date().toISOString() };
   })
-  .post(
-    "/gift-box",
-    async ({ userId, guestSessionId, body, cartController, set }: any) => {
-      const data = await cartController.addGiftBox(userId, guestSessionId, body);
-      set.status = 201;
-      return { statusCode: 201, data, timestamp: new Date().toISOString() };
-    },
-    {
-      body: t.Object({
-        giftBoxId: t.String({ format: "uuid" }),
-        quantity: t.Optional(t.Integer({ minimum: 1 })),
-        giftMessage: t.Optional(t.Union([t.String(), t.Null()])),
-        recipientName: t.Optional(t.Union([t.String(), t.Null()])),
-      }),
-    },
-  )
-  .delete(
-    "/gift-box/:id",
-    async ({ userId, guestSessionId, params, cartController }: any) => {
-      await cartController.removeGiftBox(userId, guestSessionId, params.id);
-      return { statusCode: 200, message: "Removed", timestamp: new Date().toISOString() };
-    },
-    { params: t.Object({ id: t.String({ format: "uuid" }) }) },
-  )
-  .post(
-    "/affiliate",
-    async ({ userId, guestSessionId, body, cartController }: any) => {
-      await cartController.setAffiliateCode(userId, guestSessionId, body.code ?? null);
-      return { statusCode: 200, data: { ok: true }, timestamp: new Date().toISOString() };
-    },
-    { body: t.Object({ code: t.String({ maxLength: 50 }) }) },
-  )
   // Merge a guest cart into the logged-in user's cart.
   // Requires authentication (NOT in OPTIONAL_AUTH_ROUTES) and the guest's
   // session token in the `x-guest-session` header.

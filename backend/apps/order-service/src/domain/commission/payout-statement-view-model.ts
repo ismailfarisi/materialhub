@@ -64,7 +64,6 @@ export interface PayoutStatementSource {
       variant_name?: string | null;
       quantity?: number | null;
     } | null;
-    booking_id?: string | null;
   }>;
   /**
    * The TRUE number of commissions claimed by this payout, which may exceed
@@ -196,7 +195,6 @@ function describeCommission(c: PayoutStatementSource["commissions"][number]): st
     const label = variant ? `${name} — ${variant}` : name;
     return qty && qty > 1 ? `${label} × ${qty}` : label;
   }
-  if (c.booking_id) return "Booking";
   return "Order item";
 }
 

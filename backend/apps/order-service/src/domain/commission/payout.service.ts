@@ -82,15 +82,13 @@ export interface PayoutTotals {
   gross_amount: number; // VAT-inclusive
   vat_total: number;
   commission_total: number;
-  adjustment_total: number; // signed; includes clawbacks and license spend
+  adjustment_total: number; // signed; includes clawbacks
   carrier_cost_total: number;
   shipping_contribution_total: number;
-  license_spend_total: number;
   net_amount: number; // what will actually be transferred
   pending_count: number;
   commission_ids: string[];
   adjustment_ids: string[];
-  license_hold_ids: string[];
 }
 
 export class PayoutService {
@@ -173,43 +171,31 @@ export class PayoutService {
       0,
     );
 
-    const licenseHolds: { id: string; amount_fils: string }[] =
-      await this.commissionRepo.manager.query(
-        `SELECT id, amount_fils FROM reel_license_escrow_holds
-          WHERE vendor_id = $1 AND funding_source = 'payout_balance'
-            AND status = 'captured' AND settled_payout_id IS NULL AND deleted_at IS NULL`,
-        [vendorId],
-      );
-    const license_spend_total = licenseHolds.reduce((s, h) => s + Number(h.amount_fils), 0);
-
     const adjustments = await this.adjustmentRepo.find({
       where: { vendor_id: vendorId, settled_payout_id: IsNull() } as any,
     });
     const adjustment_sum = adjustments.reduce((s, a: any) => s + (a.amount_fils || 0), 0);
 
-    const net_amount =
-      items_net - shipping_contribution_total - license_spend_total + adjustment_sum;
+    const net_amount = items_net - shipping_contribution_total + adjustment_sum;
 
     return {
       gross_amount,
       vat_total,
       commission_total,
-      adjustment_total: adjustment_sum - license_spend_total,
+      adjustment_total: adjustment_sum,
       carrier_cost_total,
       shipping_contribution_total,
-      license_spend_total,
       net_amount,
       pending_count: commissions.length,
       commission_ids: commissions.map((c: any) => c.id),
       adjustment_ids: adjustments.map((a: any) => a.id),
-      license_hold_ids: licenseHolds.map((h) => h.id),
     };
   }
 
   /**
    * Creates a reviewable draft payout. Moves no money — there is no Stripe
-   * call anywhere on this path. The draft claims its commissions, adjustments
-   * and license holds so a later run cannot double-count them; approval
+   * call anywhere on this path. The draft claims its commissions and
+   * adjustments so a later run cannot double-count them; approval
    * (see approveDraft) is the only thing that transfers.
    *
    * Idempotency note: on an ordinary same-day rerun (the daily job's normal
@@ -266,7 +252,7 @@ export class PayoutService {
     // a positive adjustment unreachable for the vendor who most needs one —
     // a closed shop with no new sales owed a credit sat unsettled forever.
     // With no commissions the draft is built purely from the unsettled
-    // adjustments (and any license spend), and the net check just below is
+    // adjustments, and the net check just below is
     // what actually decides whether it is worth transferring.
     if (totals.pending_count === 0 && totals.adjustment_ids.length === 0) return null;
     // A non-positive net would be rejected by Stripe anyway. Leave everything
@@ -351,39 +337,6 @@ export class PayoutService {
           );
         }
       }
-      // Same conditional-claim-plus-affected-row-check pattern as the
-      // commission/adjustment claims above (I5): license holds are not
-      // period-scoped, so without `AND settled_payout_id IS NULL` — and
-      // without verifying the claim actually won every row — two concurrent
-      // createDraft calls for the same vendor with different periods (a
-      // manual /generate racing the nightly job) can both read the same
-      // unsettled holds and both "successfully" claim them, deducting the
-      // same escrowed license spend twice.
-      if (totals.license_hold_ids.length) {
-        // MINOR (round 4): the claim predicate mirrors computePayoutTotals'
-        // read predicate in full (`status='captured' AND funding_source=
-        // 'payout_balance' AND deleted_at IS NULL`), not just
-        // `settled_payout_id IS NULL`. No exploit was found for the narrower
-        // version — `captured` is terminal until settlement — but a claim
-        // that can match rows its own read would have excluded is a
-        // difference waiting to matter, and the affected-row check below
-        // turns any such divergence into a rolled-back draft instead of a
-        // silently mis-scoped deduction.
-        const [claimedHoldRows] = (await txMgr.query(
-          `UPDATE reel_license_escrow_holds SET settled_payout_id = $1
-            WHERE id = ANY($2::uuid[]) AND settled_payout_id IS NULL
-              AND status = 'captured' AND funding_source = 'payout_balance'
-              AND deleted_at IS NULL
-            RETURNING id`,
-          [draft.id, totals.license_hold_ids],
-        )) as [Array<{ id: string }>, number];
-        if (claimedHoldRows.length !== totals.license_hold_ids.length) {
-          throw new Error(
-            `License hold claim raced: expected to claim ${totals.license_hold_ids.length} license holds for vendor ${input.vendorId} but claimed ${claimedHoldRows.length} — another draft claimed the rest concurrently`,
-          );
-        }
-      }
-
       await this.writeAudit({
         action: "payout.draft_created",
         actor_id: input.adminUserId,
@@ -600,19 +553,19 @@ export class PayoutService {
     // the C1 overpayment. Recompute the claimed set's current earning
     // subtotal and compare against a value derived from the draft's own
     // stored columns, rather than re-deriving the whole computePayoutTotals
-    // pipeline (which would need shipping_contribution_total and
-    // license_spend_total pulled fresh too, and risks a false alarm from
-    // divergence in code neither this bug nor its fix touches).
+    // pipeline (which would need shipping_contribution_total pulled fresh
+    // too, and risks a false alarm from divergence in code neither this bug
+    // nor its fix touches).
     //
     // computePayoutTotals defines:
-    //   net_amount     = items_net - shipping_contribution_total - license_spend_total + adjustment_sum
-    //   adjustment_total (stored) = adjustment_sum - license_spend_total
-    // Substituting eliminates license_spend_total entirely:
+    //   net_amount     = items_net - shipping_contribution_total + adjustment_sum
+    //   adjustment_total (stored) = adjustment_sum
+    // Substituting:
     //   items_net = net_amount + shipping_contribution_total - adjustment_total
     // — an identity over columns already persisted on the draft, so this
     // reconciles exactly (not approximately) for any legitimately-built
-    // draft, licensed spend or not, and only trips when the claimed
-    // commission set has actually drifted since creation.
+    // draft, and only trips when the claimed commission set has actually
+    // drifted since creation.
     const { pendingCount } = await this.assertClaimedSetReconciles(payout);
 
     const destination = (payout as any).vendor?.stripe_account_id;
@@ -896,8 +849,8 @@ export class PayoutService {
   }
 
   /**
-   * The three release writes shared by every invalidation path —
-   * commissions, adjustments, license holds. Deliberately does NOT touch the
+   * The release writes shared by every invalidation path — commissions and
+   * adjustments. Deliberately does NOT touch the
    * `vendor_payouts` row itself: that row is claimed (and soft-deleted) by
    * `claimDraftForInvalidation`'s compare-and-set, and only the caller that
    * WON that CAS — `rejectDraft`, `voidFailedPayout` or
@@ -911,10 +864,6 @@ export class PayoutService {
     await txMgr
       .getRepository(VendorPayoutAdjustment)
       .update({ settled_payout_id: payoutId } as any, { settled_payout_id: null } as any);
-    await txMgr.query(
-      "UPDATE reel_license_escrow_holds SET settled_payout_id = NULL WHERE settled_payout_id = $1",
-      [payoutId],
-    );
   }
 
   /**
@@ -937,7 +886,7 @@ export class PayoutService {
    * gateway_reference IS NULL`, not `status = 'pending'`. `payout_id` is
    * nulled in exactly one place (`releaseClaims`), reachable only from this
    * CAS, so while it required `pending` a `failed` payout had no release
-   * path at all: its commissions, adjustments and license holds were claimed
+   * path at all: its commissions and adjustments were claimed
    * forever, and any reversal touching one of them recomputed the commission
    * in place (R3-I4) so every later retry then failed reconciliation
    * identically, forever. The safety condition is not the status but whether
@@ -969,7 +918,7 @@ export class PayoutService {
    * R4-C1 — the admin "void / release a failed payout" action.
    *
    * A payout that failed before its transfer went out holds real money
-   * hostage: its commissions, adjustments and license holds stay claimed, so
+   * hostage: its commissions and adjustments stay claimed, so
    * no future draft can pay them. This releases them and soft-deletes the
    * payout, and is permitted ONLY when `status = 'failed'` AND
    * `gateway_reference IS NULL` — i.e. no Stripe transfer exists for this

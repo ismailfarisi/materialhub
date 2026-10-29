@@ -2,29 +2,16 @@ import type { Inventory, Order, OrderItem } from "@materialhub/database";
 import type { SiteSetting } from "@materialhub/database";
 import type { VendorOrder } from "@materialhub/database";
 import type { OrderStatusHistory } from "@materialhub/database";
-import type { VendorHoliday } from "@materialhub/database";
 import { CommissionStatus } from "@materialhub/database";
 import { OrderStatus } from "@materialhub/database/src/enums/order.enums.ts";
 import type { Queue } from "bullmq";
 import { In, IsNull, Not, type Repository } from "typeorm";
-import type { FlashDealApplicator } from "../checkout/flash-deal-applicator.service.ts";
 import type { DraftInvalidator } from "../commission/commission-reversal.service.ts";
 import type { CommissionService } from "../commission/commission.service.ts";
 import { IntegrationEventType, emitIfEnabled } from "../integration/emit.ts";
-import {
-  publishOrderDeliveredForAffiliates,
-  publishOrderPaidForAffiliates,
-  publishOrderRefundedForAffiliates,
-} from "./affiliate-commission-events.ts";
 import { OrderAggregationService } from "./order-aggregation.service.ts";
 import type { OrderStatusChangedEvent } from "./order-event.job.ts";
 import { OrderStateMachine } from "./order-state-machine.ts";
-import {
-  publishOrderDeliveredForCommissions,
-  publishOrderPaidForCommissions,
-  publishOrderRefundedForCommissions,
-} from "./reels-commission-events.ts";
-import { publishOrderDeliveredForNudge } from "./reels-nudge-events.ts";
 
 type Role = "buyer" | "vendor" | "admin" | "system";
 
@@ -85,11 +72,9 @@ export class OrderStatusService {
     private orderRepo: Repository<Order>,
     private vendorOrderRepo: Repository<VendorOrder>,
     private historyRepo: Repository<OrderStatusHistory>,
-    private vendorHolidayRepo: Repository<VendorHoliday>,
     private orderEventQueue: Queue,
     private integrationEventsQueue?: Queue,
     private siteSettingRepo?: Repository<SiteSetting>,
-    private flashDealApplicator?: FlashDealApplicator,
     private inventoryRepo?: Repository<Inventory>,
     private commissionService?: CommissionService,
     // CRITICAL 1: the narrow surface needed to invalidate a draft whose
@@ -133,7 +118,6 @@ export class OrderStatusService {
           vendorOrder,
           parentOrderId: (vendorOrder as any).order_id as string,
           parentOrderStatus: undefined as string | undefined,
-          parentUserId: undefined as string | undefined,
           fromStatus,
           toStatus,
           transitioned: false as const,
@@ -361,88 +345,11 @@ export class OrderStatusService {
         vendorOrder,
         parentOrderId: (vendorOrder as any).order_id as string,
         parentOrderStatus,
-        // Capture parent user_id so the post-commit nudge publish has a
-        // userId to address the notification to. `order` may be null if the
-        // parent row was deleted concurrently — leave undefined in that case
-        // and the publish site will skip.
-        parentUserId: (order as any)?.user_id as string | undefined,
         fromStatus,
         toStatus,
         transitioned: true as const,
       };
     });
-
-    // Publish reels commission events AFTER the DB transaction commits when
-    // the vendor-order transition aggregated the MASTER order into a
-    // commission-relevant status. Mirrors the publish block in
-    // `transitionOrder` — the shipment delivery path runs through
-    // `transitionVendorOrder` and never calls `transitionOrder`, so without
-    // this the delivered/paid/refunded commission events would never fire
-    // for the common production paths. Errors are swallowed per the same
-    // convention as `transitionOrder`.
-    if (txResult.parentOrderStatus) {
-      const parentId = txResult.parentOrderId;
-      if (txResult.parentOrderStatus === OrderStatus.confirmed) {
-        publishOrderPaidForCommissions(parentId).catch((err) => {
-          console.error("[order->reels] paid publish failed (vendor agg)", {
-            orderId: parentId,
-            error: String(err),
-          });
-        });
-        publishOrderPaidForAffiliates(parentId).catch((err) => {
-          console.error("[affiliate-events] publishOrderPaidForAffiliates failed (vendor agg)", {
-            orderId: parentId,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        });
-      } else if (txResult.parentOrderStatus === OrderStatus.delivered) {
-        publishOrderDeliveredForCommissions(parentId).catch((err) => {
-          console.error("[order->reels] delivered publish failed (vendor agg)", {
-            orderId: parentId,
-            error: String(err),
-          });
-        });
-        publishOrderDeliveredForAffiliates(parentId).catch((err) => {
-          console.error(
-            "[affiliate-events] publishOrderDeliveredForAffiliates failed (vendor agg)",
-            {
-              orderId: parentId,
-              error: err instanceof Error ? err.message : String(err),
-            },
-          );
-        });
-        // Post-delivery nudge publish. Requires a parent user_id; skip
-        // quietly if undefined (concurrent delete of parent row — the
-        // commission publish above also doesn't care about userId so it
-        // still fires).
-        const parentUserId = txResult.parentUserId;
-        if (parentUserId) {
-          publishOrderDeliveredForNudge(parentId, parentUserId).catch((err) => {
-            console.error("[order->reels] nudge publish failed (vendor agg)", {
-              orderId: parentId,
-              userId: parentUserId,
-              error: String(err),
-            });
-          });
-        }
-      } else if (txResult.parentOrderStatus === OrderStatus.refunded) {
-        publishOrderRefundedForCommissions(parentId).catch((err) => {
-          console.error("[order->reels] refunded publish failed (vendor agg)", {
-            orderId: parentId,
-            error: String(err),
-          });
-        });
-        publishOrderRefundedForAffiliates(parentId).catch((err) => {
-          console.error(
-            "[affiliate-events] publishOrderRefundedForAffiliates failed (vendor agg)",
-            {
-              orderId: parentId,
-              error: err instanceof Error ? err.message : String(err),
-            },
-          );
-        });
-      }
-    }
 
     // Emit a vendor_order.status_changed integration event AFTER commit, gated
     // by the vendor_integrations_outbound_enabled site setting. Skipped on
@@ -494,12 +401,7 @@ export class OrderStatusService {
 
       const fromStatus = order.status;
       const smResult = this.stateMachine.validateMasterTransition(fromStatus, toStatus, actor.role);
-      if (smResult?.noop)
-        return {
-          order,
-          transitioned: false as const,
-          parentUserId: (order as any)?.user_id as string | undefined,
-        };
+      if (smResult?.noop) return { order, transitioned: false as const };
 
       order.status = toStatus;
       await orderRepo.save(order);
@@ -529,71 +431,8 @@ export class OrderStatusService {
       };
       await this.orderEventQueue.add(event.type, event);
 
-      return {
-        order,
-        transitioned: true as const,
-        parentUserId: (order as any)?.user_id as string | undefined,
-      };
+      return { order, transitioned: true as const };
     });
-
-    // Publish reels commission events AFTER the DB transaction commits so that
-    // the reels-service workers see a consistent state. Errors are swallowed —
-    // a queue publish failure must never block the order flow (same convention
-    // as Task 4's attribution tap writes). Only full `refunded` triggers the
-    // void; `partially_refunded` is intentionally excluded in M3.
-    if (result.transitioned) {
-      if (toStatus === OrderStatus.confirmed) {
-        publishOrderPaidForCommissions(orderId).catch((err) => {
-          console.error("[order->reels] paid publish failed", {
-            orderId,
-            error: String(err),
-          });
-        });
-        publishOrderPaidForAffiliates(orderId).catch((err) => {
-          console.error("[affiliate-events] publishOrderPaidForAffiliates failed", {
-            orderId,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        });
-      } else if (toStatus === OrderStatus.delivered) {
-        publishOrderDeliveredForCommissions(orderId).catch((err) => {
-          console.error("[order->reels] delivered publish failed", {
-            orderId,
-            error: String(err),
-          });
-        });
-        publishOrderDeliveredForAffiliates(orderId).catch((err) => {
-          console.error("[affiliate-events] publishOrderDeliveredForAffiliates failed", {
-            orderId,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        });
-        // Post-delivery nudge — delivered-only, requires parent user_id.
-        const parentUserId = result.parentUserId;
-        if (parentUserId) {
-          publishOrderDeliveredForNudge(orderId, parentUserId).catch((err) => {
-            console.error("[order->reels] nudge publish failed", {
-              orderId,
-              userId: parentUserId,
-              error: String(err),
-            });
-          });
-        }
-      } else if (toStatus === OrderStatus.refunded) {
-        publishOrderRefundedForCommissions(orderId).catch((err) => {
-          console.error("[order->reels] refunded publish failed", {
-            orderId,
-            error: String(err),
-          });
-        });
-        publishOrderRefundedForAffiliates(orderId).catch((err) => {
-          console.error("[affiliate-events] publishOrderRefundedForAffiliates failed", {
-            orderId,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        });
-      }
-    }
 
     return result.order;
   }
@@ -745,50 +584,25 @@ export class OrderStatusService {
         }
       }
 
-      // Decrement flash-deal counters and release inventory for each
-      // order_item with a deal id in its snapshot.
-      if (this.flashDealApplicator || this.inventoryRepo) {
+      // Release reserved inventory for each order_item.
+      if (this.inventoryRepo) {
         const orderItemRepo = tx.getRepository("OrderItem" as any) as Repository<OrderItem>;
         const orderItems = await orderItemRepo.find({
           where: { order_id: orderId } as any,
         });
 
-        const dealQtyByDealId = new Map<string, number>();
+        const inventoryRepo = tx.getRepository("Inventory" as any) as Repository<Inventory>;
         for (const oi of orderItems) {
-          const dealId = (oi as any).product_snapshot?.flash_deal_id ?? null;
-          if (!dealId) continue;
-          dealQtyByDealId.set(dealId, (dealQtyByDealId.get(dealId) ?? 0) + (oi as any).quantity);
-        }
-
-        if (this.flashDealApplicator) {
-          for (const [dealId, qty] of dealQtyByDealId) {
-            try {
-              await this.flashDealApplicator.decrement(tx, dealId, qty);
-            } catch (err) {
-              console.error("[cancelOrder] flash deal decrement failed (continuing)", {
-                orderId,
-                dealId,
-                qty,
-                error: String(err),
-              });
-            }
-          }
-        }
-
-        if (this.inventoryRepo) {
-          const inventoryRepo = tx.getRepository("Inventory" as any) as Repository<Inventory>;
-          for (const oi of orderItems) {
-            const where: any = {
-              product_id: (oi as any).product_id,
-              vendor_id: (oi as any).vendor_id,
-            };
-            if ((oi as any).variant_id) where.variant_id = (oi as any).variant_id;
-            const inv = await inventoryRepo.findOne({ where });
-            if (inv) {
-              const release = Math.min(inv.quantity_reserved, (oi as any).quantity);
-              inv.quantity_reserved = Math.max(0, inv.quantity_reserved - release);
-              await inventoryRepo.save(inv);
-            }
+          const where: any = {
+            product_id: (oi as any).product_id,
+            vendor_id: (oi as any).vendor_id,
+          };
+          if ((oi as any).variant_id) where.variant_id = (oi as any).variant_id;
+          const inv = await inventoryRepo.findOne({ where });
+          if (inv) {
+            const release = Math.min(inv.quantity_reserved, (oi as any).quantity);
+            inv.quantity_reserved = Math.max(0, inv.quantity_reserved - release);
+            await inventoryRepo.save(inv);
           }
         }
       }
@@ -819,31 +633,6 @@ export class OrderStatusService {
 
       return order;
     });
-  }
-
-  async computeProcessingDeadline(vendorId: string, baseDeadline: Date): Promise<Date> {
-    const holidays = await this.vendorHolidayRepo.find({
-      where: { vendor_id: vendorId, auto_extend_sla: true } as any,
-    });
-
-    // Sort by start date to process in chronological order
-    const sorted = holidays
-      .map((h) => ({ start: new Date(h.starts_at), end: new Date(h.ends_at) }))
-      .sort((a, b) => a.start.getTime() - b.start.getTime());
-
-    let deadline = new Date(baseDeadline);
-    let changed = true;
-    while (changed) {
-      changed = false;
-      for (const holiday of sorted) {
-        if (deadline >= holiday.start && deadline <= holiday.end) {
-          const remainingMs = deadline.getTime() - holiday.start.getTime();
-          deadline = new Date(holiday.end.getTime() + remainingMs);
-          changed = true;
-        }
-      }
-    }
-    return deadline;
   }
 
   private isCustomerVisible(toStatus: OrderStatus, _role: string): boolean {

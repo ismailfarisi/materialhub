@@ -2,13 +2,9 @@
 //
 // Mocked-repo unit tests (no live DB / Redis / BullMQ) for
 // recomputeReviewRatings — the aggregation math the review-rating worker runs
-// on product-review approval. Focus (Phase 5 Task 7 follow-up): the vendor
-// aggregate is now BLENDED across product `reviews` UNION booking-service's
-// `service_reviews` with identical status/soft-delete predicates, mirroring
-// booking-service's ServiceReviewRatingService.recomputeVendor, so both
-// writers of vendors.rating_avg converge on the same value regardless of
-// which review event fires last. The product aggregate is unchanged
-// (product reviews only).
+// on product-review approval. The product aggregate is scoped to the product;
+// the vendor aggregate spans every approved product review for the vendor,
+// with identical status/soft-delete predicates.
 import { describe, expect, it, mock } from "bun:test";
 import { recomputeReviewRatings } from "./review-rating.job.ts";
 
@@ -58,10 +54,9 @@ describe("recomputeReviewRatings", () => {
     expect(andWhereArgs).toContain("r.deleted_at IS NULL");
   });
 
-  it("vendor aggregate blends reviews UNION service_reviews with identical approved + soft-delete predicates (mixed vendor converges)", async () => {
-    // A vendor with 1 product review (5) and 3 service reviews (4,4,4): the
-    // blended DB aggregate is AVG=4.25, COUNT=4 — the worker must write that,
-    // not a product-only AVG=5/COUNT=1.
+  it("vendor aggregate spans the vendor's approved product reviews with approved + soft-delete predicates", async () => {
+    // A vendor with four approved reviews (5,4,4,4) across its products: the
+    // DB aggregate is AVG=4.25, COUNT=4 — the worker must write that as-is.
     const { reviewRepo, productRepo, vendorRepo, query } = makeRepos({
       vendorAggregate: [{ avg: "4.2500", count: 4 }],
     });
@@ -75,18 +70,15 @@ describe("recomputeReviewRatings", () => {
 
     const [sql, params] = query.mock.calls[0] as unknown as [string, unknown[]];
     expect(sql).toContain("FROM reviews");
-    expect(sql).toContain("UNION ALL");
-    expect(sql).toContain("FROM service_reviews");
-    // Identical predicates on BOTH sources: status param + soft-delete.
-    expect(sql.match(/status::text = \$2/g)?.length).toBe(2);
-    expect(sql.match(/deleted_at IS NULL/g)?.length).toBe(2);
-    expect(sql.match(/vendor_id = \$1/g)?.length).toBe(2);
+    expect(sql).not.toContain("UNION");
+    // Same predicates as the product aggregate: status param + soft-delete.
+    expect(sql).toMatch(/status::text = \$2/);
+    expect(sql).toMatch(/deleted_at IS NULL/);
+    expect(sql).toMatch(/vendor_id = \$1/);
     expect(params).toEqual(["vendor-1", "approved"]);
   });
 
-  it("product-only vendor: the blended aggregate degenerates to the product-only value (unchanged behavior)", async () => {
-    // With zero service_reviews rows the UNION arm contributes nothing, so
-    // the DB aggregate equals the old product-only recompute — written as-is.
+  it("writes the vendor aggregate exactly as the DB reports it", async () => {
     const { reviewRepo, productRepo, vendorRepo } = makeRepos({
       vendorAggregate: [{ avg: "3.6667", count: 3 }],
     });

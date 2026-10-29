@@ -132,7 +132,7 @@ describe("buildPayoutStatementViewModel", () => {
     expect(vm.lines[0]?.commission).toBe("AED 0.50");
   });
 
-  test("describes items with variant and quantity, and falls back for bookings", () => {
+  test("describes items with variant and quantity, and falls back when there is no order item", () => {
     const vm = buildPayoutStatementViewModel(
       source({
         commissions: [
@@ -153,14 +153,13 @@ describe("buildPayoutStatementViewModel", () => {
             vendor_earning: 90,
             order: null,
             order_item: null,
-            booking_id: "b-1",
           },
         ],
         commissionCount: 2,
       }),
     );
     expect(vm.lines[0]?.description).toBe("Rose Serum — 30ml × 3");
-    expect(vm.lines[1]?.description).toBe("Booking");
+    expect(vm.lines[1]?.description).toBe("Order item");
     expect(vm.lines[1]?.reference).toBe("—");
   });
 

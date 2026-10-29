@@ -3,16 +3,14 @@ import type { InventoryReservation, Order, OrderStatusHistory } from "@materialh
 import type { Queue } from "bullmq";
 import type { Repository } from "typeorm";
 import type { CartService } from "../cart/cart.service.ts";
-import { publishOrderPaidForAffiliates } from "../order/affiliate-commission-events.ts";
 import { publishOrderPaidForChannels } from "../order/channel-conversion-events.ts";
-import { publishOrderPaidForCommissions } from "../order/reels-commission-events.ts";
 import type { CouponService } from "./coupon.service.ts";
 
 /**
  * Single sink for "order has been paid" side effects. Every prepaid provider's
  * webhook (Stripe today, Tabby / Tamara / Checkout.com tomorrow) routes
  * through `markOrderPaid` so the bundle of side effects — order status flip,
- * inventory commit, status history, cart clear, commission publish — lives in
+ * inventory commit, status history, cart clear, conversion publish — lives in
  * exactly one place. Adding a new provider means calling this method from its
  * webhook handler, nothing else.
  *
@@ -28,7 +26,7 @@ export class OrderConfirmationService {
     private cartService: CartService,
     // Books carrier shipments for the order's vendor sub-orders. Vendor
     // sub-orders are created already 'confirmed' (no transition event fires),
-    // so payment confirmation is the only reliable booking trigger.
+    // so payment confirmation is the only reliable shipment trigger.
     private enqueueAutoShipments?: ((orderId: string) => Promise<void>) | null,
     // order-events queue. A master-level 'confirmed' event is emitted here so
     // the notification-service sends the order-placed emails (customer +
@@ -159,20 +157,6 @@ export class OrderConfirmationService {
 
     await this.clearCustomerCart((order as any).user_id);
 
-    publishOrderPaidForCommissions(orderId).catch((err) => {
-      console.error("[order-confirmation] reels paid publish failed", {
-        orderId,
-        error: String(err),
-      });
-    });
-
-    publishOrderPaidForAffiliates(orderId).catch((err) => {
-      console.error("[affiliate-events] publishOrderPaidForAffiliates failed", {
-        orderId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    });
-
     publishOrderPaidForChannels(orderId).catch((err) => {
       console.error("[order-confirmation] channel conversion publish failed", {
         orderId,
@@ -190,7 +174,7 @@ export class OrderConfirmationService {
   }
 
   /**
-   * Enqueue carrier booking for the order's vendor sub-orders. Failures are
+   * Enqueue carrier shipments for the order's vendor sub-orders. Failures are
    * swallowed — the admin retry-shipment endpoint is the recovery path.
    */
   async triggerAutoShipments(orderId: string): Promise<void> {

@@ -3,7 +3,6 @@ import type {
   ShippingRate,
   SiteSetting,
   UserAddress,
-  VendorHoliday,
 } from "@materialhub/database";
 import type { CheckoutQuoteResponse } from "@materialhub/dto";
 import type { Repository } from "typeorm";
@@ -49,7 +48,6 @@ export class QuoteService {
     private thresholdRepo: Repository<PaymentMethodThreshold>,
     private shippingRateRepo: Repository<ShippingRate>,
     private userAddressRepo: Repository<UserAddress>,
-    private vendorHolidayRepo: Repository<VendorHoliday>,
     private siteSettingRepo: Repository<SiteSetting>,
     private secret: string,
     private couponService?: CouponService,
@@ -93,16 +91,9 @@ export class QuoteService {
           .getMany()
       : [];
 
-    // ── 4. Vendor holidays covering today ──
-    const today = new Date().toISOString().slice(0, 10);
-    const activeHolidays: VendorHoliday[] = vendorIds.length
-      ? await this.vendorHolidayRepo
-          .createQueryBuilder("h")
-          .where("h.vendor_id IN (:...vendorIds)", { vendorIds })
-          .andWhere("h.starts_at <= :today AND h.ends_at >= :today", { today })
-          .getMany()
-      : [];
-    const onHoliday = new Set(activeHolidays.map((h) => h.vendor_id));
+    // ── 4. Vendor availability ──
+    // No vendor-availability exclusions apply; every vendor group is shippable.
+    const onHoliday = new Set<string>();
 
     // ── 5. Subtotal/VAT ──
     // Product prices are VAT-inclusive (UAE 5% standard rate). The cart

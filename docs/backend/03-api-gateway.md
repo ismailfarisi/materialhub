@@ -80,37 +80,27 @@ flowchart TD
 Two consequences the file's comments belabour, and you should internalise:
 
 1. **More specific prefixes must come first.** `/admin/products` is listed before `/products`,
-   `/admin/reels/analytics` before `/admin/reels`, `/vendors/me/payouts` (order-service!) before
+   `/admin/shipping-rates` before `/shipping`, `/vendors/me/payouts` (order-service!) before
    `/vendors` (vendor-service).
-2. **Sibling prefixes do not collide.** `/bookings` never matches the `/booking` entry, because
-   the match requires an exact equality or a following `/`.
-
-One hard-coded exception precedes the loop:
-
-```ts
-if (/^\/services\/[^/]+\/availability$/.test(path)) return { target: booking, … };
-```
-
-`/services/*` otherwise routes to product-service (it owns `service_offerings` and the public
-PDP), but availability is computed by booking-service.
+2. **Sibling prefixes do not collide.** `/shipping-rates` never matches a `/shipping` entry,
+   because the match requires an exact equality or a following `/`.
 
 ### Prefix → service map
 
 <details>
 <summary><b>auth-service</b></summary>
 
-`/admin/users`, `/admin/auth`, `/auth`, `/ref`, `/me/referral-code`, `/me/referrals`
+`/admin/users`, `/admin/auth`, `/auth`
 </details>
 
 <details>
 <summary><b>product-service</b></summary>
 
 `/admin/categories`, `/admin/brands`, `/admin/attributes`, `/admin/search`, `/admin/collections`,
-`/admin/gift`, `/admin/service-offerings`, `/admin/products`, `/admin/flash-deals`,
-`/admin/settings/ai`, `/attributes`, `/products`, `/categories`, `/collections`, `/services`,
-`/gift`, `/brands`, `/inventory`, `/media`, `/search/trending`, `/wishlist`, `/recently-viewed`,
-`/me/recent-searches`, `/saved-searches`, `/recommendations`, `/vendor/flash-deals`,
-`/vendor/product-groups`, `/vendor/services`, `/bulk`
+`/admin/products`, `/admin/settings/ai`, `/attributes`, `/products`, `/categories`,
+`/collections`, `/brands`, `/inventory`, `/media`, `/search/trending`, `/wishlist`,
+`/recently-viewed`, `/me/recent-searches`, `/saved-searches`, `/recommendations`,
+`/vendor/product-groups`, `/bulk`
 </details>
 
 <details>
@@ -118,7 +108,7 @@ PDP), but availability is computed by booking-service.
 
 `/admin/cart-abandonment`, `/admin/dashboard`, `/vendor/dashboard`, `/admin/orders`,
 `/admin/reviews`, `/admin/returns`, `/admin/disputes`, `/admin/commissions`, `/admin/payouts`,
-`/admin/payout-adjustments`, `/admin/gift-fulfillment`, `/admin/payment-methods`,
+`/admin/payout-adjustments`, `/admin/payment-methods`,
 `/admin/shipping-rates`, `/admin/shipping-contribution-tiers`, `/admin/shipping-providers`,
 `/admin/shipments`, `/admin/vendor-orders`, `/admin/coupons`, `/admin/promotions`,
 `/vendor/shipping-integrations`, `/vendor/warehouses`, `/vendor/coupons`, `/vendor/orders`,
@@ -130,15 +120,7 @@ PDP), but availability is computed by booking-service.
 <details>
 <summary><b>vendor-service</b></summary>
 
-`/admin/vendors`, `/admin/affiliates`, `/vendor/reels-program`, `/vendor/affiliates`, `/vendors`,
-`/me/follows/vendors`, `/me/affiliate`, `/webhooks/stripe/connect`, `/a`
-</details>
-
-<details>
-<summary><b>booking-service</b></summary>
-
-`/booking`, `/admin/bookings`, `/bookings`, `/me/bookings`, `/vendor/booking`, `/manage`,
-`/calendar`, plus the `/services/:slug/availability` regex exception
+`/admin/vendors`, `/vendors`, `/me/follows/vendors`, `/webhooks/stripe/connect`
 </details>
 
 <details>
@@ -156,21 +138,14 @@ PDP), but availability is computed by booking-service.
 </details>
 
 <details>
-<summary><b>reels-service</b></summary>
-
-`/admin/reels/analytics`, `/admin/reels`, `/admin/creators`, `/vendor/reels/analytics`,
-`/vendor/reels`, `/me/reels`, `/me/creator`, `/users`, `/reels`
-</details>
-
-<details>
 <summary><b>notification-service</b></summary>
 
 `/notifications`, `/newsletter`, `/webhooks/whatsapp`
 </details>
 
 > **Trap:** `/vendors/me/payouts` is served by **order-service**, not vendor-service, because
-> payouts live alongside commissions. Likewise `/users/*` goes to **reels-service** (public
-> creator profiles + follow graph), not auth-service.
+> payouts live alongside commissions. Likewise `/vendor/warehouses` and
+> `/vendor/shipping-integrations` go to **order-service** (shipping), not vendor-service.
 
 ## Proxying
 
@@ -207,7 +182,7 @@ Fans out to five services (`auth`, `product`, `order`, `vendor`, `notification`)
 }
 ```
 
-> **Gap:** the health check does not cover `cms`, `reels`, `integration` or `booking`, and the
+> **Gap:** the health check does not cover `cms` or `integration`, and the
 > top-level `status` is the hard-coded string `"ok"` regardless of what the fan-out found — an
 > uptime monitor pointed at this endpoint will never fire.
 
@@ -215,5 +190,4 @@ Fans out to five services (`auth`, `product`, `order`, `vendor`, `notification`)
 
 Swagger UI at `/api/docs`, JSON at `/api/docs/json`, declaring a `bearerAuth` security scheme.
 Because the gateway only proxies, **the generated spec describes the gateway's own routes
-(`/health` and the catch-all), not the upstream services' endpoints.** reels-service mounts its
-own Swagger at its local `/api/docs`, which is not reachable through the gateway.
+(`/health` and the catch-all), not the upstream services' endpoints.**

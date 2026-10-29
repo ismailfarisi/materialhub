@@ -64,8 +64,6 @@ sequenceDiagram
     participant OC as OrderConfirmationService
     participant DB as Postgres
     participant Q as queues
-    participant R as reels
-    participant Vn as vendor (affiliates)
     participant I as integration (channels)
 
     ST->>W: event
@@ -78,13 +76,7 @@ sequenceDiagram
     OC->>DB: order_status_history
     OC->>DB: coupon_usages + coupons.usage_count
     OC->>DB: clear the customer's cart
-    par fire-and-forget publishes
-        OC->>R: reels-commissions queue
-    and
-        OC->>Vn: affiliate-commissions queue
-    and
-        OC->>I: channel-conversion-events queue
-    end
+    OC->>I: channel-conversion-events queue (fire-and-forget)
     OC->>Q: auto-shipment (per vendor order)
     OC->>Q: order-events (master confirmed) → notification-events
     OC->>Q: order-invoices (jobId invoice_<orderId>)
@@ -188,71 +180,7 @@ sequenceDiagram
 
 ---
 
-## 6. Booking with a deposit
-
-```mermaid
-sequenceDiagram
-    participant C as Customer
-    participant P as product-service
-    participant B as booking-service
-    participant O as order-service
-    participant ST as Stripe
-    participant N as notification
-
-    C->>P: GET /services/:slug                     (PDP — product-service owns the offering)
-    C->>B: GET /services/:slug/availability        (gateway regex → booking-service)
-    C->>B: POST /bookings/hold                     (Redis hold + allowedPaymentModes)
-    C->>B: POST /bookings {holdToken, …}
-    B->>B: assertHeldFor → engagement(held) + booking(pending_payment) in one transaction
-    B->>O: POST /internal/booking-payment/intent   (internal JWT)
-    O->>ST: paymentIntents.create {metadata.booking_id}
-    B-->>C: clientSecret
-    C->>ST: confirms
-    ST->>O: POST /webhooks/stripe (payment_intent.succeeded, no order_id)
-    O->>B: POST /internal/bookings/:id/confirm
-    B->>B: booking→confirmed, engagement→confirmed
-    B->>B: schedule auth / autocomplete / reminder jobs
-    B->>N: booking_confirmed + vendor_new_booking
-    Note over B: ends_at + 24h
-    B->>O: POST /internal/booking-payment/complete
-    O->>ST: capture
-    O->>O: CommissionService.createForBookingInTx (held, settle_after = now + window)
-```
-
-Note the money round-trip: booking-service never talks to Stripe, and order-service never decides
-booking status. Each side owns exactly one thing.
-
----
-
-## 7. Creator reel → attributed purchase → creator payout
-
-```mermaid
-sequenceDiagram
-    participant Cr as Creator
-    participant R as reels-service
-    participant CF as Cloudflare Stream
-    participant Vw as Viewer
-    participant O as order-service
-
-    Cr->>R: POST /reels/uploads → direct-upload URL
-    Cr->>CF: upload
-    CF->>R: POST /reels/webhooks/cloudflare-stream (ready)
-    R->>R: draft reel
-    Cr->>R: POST /reels/:id/tags (guarded by verified purchase / vendor permission)
-    Cr->>R: POST /reels/:id/publish → moderation
-    Vw->>R: GET /reels/feed  (cohort + ranking score)
-    Vw->>R: POST /reels/:id/tags/:tagId/taps → reel_attributions
-    Vw->>O: buys the product
-    O->>R: reels-commissions (order paid) → reel_commissions(pending)
-    O->>R: reels-commissions (order delivered) → eligible
-    R->>R: transitionEligibleToEarned cron → earned → creator wallet
-    Cr->>R: POST /me/creator/payout
-    O->>R: reels-nudges (order delivered) → prompt the buyer to make their own reel
-```
-
----
-
-## 8. Bulk catalogue import
+## 6. Bulk catalogue import
 
 ```mermaid
 sequenceDiagram
@@ -262,7 +190,7 @@ sequenceDiagram
     participant Q as bulk queues
     participant TS as Typesense
 
-    V->>P: GET /bulk/templates/catalog_import?format=xlsx&categorySlugs=abayas,perfume
+    V->>P: GET /bulk/templates/catalog_import?format=xlsx&categorySlugs=kraft-paper,greyboard
     P-->>V: a template whose columns and dropdowns match those categories' attributes
     V->>P: POST /bulk/uploads/initiate
     P-->>V: presigned PUT (10 min)
@@ -282,7 +210,7 @@ sequenceDiagram
 
 ---
 
-## 9. Home page render
+## 7. Home page render
 
 ```mermaid
 sequenceDiagram
@@ -290,7 +218,6 @@ sequenceDiagram
     participant GW as gateway
     participant C as cms-service
     participant P as product-service
-    participant R as reels-service
 
     W->>GW: GET /navigation/header        (public, CloudFront-cached)
     GW->>C: draft/published navigation
@@ -300,21 +227,17 @@ sequenceDiagram
     C->>P: resolve collection/query sections
     C->>C: overlay approved section bids in their live window
     C-->>W: [{type, position, settings, source_mode, collection_slug?, data}]
-    W->>GW: GET /reels/featured           (public — licensed reels)
-    GW->>R: featured grants
 ```
 
 ---
 
-## 10. Refund path (return → money back → commission clawback)
+## 8. Refund path (return → money back → commission clawback)
 
 ```mermaid
 sequenceDiagram
     participant C as Customer
     participant O as order-service
     participant ST as Stripe
-    participant V as vendor-service
-    participant R as reels-service
 
     C->>O: POST /orders/:id/return
     O->>O: return(requested) — return-window.ts checks eligibility
@@ -327,13 +250,11 @@ sequenceDiagram
     else a payout draft already claimed it
         O->>O: PayoutService.invalidateDraftForReversal (CAS)
         alt CAS won
-            O->>O: release commissions, adjustments and license holds
+            O->>O: release commissions and adjustments
         else CAS lost (money in flight or already sent)
             O->>O: recordUnreleasableClaim → clawback adjustment only if money actually left
         end
     end
-    O->>V: affiliate-commissions → voidPendingForOrder
-    O->>R: reels-commissions → voidPendingForOrder
 ```
 
 The asymmetry is deliberate: a clawback is written **only** when the payout demonstrably sent
@@ -352,11 +273,6 @@ Every synchronous service-to-service call in the system:
 | integration-service | order-service | `POST /internal/shipments`, `/:id/transition` | internal JWT |
 | integration-service | product-service | `POST /internal/inventory/adjust` | internal JWT |
 | integration-service | product-service | `POST /internal/products/:id/patch` | internal JWT |
-| booking-service | order-service | `POST /internal/booking-payment/{setup,authorize,intent,capture,void,refund,complete}` | internal JWT |
-| order-service | booking-service | `POST /internal/bookings/:id/{confirm,payment-failed}` | internal JWT |
-| reels-service | order-service | `GET /internal/orders/verified-purchase`, `/my-delivered-items` | internal JWT |
-| reels-service | product-service | `GET /internal/products/by-vendor`, `/by-permission` | internal JWT |
-| order-service | product-service | `GET /internal/flash-deals` | internal JWT |
 | any service | notification-service | `POST /notifications/send-internal`, `/preferences/seed-internal` | internal secret |
 | gateway | all | proxy | pass-through |
 

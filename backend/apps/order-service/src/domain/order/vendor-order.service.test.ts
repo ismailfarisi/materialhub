@@ -43,12 +43,7 @@ describe("VendorOrderService", () => {
     mockQueryBuilder.skip.mockImplementation(() => mockQueryBuilder);
     mockQueryBuilder.take.mockImplementation(() => mockQueryBuilder);
     mockCancellationRepo.find.mockImplementation(() => Promise.resolve([]));
-    service = new VendorOrderService(
-      mockVendorOrderRepo as any,
-      { findOne: mock(() => Promise.resolve(null)) } as any,
-      { findOne: mock(() => Promise.resolve(null)) } as any,
-      mockCancellationRepo as any,
-    );
+    service = new VendorOrderService(mockVendorOrderRepo as any, mockCancellationRepo as any);
   });
 
   it("lists vendor orders with pagination", async () => {
@@ -116,8 +111,6 @@ describe("unpaid-order visibility", () => {
     const repo = { createQueryBuilder: mock(() => qb) };
     const service = new VendorOrderService(
       repo as any,
-      { findOne: mock(() => Promise.resolve(null)) } as any,
-      { findOne: mock(() => Promise.resolve(null)) } as any,
       { find: mock(() => Promise.resolve([])) } as any,
     );
 

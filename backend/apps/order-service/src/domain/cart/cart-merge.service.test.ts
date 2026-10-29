@@ -19,10 +19,6 @@ describe("CartMergeService", () => {
     setItem: mock(() => Promise.resolve()),
     clear: mock(() => Promise.resolve()),
   };
-  const mockGiftBoxRepo = {
-    find: mock(() => Promise.resolve([])),
-    save: mock((row: any) => Promise.resolve(row)),
-  };
 
   let service: CartMergeService;
 
@@ -30,13 +26,7 @@ describe("CartMergeService", () => {
     Object.values(mockCartRepo).forEach((m) => m.mockClear());
     Object.values(mockCartItemRepo).forEach((m) => m.mockClear());
     Object.values(mockRedis).forEach((m) => m.mockClear());
-    Object.values(mockGiftBoxRepo).forEach((m) => m.mockClear());
-    service = new CartMergeService(
-      mockCartRepo as any,
-      mockCartItemRepo as any,
-      mockRedis as any,
-      mockGiftBoxRepo as any,
-    );
+    service = new CartMergeService(mockCartRepo as any, mockCartItemRepo as any, mockRedis as any);
   });
 
   it("keeps higher quantity on conflict", async () => {

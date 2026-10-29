@@ -45,8 +45,7 @@ export function verifyQuoteToken(secret: string, token: string, inputs: QuoteTok
   // multibyte char) — comparing string `.length` passes that guard while
   // timingSafeEqual still throws on the resulting byte-length mismatch,
   // turning a bad token into a 500. Build Buffers first, pre-check on their
-  // byte length. (Same fix already applied to booking-service's
-  // ical-feed-token.ts; ported here.)
+  // byte length.
   const expectedBuf = Buffer.from(expected);
   const tokenBuf = Buffer.from(token);
   if (expectedBuf.length !== tokenBuf.length) return false;

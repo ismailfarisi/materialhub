@@ -1,13 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { CommissionStatus } from "@materialhub/database";
 import { OrderStatus } from "@materialhub/database/src/enums/order.enums.ts";
 import { In } from "typeorm";
 import { OrderStatusService } from "./order-status.service.ts";
-import { REELS_COMMISSIONS_QUEUE, __setQueueFactoryForTests } from "./reels-commission-events.ts";
-import {
-  REELS_NUDGES_QUEUE,
-  __setQueueFactoryForTests as __setNudgeQueueFactoryForTests,
-} from "./reels-nudge-events.ts";
 
 describe("OrderStatusService", () => {
   const mockOrderRepo = {
@@ -41,9 +36,6 @@ describe("OrderStatusService", () => {
   const mockQueue = {
     add: mock(() => Promise.resolve()),
   };
-  const mockVendorHolidayRepo = {
-    find: mock(() => Promise.resolve([])),
-  };
   const mockCommissionService = {
     getSettlementWindowDays: mock(() => Promise.resolve(7)),
   };
@@ -66,9 +58,7 @@ describe("OrderStatusService", () => {
       mockOrderRepo as any,
       mockVendorOrderRepo as any,
       mockHistoryRepo as any,
-      mockVendorHolidayRepo as any,
       mockQueue as any,
-      undefined,
       undefined,
       undefined,
       undefined,
@@ -108,91 +98,6 @@ describe("OrderStatusService", () => {
       await expect(
         service.cancelOrder("order-1", { userId: "u1", role: "buyer" as const }, "changed mind"),
       ).rejects.toThrow("Invalid transition");
-    });
-
-    it("decrements flash_deals.quantity_sold for each deal-tagged order item", async () => {
-      const dealId = "00000000-0000-0000-0000-000000000d01";
-      const orderItems = [
-        {
-          product_id: "p1",
-          variant_id: null,
-          vendor_id: "v1",
-          quantity: 3,
-          product_snapshot: { flash_deal_id: dealId },
-        },
-        {
-          product_id: "p2",
-          variant_id: null,
-          vendor_id: "v1",
-          quantity: 2,
-          product_snapshot: { flash_deal_id: null }, // no deal — should be ignored
-        },
-      ];
-      const decrementSpy = mock((..._args: any[]) => Promise.resolve());
-      const flashDealApplicator = {
-        decrement: decrementSpy,
-        validateAndIncrement: mock(() => Promise.resolve()),
-        resolveForLine: mock(() => Promise.resolve(null)),
-      };
-
-      const cancellableService = new OrderStatusService(
-        mockOrderRepo as any,
-        mockVendorOrderRepo as any,
-        mockHistoryRepo as any,
-        mockVendorHolidayRepo as any,
-        mockQueue as any,
-        undefined,
-        undefined,
-        flashDealApplicator as any,
-      );
-
-      mockOrderRepo.manager.transaction.mockImplementationOnce(async (cb: any) => {
-        const txManager = {
-          getRepository: mock((name: string) => {
-            if (name === "Order") {
-              return {
-                findOne: mock(() =>
-                  Promise.resolve({
-                    id: "order-1",
-                    status: OrderStatus.pending_payment,
-                    vendorOrders: [],
-                  }),
-                ),
-                save: mock((e: any) => Promise.resolve(e)),
-              };
-            }
-            if (name === "VendorOrder") {
-              return { findOne: mock(() => Promise.resolve(null)), save: mock() };
-            }
-            if (name === "OrderStatusHistory") {
-              return {
-                findOne: mock(() => Promise.resolve(null)),
-                save: mock((e: any) => Promise.resolve(e)),
-                create: mock((data: any) => data),
-              };
-            }
-            if (name === "OrderItem") {
-              return { find: mock(() => Promise.resolve(orderItems)) };
-            }
-            if (name === "Commission") {
-              return { update: mock(() => Promise.resolve({ affected: 0 })) };
-            }
-            throw new Error(`Unexpected repo ${name}`);
-          }),
-        };
-        return cb(txManager);
-      });
-
-      await cancellableService.cancelOrder(
-        "order-1",
-        { userId: "system", role: "system" as const },
-        "Payment failed",
-      );
-
-      expect(decrementSpy).toHaveBeenCalledTimes(1);
-      const call = decrementSpy.mock.calls[0]!;
-      expect(call[1]).toBe(dealId);
-      expect(call[2]).toBe(3);
     });
 
     it("lets an admin cancel an order whose vendor sub-orders are past confirmed", async () => {
@@ -413,9 +318,7 @@ describe("OrderStatusService", () => {
           mockOrderRepo as any,
           mockVendorOrderRepo as any,
           mockHistoryRepo as any,
-          mockVendorHolidayRepo as any,
           mockQueue as any,
-          undefined,
           undefined,
           undefined,
           undefined,
@@ -505,9 +408,7 @@ describe("OrderStatusService", () => {
           mockOrderRepo as any,
           mockVendorOrderRepo as any,
           mockHistoryRepo as any,
-          mockVendorHolidayRepo as any,
           mockQueue as any,
-          undefined,
           undefined,
           undefined,
           undefined,
@@ -647,15 +548,11 @@ describe("OrderStatusService", () => {
     });
   });
 
-  describe("transitionVendorOrder commission publish (parent aggregation)", () => {
-    // Regression guard for the M3 fix: when transitionVendorOrder aggregates
-    // the MASTER order status (e.g. all vendor orders delivered -> master
-    // delivered), it must publish the reels commission event. The shipment
-    // delivery path runs through transitionVendorOrder, not transitionOrder,
-    // so without this the delivered/paid/refunded events never fire on the
-    // real production paths.
-    let fakeQueueAdd: ReturnType<typeof mock>;
-    let fakeNudgeQueueAdd: ReturnType<typeof mock>;
+  describe("transitionVendorOrder parent aggregation", () => {
+    // When transitionVendorOrder aggregates the MASTER order status (e.g. all
+    // vendor orders delivered -> master delivered) the parent-level side
+    // effects (COD capture, integration events) must fire. The shipment
+    // delivery path runs through transitionVendorOrder, not transitionOrder.
 
     // A transaction manager that serves a different repository mock per
     // entity name (VendorOrder / Order / OrderStatusHistory). Lets us drive
@@ -705,76 +602,6 @@ describe("OrderStatusService", () => {
         }),
       };
     }
-
-    beforeEach(() => {
-      fakeQueueAdd = mock(async () => ({ id: "job-id" }));
-      __setQueueFactoryForTests(
-        () =>
-          ({
-            name: REELS_COMMISSIONS_QUEUE,
-            add: fakeQueueAdd,
-          }) as any,
-      );
-      fakeNudgeQueueAdd = mock(async () => ({ id: "nudge-job-id" }));
-      __setNudgeQueueFactoryForTests(
-        () =>
-          ({
-            name: REELS_NUDGES_QUEUE,
-            add: fakeNudgeQueueAdd,
-          }) as any,
-      );
-    });
-
-    afterEach(() => {
-      __setQueueFactoryForTests(null);
-      __setNudgeQueueFactoryForTests(null);
-    });
-
-    it("publishes setCommissionEligibility when vendor-order delivery aggregates master to delivered", async () => {
-      // Two vendor orders on order "o-del": the one we're transitioning plus
-      // another that's already delivered. After this transition, the parent
-      // should aggregate to delivered.
-      const vendorOrder = {
-        id: "vo-1",
-        order_id: "o-del",
-        vendor_id: "vendor-1",
-        status: OrderStatus.out_for_delivery,
-      };
-      const allVendorOrders = [
-        { id: "vo-1", order_id: "o-del", status: OrderStatus.delivered }, // after transition
-        { id: "vo-2", order_id: "o-del", status: OrderStatus.delivered },
-      ];
-      const parentOrder = {
-        id: "o-del",
-        status: OrderStatus.out_for_delivery,
-        user_id: "u-buyer",
-      };
-
-      mockOrderRepo.manager.transaction.mockImplementationOnce(async (cb: any) =>
-        cb(buildTxManager({ vendorOrder, allVendorOrders, parentOrder })),
-      );
-
-      await service.transitionVendorOrder(
-        "vo-1",
-        OrderStatus.delivered,
-        { userId: "system", role: "system" as const },
-        "Shipment delivered",
-      );
-
-      // Fire-and-forget .catch() chain needs a tick.
-      await Promise.resolve();
-
-      expect(fakeQueueAdd).toHaveBeenCalledTimes(1);
-      const call = fakeQueueAdd.mock.calls[0]!;
-      expect(call[0]).toBe("setCommissionEligibility");
-      expect(call[1]).toEqual({ orderId: "o-del" });
-
-      // Nudge publish also fires on the delivered aggregation path.
-      expect(fakeNudgeQueueAdd).toHaveBeenCalledTimes(1);
-      const nudgeCall = fakeNudgeQueueAdd.mock.calls[0]!;
-      expect(nudgeCall[0]).toBe("sendPostDeliveryReelNudge");
-      expect(nudgeCall[1]).toEqual({ orderId: "o-del", userId: "u-buyer" });
-    });
 
     it("captures the COD payment when delivery aggregates the master order to delivered", async () => {
       const vendorOrder = {
@@ -870,7 +697,6 @@ describe("OrderStatusService", () => {
         mockOrderRepo as any,
         mockVendorOrderRepo as any,
         mockHistoryRepo as any,
-        mockVendorHolidayRepo as any,
         mockQueue as any,
         integrationQueue as any,
         siteSettingRepoOn as any,
@@ -919,7 +745,6 @@ describe("OrderStatusService", () => {
         mockOrderRepo as any,
         mockVendorOrderRepo as any,
         mockHistoryRepo as any,
-        mockVendorHolidayRepo as any,
         mockQueue as any,
         integrationQueue as any,
         siteSettingRepoOff as any,
@@ -946,38 +771,6 @@ describe("OrderStatusService", () => {
       );
 
       expect(integrationQueue.add).not.toHaveBeenCalled();
-    });
-
-    it("does NOT publish when vendor-order transition does not change parent status", async () => {
-      // vo-1 transitions to delivered, but vo-2 is still shipped — parent
-      // becomes partially_delivered, NOT delivered, so no commission publish.
-      const vendorOrder = {
-        id: "vo-1",
-        order_id: "o-partial",
-        vendor_id: "vendor-1",
-        status: OrderStatus.out_for_delivery,
-      };
-      const allVendorOrders = [
-        { id: "vo-1", order_id: "o-partial", status: OrderStatus.delivered },
-        { id: "vo-2", order_id: "o-partial", status: OrderStatus.shipped },
-      ];
-      const parentOrder = { id: "o-partial", status: OrderStatus.partially_delivered };
-
-      mockOrderRepo.manager.transaction.mockImplementationOnce(async (cb: any) =>
-        cb(buildTxManager({ vendorOrder, allVendorOrders, parentOrder })),
-      );
-
-      await service.transitionVendorOrder("vo-1", OrderStatus.delivered, {
-        userId: "system",
-        role: "system" as const,
-      });
-
-      await Promise.resolve();
-
-      // Parent order is already partially_delivered and the aggregator would
-      // compute partially_delivered again — no status change -> no publish.
-      expect(fakeQueueAdd).not.toHaveBeenCalled();
-      expect(fakeNudgeQueueAdd).not.toHaveBeenCalled();
     });
   });
 
@@ -1043,7 +836,6 @@ describe("OrderStatusService", () => {
         },
       };
       const localQueue = { add: mock(() => Promise.resolve()) };
-      const localVendorHolidayRepo = { find: mock(() => Promise.resolve([])) };
       const commissionServiceMock = {
         getSettlementWindowDays: mock(() => Promise.resolve(opts.windowDays)),
       };
@@ -1052,9 +844,7 @@ describe("OrderStatusService", () => {
         localOrderRepo as any,
         {} as any,
         {} as any,
-        localVendorHolidayRepo as any,
         localQueue as any,
-        undefined,
         undefined,
         undefined,
         undefined,

@@ -33,33 +33,7 @@ export class CartController {
     return this.cartService.clearCart(userId, guestSessionId);
   }
 
-  async addGiftBox(
-    userId: string | null,
-    guestSessionId: string | null,
-    data: {
-      giftBoxId: string;
-      quantity?: number;
-      giftMessage?: string | null;
-      recipientName?: string | null;
-    },
-  ) {
-    return this.cartService.addGiftBox(userId, guestSessionId, data);
-  }
-
-  async removeGiftBox(userId: string | null, guestSessionId: string | null, cartGiftBoxId: string) {
-    return this.cartService.removeGiftBox(userId, guestSessionId, cartGiftBoxId);
-  }
-
   async mergeGuestCart(guestSessionId: string, userId: string) {
     return this.cartMergeService.mergeGuestToUser(guestSessionId, userId);
-  }
-
-  async setAffiliateCode(
-    userId: string | null,
-    guestSessionId: string | null,
-    code: string | null,
-  ) {
-    const cart = await this.cartService.getOrCreateCart(userId, guestSessionId);
-    await this.cartService.setAffiliateCode(cart.id, code);
   }
 }

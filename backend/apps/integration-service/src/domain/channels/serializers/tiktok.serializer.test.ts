@@ -99,7 +99,9 @@ describe("feedItemsToTiktokXml extras", () => {
 
   it("emits empty channel body when items array is empty (no stray blank line)", () => {
     const xml = feedItemsToTiktokXml([], SAMPLE_CHANNEL);
-    expect(xml).toContain("<description>MaterialHub marketplace catalog</description>\n  </channel>");
+    expect(xml).toContain(
+      "<description>MaterialHub marketplace catalog</description>\n  </channel>",
+    );
     expect(xml).not.toContain("    <item>");
   });
 

@@ -66,12 +66,12 @@ flowchart TD
 ```
 
 - **Public routes** — an explicit `PUBLIC_ROUTES` set plus prefix/regex rules: the catalogue
-  reads, `/categories/*`, `/brands*`, GET `/products…`, GET `/collections…`, GET `/services…`,
-  `/gift/*`, vendor public profiles, section types, all `/webhooks/*`, the signed iCal feed,
-  `/reels/featured`, `/navigation/header`, `/layouts/*`, Slack events.
+  reads, `/categories/*`, `/brands*`, GET `/products…`, GET `/collections…`,
+  GET `/checkout/bnpl-thresholds`, vendor public profiles, section types, all `/webhooks/*`,
+  `/navigation/header`, `/layouts/*`, Slack events.
 - **Optional-auth routes** — a token populates `user`, its absence resolves to `user = null`
-  instead of 401. Cart (guests use the `x-guest-session` header), reels feed/permalink/view/tap,
-  public user profiles, newsletter subscribe/status, affiliate `POST /a/track`, support tickets.
+  instead of 401. Cart (guests use the `x-guest-session` header), newsletter subscribe/status,
+  support tickets.
   `/cart/merge` is deliberately **not** optional — merging needs a real user.
 - Everything else requires a valid token.
 
@@ -87,7 +87,7 @@ Two guards for service-to-service calls:
 
 - `internalServiceAuth` (`libs/guards/src/internal-service-auth.ts`) — verifies a short-lived
   HS256 JWT signed with `INTERNAL_SERVICE_SECRET` whose `iss` is one of
-  `integration-service`, `order-service`, `product-service`, `booking-service`. Mounted on
+  `integration-service`, `order-service`, `product-service`. Mounted on
   `/internal/*` route groups.
 - `internalAuth` (`libs/guards/src/internal-auth.ts`) — the simpler shared-secret header check.
 
@@ -206,8 +206,8 @@ Responses always carry `x-ratelimit-limit`, `x-ratelimit-remaining`, `x-ratelimi
 logs one JSON line before the handler, and echoes `x-correlation-id` on the response. The
 gateway forwards it to upstreams as a header, so one client request shares an id across services.
 
-> **Gap:** logging is `console.log(JSON.stringify(...))`. The Winston/Sentry/CloudWatch stack
-> described in `CLAUDE.md` is not wired — see the `TODO` at `libs/plugins/src/index.ts:81`.
+> **Gap:** logging is `console.log(JSON.stringify(...))`. No Winston/Sentry/CloudWatch stack is
+> wired — see the `TODO` at `libs/plugins/src/index.ts:81`.
 
 ---
 
@@ -248,15 +248,14 @@ One frozen object: `libs/config/src/index.ts`, imported by every service.
 
 - `requireEnv(name)` throws when a production secret is missing; development gets a default.
 - The whole object is **eagerly evaluated at import**, so a `requireEnv` at construction time
-  crashes *all ten services*, not just the consumer. The iCal feed secret was moved to a lazy
-  getter for exactly this reason (`config.bookings.icalFeedSecret`) — follow that pattern for
-  any new single-consumer secret.
+  crashes *all eight services*, not just the consumer. Put any new single-consumer secret behind
+  a lazy getter rather than a top-level `requireEnv`.
 - Regex-valued env vars (`CORS_PREVIEW_ORIGIN_PATTERN`) are compiled in try/catch and **fail
   closed** — an invalid pattern yields no extra allowed origin instead of crash-looping.
 
-Key groups: `port`, `serviceHost`, `database`, `redis`, `jwt`, `aws`, `media`, `twoFa`,
-`internal`, `stripe`, `tamara`, `whatsapp`, `vendor`, `encryption`, `bullmq`, `orders`,
-`bookings`, `cache`, `typesense`, `cloudflareStream`, `google`, `urls`.
+Key groups: `port`, `serviceHost`, `database`, `redis`, `jwt`, `aws`, `media`, `invoice`,
+`twoFa`, `internal`, `stripe`, `tamara`, `whatsapp`, `vendor`, `encryption`, `bullmq`,
+`orders`, `cache`, `typesense`, `google`, `urls`.
 
 ---
 
@@ -304,10 +303,9 @@ Redis, cache-aside. TTLs from `config.cache`:
 | Category tree | 3600 s | category writes (`category-cache.service.ts`) |
 | Product detail | 600 s | product update |
 | Product list | 300 s | product update |
-| Booking availability (per staff/day) | 300 s | working-hours, time-off, holiday and booking writes |
 
 Redis is also the store for: carts (hash, 30 d TTL), rate limits, permission-matrix version,
-booking slot holds, reels feed cohorts, notification pub/sub fan-out, and BullMQ itself.
+notification pub/sub fan-out, and BullMQ itself.
 
 ---
 
@@ -331,7 +329,7 @@ service boot, but a bare floating promise would silently leave a cron unregister
 | Queue | Owner | Trigger | Purpose |
 |---|---|---|---|
 | `order-events` | order | on transition | fan-out bridge → auto-shipment + notification-events |
-| `notification-events` | notification | produced by order/product/booking | domain event → notification dispatch |
+| `notification-events` | notification | produced by order/product | domain event → notification dispatch |
 | `notification-dispatch` (+ `-dlq`) | notification | from events | render + deliver per channel |
 | `auto-shipment` | order | order paid / confirmed | book a carrier shipment |
 | `order-invoices` | order | order placed | generate receipt PDF |
@@ -346,7 +344,6 @@ service boot, but a bare floating promise would silently leave a cron unregister
 | `cart-abandonment-purge` | order | cron `0 4 * * *` | purge old abandonment rows |
 | `vendor-order-deadline` | order | scheduled | vendor processing-deadline checks |
 | `search-sync` / `search-reindex` | product | product writes / admin | Typesense incremental + full reindex |
-| `service-search-sync` / `service-search-reconcile` | product | offering writes / cron `15 3 * * *` Asia/Dubai | service-offering index |
 | `bulk-import-parent` | product | job start | run a bulk import |
 | `bulk-import-image-fetch` | product | bulk import follow-up | download & attach product images |
 | `product-export` | product | export request | build CSV/XLSX export |
@@ -362,19 +359,6 @@ service boot, but a bare floating promise would silently leave a cron unregister
 | `channel-conversion-events` | integration | order paid | server-side conversion pixels |
 | `integration-scrub-pii-cron` | integration | cron `0 4 * * *` | scrub PII from delivery logs |
 | `integration-retention-delete-cron` | integration | cron `0 3 1 * *` | delete aged delivery rows |
-| `booking-reaper` | booking | cron `*/5 * * * *` | expire unpaid `pending_payment` bookings |
-| `booking-auth` | booking | scheduled per booking | off-session card authorization (prepay) |
-| `booking-autocomplete` | booking | `ends_at + 24 h` | auto-complete and capture |
-| `booking-reminder` | booking | T-24 h and T-1 h | reminders |
-| `ical-import` | booking | cron `*/15 * * * *` | pull external staff calendars |
-| `reels-ranking` | reels | interval | recompute reel ranking scores |
-| `reels-cache-invalidation` | reels | on write | invalidate cohort feeds |
-| `reels-commissions` | reels | order paid/delivered/refunded | creator commission lifecycle |
-| `reels-nudges` | reels | order delivered | post-delivery UGC nudge |
-| `reels-scheduled` | reels | cron | rollups (`15 2 * * *` UTC), tier graduation |
-| `reels-brief-expiry` / `reels-license-expiry` | reels | cron | expire licensing briefs and offers |
-| `reels-cloudflare-stream-recovery` | reels | cron | recover stuck video uploads |
-| `affiliate-commissions` / `affiliate-scheduled` | vendor | order events / cron | affiliate commission lifecycle |
 | `vendor-expire-pending-invites` | vendor | cron `0 3 * * *` | expire stale team invites |
 | `audit-partition-maintenance` | cms | cron `0 3 * * 0` | create audit-log partitions |
 
@@ -410,8 +394,7 @@ Worth recognising, because they recur:
    RETURNING id`, then check the affected-row count. Used everywhere money moves. A claim that
    wins zero rows is a **no-op, not an error**.
 3. **`ON CONFLICT … DO NOTHING` + re-select** — used where the operation runs inside a caller's
-   transaction and a unique-violation would poison the whole transaction
-   (`CommissionService.createForBookingInTx`).
+   transaction and a unique-violation would poison the whole transaction.
 4. **Deterministic BullMQ `jobId`** — `dispatch_vendor_new_order_<voId>_<userId>`,
    `invoice_<orderId>`. Re-adding an existing id is a no-op, so a retried producer does not
    duplicate the effect.

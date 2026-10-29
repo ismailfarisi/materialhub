@@ -142,7 +142,6 @@ describe("OrderCreationService", () => {
       undefined, // movementRepo
       undefined, // integrationEventsQueue
       undefined, // siteSettingRepo
-      undefined, // flashDealApplicator
       undefined, // commissionService
       tierRepo as any, // shippingContributionTierRepo
     );

@@ -57,9 +57,6 @@ export class CartItem {
   @Column({ type: "integer", nullable: true })
   compare_at_price!: number | null;
 
-  @Column({ type: "uuid", nullable: true })
-  flash_deal_id!: string | null;
-
   @Column({ type: "integer", nullable: true })
   original_unit_price!: number | null;
 

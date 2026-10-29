@@ -11,7 +11,7 @@ export interface DeliveredItemRow {
 
 /**
  * Determines whether a given user has a verified purchase of a given product.
- * Used by internal services (e.g. reels-service) to gate product tagging
+ * Used by internal services to gate product-level actions (e.g. reviews)
  * to customers who have actually received the product.
  */
 export class VerifiedPurchaseService {

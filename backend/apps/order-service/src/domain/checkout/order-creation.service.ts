@@ -1,8 +1,4 @@
 import {
-  Commission,
-  CommissionStatus,
-  GiftFulfillmentStatus,
-  GiftOrder,
   type Inventory,
   type InventoryMovement,
   type InventoryReservation,
@@ -13,7 +9,7 @@ import {
   type ShippingContributionTier,
   type SiteSetting,
   Vendor,
-  VendorOrder,
+  type VendorOrder,
   Warehouse,
 } from "@materialhub/database";
 import type { Queue } from "bullmq";
@@ -25,41 +21,23 @@ import {
   type ContributionTierRow,
   resolveShippingContribution,
 } from "../shipping/shipping-contribution.ts";
-import type { ExpandedGiftBox } from "./checkout.service.ts";
-import type { FlashDealApplicator } from "./flash-deal-applicator.service.ts";
 
-/** Group cart items into vendor-order buckets. Gift components (carrying
- * __giftBoxRef) get their own bucket per (vendor_id, giftBoxRef) so a gift
- * vendor_order is all-one-box (ships to hub) and never mixes with a vendor's
- * normal items (which ship to the customer). */
+/** Group cart items into one vendor-order bucket per vendor. */
 export function groupItemsForVendorOrders(cartItems: any[]): {
-  key: string;
   vendorId: string;
-  giftBoxRef: string | null;
   items: any[];
 }[] {
-  const buckets = new Map<
-    string,
-    { key: string; vendorId: string; giftBoxRef: string | null; items: any[] }
-  >();
+  const buckets = new Map<string, { vendorId: string; items: any[] }>();
   for (const item of cartItems) {
-    const ref: string | null = item.__giftBoxRef ?? null;
-    const key = ref ? `${item.vendor_id}::gift::${ref}` : `${item.vendor_id}`;
-    let b = buckets.get(key);
+    const vendorId: string = item.vendor_id;
+    let b = buckets.get(vendorId);
     if (!b) {
-      b = { key, vendorId: item.vendor_id, giftBoxRef: ref, items: [] };
-      buckets.set(key, b);
+      b = { vendorId, items: [] };
+      buckets.set(vendorId, b);
     }
     b.items.push(item);
   }
   return [...buckets.values()];
-}
-
-export function buildOrderAttribution(
-  affiliateCode: string | null | undefined,
-): Record<string, unknown> | null {
-  if (!affiliateCode) return null;
-  return { affiliate_code: affiliateCode };
 }
 
 export class OrderCreationService {
@@ -73,7 +51,6 @@ export class OrderCreationService {
     private movementRepo?: Repository<InventoryMovement>,
     private integrationEventsQueue?: Queue,
     private siteSettingRepo?: Repository<SiteSetting>,
-    private flashDealApplicator?: FlashDealApplicator,
     private commissionService?: CommissionService,
     private shippingContributionTierRepo?: Repository<ShippingContributionTier>,
   ) {}
@@ -104,9 +81,7 @@ export class OrderCreationService {
     couponId: string | null;
     couponCode: string | null;
     couponDiscount: number;
-    giftOrders?: ExpandedGiftBox[];
     channel: string;
-    affiliateCode?: string | null;
     shippingMethod?: string;
     customerNotes?: string;
     ipAddress?: string;
@@ -131,24 +106,6 @@ export class OrderCreationService {
       const vendorOrderRepo = manager.getRepository(this.vendorOrderRepo.target);
       const orderItemRepo = manager.getRepository(this.orderItemRepo.target);
       const statusHistoryRepo = manager.getRepository(this.statusHistoryRepo.target);
-
-      // Sum quantities by flash_deal_id across the cart.
-      // Multiple cart items can share the same deal id (e.g. product-wide
-      // deal applied to several variants of the same product).
-      const dealQtyByDealId = new Map<string, number>();
-      for (const item of data.cartItems) {
-        const dealId = item.flash_deal_id;
-        if (!dealId) continue;
-        dealQtyByDealId.set(dealId, (dealQtyByDealId.get(dealId) ?? 0) + item.quantity);
-      }
-
-      // Enforce caps via FlashDealApplicator (SELECT FOR UPDATE per deal row).
-      // Throws DealSoldOutError → transaction rolls back, controller returns 409.
-      if (this.flashDealApplicator && dealQtyByDealId.size > 0) {
-        for (const [dealId, qty] of dealQtyByDealId) {
-          await this.flashDealApplicator.validateAndIncrement(manager, dealId, qty);
-        }
-      }
 
       // Calculate totals. Subtotal is the sum of line_totals which are already
       // VAT-inclusive (product prices include 5% UAE VAT). The `taxTotal`
@@ -180,25 +137,16 @@ export class OrderCreationService {
         billing_address: data.billingAddress || data.shippingAddress,
         shipping_method: data.shippingMethod || "standard",
         channel: data.channel,
-        attribution: buildOrderAttribution(data.affiliateCode),
         customer_notes: data.customerNotes,
         ip_address: data.ipAddress,
         user_agent: data.userAgent,
       } as any);
 
-      // Group items into vendor-order buckets. Gift components split into their
-      // own bucket per (vendor, box) so a gift vendor_order is all-one-box
-      // (ships to hub) and never mixes with a vendor's normal items.
+      // Group items into one vendor-order bucket per vendor.
       const groups = groupItemsForVendorOrders(data.cartItems);
 
       // Create vendor sub-orders
       const vendorOrders: VendorOrder[] = [];
-      // Track saved order_items that originated from a gift box component so we
-      // can stamp their gift_order_id after the gift_orders rows are inserted.
-      const giftItemLinks: { savedItem: any; ref: string }[] = [];
-      // Track gift vendor_orders so we can stamp gift_order_id on them after the
-      // gift_orders rows are inserted (a gift bucket is all-one-box).
-      const giftVendorOrderLinks: { vendorOrderId: string; ref: string }[] = [];
       let vendorIdx = 0;
       for (const group of groups) {
         const vendorId = group.vendorId;
@@ -243,10 +191,6 @@ export class OrderCreationService {
           processing_deadline: deadline,
         } as any);
 
-        if (group.giftBoxRef) {
-          giftVendorOrderLinks.push({ vendorOrderId: vendorOrder.id, ref: group.giftBoxRef });
-        }
-
         // Create order items with product snapshots
         const orderItems = items.map((item: any) => {
           const originalPrice = item.original_unit_price ?? item.unit_price;
@@ -266,7 +210,6 @@ export class OrderCreationService {
               name: item.product?.name,
               price: item.unit_price,
               original_price: originalPrice,
-              flash_deal_id: item.flash_deal_id ?? null,
               attributes: item.variant?.option_values,
             },
             quantity: item.quantity,
@@ -280,17 +223,6 @@ export class OrderCreationService {
         });
 
         const savedItems = await orderItemRepo.save(orderItems as any);
-
-        // Record gift-box-sourced order_items (savedItems preserves the order of
-        // `items`). The transient __giftBoxRef lives on the source cart item, not
-        // on the persisted order_item row.
-        for (let i = 0; i < items.length; i++) {
-          const ref = items[i]?.__giftBoxRef;
-          const savedItem = (savedItems as any[])[i];
-          if (ref && savedItem) {
-            giftItemLinks.push({ savedItem, ref });
-          }
-        }
 
         // Snapshot commission per order_item — vendor's rate (with category +
         // global default fallbacks) is captured at order time per the
@@ -328,15 +260,6 @@ export class OrderCreationService {
                 vendor: vendorRow,
                 category,
               });
-            }
-
-            // Gift commissions are held until the hub confirms receipt (Task 7
-            // releases them to pending). A gift bucket is all-one-box, so every
-            // commission on this vendor_order is a gift-item commission.
-            if (group.giftBoxRef) {
-              await manager
-                .getRepository(Commission)
-                .update({ vendor_order_id: vendorOrder.id }, { status: CommissionStatus.held });
             }
           }
         }
@@ -404,58 +327,6 @@ export class OrderCreationService {
 
         vendorOrders.push(vendorOrder);
         vendorIdx++;
-      }
-
-      // Persist gift_orders (one per gift box) and link each gift-component
-      // order_item to its gift_order via gift_order_id. Done inside the
-      // transaction so a failure rolls back the order, items and gift records
-      // together.
-      if (data.giftOrders && data.giftOrders.length > 0) {
-        const giftOrderRepo = manager.getRepository(GiftOrder);
-        const giftOrderIdByRef = new Map<string, string>();
-
-        // Resolve the default platform hub (vendor-less, default, active) once.
-        // Gift boxes ship to this hub for assembly. Null is tolerated — a later
-        // task ensures a hub exists; the gift_order keeps a null hub for now.
-        const hub = await manager.getRepository(Warehouse).findOne({
-          where: { vendor_id: IsNull(), is_default: true, is_active: true },
-        });
-
-        for (const gb of data.giftOrders) {
-          const savedGiftOrder = await giftOrderRepo.save({
-            order_id: order.id,
-            gift_box_id: gb.gift_box_id,
-            box_name_snapshot: gb.box_name_snapshot,
-            box_style_snapshot: gb.style_snapshot,
-            occasion_snapshot: gb.occasion_snapshot,
-            packaging_price_snapshot: gb.packaging_price,
-            gift_message: gb.gift_message,
-            recipient_name: gb.recipient_name,
-            hub_warehouse_id: hub?.id ?? null,
-            fulfillment_status: GiftFulfillmentStatus.awaiting_items,
-          } as any);
-          giftOrderIdByRef.set(gb.ref, (savedGiftOrder as any).id);
-        }
-
-        const orderItemRepoTx = manager.getRepository(this.orderItemRepo.target);
-        for (const link of giftItemLinks) {
-          const giftOrderId = giftOrderIdByRef.get(link.ref);
-          if (!giftOrderId || !link.savedItem?.id) continue;
-          await orderItemRepoTx.update(link.savedItem.id, {
-            gift_order_id: giftOrderId,
-          } as any);
-        }
-
-        // Stamp the gift_order_id onto each gift vendor_order (one bucket per
-        // (vendor, box)) so the hub can route received items to their box.
-        for (const link of giftVendorOrderLinks) {
-          const giftOrderId = giftOrderIdByRef.get(link.ref);
-          if (giftOrderId) {
-            await manager
-              .getRepository(VendorOrder)
-              .update(link.vendorOrderId, { gift_order_id: giftOrderId });
-          }
-        }
       }
 
       // Record status history

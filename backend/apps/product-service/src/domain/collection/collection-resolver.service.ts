@@ -1,4 +1,8 @@
-import type { CollectionRules, ProductCollection, ProductCollectionSort } from "@materialhub/database";
+import type {
+  CollectionRules,
+  ProductCollection,
+  ProductCollectionSort,
+} from "@materialhub/database";
 import type { ProductFilters, SearchService } from "../search/search.interface.ts";
 import { DEFAULT_COLLECTION_CEILING, orderMembers, paginate } from "./collection-order.ts";
 import type { CollectionService } from "./collection.service.ts";

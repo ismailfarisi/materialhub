@@ -33,16 +33,6 @@ describe("CartService", () => {
     removeItem: mock(() => Promise.resolve()),
     clear: mock(() => Promise.resolve()),
   };
-  const mockGiftBoxRepo = {
-    find: mock(() => Promise.resolve([])),
-    findOne: mock((_args?: any): Promise<any> => Promise.resolve(null)),
-    save: mock((row: any) => Promise.resolve({ id: "gb-1", ...row })),
-    softRemove: mock(() => Promise.resolve()),
-    create: mock((row: any) => row),
-  };
-  const mockGiftBoxResolver = {
-    resolve: mock(() => Promise.resolve({} as any)),
-  };
 
   let service: CartService;
 
@@ -52,8 +42,6 @@ describe("CartService", () => {
     Object.values(mockInventoryRepo).forEach((m) => m.mockClear());
     Object.values(mockProductRepo).forEach((m) => m.mockClear());
     Object.values(mockRedis).forEach((m) => m.mockClear());
-    Object.values(mockGiftBoxRepo).forEach((m) => m.mockClear());
-    Object.values(mockGiftBoxResolver).forEach((m) => m.mockClear());
     service = new CartService(
       mockCartRepo as any,
       mockCartItemRepo as any,
@@ -61,13 +49,6 @@ describe("CartService", () => {
       mockProductRepo as any,
       {} as any, // variantRepo
       mockRedis as any,
-      {
-        resolveForLine: async () => null,
-        validateAndIncrement: async () => {},
-        decrement: async () => {},
-      } as any,
-      mockGiftBoxRepo as any,
-      mockGiftBoxResolver as any,
     );
   });
 
@@ -139,60 +120,5 @@ describe("CartService", () => {
     await service.updateItemQuantity("user-1", null, "v1", 0);
     expect(mockCartItemRepo.softRemove).toHaveBeenCalled();
     expect(mockRedis.removeItem).toHaveBeenCalled();
-  });
-
-  it("getCart snaps back unit_price and emits deal_ended when deal expired", async () => {
-    // A cart item carrying a flash_deal_id whose live deal no longer resolves.
-    const expiredDealId = "00000000-0000-0000-0000-000000000d01";
-    const item = {
-      id: "item-deal-1",
-      cart_id: "cart-1",
-      product_id: "p1",
-      variant_id: null,
-      vendor_id: "v1",
-      quantity: 1,
-      unit_price: 7500,
-      original_unit_price: 10000,
-      flash_deal_id: expiredDealId,
-      line_total: 7500,
-      product: { id: "p1", price: 10000, name: "Test", images: [] },
-      variant: null,
-      vendor: { id: "v1", name: "Vendor One" },
-    };
-
-    mockCartRepo.findOne
-      .mockResolvedValueOnce({ id: "cart-1", user_id: "user-1" }) // getOrCreateCart
-      .mockResolvedValueOnce({ id: "cart-1", user_id: "user-1", subtotal: 10000, item_count: 1 }); // refresh after recalc
-    mockCartItemRepo.find.mockResolvedValueOnce([item] as any);
-    // recalcCartTotals re-reads items
-    mockCartItemRepo.find.mockResolvedValueOnce([item] as any);
-
-    // Override the stub for THIS test — flashDealApplicator.resolveForLine returns null (deal ended)
-    const dealEndedService = new CartService(
-      mockCartRepo as any,
-      mockCartItemRepo as any,
-      mockInventoryRepo as any,
-      mockProductRepo as any,
-      {} as any,
-      mockRedis as any,
-      {
-        resolveForLine: async () => null,
-        validateAndIncrement: async () => {},
-        decrement: async () => {},
-      } as any,
-      mockGiftBoxRepo as any,
-      mockGiftBoxResolver as any,
-    );
-
-    const result = await dealEndedService.getCart("user-1", null);
-
-    expect(result.notifications).toHaveLength(1);
-    expect(result.notifications[0]?.type).toBe("deal_ended");
-    expect(result.notifications[0]?.was).toBe(7500);
-    expect(result.notifications[0]?.now).toBe(10000);
-    expect(item.unit_price).toBe(10000);
-    expect(item.flash_deal_id).toBeNull();
-    expect(item.line_total).toBe(10000);
-    expect(mockCartItemRepo.save).toHaveBeenCalledWith([item]);
   });
 });

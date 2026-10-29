@@ -32,7 +32,6 @@ describe("OrderItemCancellationService", () => {
   let refundService: any;
   let orderStatusService: any;
   let orderEventQueue: any;
-  let flashDealApplicator: any;
   let commissionReversalService: CommissionReversalService;
   let service: OrderItemCancellationService;
 
@@ -80,7 +79,6 @@ describe("OrderItemCancellationService", () => {
     };
     orderStatusService = { transitionOrder: mock(() => Promise.resolve({})) };
     orderEventQueue = { add: mock(() => Promise.resolve()) };
-    flashDealApplicator = { decrement: mock(() => Promise.resolve()) };
     // Default: any draft claim reverseForItems tries to release invalidates
     // cleanly. Tests exercising the non-pending "leave it claimed" path (C1)
     // override this per-test.
@@ -109,7 +107,6 @@ describe("OrderItemCancellationService", () => {
       orderStatusService,
       orderEventQueue,
       commissionReversalService,
-      flashDealApplicator,
     );
   });
 
@@ -626,17 +623,6 @@ describe("OrderItemCancellationService", () => {
   });
 
   /* ---------------------------------------------------------------- */
-  /*  Flash deal decrement (optional dependency)                      */
-  /* ---------------------------------------------------------------- */
-  it("decrements the flash deal counter when the item snapshot carries a flash_deal_id", async () => {
-    seed({ oi: { product_snapshot: { flash_deal_id: "deal-1" } } });
-
-    await call([{ order_item_id: "oi-1", quantity: 2 }]);
-
-    expect(flashDealApplicator.decrement).toHaveBeenCalledWith(expect.anything(), "deal-1", 2);
-  });
-
-  /* ---------------------------------------------------------------- */
   /*  Validation                                                      */
   /* ---------------------------------------------------------------- */
   it("throws on empty reason", async () => {
@@ -741,7 +727,6 @@ describe("OrderItemCancellationService", () => {
         orderStatusService,
         orderEventQueue,
         commissionReversalService,
-        flashDealApplicator,
         {
           shipmentRepo,
           registry,

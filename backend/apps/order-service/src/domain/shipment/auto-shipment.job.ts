@@ -4,7 +4,6 @@ import { OrderStatus } from "@materialhub/database/src/enums/order.enums.ts";
 import type { EncryptionService } from "@materialhub/utils";
 import { Queue, Worker } from "bullmq";
 import { IsNull, type Repository } from "typeorm";
-import { resolveShipTo } from "../gift-fulfillment/ship-to.ts";
 import type { OrderStatusService } from "../order/order-status.service.ts";
 import type { ShipmentTrackingService } from "./shipment-tracking.service.ts";
 import type { ShippingProviderRegistry } from "./shipping-provider-adapter.ts";
@@ -23,7 +22,6 @@ export interface AutoShipmentDeps {
   vendorRepo: Repository<any>;
   vendorOrderRepo: Repository<any>;
   accountRepo: Repository<VendorCarrierAccount>;
-  giftOrderRepo: Repository<any>;
   warehouseRepo: Repository<any>;
   orderStatusService: OrderStatusService;
   shipmentService: ShipmentTrackingService;
@@ -93,25 +91,9 @@ export async function processAutoShipmentJob(
     account.credentials_encrypted,
   );
 
-  // Resolve the correct ship-to address: gift vendor_orders ship to the
-  // platform hub warehouse instead of the customer's address.
-  let hubWarehouse: any = null;
-  if (vendorOrder.gift_order_id) {
-    const giftOrder = await deps.giftOrderRepo.findOne({
-      where: { id: vendorOrder.gift_order_id },
-    });
-    if (giftOrder?.hub_warehouse_id) {
-      hubWarehouse = await deps.warehouseRepo.findOne({
-        where: { id: giftOrder.hub_warehouse_id },
-      });
-    }
-  }
+  // Ship to the customer's address snapshot on the master order.
   const shipTo = {
-    ...resolveShipTo({
-      giftOrderId: vendorOrder.gift_order_id ?? null,
-      hub: hubWarehouse,
-      customerAddress: vendorOrder.order?.shipping_address ?? {},
-    }),
+    ...((vendorOrder.order?.shipping_address ?? {}) as Record<string, unknown>),
   } as Record<string, unknown>;
   // PostaPlus requires a consignee email; address snapshots predating the
   // email field fall back to the account email of the ordering user.
@@ -287,14 +269,12 @@ export function createAutoShipmentWorker(
   shipmentService: ShipmentTrackingService,
   registry: ShippingProviderRegistry,
   encryption: EncryptionService,
-  giftOrderRepo: Repository<any>,
   warehouseRepo: Repository<any>,
 ): Worker {
   const deps: AutoShipmentDeps = {
     vendorRepo,
     vendorOrderRepo,
     accountRepo,
-    giftOrderRepo,
     warehouseRepo,
     orderStatusService,
     shipmentService,

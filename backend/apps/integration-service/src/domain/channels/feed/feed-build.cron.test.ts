@@ -283,7 +283,9 @@ describe("handleFeedBuildJob — enabled-channel happy path", () => {
 
     // Channel was updated with the new feed URL + success status.
     const finalChannelSave = harness.state.channelSaves[harness.state.channelSaves.length - 1];
-    expect(finalChannelSave?.feed_url).toBe("https://feeds.materialhubuae.com/google_merchant/feed.xml");
+    expect(finalChannelSave?.feed_url).toBe(
+      "https://feeds.materialhubuae.com/google_merchant/feed.xml",
+    );
     expect(finalChannelSave?.last_full_feed_status).toBe("success");
     expect(finalChannelSave?.last_full_feed_at).toBeInstanceOf(Date);
 

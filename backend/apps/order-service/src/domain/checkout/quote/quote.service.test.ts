@@ -158,7 +158,6 @@ const makeMocks = () => {
   const userAddressRepo = {
     findOne: mock(() => Promise.resolve({ id: "a1", user_id: "u1", area_id: "z1" })),
   };
-  const vendorHolidayRepo = { createQueryBuilder: mock(() => makeQB([])) };
   const siteSettingRepo = {
     findOne: mock((_args?: any): Promise<any> => Promise.resolve(null)),
   };
@@ -170,7 +169,6 @@ const makeMocks = () => {
     thresholdRepo,
     shippingRateRepo,
     userAddressRepo,
-    vendorHolidayRepo,
     siteSettingRepo,
   };
 };
@@ -188,7 +186,6 @@ describe("QuoteService — §12 worked example + edge cases", () => {
       mocks.thresholdRepo as any,
       mocks.shippingRateRepo as any,
       mocks.userAddressRepo as any,
-      mocks.vendorHolidayRepo as any,
       mocks.siteSettingRepo as any,
       "test-secret",
     );
@@ -604,7 +601,6 @@ describe("QuoteService — coupon totals", () => {
       mocks.thresholdRepo as any,
       mocks.shippingRateRepo as any,
       mocks.userAddressRepo as any,
-      mocks.vendorHolidayRepo as any,
       mocks.siteSettingRepo as any,
       "test-secret",
       couponService,

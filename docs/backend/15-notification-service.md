@@ -37,10 +37,9 @@ flowchart LR
     subgraph producers
       O[order-service]
       P[product-service]
-      B[booking-service]
       V[vendor-service]
     end
-    O & P & B & V --> NE[notification-events queue]
+    O & P & V --> NE[notification-events queue]
     NE --> EC[event-consumer worker]
     EC --> ND[notification-dispatch queue]
     ND --> DW[dispatch worker × 5]
@@ -96,8 +95,7 @@ Calls `OrderEmailService.sendForItemsCancelled(cancellationId)`; best-effort, ne
 ### 3. Generic `{ userId, notificationType, variables, data, eventId? }`
 
 Any producer can emit this shape. When `eventId` is present it becomes the dispatch job's
-`jobId` (`dispatch_<eventId>`), making an at-least-once producer safe — booking-service's
-reminder scheduler relies on this.
+`jobId` (`dispatch_<eventId>`), making an at-least-once producer safe.
 
 ## The dispatcher
 
@@ -126,13 +124,11 @@ Key behaviours:
 - **In-app defaults to enabled**; email, push and WhatsApp default to **disabled**.
 - `RICH_EMAIL_TYPES = { order_confirmed, vendor_new_order }` are excluded from the generic email
   path because `OrderEmailService` already sends a richer one — otherwise the recipient gets two.
-  Booking types are deliberately **not** in this set: nothing else sends their email, so removing
-  them from the generic pipeline would silence it entirely.
-- Templates may provide a `render(variables, data)` hook for conditional content (e.g.
-  `booking_cancelled`'s void-vs-refund wording). A `render`-supplied `actionUrl` wins over
-  `actionUrlTemplate`.
-- `emailHtmlExtra` (e.g. `booking_reminder`'s `.ics` link) is appended to the **email** body only,
-  never shown in-app.
+  Every other type relies on the generic pipeline for its email, so do not add a type to this set
+  unless something else sends its email.
+- Templates may provide a `render(variables, data)` hook for conditional content. A
+  `render`-supplied `actionUrl` wins over `actionUrlTemplate`.
+- `emailHtmlExtra` is appended to the **email** body only, never shown in-app.
 - WhatsApp requires a **verified** phone (`auth-service`'s `/auth/me/verified-phones` flow) —
   business messages must never go to an unproven number. It is the last step and best-effort, so
   a WhatsApp failure does not undo the in-app row or the email.
@@ -146,9 +142,6 @@ render? }`. Registered types:
 order_confirmed      order_shipped        order_delivered     payment_received
 payout_sent          vendor_new_order     new_review          low_stock
 vendor_approved      return_requested     dispute_opened      dispute_resolved
-booking_confirmed    vendor_new_booking   booking_completed   booking_review_request
-booking_rescheduled  booking_cancelled    vendor_booking_cancelled
-booking_no_show      booking_payment_failed  vendor_booking_conflict  booking_reminder
 ```
 
 An unregistered type is **silently dropped** by `dispatch()` — adding a producer without adding a
@@ -182,7 +175,7 @@ In-app notifications are pushed over SSE:
 | WhatsApp | Meta Cloud API (`libs/utils/src/whatsapp.service.ts`) | `config.whatsapp.*` — all optional; blank `accessToken`/`phoneNumberId` disables the channel and consumers fall back to `StubWhatsAppDispatcher` |
 
 `config.whatsapp` deliberately never uses `requireEnv` — a missing WhatsApp secret must not crash
-the nine other services that import the same config object.
+the seven other services that import the same config object.
 
 ## WhatsApp webhook
 

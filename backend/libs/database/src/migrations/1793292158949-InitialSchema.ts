@@ -1,7 +1,7 @@
 import type { MigrationInterface, QueryRunner } from "typeorm";
 
-export class InitialSchema1793280320802 implements MigrationInterface {
-  name = "InitialSchema1793280320802";
+export class InitialSchema1793292158949 implements MigrationInterface {
+  name = "InitialSchema1793292158949";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
@@ -51,15 +51,6 @@ export class InitialSchema1793280320802 implements MigrationInterface {
     );
     await queryRunner.query(
       `CREATE TABLE "user_two_factor" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "user_id" uuid NOT NULL, "secret_encrypted" text NOT NULL, "is_enabled" boolean NOT NULL DEFAULT false, "enabled_at" TIMESTAMP WITH TIME ZONE, "backup_codes_encrypted" text NOT NULL DEFAULT '[]', "last_used_at" TIMESTAMP WITH TIME ZONE, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "deleted_at" TIMESTAMP WITH TIME ZONE, CONSTRAINT "UQ_0e865d85e0ad6329b40523afe55" UNIQUE ("user_id"), CONSTRAINT "REL_0e865d85e0ad6329b40523afe5" UNIQUE ("user_id"), CONSTRAINT "PK_a0dc97e08540c59d6c744e21c58" PRIMARY KEY ("id"))`,
-    );
-    await queryRunner.query(
-      `CREATE TYPE "public"."notifications_type_enum" AS ENUM('order_update', 'payment', 'promotion', 'system', 'vendor', 'order_confirmed', 'order_shipped', 'order_delivered', 'payment_received', 'payout_sent', 'new_review', 'low_stock', 'vendor_approved', 'return_requested', 'dispute_opened', 'dispute_resolved', 'vendor_new_order')`,
-    );
-    await queryRunner.query(
-      `CREATE TYPE "public"."notifications_channel_enum" AS ENUM('email', 'push', 'sms', 'in_app', 'whatsapp')`,
-    );
-    await queryRunner.query(
-      `CREATE TABLE "notifications" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "user_id" uuid NOT NULL, "type" "public"."notifications_type_enum" NOT NULL, "channel" "public"."notifications_channel_enum" NOT NULL DEFAULT 'in_app', "title" character varying(255) NOT NULL, "body" text NOT NULL, "data" jsonb, "is_read" boolean NOT NULL DEFAULT false, "read_at" TIMESTAMP WITH TIME ZONE, "action_url" character varying(1024), "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "deleted_at" TIMESTAMP WITH TIME ZONE, CONSTRAINT "PK_6a72c3c0f683f6462415e653c3a" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(
       `CREATE TYPE "public"."notification_preferences_notification_type_enum" AS ENUM('order_update', 'payment', 'promotion', 'system', 'vendor', 'order_confirmed', 'order_shipped', 'order_delivered', 'payment_received', 'payout_sent', 'new_review', 'low_stock', 'vendor_approved', 'return_requested', 'dispute_opened', 'dispute_resolved', 'vendor_new_order')`,
@@ -317,10 +308,10 @@ export class InitialSchema1793280320802 implements MigrationInterface {
       `CREATE TABLE "wishlists" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "user_id" uuid, "guest_session_id" uuid, "product_id" uuid NOT NULL, "variant_id" uuid, "added_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(), "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "deleted_at" TIMESTAMP WITH TIME ZONE, CONSTRAINT "PK_d0a37f2848c5d268d315325f359" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(
-      `CREATE TABLE "carts" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "user_id" uuid, "guest_session_id" uuid, "coupon_id" uuid, "coupon_code" character varying(50), "affiliate_code" character varying(50), "coupon_discount" integer NOT NULL DEFAULT '0', "subtotal" integer NOT NULL DEFAULT '0', "currency" character(3) NOT NULL DEFAULT 'AED', "item_count" integer NOT NULL DEFAULT '0', "last_activity_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(), "expires_at" TIMESTAMP WITH TIME ZONE NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "deleted_at" TIMESTAMP WITH TIME ZONE, CONSTRAINT "PK_b5f695a59f5ebb50af3c8160816" PRIMARY KEY ("id"))`,
+      `CREATE TABLE "carts" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "user_id" uuid, "guest_session_id" uuid, "coupon_id" uuid, "coupon_code" character varying(50), "coupon_discount" integer NOT NULL DEFAULT '0', "subtotal" integer NOT NULL DEFAULT '0', "currency" character(3) NOT NULL DEFAULT 'AED', "item_count" integer NOT NULL DEFAULT '0', "last_activity_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(), "expires_at" TIMESTAMP WITH TIME ZONE NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "deleted_at" TIMESTAMP WITH TIME ZONE, CONSTRAINT "PK_b5f695a59f5ebb50af3c8160816" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(
-      `CREATE TABLE "cart_items" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "cart_id" uuid NOT NULL, "product_id" uuid NOT NULL, "variant_id" uuid, "vendor_id" uuid NOT NULL, "quantity" integer NOT NULL DEFAULT '1', "unit_price" integer NOT NULL, "compare_at_price" integer, "flash_deal_id" uuid, "original_unit_price" integer, "line_total" integer NOT NULL, "customization_data" jsonb, "added_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(), "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "deleted_at" TIMESTAMP WITH TIME ZONE, CONSTRAINT "UQ_a1cad8f92c2ad2338f820fa2f90" UNIQUE ("cart_id", "product_id", "variant_id"), CONSTRAINT "PK_6fccf5ec03c172d27a28a82928b" PRIMARY KEY ("id"))`,
+      `CREATE TABLE "cart_items" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "cart_id" uuid NOT NULL, "product_id" uuid NOT NULL, "variant_id" uuid, "vendor_id" uuid NOT NULL, "quantity" integer NOT NULL DEFAULT '1', "unit_price" integer NOT NULL, "compare_at_price" integer, "original_unit_price" integer, "line_total" integer NOT NULL, "customization_data" jsonb, "added_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(), "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "deleted_at" TIMESTAMP WITH TIME ZONE, CONSTRAINT "UQ_a1cad8f92c2ad2338f820fa2f90" UNIQUE ("cart_id", "product_id", "variant_id"), CONSTRAINT "PK_6fccf5ec03c172d27a28a82928b" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(
       `CREATE TYPE "public"."product_relations_type_enum" AS ENUM('related', 'cross_sell', 'upsell', 'frequently_bought_together')`,
@@ -356,7 +347,7 @@ export class InitialSchema1793280320802 implements MigrationInterface {
       `CREATE TYPE "public"."vendor_orders_status_enum" AS ENUM('draft', 'pending_payment', 'payment_failed', 'confirmed', 'processing', 'ready_to_ship', 'shipped', 'out_for_delivery', 'delivered', 'partially_shipped', 'partially_delivered', 'cancelled', 'refund_requested', 'refunded', 'partially_refunded', 'disputed')`,
     );
     await queryRunner.query(
-      `CREATE TABLE "vendor_orders" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "order_id" uuid NOT NULL, "vendor_id" uuid NOT NULL, "vendor_order_number" character varying(30) NOT NULL, "status" "public"."vendor_orders_status_enum" NOT NULL DEFAULT 'confirmed', "delivered_at" TIMESTAMP WITH TIME ZONE, "subtotal" integer NOT NULL, "shipping_cost" integer NOT NULL DEFAULT '0', "carrier_cost" integer NOT NULL DEFAULT '0', "shipping_contribution" integer NOT NULL DEFAULT '0', "tax_total" integer NOT NULL DEFAULT '0', "vendor_total" integer NOT NULL, "currency" character(3) NOT NULL DEFAULT 'AED', "exchange_rate" numeric(12,6) NOT NULL DEFAULT '1', "warehouse_id" uuid, "processing_deadline" TIMESTAMP WITH TIME ZONE, "vendor_notes" text, "accepted_at" TIMESTAMP WITH TIME ZONE, "rejected_at" TIMESTAMP WITH TIME ZONE, "rejection_reason" text, "booking_error" text, "received_at_hub_at" TIMESTAMP WITH TIME ZONE, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "deleted_at" TIMESTAMP WITH TIME ZONE, CONSTRAINT "UQ_42baacb0d2313a3cfa5db9ff112" UNIQUE ("vendor_order_number"), CONSTRAINT "PK_7abcbaa3930fd9d95675e967de9" PRIMARY KEY ("id"))`,
+      `CREATE TABLE "vendor_orders" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "order_id" uuid NOT NULL, "vendor_id" uuid NOT NULL, "vendor_order_number" character varying(30) NOT NULL, "status" "public"."vendor_orders_status_enum" NOT NULL DEFAULT 'confirmed', "delivered_at" TIMESTAMP WITH TIME ZONE, "subtotal" integer NOT NULL, "shipping_cost" integer NOT NULL DEFAULT '0', "carrier_cost" integer NOT NULL DEFAULT '0', "shipping_contribution" integer NOT NULL DEFAULT '0', "tax_total" integer NOT NULL DEFAULT '0', "vendor_total" integer NOT NULL, "currency" character(3) NOT NULL DEFAULT 'AED', "exchange_rate" numeric(12,6) NOT NULL DEFAULT '1', "warehouse_id" uuid, "processing_deadline" TIMESTAMP WITH TIME ZONE, "vendor_notes" text, "accepted_at" TIMESTAMP WITH TIME ZONE, "rejected_at" TIMESTAMP WITH TIME ZONE, "rejection_reason" text, "booking_error" text, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "deleted_at" TIMESTAMP WITH TIME ZONE, CONSTRAINT "UQ_42baacb0d2313a3cfa5db9ff112" UNIQUE ("vendor_order_number"), CONSTRAINT "PK_7abcbaa3930fd9d95675e967de9" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(
       `CREATE UNIQUE INDEX "IDX_7aedded21669e72423d3e88b94" ON "vendor_orders" ("vendor_order_number") WHERE deleted_at IS NULL`,
@@ -795,9 +786,6 @@ export class InitialSchema1793280320802 implements MigrationInterface {
     );
     await queryRunner.query(
       `ALTER TABLE "user_two_factor" ADD CONSTRAINT "FK_0e865d85e0ad6329b40523afe55" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "notifications" ADD CONSTRAINT "FK_9a8a82462cab47c73d25f49261f" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
     );
     await queryRunner.query(
       `ALTER TABLE "notification_preferences" ADD CONSTRAINT "FK_64c90edc7310c6be7c10c96f675" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
@@ -1899,9 +1887,6 @@ export class InitialSchema1793280320802 implements MigrationInterface {
       `ALTER TABLE "notification_preferences" DROP CONSTRAINT "FK_64c90edc7310c6be7c10c96f675"`,
     );
     await queryRunner.query(
-      `ALTER TABLE "notifications" DROP CONSTRAINT "FK_9a8a82462cab47c73d25f49261f"`,
-    );
-    await queryRunner.query(
       `ALTER TABLE "user_two_factor" DROP CONSTRAINT "FK_0e865d85e0ad6329b40523afe55"`,
     );
     await queryRunner.query(
@@ -2156,9 +2141,6 @@ export class InitialSchema1793280320802 implements MigrationInterface {
     await queryRunner.query(`DROP TABLE "notification_preferences"`);
     await queryRunner.query(`DROP TYPE "public"."notification_preferences_channel_enum"`);
     await queryRunner.query(`DROP TYPE "public"."notification_preferences_notification_type_enum"`);
-    await queryRunner.query(`DROP TABLE "notifications"`);
-    await queryRunner.query(`DROP TYPE "public"."notifications_channel_enum"`);
-    await queryRunner.query(`DROP TYPE "public"."notifications_type_enum"`);
     await queryRunner.query(`DROP TABLE "user_two_factor"`);
     await queryRunner.query(`DROP INDEX "public"."IDX_8439498e5cddde50e3b87c5134"`);
     await queryRunner.query(`DROP TABLE "user_tokens"`);

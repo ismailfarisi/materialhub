@@ -52,26 +52,13 @@ export async function recomputeReviewRatings(
     rating_count: Number.parseInt(productResult?.count || "0", 10),
   });
 
-  // Vendor aggregate — BLENDED across product `reviews` AND booking-service's
-  // `service_reviews` (Phase 5 Task 7). A vendor's rating_avg has TWO writers:
-  // this worker (on product-review approval) and booking-service's
-  // ServiceReviewRatingService (on booking-review creation). Both must run the
-  // SAME blended UNION with identical status ('approved') + soft-delete
-  // predicates, or whichever fires last silently drops the other source (a
-  // product-only recompute here would erase the service-review component for
-  // any vendor with both product and booking reviews).
-  // KEEP IN SYNC with apps/booking-service/src/domain/reviews/
-  // service-review-rating.service.ts's recomputeVendor.
-  // status::text on both arms — the two tables use DIFFERENT Postgres enum
-  // types (product `review_status` vs `service_reviews_status_enum`), so a
-  // single shared $2 parameter can't be inferred against both (42883); the
-  // text cast makes the comparison type-uniform.
+  // Vendor aggregate — approved product reviews across all of the vendor's
+  // products, with the same status + soft-delete predicates as the product
+  // aggregate above.
   const vendorResult = await reviewRepo.query(
-    `SELECT AVG(rating)::numeric AS avg, COUNT(*)::int AS count FROM (
-       SELECT rating FROM reviews WHERE vendor_id = $1 AND status::text = $2 AND deleted_at IS NULL
-       UNION ALL
-       SELECT rating FROM service_reviews WHERE vendor_id = $1 AND status::text = $2 AND deleted_at IS NULL
-     ) combined`,
+    `SELECT AVG(rating)::numeric AS avg, COUNT(*)::int AS count
+       FROM reviews
+      WHERE vendor_id = $1 AND status::text = $2 AND deleted_at IS NULL`,
     [vendorId, "approved"],
   );
 

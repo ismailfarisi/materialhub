@@ -35,8 +35,7 @@ Slugs are validated with `^[a-z0-9]+(?:-[a-z0-9]+)*$` at the DTO layer.
 
 `site_settings(key, value, value_type, group, description)` — a typed key/value store used far
 beyond CMS. Order-service reads `global_commission_rate`, `payout_settlement_window_days`,
-`vendor_integrations_outbound_enabled`, `shipping.base_carrier_cost_fils`; booking-service reads
-its own keys.
+`vendor_integrations_outbound_enabled` and `shipping.base_carrier_cost_fils`.
 
 | Method | Path |
 |---|---|

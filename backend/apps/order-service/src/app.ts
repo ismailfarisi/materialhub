@@ -9,8 +9,6 @@ import { commissionRoutes } from "./routes/commission.routes.ts";
 import { couponRoutes } from "./routes/coupon.routes.ts";
 import { dashboardRoutes } from "./routes/dashboard.routes.ts";
 import { disputeRoutes } from "./routes/dispute.routes.ts";
-import { giftFulfillmentAdminRoutes } from "./routes/gift-fulfillment-admin.routes.ts";
-import { internalBookingPaymentRoutes } from "./routes/internal-booking-payment.routes.ts";
 import { internalOrderRoutes } from "./routes/internal-order.routes.ts";
 import { internalShipmentsRoutes } from "./routes/internal-shipments.routes.ts";
 import { internalVendorOrdersRoutes } from "./routes/internal-vendor-orders.routes.ts";
@@ -37,7 +35,6 @@ export const app = new Elysia()
   .use(internalOrderRoutes)
   .use(internalVendorOrdersRoutes)
   .use(internalShipmentsRoutes)
-  .use(internalBookingPaymentRoutes)
   .use(checkoutRoutes)
   .use(webhookRoutes)
   .use(shippingRoutes)
@@ -59,5 +56,4 @@ export const app = new Elysia()
   .use(shippingContributionAdminRoutes)
   .use(shippingProviderAdminRoutes)
   .use(vendorShippingIntegrationsRoutes)
-  .use(shippingWebhookRoutes)
-  .use(giftFulfillmentAdminRoutes);
+  .use(shippingWebhookRoutes);

@@ -1,5 +1,10 @@
 import { BulkErrorCodes, type FollowUpTask, type WriteContext } from "@materialhub/bulk-jobs";
-import { BulkImportMode, Product, ProductAttributeValue, ProductVariant } from "@materialhub/database";
+import {
+  BulkImportMode,
+  Product,
+  ProductAttributeValue,
+  ProductVariant,
+} from "@materialhub/database";
 import type { EntityManager } from "typeorm";
 import { DriveFolderError } from "../image-fetch/image-fetch.drive-folder.ts";
 import { expandSourceUrls } from "../image-fetch/image-fetch.expand.ts";

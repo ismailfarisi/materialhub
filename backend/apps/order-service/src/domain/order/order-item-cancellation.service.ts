@@ -59,10 +59,6 @@ interface RefundServiceLike {
   }): Promise<{ gateway: string; gatewayRefundId: string; amount: number }>;
 }
 
-interface FlashDealApplicatorLike {
-  decrement(tx: unknown, dealId: string, qty: number): Promise<void>;
-}
-
 // Optional carrier-effects bundle. When absent, no COD carrier correction runs
 // (existing callers/tests that don't wire it keep the pure-bookkeeping behaviour).
 // Added as ONE optional trailing constructor arg so the Task-5 positional wiring
@@ -104,7 +100,6 @@ export class OrderItemCancellationService {
     private orderStatusService: OrderStatusService,
     private orderEventQueue: Queue,
     private commissionReversalService: CommissionReversalService,
-    private flashDealApplicator?: FlashDealApplicatorLike,
     private carrierDeps?: CarrierDeps,
   ) {}
 
@@ -400,21 +395,6 @@ export class OrderItemCancellationService {
             reference_id: cancellationId,
           } as any);
           await movRepo.save(movement);
-        }
-
-        // 7d. Best-effort flash-deal counter decrement (optional dependency).
-        const dealId = oi.product_snapshot?.flash_deal_id ?? null;
-        if (dealId && this.flashDealApplicator) {
-          try {
-            await this.flashDealApplicator.decrement(tx, dealId, p.cancelQty);
-          } catch (err) {
-            console.error("[cancelItems] flash deal decrement failed (continuing)", {
-              orderId,
-              dealId,
-              qty: p.cancelQty,
-              error: String(err),
-            });
-          }
         }
       }
 

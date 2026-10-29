@@ -64,7 +64,7 @@ reversal clawbacks stopped summing to the original earning.
 
 | Status | Meaning |
 |---|---|
-| `held` | created, not yet payable — awaiting delivery (or gift-hub receipt) |
+| `held` | created, not yet payable — awaiting delivery |
 | `pending` | matured past `settle_after`; **payable** |
 | `paid` | included in a payout that transferred |
 | `cancelled` | voided by an order cancellation |
@@ -83,24 +83,6 @@ The payable predicate everywhere is `status = 'pending' AND payout_id IS NULL`.
 2. the undelivery demotion (clears it)
 3. `backfillCommissionsForOrder` re-stamping a recreated row whose vendor order is **still**
    `delivered`
-
-Booking commissions have no vendor order, so `createForBookingInTx` stamps
-`settle_after = now + window` itself at completion — otherwise a booking commission would sit
-`held` forever and never become payable.
-
-### Booking commissions
-
-`createForBookingInTx` differs from the order path in three ways:
-
-- The rate is **not** re-resolved. booking-service snapshotted `commission_rate` /
-  `commission_fils` at booking time so a later rate change cannot alter an existing deal. Only
-  the shared ceiling may lower the amount.
-- Idempotency is two-layered: a cheap `findOne` pre-check, plus the real guard — an
-  `INSERT … ON CONFLICT ("booking_id") WHERE booking_id IS NOT NULL DO NOTHING RETURNING *`
-  against the `uq_commissions_booking` partial unique index. A plain `save()` + catch would put
-  the caller's ambient transaction into the aborted state (`25P02`) and break the capture that
-  must commit with it.
-- It inserts `held` (not `pending`) so it follows the identical maturation path.
 
 ### Backfill
 
@@ -135,11 +117,10 @@ commission_total             = Σ commission_amount
 items_net                    = Σ vendor_earning
 carrier_cost_total           = Σ shipments.carrier_cost_fils        (informational only)
 shipping_contribution_total  = Σ vendor_orders.shipping_contribution (deducted)
-license_spend_total          = Σ unsettled reel_license_escrow_holds funded from payout_balance
 adjustment_sum               = Σ unsettled vendor_payout_adjustments (signed)
 
-net_amount      = items_net − shipping_contribution_total − license_spend_total + adjustment_sum
-adjustment_total = adjustment_sum − license_spend_total
+net_amount       = items_net − shipping_contribution_total + adjustment_sum
+adjustment_total = adjustment_sum
 ```
 
 `carrier_cost_total` comes from `shipments`, **not** `vendor_orders.carrier_cost` — the PostaPlus
@@ -167,8 +148,8 @@ UPDATE commissions SET payout_id = $1
 ```
 
 …and the affected-row count **must equal** what was read, or the whole transaction rolls back
-with a "claim raced" error. The same shape applies to `vendor_payout_adjustments` and
-`reel_license_escrow_holds`, each repeating its read predicate in full. Claiming stamps
+with a "claim raced" error. The same shape applies to `vendor_payout_adjustments`, repeating
+its read predicate in full. Claiming stamps
 `payout_id` and leaves `status` alone — it removes the row from the payable pool without
 asserting it has been paid.
 
@@ -243,9 +224,8 @@ current earning and compares against a value derived from the draft's own stored
 claimed_commission_earnings  ==  net_amount + shipping_contribution_total − adjustment_total
 ```
 
-That identity is exact for any legitimately-built draft (substituting
-`adjustment_total = adjustment_sum − license_spend_total` eliminates `license_spend_total`
-entirely), so it trips **only** when the claimed set has actually drifted. `cancelled`
+That identity is exact for any legitimately-built draft, so it trips **only** when the claimed
+set has actually drifted. `cancelled`
 commissions are excluded from the sum — cancelling changes only `status`, so an unfiltered SUM
 would be byte-identical before and after and the backstop could never fire. `paid` rows are
 deliberately still counted, so a legitimate retry is not blocked.
@@ -329,10 +309,9 @@ The safety condition is **not** the status but whether a transfer exists —
 `failed` is included because otherwise a failed payout's commissions were claimed forever with
 no release path.
 
-Only the caller that **wins** the CAS may call `releaseClaims()` (which nulls `payout_id`,
-`settled_payout_id` on adjustments, and `settled_payout_id` on license holds). Taking the
-`vendor_payouts` row lock first normalises the lock order everywhere:
-`vendor_payouts → commissions → adjustments → holds`.
+Only the caller that **wins** the CAS may call `releaseClaims()` (which nulls `payout_id` on
+commissions and `settled_payout_id` on adjustments). Taking the `vendor_payouts` row lock first
+normalises the lock order everywhere: `vendor_payouts → commissions → adjustments`.
 
 Three callers:
 

@@ -1,7 +1,7 @@
 # 04 — auth-service
 
 Port **3001**. Owns identity: users, sessions, passwords, OAuth, phone OTP, 2FA, addresses,
-beauty profiles, referrals, and admin user management.
+the store-credit wallet, and admin user management.
 
 ## Files
 
@@ -13,8 +13,6 @@ apps/auth-service/src/
 │   ├── password.routes.ts           # forgot/reset/magic-link
 │   ├── two-factor.routes.ts         # TOTP enable/verify/disable/login-verify/backup-verify
 │   ├── address.routes.ts            # /auth/me/addresses + verified phones
-│   ├── beauty-profile.routes.ts
-│   ├── referral.routes.ts           # /ref/:code, /me/referral-code, /me/referrals
 │   ├── admin-user.routes.ts         # /admin/users
 │   └── admin-password.routes.ts     # /admin/auth/vendors/:id/(reset|set)-password
 ├── controllers/                     # thin HTTP orchestration
@@ -26,8 +24,6 @@ apps/auth-service/src/
 │   ├── phone-verification-provider.ts, whatsapp-otp-store.ts, otp-cooldown.ts
 │   ├── two-factor.service.ts        # TOTP + encrypted secret + backup codes
 │   ├── address.service.ts, address-phone-verification.service.ts
-│   ├── customer-beauty-profile.service.ts
-│   ├── referral.service.ts
 │   ├── user-admin.service.ts
 │   └── token-cleanup.service.ts     # daily purge of expired tokens (7-day retention)
 └── utils/auth-cookies.ts, password-generator.ts
@@ -55,13 +51,10 @@ apps/auth-service/src/
 | POST | `/auth/change-password` | auth | |
 | GET | `/auth/me` | auth | current user |
 | GET | `/auth/me/wallet` · `/wallet/transactions` | auth | store-credit wallet |
-| GET/PUT | `/auth/me/beauty-profile` | auth | personalisation profile |
 | GET/POST/PATCH/DELETE | `/auth/me/addresses[/:id]` | auth | address book |
 | POST | `/auth/me/verified-phones/start` · `/confirm`, GET `/auth/me/verified-phones` | auth | phone ownership proof (WhatsApp notifications require it) |
-| GET | `/ref/:code` | public | resolves a referral code |
-| GET | `/me/referral-code` · `/me/referrals` | auth | |
 | GET | `/admin/users` · `/admin/users/:id` | admin | |
-| PATCH | `/admin/users/:id/status` · `/role` · `/creator-tier` | admin | |
+| PATCH | `/admin/users/:id/status` · `/role` | admin | |
 | GET/PATCH/DELETE | `/admin/users/:id/addresses[/:addressId]` | admin | |
 | POST | `/admin/auth/vendors/:vendorId/reset-password` · `/set-password` | admin | support tooling for vendor owners |
 
@@ -168,7 +161,7 @@ non-`$2…` hashes rather than letting `verify` throw.
 ## Guest sessions
 
 `createGuestSession()` issues a token for an anonymous shopper; the storefront also sends an
-`x-guest-session` header that cart/support/affiliate endpoints use as an owner key.
+`x-guest-session` header that cart and support endpoints use as an owner key.
 `mergeGuestToUser(sessionToken, userId)` folds guest state into a real account at login —
 `/cart/merge` (order-service) and `/wishlist/merge` (product-service) are the companion calls.
 
@@ -182,17 +175,11 @@ stop working immediately.
 reachable only through the admin routes `POST /admin/auth/vendors/:vendorId/set-password` —
 support tooling for locked-out vendor owners.
 
-## Referrals
-
-`referral.service.ts` — a user gets a referral code (`createReferralCode`), `GET /ref/:code`
-resolves it, and `attributeSignup()` links a new user to the referrer. The **reward** side lives
-in order-service (`domain/referral/referral-reward.service.ts`), because it needs order data.
-
 ## Admin user management
 
-`user-admin.service.ts` — list/search users, view one, and change `status`, `role`, or
-`creator_tier`. Role and status changes bump the user's token version so the change is enforced
-on the next request rather than after 15 minutes.
+`user-admin.service.ts` — list/search users, view one, and change `status` or `role`. Role and
+status changes bump the user's token version so the change is enforced on the next request rather
+than after 15 minutes.
 
 ## Gaps
 
@@ -201,5 +188,4 @@ on the next request rather than after 15 minutes.
   the gateway's global one.
 - `login()` counts failed attempts on the user row; there is no per-IP throttle, so the lockout
   is also a trivial denial-of-service against a known email address.
-- OAuth callbacks and the referral resolve endpoint are public and unthrottled beyond the
-  gateway's 100/min per IP.
+- OAuth callbacks are public and unthrottled beyond the gateway's 100/min per IP.

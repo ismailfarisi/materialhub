@@ -1,8 +1,7 @@
 # 08 — Orders & fulfilment (order-service, part 2)
 
 Covers what happens after an order exists: status machines, vendor sub-orders, shipments and
-carriers, returns, disputes, reviews, gift-box hub fulfilment, invoices, and the admin/vendor
-dashboards.
+carriers, returns, disputes, reviews, invoices, and the admin/vendor dashboards.
 
 ## The two status machines
 
@@ -138,7 +137,7 @@ sequenceDiagram
     W->>W: vendor.auto_create_shipment must be true (or job.manual)
     W->>W: resolveShippingAccount — vendor account, else platform account
     W->>W: vendor_order must still be `confirmed`
-    W->>W: resolveShipTo — gift orders ship to the hub, not the customer
+    W->>W: resolveShipTo — the customer's delivery address
     W->>AD: bookShipment(items, addresses, cod, pickup window)
     AD-->>W: tracking number, cost, label
     W->>ST: create shipment + items + first event
@@ -168,7 +167,8 @@ marks `shipped`, delivery marks `delivered` (which starts the settlement clock).
 `postaplus-tracking-poll` (cron `0 */8 * * *`) polls open shipments for carriers that do not push.
 
 Tables: `shipments`, `shipment_items`, `shipment_events`, `shipment_status_history`. Split
-shipments per vendor order are supported (see `db-design/12-shipment-architecture.md`).
+shipments per vendor order are supported (for example a pallet of greyboard and a carton of
+hinges from the same supplier leaving on different days).
 
 ### Shipping configuration
 
@@ -242,55 +242,14 @@ zeroed.
 `domain/reviews/`.
 
 - `createReview` requires a **verified purchase** — `VerifiedPurchaseService` checks the user has
-  a delivered `order_item` for that product. reels-service and booking-service call the same
-  check over `GET /internal/orders/verified-purchase`.
+  a delivered `order_item` for that product. The same check is exposed to other services over
+  `GET /internal/orders/verified-purchase`.
 - Reviews start unapproved; `/admin/reviews/:id/approve|reject` moderate.
 - `voteReview` (helpful/not) and `flagReview` are customer actions; `vendorReply` lets the vendor
   respond once.
 - Approval enqueues `review-rating`, whose worker recomputes `products.rating_avg` /
   `rating_count` and the vendor aggregate. Ratings are therefore **eventually consistent** — the
   product row does not move synchronously with the review.
-
-## Gift-box hub fulfilment
-
-Gift boxes ship from participating vendors to a **platform hub warehouse**, are assembled there,
-and then ship as one parcel to the recipient. `domain/gift-fulfillment/`.
-
-```mermaid
-stateDiagram-v2
-    [*] --> awaiting_items
-    awaiting_items --> partially_received
-    awaiting_items --> ready_to_assemble
-    partially_received --> partially_received
-    partially_received --> ready_to_assemble
-    ready_to_assemble --> assembling
-    ready_to_assemble --> packed
-    assembling --> packed
-    packed --> shipped
-    shipped --> delivered
-    awaiting_items --> cancelled
-    partially_received --> cancelled
-    ready_to_assemble --> cancelled
-    assembling --> cancelled
-    packed --> cancelled
-    awaiting_items --> exception
-    exception --> ready_to_assemble
-    exception --> cancelled
-```
-
-`gift-order-state-machine.ts` is pure and throws `422 GIFT_FULFILLMENT_INVALID_TRANSITION` on an
-illegal hop.
-
-The commission link: gift-item commissions are created `held` and **stay held** until
-`markVendorOrderReceived` confirms the hub actually received that vendor's contribution — only
-then do they follow the normal settlement path. This is why `GiftFulfillmentService` takes a
-`CommissionService` dependency.
-
-`resolveShipTo()` (`ship-to.ts`, pure) is what makes the auto-shipment worker send a gift vendor
-order to the hub address instead of the customer's.
-
-Admin routes: `GET /admin/gift-fulfillment[/:id]`, `/packing-slip`, and
-`POST …/receive | /assemble | /dispatch | /deliver | /cancel`.
 
 ## Invoices & receipts
 
@@ -311,13 +270,10 @@ Platform legal details come from `config.invoice` (`PLATFORM_TRN`, `PLATFORM_LEG
 
 `DashboardService` aggregates over `orders`, `vendor_orders`, `users`, `vendors`, `commissions`.
 
-## Promotions & referrals
+## Promotions
 
 - `domain/promotions/promotions.service.ts` wraps `CouponAdminService` for the read-only
   `GET /admin/promotions` view.
-- `domain/referral/referral-reward.service.ts` grants the referrer's reward once a referred user
-  places a qualifying order; `vendor-referral.service.ts` is the vendor-to-vendor equivalent.
-  Code issuance lives in auth-service.
 
 ## Order endpoints
 
@@ -336,5 +292,5 @@ Platform legal details come from `config.invoice` (`PLATFORM_TRN`, `PLATFORM_LEG
 
 Internal routes (`internalServiceAuth`): `POST /internal/vendor-orders/:id/transition`,
 `POST /internal/shipments` and `/:id/transition` (integration-service applies vendor webhook
-events through these), `GET /internal/orders/verified-purchase` and `/my-delivered-items`
-(reels/booking), and the whole `/internal/booking-payment/*` group used by booking-service.
+events through these), and `GET /internal/orders/verified-purchase` and `/my-delivered-items`
+(purchase checks for other services; no current caller after the fork).

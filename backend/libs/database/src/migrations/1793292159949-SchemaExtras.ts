@@ -4,8 +4,8 @@ import type { MigrationInterface, QueryRunner } from "typeorm";
  * Hand-written schema pieces that TypeORM cannot express from the entities:
  *
  * - Postgres extensions used by search (pg_trgm, unaccent) and crypto (pgcrypto).
- * - `notifications` as a monthly range-partitioned table (the entity declares a
- *   plain uuid primary key; the partitioned table's key is (id, created_at)),
+ * - `notifications` (entity marked synchronize:false) as a monthly range-partitioned
+ *   table with its enums; the partitioned table's key is (id, created_at),
  *   with the two maintenance functions notification-service calls from its
  *   partition job.
  * - The checkout pricing-rules epoch: a single-row table that is bumped by
@@ -16,8 +16,8 @@ import type { MigrationInterface, QueryRunner } from "typeorm";
  * Runs right after InitialSchema on an empty database; every statement is
  * written so it can be re-run safely.
  */
-export class SchemaExtras1793280400000 implements MigrationInterface {
-  name = "SchemaExtras1793280400000";
+export class SchemaExtras1793292159949 implements MigrationInterface {
+  name = "SchemaExtras1793292159949";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // ── Extensions ──────────────────────────────────────────────────
@@ -29,6 +29,16 @@ export class SchemaExtras1793280400000 implements MigrationInterface {
     // ── notifications: monthly partitions ───────────────────────────
     // InitialSchema creates a plain table; nothing references it, so replace it.
     await queryRunner.query(`DROP TABLE IF EXISTS "notifications"`);
+    await queryRunner.query(
+      `DO $$ BEGIN
+        CREATE TYPE "public"."notifications_type_enum" AS ENUM('order_update', 'payment', 'promotion', 'system', 'vendor', 'order_confirmed', 'order_shipped', 'order_delivered', 'payment_received', 'payout_sent', 'new_review', 'low_stock', 'vendor_approved', 'return_requested', 'dispute_opened', 'dispute_resolved', 'vendor_new_order');
+      EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    );
+    await queryRunner.query(
+      `DO $$ BEGIN
+        CREATE TYPE "public"."notifications_channel_enum" AS ENUM('email', 'push', 'sms', 'in_app', 'whatsapp');
+      EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    );
     await queryRunner.query(
       `CREATE TABLE "notifications" (
         "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -196,8 +206,7 @@ export class SchemaExtras1793280400000 implements MigrationInterface {
     await queryRunner.query("DROP FUNCTION IF EXISTS drop_old_notification_partitions()");
     await queryRunner.query("DROP FUNCTION IF EXISTS create_next_notification_partition()");
     await queryRunner.query(`DROP TABLE IF EXISTS "notifications"`);
-    await queryRunner.query(
-      `CREATE TABLE "notifications" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "user_id" uuid NOT NULL, "type" "public"."notifications_type_enum" NOT NULL, "channel" "public"."notifications_channel_enum" NOT NULL DEFAULT 'in_app', "title" character varying(255) NOT NULL, "body" text NOT NULL, "data" jsonb, "is_read" boolean NOT NULL DEFAULT false, "read_at" TIMESTAMP WITH TIME ZONE, "action_url" character varying(1024), "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "deleted_at" TIMESTAMP WITH TIME ZONE, CONSTRAINT "PK_6a72c3c0f683f6462415e653c3a" PRIMARY KEY ("id"))`,
-    );
+    await queryRunner.query(`DROP TYPE IF EXISTS "public"."notifications_channel_enum"`);
+    await queryRunner.query(`DROP TYPE IF EXISTS "public"."notifications_type_enum"`);
   }
 }

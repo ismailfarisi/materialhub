@@ -1,4 +1,9 @@
-import { AppDataSource, Product, ProductCollectionKind, ProductVariant } from "@materialhub/database";
+import {
+  AppDataSource,
+  Product,
+  ProductCollectionKind,
+  ProductVariant,
+} from "@materialhub/database";
 import { In } from "typeorm";
 
 export interface SkuResolution {

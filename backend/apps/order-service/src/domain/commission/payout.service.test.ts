@@ -115,8 +115,8 @@ describe("PayoutService", () => {
       qb.getRawOne = mock(() => Promise.resolve({ total: "0" }));
       return qb;
     }),
-    // estimateForVendor (via computePayoutTotals) reads reel_license_escrow_holds via
-    // the entity manager (raw SQL). The query returns [] (no license holds).
+    // estimateForVendor (via computePayoutTotals) reads the shipments
+    // carrier-cost sum via the entity manager (raw SQL).
     manager: {
       query: mock((): Promise<any[]> => Promise.resolve([])),
       transaction: mock((cb: any) =>
@@ -195,7 +195,6 @@ describe("PayoutService", () => {
       vendorOrders?: any[];
       adjustments?: any[];
       carrierCostSum?: number;
-      licenseHolds?: any[];
     } = {},
   ) {
     const commissionFindArgs: any[] = [];
@@ -205,14 +204,13 @@ describe("PayoutService", () => {
         return Promise.resolve(opts.commissions ?? []);
       }),
       manager: {
-        // computePayoutTotals issues two raw queries through this manager:
-        // the licence-hold read and the shipments carrier-cost sum. Branch on
-        // the SQL so a test can control each independently.
+        // computePayoutTotals issues one raw query through this manager: the
+        // shipments carrier-cost sum.
         query: mock((sql: string): Promise<any[]> => {
           if (typeof sql === "string" && sql.includes("shipments")) {
             return Promise.resolve([{ sum: String(opts.carrierCostSum ?? 0) }]);
           }
-          return Promise.resolve(opts.licenseHolds ?? []);
+          return Promise.resolve([]);
         }),
       },
     };
@@ -428,7 +426,7 @@ describe("PayoutService", () => {
     });
 
     it("does NOT change net_amount — carrier cost is informational", async () => {
-      // items_net 9000 - shipping_contribution 500 - license 0 + adjustments 0
+      // items_net 9000 - shipping_contribution 500 + adjustments 0
       const withCarrier = makeService({
         commissions,
         vendorOrders: [{ id: "vo1", carrier_cost: 0, shipping_contribution: 500 }],
@@ -464,15 +462,14 @@ describe("PayoutService", () => {
       // non-zero to prove it's no longer read.
       { id: "vo1", carrier_cost: 1200, shipping_contribution: 500 },
     ]);
-    // First manager.query call computePayoutTotals issues is the shipments
-    // carrier-cost sum; the second (license holds) falls back to the mock's
-    // default `[]`.
+    // The manager.query call computePayoutTotals issues is the shipments
+    // carrier-cost sum.
     mockCommissionRepo.manager.query.mockResolvedValueOnce([{ sum: "1300" }]);
 
     const est = await service.estimateForVendor("v1");
     expect(est.shipping_contribution_total).toBe(500);
     expect(est.carrier_cost_total).toBe(1300);
-    expect(est.net_amount).toBe(7500); // 8000 items_net - 500 contribution (no license holds: manager.query returns [])
+    expect(est.net_amount).toBe(7500); // 8000 items_net - 500 contribution
   });
 
   it("listForAdmin filters by vendorId, status, period, amount, reference", async () => {
@@ -987,9 +984,8 @@ describe("PayoutService", () => {
      * reference_typeorm_update_returning_tuple), the shared txQuery mock
      * below routes by table name: commission and adjustment claims are
      * captured separately (with a configurable claimed-count, to simulate a
-     * concurrent draft having claimed some rows first) from the unrelated
-     * license-hold update, which still just resolves to `[[], 0]`.
-     * __commissionClaims / __adjustmentClaims / __holdQueries capture every
+     * concurrent draft having claimed some rows first).
+     * __commissionClaims / __adjustmentClaims capture every
      * claim write for assertions; __stripe is the exact Stripe double passed
      * into the service so "never called" is a statement about the real
      * dependency, not a decoy.
@@ -1008,8 +1004,6 @@ describe("PayoutService", () => {
         commissionClaimedCount?: number;
         /** Rows the mocked adjustment claim UPDATE reports as affected. Defaults to "claims everything requested". */
         adjustmentClaimedCount?: number;
-        /** Rows the mocked license-hold claim UPDATE reports as affected (I5). Defaults to "claims everything requested". */
-        licenseHoldClaimedCount?: number;
       } = {},
     ) {
       const vendor = opts.vendor ?? {
@@ -1024,8 +1018,6 @@ describe("PayoutService", () => {
         adjustment_total: 0,
         carrier_cost_total: 0,
         shipping_contribution_total: 0,
-        license_spend_total: 0,
-        license_hold_ids: [] as string[],
         ...opts.totals,
       };
 
@@ -1037,7 +1029,6 @@ describe("PayoutService", () => {
 
       const commissionClaims: any[] = [];
       const adjustmentClaims: any[] = [];
-      const holdQueries: any[] = [];
 
       let savedDraft: any = null;
       const payoutTxRepo = {
@@ -1071,12 +1062,7 @@ describe("PayoutService", () => {
           const claimed = opts.adjustmentClaimedCount ?? ids.length;
           return Promise.resolve([ids.slice(0, claimed).map((id) => ({ id })), claimed]);
         }
-        // I5: the license-hold claim, now conditional (AND settled_payout_id
-        // IS NULL) and row-count-checked just like the two claims above.
-        holdQueries.push([sql, params]);
-        const ids: string[] = (params?.[1] as string[]) ?? [];
-        const claimed = opts.licenseHoldClaimedCount ?? ids.length;
-        return Promise.resolve([ids.slice(0, claimed).map((id) => ({ id })), claimed]);
+        return Promise.resolve([[], 0]);
       });
 
       const payoutTarget = {}; // sentinel: distinct from the Commission/VendorPayoutAdjustment classes
@@ -1114,7 +1100,6 @@ describe("PayoutService", () => {
       svc.__stripe = stripe;
       svc.__commissionClaims = commissionClaims;
       svc.__adjustmentClaims = adjustmentClaims;
-      svc.__holdQueries = holdQueries;
       svc.__txAudits = txAudits;
       return svc;
     }
@@ -1267,53 +1252,6 @@ describe("PayoutService", () => {
       ).rejects.toThrow(/concurrent|raced|claimed/i);
     });
 
-    it("I5: rolls back the whole draft when the license-hold claim races and claims fewer rows than expected", async () => {
-      const svc = makeService({
-        totals: {
-          net_amount: 50_000,
-          pending_count: 1,
-          commission_ids: ["c1"],
-          adjustment_ids: [],
-          license_hold_ids: ["h1", "h2"],
-        },
-        // Simulates a concurrent createDraft call (a manual /generate racing
-        // the nightly job) claiming "h2" first.
-        licenseHoldClaimedCount: 1,
-      });
-
-      await expect(
-        svc.createDraft({
-          vendorId: "v1",
-          periodStart: "2026-07-01",
-          periodEnd: "2026-07-15",
-          adminUserId: "a1",
-        }),
-      ).rejects.toThrow(/concurrent|raced|claimed/i);
-    });
-
-    it("I5: claims license holds conditioned on settled_payout_id still being NULL", async () => {
-      const svc = makeService({
-        totals: {
-          net_amount: 50_000,
-          pending_count: 1,
-          commission_ids: ["c1"],
-          adjustment_ids: [],
-          license_hold_ids: ["h1"],
-        },
-      });
-
-      await svc.createDraft({
-        vendorId: "v1",
-        periodStart: "2026-07-01",
-        periodEnd: "2026-07-15",
-        adminUserId: "a1",
-      });
-
-      const [holdSql, holdParams] = svc.__holdQueries[0];
-      expect(holdSql).toMatch(/settled_payout_id IS NULL/);
-      expect(holdParams).toEqual(["draft1", ["h1"]]);
-    });
-
     it("returns null when there is nothing payable", async () => {
       const svc = makeService({
         totals: { net_amount: 0, pending_count: 0, commission_ids: [], adjustment_ids: [] },
@@ -1419,29 +1357,6 @@ describe("PayoutService", () => {
       expect(draft).toBeNull();
     });
 
-    it("MINOR: the license-hold claim mirrors computePayoutTotals' full read predicate", async () => {
-      const svc = makeService({
-        totals: {
-          net_amount: 50_000,
-          pending_count: 1,
-          commission_ids: ["c1"],
-          adjustment_ids: [],
-          license_hold_ids: ["h1"],
-        },
-      });
-      await svc.createDraft({
-        vendorId: "v1",
-        periodStart: "2026-07-01",
-        periodEnd: "2026-07-15",
-        adminUserId: null,
-      });
-      const [sql] = svc.__holdQueries[0]!;
-      expect(sql).toContain("settled_payout_id IS NULL");
-      expect(sql).toContain("status = 'captured'");
-      expect(sql).toContain("funding_source = 'payout_balance'");
-      expect(sql).toContain("deleted_at IS NULL");
-    });
-
     it("MINOR: the draft_created audit row is written through the draft's own transaction", async () => {
       const svc = makeService({
         totals: {
@@ -1506,7 +1421,7 @@ describe("PayoutService", () => {
      * Approve/transfer/reject fixture: findOne returns the given payout (with
      * an optional vendor relation), manager.transaction routes getRepository()
      * by entity class exactly like the createDraft fixture above, and
-     * __commissionUpdates / __adjustmentUpdates / __holdQueries / __payoutSaved
+     * __commissionUpdates / __adjustmentUpdates / __payoutSaved
      * capture every write for assertions. __stripe is the exact double passed
      * into the service.
      *
@@ -1549,7 +1464,6 @@ describe("PayoutService", () => {
 
       const commissionUpdates: any[] = [];
       const adjustmentUpdates: any[] = [];
-      const holdQueries: any[] = [];
       const txQueries: Array<{ sql: string; params?: any[] }> = [];
       let payoutSaved: any = null;
 
@@ -1587,7 +1501,6 @@ describe("PayoutService", () => {
           const rows = opts.rejectClaimResult === "not_claimed" ? [] : [{ id: params?.[0] }];
           return Promise.resolve([rows, rows.length]);
         }
-        holdQueries.push(params);
         return Promise.resolve([]);
       });
 
@@ -1660,7 +1573,6 @@ describe("PayoutService", () => {
       svc.__stripe = stripe;
       svc.__commissionUpdates = commissionUpdates;
       svc.__adjustmentUpdates = adjustmentUpdates;
-      svc.__holdQueries = holdQueries;
       svc.__claimQuery = claimQuery;
       svc.__txQueries = txQueries;
       svc.__audits = audits;
@@ -1921,7 +1833,6 @@ describe("PayoutService", () => {
 
         expect(svc.__commissionUpdates).toHaveLength(0);
         expect(svc.__adjustmentUpdates).toHaveLength(0);
-        expect(svc.__holdQueries).toHaveLength(0);
       });
     });
 
@@ -2257,13 +2168,13 @@ describe("PayoutService", () => {
         notes: "Reconciliation failed before transfer: ... 491050 ... 500000",
       };
 
-      it("releases commissions, adjustments and license holds and soft-deletes the payout with the reason", async () => {
+      it("releases commissions and adjustments and soft-deletes the payout with the reason", async () => {
         const svc = makeService({ payout: { ...failedPayout } });
 
         await svc.voidFailedPayout("p1", "admin-1", "Stripe account fixed; rebuilding the draft");
 
         // Lock order: vendor_payouts claimed FIRST, then commissions ->
-        // adjustments -> holds, same as every other path.
+        // adjustments, same as every other path.
         const claim = svc.__txQueries.find((q: any) => q.sql.includes("UPDATE vendor_payouts"));
         expect(claim?.sql).toContain("status IN ('pending', 'failed')");
         expect(claim?.sql).toContain("gateway_reference IS NULL");
@@ -2274,7 +2185,6 @@ describe("PayoutService", () => {
           { settled_payout_id: "p1" },
           { settled_payout_id: null },
         ]);
-        expect(svc.__holdQueries).toHaveLength(1);
         const audit = svc.__audits.find((a: any) => a.action === "payout.voided");
         expect(audit).toBeTruthy();
         expect(audit.entity_id).toBe("p1");
@@ -2304,7 +2214,6 @@ describe("PayoutService", () => {
         );
         expect(svc.__commissionUpdates).toHaveLength(0);
         expect(svc.__adjustmentUpdates).toHaveLength(0);
-        expect(svc.__holdQueries).toHaveLength(0);
         expect(svc.__txQueries).toHaveLength(0);
       });
 
@@ -2334,7 +2243,6 @@ describe("PayoutService", () => {
         });
         expect(svc.__commissionUpdates).toHaveLength(0);
         expect(svc.__adjustmentUpdates).toHaveLength(0);
-        expect(svc.__holdQueries).toHaveLength(0);
       });
     });
 
@@ -2422,7 +2330,6 @@ describe("PayoutService", () => {
     function makeManager(opts: { claimedRows?: Array<{ id: string }>; currentStatus?: string }) {
       const commissionUpdates: any[] = [];
       const adjustmentUpdates: any[] = [];
-      const holdQueries: any[] = [];
       const queries: Array<{ sql: string; params?: any[] }> = [];
 
       const commissionRepo = {
@@ -2456,10 +2363,6 @@ describe("PayoutService", () => {
             const rows = opts.claimedRows ?? [{ id: params?.[0] }];
             return Promise.resolve([rows, rows.length]);
           }
-          if (sql.includes("reel_license_escrow_holds")) {
-            holdQueries.push(params);
-            return Promise.resolve([]);
-          }
           return Promise.resolve([]);
         }),
         getRepository: mock((target: any) => {
@@ -2476,18 +2379,16 @@ describe("PayoutService", () => {
         manager,
         commissionUpdates,
         adjustmentUpdates,
-        holdQueries,
         queries,
         payoutRepo,
         auditRepo,
       };
     }
 
-    it("claims via a conditional UPDATE gated on 'no transfer exists' ... RETURNING id, and releases commissions/adjustments/license holds only when it wins", async () => {
-      const { manager, commissionUpdates, adjustmentUpdates, holdQueries, queries, auditRepo } =
-        makeManager({
-          claimedRows: [{ id: "p1" }],
-        });
+    it("claims via a conditional UPDATE gated on 'no transfer exists' ... RETURNING id, and releases commissions/adjustments only when it wins", async () => {
+      const { manager, commissionUpdates, adjustmentUpdates, queries, auditRepo } = makeManager({
+        claimedRows: [{ id: "p1" }],
+      });
 
       const result = await service.invalidateDraftForReversal(
         manager,
@@ -2509,7 +2410,6 @@ describe("PayoutService", () => {
       expect(adjustmentUpdates).toEqual([
         [{ settled_payout_id: "p1" }, { settled_payout_id: null }],
       ]);
-      expect(holdQueries).toHaveLength(1);
       // The audit row goes through the caller's manager now, not the
       // service's own repository (R4 MINOR: writeAudit honours the caller's
       // EntityManager so it rolls back with the change it describes).
@@ -2524,12 +2424,10 @@ describe("PayoutService", () => {
       // whether this call actually owns the release; 0 rows back means it
       // lost the race (or the draft was never pending), and nothing else
       // may be touched.
-      const { manager, commissionUpdates, adjustmentUpdates, holdQueries, auditRepo } = makeManager(
-        {
-          claimedRows: [],
-          currentStatus: "processing",
-        },
-      );
+      const { manager, commissionUpdates, adjustmentUpdates, auditRepo } = makeManager({
+        claimedRows: [],
+        currentStatus: "processing",
+      });
 
       const result = await service.invalidateDraftForReversal(
         manager,
@@ -2540,7 +2438,6 @@ describe("PayoutService", () => {
       expect(result).toEqual({ invalidated: false, payoutStatus: "processing" });
       expect(commissionUpdates).toHaveLength(0);
       expect(adjustmentUpdates).toHaveLength(0);
-      expect(holdQueries).toHaveLength(0);
       expect(mockAuditLogRepo.save).not.toHaveBeenCalled();
       expect(auditRepo.save).not.toHaveBeenCalled();
     });

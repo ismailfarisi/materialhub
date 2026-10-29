@@ -13,7 +13,7 @@ export interface CommissionSettlementDeps {
  * Promotes matured `held` commissions to `pending` (payable).
  *
  * Deliberately joinless: eligibility is a timestamp on the row itself,
- * stamped at delivery (or gift-hub fulfilment), so this never has to reason
+ * stamped at delivery, so this never has to reason
  * about order state. `payout_id IS NULL` is belt-and-braces — a held row
  * should never be claimed by a draft, and if one ever is, we do not want to
  * quietly make it payable a second time.

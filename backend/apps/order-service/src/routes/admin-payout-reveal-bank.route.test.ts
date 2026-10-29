@@ -99,7 +99,14 @@ function sign(role: string, userId = "sa-1"): string {
 }
 
 function app(): any {
-  return new Elysia().use(adminPayoutRoutes as any);
+  // bun test shares one module cache across files: if a sibling test (e.g.
+  // admin-payout-adjustment.integration.test.ts) imported admin-payout.routes.ts
+  // first, that plugin already captured ITS container stub, which has no
+  // adminPayoutController. Decorating the stub on the outer app as well makes
+  // the handler resolve this file's stub in either load order.
+  return new Elysia()
+    .decorate("adminPayoutController", adminPayoutControllerStub)
+    .use(adminPayoutRoutes as any);
 }
 
 const PAYOUT_ID = "11111111-1111-4111-8111-111111111111";

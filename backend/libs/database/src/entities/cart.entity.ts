@@ -41,9 +41,6 @@ export class Cart {
   @Column({ type: "varchar", length: 50, nullable: true })
   coupon_code!: string | null;
 
-  @Column({ type: "varchar", length: 50, nullable: true })
-  affiliate_code!: string | null;
-
   @Column({ type: "integer", default: 0 })
   coupon_discount!: number;
 

@@ -1,8 +1,8 @@
 # 10 — vendor-service
 
 Port **3004**. Owns the vendor entity and everything about *being* a vendor: application and KYC,
-team membership and permissions, bank accounts, Stripe Connect onboarding, holidays, the reels
-program opt-in, the vendor follow graph, and the affiliate programme.
+team membership and permissions, bank accounts, Stripe Connect onboarding, holidays, and the
+vendor follow graph.
 
 It does **not** own vendor payouts (order-service) or vendor products (product-service).
 
@@ -17,22 +17,16 @@ apps/vendor-service/src/
 │   ├── payment-provider.interface.ts  # PaymentProviderAdapter
 │   └── stripe-connect.adapter.ts
 ├── services/
-│   ├── vendor.service.ts              # apply, transition, admin CRUD, Connect, reels program
+│   ├── vendor.service.ts              # apply, transition, admin CRUD, Connect
 │   ├── vendor-member.service.ts       # invite/accept/decline/role/remove/transfer-ownership
 │   ├── vendor-member.validators.ts
 │   ├── vendor-bank-account.service.ts # encrypted; primary flag
 │   ├── vendor-document.service.ts     # KYC upload/verify/reject
 │   ├── vendor-settings.service.ts
-│   ├── vendor-follow.service.ts
-│   ├── vendor-affiliate.service.ts    # vendor-side affiliate management
-│   ├── affiliate-me.service.ts        # affiliate-user dashboard
-│   ├── affiliate-resolve.service.ts   # GET /a/:slug
-│   ├── affiliate-attribution.service.ts
-│   ├── affiliate-commission.service.ts
-│   ├── affiliate-wallet.service.ts, affiliate-payout.service.ts
+│   └── vendor-follow.service.ts
+├── routes/                            # vendor, vendor-admin, vendor-members, vendor-invites,
+│                                      # vendor-follow, vendor-webhook, role-permissions-admin
 └── jobs/
-    ├── affiliate-commerce-event-jobs.ts
-    ├── transition-affiliate-pending-to-earned.job.ts
     └── expire-pending-invites.job.ts   # cron 0 3 * * *
 ```
 
@@ -208,72 +202,6 @@ from the shipping computation in both the quote and checkout.
 |---|---|
 | `GET /vendors/by-slug/:slug` · `GET /vendors/:id/profile` | public (in `isPublicRoute`) |
 | `GET/POST/DELETE /me/follows/vendors/:vendorId` · `GET /me/follows/vendors/recent` | the follow graph |
-
-## Reels program
-
-`GET /vendor/reels-program`, `POST …/opt-in`, `POST …/opt-out` — a vendor-level flag that gates
-participation in creator licensing and reel commissions. reels-service reads it.
-
-## Affiliates
-
-A vendor recruits affiliates (ordinary users) who promote products with tracked links and earn a
-commission on attributed sales.
-
-### Entities
-
-`vendor_affiliates` (the relationship + `affiliate_code` + rate + status), `affiliate_links`
-(slug → store or product target, with a `click_count`), `affiliate_attributions` (a click bound
-to a user or guest session), `affiliate_commissions`, plus a wallet.
-
-### Flows
-
-```mermaid
-sequenceDiagram
-    participant Vn as Vendor
-    participant A as Affiliate user
-    participant B as Buyer
-    participant S as vendor-service
-    participant O as order-service
-
-    Vn->>S: POST /vendor/affiliates {email, rate}
-    S-->>A: invite
-    A->>S: POST /me/affiliate/affiliations/:id/accept
-    A->>S: POST /me/affiliate/affiliations/:id/links {targetType, targetId}
-    S-->>A: /a/<slug>
-    B->>S: GET /a/:slug            (public)
-    S->>S: resolveAndClick — link + active affiliate, increment click_count
-    S-->>B: 302 to the store/product
-    B->>S: POST /a/track           (optional auth — user id, else x-guest-session)
-    S->>S: AffiliateAttributionService.recordClick
-    B->>O: places an order (cart carries affiliate_code)
-    O->>S: order.paid event → affiliate-commissions queue
-    S->>S: snapshotForOrder → affiliate_commissions (pending)
-    Note over S: return window elapses
-    S->>S: transitionEligibleToEarned (cron) → earned, credited to the wallet
-    A->>S: POST /me/affiliate/payout   (above threshold)
-```
-
-- `GET /a/:slug` is **public and read-only**; `POST /a/track` is **optional-auth** so a logged-in
-  buyer is attributed by user id and a guest by `x-guest-session`.
-- The click counter increment is best-effort and never blocks the redirect.
-- `snapshotForOrder` / `snapshotItem` freeze the rate at order time.
-- `voidPendingForOrder(orderId, reason)` reverses attribution when an order is cancelled or
-  refunded — driven by the same order events.
-- `AffiliatePayoutService` has its own threshold (`getThresholdFils`) and is separate from
-  vendor payouts.
-
-### Affiliate endpoints
-
-| Method | Path | Actor |
-|---|---|---|
-| GET/POST | `/vendor/affiliates` · `/:id` · `/:id/links` | vendor |
-| PATCH | `/vendor/affiliates/:id/rate` · `/status` | vendor |
-| GET | `/me/affiliate/affiliations` · `/earnings` | affiliate user |
-| POST | `/me/affiliate/affiliations/:id/accept` | affiliate user |
-| GET/POST | `/me/affiliate/affiliations/:id/links` | affiliate user |
-| POST | `/me/affiliate/payout` | affiliate user |
-| GET | `/admin/affiliates` · `/admin/affiliates/:id/commissions` | admin |
-| GET | `/a/:slug` (public) · POST `/a/track` (optional auth) | buyer |
 
 ## Admin vendor surface
 

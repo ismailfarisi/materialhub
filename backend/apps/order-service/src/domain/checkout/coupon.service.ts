@@ -1,4 +1,10 @@
-import type { Coupon, CouponUsage, Order, ProductCollectionMember, User } from "@materialhub/database";
+import type {
+  Coupon,
+  CouponUsage,
+  Order,
+  ProductCollectionMember,
+  User,
+} from "@materialhub/database";
 import { BadRequestError } from "@materialhub/plugins";
 // coupon.service.ts
 import type { Repository } from "typeorm";

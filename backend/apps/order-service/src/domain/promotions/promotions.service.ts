@@ -1,9 +1,8 @@
-import { config } from "@materialhub/config";
 import type { CouponAdminService } from "../coupon/coupon-admin.service.ts";
 
 interface PromoItem {
   id: string;
-  type: "coupon" | "flash_deal";
+  type: "coupon";
   name: string;
   status: "active" | "scheduled" | "expired" | "disabled";
   starts_at: string | null;
@@ -58,36 +57,6 @@ export class PromotionsService {
           vendor_name: c.vendor?.name ?? null,
           created_at: new Date(c.created_at).toISOString(),
         });
-      }
-    }
-
-    // Flash deals (internal service call — NO auth needed, uses /internal/ endpoint)
-    if (!filters.type || filters.type === "flash_deal") {
-      try {
-        const res = await fetch(
-          `http://localhost:${config.port.product}/internal/flash-deals?limit=1000`,
-        );
-        if (res.ok) {
-          const data = (await res.json()) as any;
-          for (const fd of data.items || []) {
-            items.push({
-              id: fd.id,
-              type: "flash_deal",
-              name: fd.title,
-              status: computeStatus(fd.is_active, fd.starts_at, fd.expires_at),
-              starts_at: fd.starts_at,
-              expires_at: fd.expires_at,
-              discount_display: `${Number(fd.discount_percentage).toFixed(0)}% off`,
-              usage: fd.quantity_limit
-                ? `${fd.quantity_sold}/${fd.quantity_limit} sold`
-                : `${fd.quantity_sold} sold`,
-              vendor_name: fd.vendor?.name ?? null,
-              created_at: fd.created_at,
-            });
-          }
-        }
-      } catch {
-        warnings.push("Flash deals unavailable");
       }
     }
 

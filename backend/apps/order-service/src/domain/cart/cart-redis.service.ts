@@ -9,7 +9,6 @@ export interface CartRedisItem {
   quantity: number;
   unitPrice: number;
   vendorId: string;
-  flashDealId?: string | null;
   originalUnitPrice?: number | null;
 }
 

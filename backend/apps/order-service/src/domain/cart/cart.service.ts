@@ -1,18 +1,9 @@
-import type {
-  Cart,
-  CartGiftBox,
-  CartItem,
-  Inventory,
-  Product,
-  ProductVariant,
-} from "@materialhub/database";
+import type { Cart, CartItem, Inventory, Product, ProductVariant } from "@materialhub/database";
 import { BadRequestError, NotFoundError } from "@materialhub/plugins";
 // cart.service.ts
 import type { Repository } from "typeorm";
-import type { FlashDealApplicator } from "../checkout/flash-deal-applicator.service.ts";
 import type { CartRedisService } from "./cart-redis.service.ts";
 import { computeCartTotals } from "./cart-totals.ts";
-import type { GiftBoxCartResolver } from "./gift-box-cart-resolver.service.ts";
 
 export class CartService {
   constructor(
@@ -22,58 +13,7 @@ export class CartService {
     private productRepo: Repository<Product>,
     private variantRepo: Repository<ProductVariant>,
     private redisCart: CartRedisService,
-    private flashDealApplicator: FlashDealApplicator,
-    private cartGiftBoxRepo: Repository<CartGiftBox>,
-    private giftBoxResolver: GiftBoxCartResolver,
   ) {}
-
-  async addGiftBox(
-    userId: string | null,
-    guestSessionId: string | null,
-    data: {
-      giftBoxId: string;
-      quantity?: number;
-      giftMessage?: string | null;
-      recipientName?: string | null;
-    },
-  ): Promise<CartGiftBox> {
-    const cart = await this.getOrCreateCart(userId, guestSessionId);
-    const resolved = await this.giftBoxResolver.resolve(data.giftBoxId);
-
-    const row = this.cartGiftBoxRepo.create({
-      cart_id: cart.id,
-      gift_box_id: resolved.gift_box_id,
-      quantity: data.quantity ?? 1,
-      unit_price: resolved.unit_price,
-      packaging_price: resolved.packaging_price,
-      discount_total: resolved.discount_total,
-      box_name_snapshot: resolved.box_name_snapshot,
-      style_snapshot: resolved.style_snapshot,
-      occasion_snapshot: resolved.occasion_snapshot,
-      components: resolved.components,
-      gift_message: data.giftMessage ?? null,
-      recipient_name: data.recipientName ?? null,
-    });
-    const saved = await this.cartGiftBoxRepo.save(row);
-
-    await this.recalcCartTotals(cart.id);
-    return saved;
-  }
-
-  async removeGiftBox(
-    userId: string | null,
-    guestSessionId: string | null,
-    cartGiftBoxId: string,
-  ): Promise<void> {
-    const cart = await this.getOrCreateCart(userId, guestSessionId);
-    const row = await this.cartGiftBoxRepo.findOne({
-      where: { id: cartGiftBoxId, cart_id: cart.id },
-    });
-    if (!row) throw new NotFoundError("Gift box not found in cart");
-
-    await this.cartGiftBoxRepo.softRemove(row);
-    await this.recalcCartTotals(cart.id);
-  }
 
   /**
    * Owner filter for a cart lookup, or null when the caller has no identity.
@@ -152,17 +92,11 @@ export class CartService {
       unitPrice = variant.price;
     }
 
-    const deal = await this.flashDealApplicator.resolveForLine(data.productId, data.variantId);
-    const finalPrice = deal?.dealPrice ?? unitPrice;
-    const dealId = deal?.flashDealId ?? null;
-    const originalPrice = deal?.originalPrice ?? unitPrice;
-
     if (item) {
       item.quantity = data.quantity;
-      item.unit_price = finalPrice;
-      item.line_total = finalPrice * data.quantity;
-      item.flash_deal_id = dealId;
-      item.original_unit_price = originalPrice;
+      item.unit_price = unitPrice;
+      item.line_total = unitPrice * data.quantity;
+      item.original_unit_price = unitPrice;
     } else {
       item = this.cartItemRepo.create({
         cart_id: cart.id,
@@ -170,10 +104,9 @@ export class CartService {
         variant_id: data.variantId,
         vendor_id: product.vendor_id,
         quantity: data.quantity,
-        unit_price: finalPrice,
-        original_unit_price: originalPrice,
-        flash_deal_id: dealId,
-        line_total: finalPrice * data.quantity,
+        unit_price: unitPrice,
+        original_unit_price: unitPrice,
+        line_total: unitPrice * data.quantity,
       });
     }
     const saved = await this.cartItemRepo.save(item);
@@ -183,10 +116,9 @@ export class CartService {
       productId: data.productId,
       variantId: data.variantId,
       quantity: data.quantity,
-      unitPrice: finalPrice,
+      unitPrice,
       vendorId: product.vendor_id,
-      flashDealId: dealId,
-      originalUnitPrice: originalPrice,
+      originalUnitPrice: unitPrice,
     });
 
     await this.recalcCartTotals(cart.id);
@@ -221,7 +153,6 @@ export class CartService {
         quantity,
         unitPrice: item.unit_price,
         vendorId: item.vendor_id,
-        flashDealId: item.flash_deal_id,
         originalUnitPrice: item.original_unit_price,
       });
     }
@@ -234,10 +165,6 @@ export class CartService {
     const items = await this.cartItemRepo.find({ where: { cart_id: cart.id } });
     if (items.length > 0) {
       await this.cartItemRepo.softRemove(items);
-    }
-    const giftBoxes = await this.cartGiftBoxRepo.find({ where: { cart_id: cart.id } });
-    if (giftBoxes.length > 0) {
-      await this.cartGiftBoxRepo.softRemove(giftBoxes);
     }
     cart.subtotal = 0;
     cart.item_count = 0;
@@ -273,32 +200,19 @@ export class CartService {
     } as any);
   }
 
-  async setAffiliateCode(cartId: string, code: string | null): Promise<void> {
-    await this.cartRepo.update({ id: cartId }, { affiliate_code: code });
-  }
-
   async getCart(
     userId: string | null,
     guestSessionId: string | null,
   ): Promise<{
     cart: Cart | null;
     items: any[];
-    giftBoxes: CartGiftBox[];
     staleItems: string[];
-    notifications: Array<{
-      type: "deal_ended" | "deal_updated";
-      product_id: string;
-      variant_id: string | null;
-      product_name: string;
-      was: number;
-      now: number;
-    }>;
   }> {
     // A caller with no identity (e.g. a first-paint visitor whose guest session
     // is still being bootstrapped) owns no cart. Answer with an empty view
     // rather than creating an ownerless row or matching an arbitrary one.
     if (!userId && !guestSessionId) {
-      return { cart: null, items: [], giftBoxes: [], staleItems: [], notifications: [] };
+      return { cart: null, items: [], staleItems: [] };
     }
 
     const cart = await this.getOrCreateCart(userId, guestSessionId);
@@ -307,67 +221,9 @@ export class CartService {
       relations: ["product", "product.images", "variant", "vendor"],
     });
 
-    const notifications: Array<{
-      type: "deal_ended" | "deal_updated";
-      product_id: string;
-      variant_id: string | null;
-      product_name: string;
-      was: number;
-      now: number;
-    }> = [];
-
-    // Re-resolve flash-deal state for items that had a deal applied
-    const updatesNeeded: CartItem[] = [];
-    for (const item of items) {
-      if (!item.flash_deal_id) continue;
-      const live = await this.flashDealApplicator.resolveForLine(item.product_id, item.variant_id);
-
-      if (live && live.flashDealId === item.flash_deal_id) continue; // unchanged
-
-      const wasPrice = item.unit_price;
-      if (live) {
-        // Different deal id — admin replaced the deal. Snap to new deal.
-        item.unit_price = live.dealPrice;
-        item.flash_deal_id = live.flashDealId;
-        item.line_total = live.dealPrice * item.quantity;
-        notifications.push({
-          type: "deal_updated",
-          product_id: item.product_id,
-          variant_id: item.variant_id,
-          product_name: item.product?.name ?? "",
-          was: wasPrice,
-          now: live.dealPrice,
-        });
-      } else {
-        // No active deal — snap back to original.
-        const fallback = item.original_unit_price ?? item.unit_price;
-        item.unit_price = fallback;
-        item.flash_deal_id = null;
-        item.line_total = fallback * item.quantity;
-        notifications.push({
-          type: "deal_ended",
-          product_id: item.product_id,
-          variant_id: item.variant_id,
-          product_name: item.product?.name ?? "",
-          was: wasPrice,
-          now: fallback,
-        });
-      }
-      updatesNeeded.push(item);
-    }
-
-    if (updatesNeeded.length > 0) {
-      await this.cartItemRepo.save(updatesNeeded);
-      await this.recalcCartTotals(cart.id);
-      const refreshed = await this.cartRepo.findOne({ where: { id: cart.id } });
-      if (refreshed) Object.assign(cart, refreshed);
-    }
-
-    // Stale-price detection — only flag rows that are NOT under an active deal.
-    // Deal-priced items legitimately have unit_price ≠ product.price.
+    // Stale-price detection — flag rows whose snapshot price drifted from the live price.
     const staleItems: string[] = [];
     for (const item of items) {
-      if (item.flash_deal_id) continue;
       if (item.product) {
         const livePrice = item.variant?.price ?? item.product.price;
         if (livePrice !== item.unit_price) {
@@ -384,8 +240,6 @@ export class CartService {
       return acc;
     }, {});
 
-    const giftBoxes = await this.cartGiftBoxRepo.find({ where: { cart_id: cart.id } });
-
     return {
       cart,
       items: Object.entries(grouped).map(([vendorId, vendorItems]) => ({
@@ -393,16 +247,13 @@ export class CartService {
         vendor_name: (vendorItems[0] as any).vendor?.name,
         items: vendorItems,
       })),
-      giftBoxes,
       staleItems,
-      notifications,
     };
   }
 
   private async recalcCartTotals(cartId: string): Promise<void> {
     const items = await this.cartItemRepo.find({ where: { cart_id: cartId } });
-    const giftBoxes = await this.cartGiftBoxRepo.find({ where: { cart_id: cartId } });
-    const { subtotal, itemCount } = computeCartTotals(items, giftBoxes);
+    const { subtotal, itemCount } = computeCartTotals(items);
     await this.cartRepo.save({ id: cartId, subtotal, item_count: itemCount } as any);
   }
 }

@@ -1,9 +1,9 @@
 # 05 — product-service
 
-Port **3002**. The largest service by file count (~260 TS files). Owns the catalogue and
+Port **3002**. The largest service by file count (~190 TS files). Owns the catalogue and
 everything derived from it: categories, brands, attributes, products, variants, inventory,
-media, search indexing, flash deals, collections, gifting, personalisation, and the bulk-jobs
-engine (documented separately in [06](06-bulk-jobs.md)).
+media, search indexing, collections, personalisation, and the bulk-jobs engine (documented
+separately in [06](06-bulk-jobs.md)).
 
 ## Domain map
 
@@ -16,11 +16,7 @@ apps/product-service/src/domain/
 ├── inventory/         stock, movements, reservations, low-stock alerts
 ├── media/             image processing, video transcode, AI enhance, layout videos
 ├── search/            SearchService interface + Typesense & Postgres adapters, sync/reindex jobs
-├── service-search/    the parallel index for service_offerings (bookings)
-├── flash-deal/        time-boxed deals, caps, index effects
 ├── collection/        manual + dynamic collections, membership refresh
-├── gifting/           gift occasions, styles, boxes
-├── service-offering/  bookable services owned here, consumed by booking-service
 ├── recommendation/, recently-viewed/, recent-search/, saved-search/, wishlist/
 ```
 
@@ -32,15 +28,12 @@ apps/product-service/src/domain/
 |---|---|---|
 | GET | `/products` | search/list with filters, facets, cursor pagination |
 | GET | `/products/suggest` | typeahead — products, categories, queries |
-| GET | `/products/flash-deals` | active deals |
 | GET | `/products/by-slug/:slug` · `/group` · `/media` | PDP |
 | GET | `/products/:id` · `/:id/questions` · `/:id/recommendations` | PDP rails |
 | GET | `/categories/tree` · `/categories/:slug` · `/categories/by-id/:id/attributes` | |
 | GET | `/brands` · `/brands/spotlight` · `/brands/:slug` | |
 | GET | `/collections/:slug` | |
 | GET | `/attributes` · `/attributes/:id/values` | |
-| GET | `/gift/occasions[/:slug]` · `/gift/boxes[/:slug]` | |
-| GET | `/services/:slug` | service-offering PDP (availability comes from booking-service) |
 | GET | `/search/trending` | |
 | GET | `/media/product/:productId` | |
 
@@ -56,9 +49,7 @@ apps/product-service/src/domain/
 | POST | `/products/:id/images/:imageId/enhance[/accept|/reject]`, `/revert` | AI image enhancement |
 | POST | `/products/:id/questions/:questionId/answer` | |
 | GET/POST | `/inventory`, `/inventory/restock`, `/inventory/adjust`, `/inventory/movements`, `/inventory/low-stock` | `inventory.write` |
-| CRUD | `/vendor/flash-deals[/:id]` | |
 | CRUD | `/vendor/product-groups[/:id]`, `/members` | |
-| CRUD | `/vendor/services[/:id]` | service offerings |
 | POST | `/media/presign`, `/media/process`, `/media/process-asset` | |
 
 ### Admin
@@ -66,8 +57,7 @@ apps/product-service/src/domain/
 `/admin/products…` mirrors the vendor product surface plus `approve`, `reject`, `publish`,
 `unpublish`, `feature`, `bulk-action`, `inventory/restock`, `inventory/adjust`, and
 `ai-enhance-content`. Also `/admin/categories`, `/admin/brands`, `/admin/attributes`,
-`/admin/collections`, `/admin/gift/*`, `/admin/flash-deals`, `/admin/service-offerings/:id/(approve|reject)`,
-`/admin/search/reindex[/:jobId]`, `/admin/settings/ai/image-enhance`,
+`/admin/collections`, `/admin/search/reindex[/:jobId]`, `/admin/settings/ai/image-enhance`,
 `/admin/settings/ai/product-content`.
 
 ### Internal (`internalServiceAuth`)
@@ -76,8 +66,6 @@ apps/product-service/src/domain/
 |---|---|---|
 | POST | `/internal/inventory/adjust` | integration-service (vendor webhook `inventory_adjust`) |
 | POST | `/internal/products/:id/patch` | integration-service (price/attribute updates) |
-| GET | `/internal/flash-deals` | order-service (cart/checkout deal state) |
-| GET | `/internal/products/by-vendor` · `/by-permission` | reels-service (taggable products) |
 
 ## Product lifecycle
 
@@ -126,22 +114,16 @@ tags, SKUs, `inStock`, cursor pagination and four sorts (`relevance`, `price_asc
 
 ```mermaid
 flowchart LR
-    W[product write / flash deal change] -->|enqueueSearchSync| Q[search-sync queue]
+    W[product write] -->|enqueueSearchSync| Q[search-sync queue]
     Q --> WK[worker]
-    WK -->|upsert_by_product_id| RL[re-load product + active deal fresh]
+    WK -->|upsert_by_product_id| RL[re-load product fresh]
     RL --> TS[(Typesense)]
     ADM[POST /admin/search/reindex] --> RQ[search-reindex queue] --> FULL[full rebuild]
-    SR[service offering write] --> SSQ[service-search-sync] --> TS2[(service_offerings collection)]
-    CRON["cron 15 3 * * * Asia/Dubai"] --> REC[service-search-reconcile]
 ```
 
 `search-sync` accepts three payloads: `upsert` (full product passed inline), `upsert_by_product_id`
-(worker re-loads — used for flash deals, including **delayed** jobs fired at `expires_at` so the
-index flips the moment a deal ends), and `delete`. Jobs retry three times with exponential
-backoff.
-
-Service offerings have their own collection and their own reconcile cron, because bookable
-services carry vendor service areas and rating aggregates that drift.
+(worker re-loads the product before indexing), and `delete`. Jobs retry three times with
+exponential backoff.
 
 ## Inventory
 
@@ -179,23 +161,6 @@ were never committed.
 
 `low-stock-alerts` fires when a write drops availability below the vendor's threshold
 (`config.bullmq.lowStockThresholdDefault`, 10).
-
-## Flash deals
-
-`domain/flash-deal/` — a deal binds a product (or a product-wide rule) to a `deal_price` for a
-window (`starts_at` … `expires_at`) with an optional `quantity_limit`.
-
-- `validation.ts` and `builder.ts` are pure; `flash-deal.service.ts` does CRUD.
-- `effects.ts` schedules index updates, including a delayed `search-sync` job at `expires_at`.
-- Cap enforcement happens at **order creation** in order-service:
-  `FlashDealApplicator.validateAndIncrement(manager, dealId, qty)` takes `SELECT … FOR UPDATE`
-  on the deal row inside the order transaction and throws `DealSoldOutError` (→ 409) if the cap
-  would be exceeded. Cart display re-reads deals every `getCart`, and a change surfaces as a
-  `deal_ended` / `deal_updated` notification which checkout turns into a
-  `409 deal_state_changed`.
-
-Both admin (`/admin/flash-deals`) and vendor (`/vendor/flash-deals`) can manage deals; the bulk
-engine has dedicated `flash-deal-import` and `flash-deal-delete` job types with a revert path.
 
 ## Collections
 
@@ -249,24 +214,6 @@ sequenceDiagram
 | Saved searches | `saved-search/` | + `saved-search-notify` cron every 6 h that emails new matches |
 | Trending searches | `search/trending.service.ts` | public, unauthenticated |
 | Recommendations | `recommendation/` | PDP rails and `/recommendations` |
-
-## Service offerings
-
-`service_offerings` are owned here (catalogue-shaped: slug, media, price, category) but consumed
-by booking-service, which owns staff, availability and bookings. The split:
-
-- Vendor CRUD: `POST/GET/PATCH /vendor/services[/:id]`
-- Admin approval: `/admin/service-offerings/:id/(approve|reject)`
-- Public PDP: `GET /services/:slug`, `GET /services/by-id/:id`
-- **Availability**: `GET /services/:slug/availability` → routed by the gateway to
-  **booking-service** via an explicit regex exception.
-
-## Gifting
-
-`domain/gifting/` — `gift_occasions`, `gift_box_styles`, `gift_boxes` (a curated bundle of
-component products plus packaging price and an optional bundle discount). Admin CRUD under
-`/admin/gift/*`, public reads under `/gift/*`. The cart, order and hub-fulfilment side lives in
-order-service ([07](07-cart-and-checkout.md), [08](08-orders-and-fulfilment.md)).
 
 ## Gaps
 

@@ -2,7 +2,7 @@
 
 ## What this system is
 
-MaterialHub is a multi-vendor marketplace for the UAE. The backend is a **Bun** monorepo of ten
+MaterialHub is a multi-vendor materials marketplace for the UAE. The backend is a **Bun** monorepo of eight
 **ElysiaJS** HTTP services behind one gateway, sharing a single PostgreSQL database, a single
 Redis instance, Typesense for search, and BullMQ for background work.
 
@@ -23,14 +23,12 @@ backend/
 │   ├── auth-service/           # :3001
 │   ├── product-service/        # :3002 — catalogue, search, inventory, media, bulk
 │   ├── order-service/          # :3003 — cart, checkout, orders, money, shipping
-│   ├── vendor-service/         # :3004 — vendors, members, KYC, Stripe Connect, affiliates
+│   ├── vendor-service/         # :3004 — vendors, members, KYC, Stripe Connect, warehouses
 │   ├── notification-service/   # :3005
 │   ├── cms-service/            # :3006 — pages, layouts, settings, support, audit
-│   ├── reels-service/          # :3007 — short-form video commerce
-│   ├── integration-service/    # :3008 — vendor webhooks + sales channels
-│   └── booking-service/        # :3009 — services/appointments
+│   └── integration-service/    # :3008 — vendor webhooks + sales channels
 ├── libs/                       # shared workspace packages (@materialhub/*)
-│   ├── database/               # TypeORM data source, 178 entities, enums, migrations
+│   ├── database/               # TypeORM data source, ~120 entities, enums, migrations
 │   ├── dto/                    # TypeBox request/response schemas
 │   ├── guards/                 # jwtAuth, requireRole, vendorMembership, permission matrix
 │   ├── plugins/                # errorHandler, requestLogger, rateLimiter, auditPlugin, HttpError
@@ -46,23 +44,22 @@ backend/
 Workspaces are declared in `backend/package.json` (`apps/*`, `libs/*`) and packages import each
 other by name: `@materialhub/database`, `@materialhub/guards`, and so on.
 
-## The ten services
+## The eight services
 
 | Service | Port | Owns | Key external deps |
 |---|---|---|---|
 | `api-gateway` | 3000 | Public HTTP surface, prefix routing, CORS, Swagger, global rate limit | — |
-| `auth-service` | 3001 | `users`, `user_sessions`, addresses, 2FA, referrals | SES (email), WhatsApp OTP |
-| `product-service` | 3002 | Catalogue, variants, inventory, media, search index, bulk jobs, gifting, service offerings | Typesense, S3/CloudFront, Google Drive, Gemini |
+| `auth-service` | 3001 | `users`, `user_sessions`, addresses, 2FA | SES (email), WhatsApp OTP |
+| `product-service` | 3002 | Catalogue, variants, inventory, media, search index, bulk jobs, collections, wishlist | Typesense, S3/CloudFront, Google Drive, Gemini |
 | `order-service` | 3003 | Cart, checkout, orders, payments, shipments, returns, disputes, reviews, commissions, payouts | Stripe, Tamara, Tabby, PostaPlus |
-| `vendor-service` | 3004 | Vendors, KYC docs, members/roles, bank accounts, affiliates | Stripe Connect |
+| `vendor-service` | 3004 | Vendors, KYC docs, members/roles, bank accounts, warehouses, follows | Stripe Connect |
 | `notification-service` | 3005 | Notifications, preferences, newsletter | SES, FCM, WhatsApp Cloud API |
 | `cms-service` | 3006 | Pages, banners, layouts/sections, navigation, settings, support tickets, audit log | Slack, CloudFront invalidation |
-| `reels-service` | 3007 | Reels, feed/ranking, social graph, creator commissions, licensing escrow | Cloudflare Stream |
 | `integration-service` | 3008 | Vendor integrations (webhooks in/out), sales-channel feeds & conversions | Google/Meta/TikTok APIs |
-| `booking-service` | 3009 | Availability, bookings, staff, calendars | (payments delegated to order-service) |
 
 Ports and hostnames come from `libs/config/src/index.ts` (`config.port.*`, `config.serviceHost.*`)
-and are overridable per environment.
+and are overridable per environment. Ports 3007 and 3009 are intentionally unused (they belonged
+to services removed in the MaterialHub fork).
 
 ## Runtime topology
 
@@ -88,17 +85,14 @@ flowchart LR
     GW --> VND[vendor :3004]
     GW --> NOT[notification :3005]
     GW --> CMS[cms :3006]
-    GW --> REE[reels :3007]
     GW --> INT[integration :3008]
-    GW --> BOK[booking :3009]
 
-    AUTH & PROD & ORD & VND & NOT & CMS & REE & INT & BOK --> PG[(PostgreSQL)]
-    AUTH & PROD & ORD & VND & NOT & CMS & REE & INT & BOK --> RDS[(Redis / BullMQ)]
+    AUTH & PROD & ORD & VND & NOT & CMS & INT --> PG[(PostgreSQL)]
+    AUTH & PROD & ORD & VND & NOT & CMS & INT --> RDS[(Redis / BullMQ)]
     PROD --> TS[(Typesense)]
     PROD --> S3[(S3 + CloudFront)]
     ORD --> STRIPE[Stripe / Tamara / Tabby]
     VND --> CONNECT[Stripe Connect]
-    REE --> CF[Cloudflare Stream]
     NOT --> SES[SES / FCM / WhatsApp]
 ```
 
@@ -211,8 +205,7 @@ domain/**/*.job        → BullMQ queue accessor + worker factory + scheduler re
 domain/**/*.ts (pure)  → pure calculators, kept DB-free so they run without Postgres in CI
 ```
 
-The pure-module convention is deliberate and widespread — `booking-policy.ts`,
-`interval-math.ts`, `commission-cap.ts`, `shipping-contribution.ts`, `order-state-machine.ts`,
+The pure-module convention is deliberate and widespread — `commission-cap.ts`, `shipping-contribution.ts`, `order-state-machine.ts`,
 `unreleasable-claim.ts`, `dispute-reversal-calc.ts`. These never import `@materialhub/database`'s
 barrel (it pulls in `reflect-metadata` and `AppDataSource`), so they are unit-testable with no
 database.
@@ -241,8 +234,8 @@ See [02 — Cross-cutting](02-cross-cutting.md#error-model).
 | VAT | Product prices are **VAT-inclusive** at the UAE 5% standard rate. `tax_total` on an order is the *extracted* VAT, informational, and is **not** added to `grand_total`. |
 | Currency | `AED` base; `price_overrides` JSONB for others. |
 | Soft delete | `deleted_at` on every table. TypeORM's repository methods filter it automatically — **raw SQL does not**, so raw queries in this codebase carry an explicit `AND deleted_at IS NULL`. |
-| Snapshots | Anything the customer agreed to is snapshotted at the time of the deal: order item prices, commission rate, cancellation policy, gift box style. Later config changes never rewrite history. |
-| Identifiers | UUID v4 primary keys. Human-facing references are sequence-backed: `FKS-YYYY-NNNNNN` (orders), `PAY-YYYY-NNNNNN` (payouts), `BK…` (bookings). |
+| Snapshots | Anything the customer agreed to is snapshotted at the time of the deal: order item prices, commission rate, cancellation policy. Later config changes never rewrite history. |
+| Identifiers | UUID v4 primary keys. Human-facing references are sequence-backed: `FKS-YYYY-NNNNNN` (orders), `PAY-YYYY-NNNNNN` (payouts). |
 | Timestamps | `timestamptz`, UTC. Business-day logic that needs local time uses `Asia/Dubai` explicitly. |
 
 ## Build, test, run
@@ -253,17 +246,16 @@ The scripts that actually exist, and where they live:
 |---|---|---|
 | `docker compose up` | `backend/` | Postgres, Redis, Typesense + services |
 | `bun run dev` | repo root | every workspace, `turbo run dev --concurrency 15` |
-| `bun run dev:backend` | repo root | **only** gateway, auth, product, order, vendor, notification, cms — reels, integration and booking are missing from the filter |
+| `bun run dev:backend` | repo root | **only** gateway, auth, product, order, vendor, notification, cms — integration is missing from the filter |
 | `bun run dev:web` · `dev:vendor` · `dev:admin` | repo root | one frontend |
 | `turbo run build` · `test` · `typecheck` · `lint` | repo root or `backend/` | the pipeline is defined in `turbo.json` |
 | `bun run migrate` · `migrate:generate` · `migrate:revert` · `seed` | `backend/libs/database` | TypeORM |
 | `bun run dev` · `build` · `start` · `test` · `typecheck` | any `backend/apps/*` | per service |
 | `bun run lint` · `lint:fix` · `format` | `backend/` | Biome |
 
-> `CLAUDE.md` lists `bun run build`, `bun run test`, `bun run test:e2e`, `bun run migrate`,
-> `bun run seed` and `bun run search:reindex` as root commands. **They do not exist at the root** —
-> the root `package.json` only defines the `dev*` scripts. Use the table above; a full Typesense
-> reindex is triggered through `POST /admin/search/reindex`, not a script.
+> There are no root `build`, `test`, `migrate`, `seed` or `search:reindex` scripts — the root
+> `package.json` only defines the `dev*` scripts. Use the table above; a full Typesense reindex is
+> triggered through `POST /admin/search/reindex`, not a script.
 
 Lint before pushing — CI fails on Biome errors:
 

@@ -685,7 +685,7 @@ Explicitly deferred from P1: `payment_method_rules`, `payment_surcharges`, `bnpl
 
 ### Phase 3 — Advanced rules (~1–2 sprints)
 
-- Product-scope rules (flash sale payment overrides).
+- Product-scope rules (e.g. card-only for solvent-based adhesives or other restricted SKUs).
 - `next_available_at` / `cutoff_at` shipping window model (Ramadan, Friday freeze, prayer time) — requires new columns on shipping rates or a new `shipping_windows` table; §10 O3 drives the shape.
 - Full reason-key i18n coverage (AR, EN, HI, UR, ML).
 - Open-item resolutions from §10 (COD fraud gating, multi-address, B2B, customer tier, enum convergence O8).
@@ -705,7 +705,7 @@ Explicitly deferred from P1: `payment_method_rules`, `payment_surcharges`, `bnpl
 | E1 | 0 eligible payment methods | `blocking_error.code = "no_eligible_payment_methods"`. Frontend shows blocking modal. |
 | E2 | Coupon drops total below Tabby min | Refetch triggers new quote; Tabby becomes unavailable; stale-selection rule applies. |
 | E3 | Selected method becomes ineligible mid-session | `quote_token` invalidates at `/initiate` → 409 with fresh quote attached (§2.5). |
-| E4 | Flash-sale item requires card-only (P3) | Product-scope rule; BNPL always excluded since `bnpl_scope_limit` CHECK forbids product-scope denies — use card+cod denies only. |
+| E4 | Restricted item (e.g. solvent adhesive) requires card-only (P3) | Product-scope rule; BNPL always excluded since `bnpl_scope_limit` CHECK forbids product-scope denies — use card+cod denies only. |
 | E5 | Stock changes between quote and place-order | `/initiate` resolves inside `SELECT FOR UPDATE`; returns §2.5 envelope with `code: "items_out_of_stock"`, `affected_item_ids` populated. `/quote` is advisory only. |
 | E6 | Multi-currency | Surcharges stored in AED fils; converted at quote time using `fx_snapshot.rate`. `fx_snapshot.captured_at` is bound into `quote_token` — FX rollover triggers 409. |
 | E7 | Partial stock across delivery groups | `/initiate` fails the whole order atomically; frontend re-quotes. Split-group partial commits not supported in v1. |
@@ -742,10 +742,9 @@ The field is named `user_id` (not `customer_id`) to align with the existing sche
 
 Documented as known limitations. Promote in §10 if any become launch blockers.
 
-- **Multi-address shipping** (gift orders, one cart → multiple destinations).
+- **Multi-address shipping** (one cart → multiple destinations).
 - **B2B / corporate purchases** (PO number, TRN on invoice, separate billing address).
-- **Gift wrap / gift messages** with surcharge.
-- **Wallet / store credit / gift card** partial tender.
+- **Wallet / store credit** partial tender.
 - **Split shipping per group to different addresses.**
 - **Free-zone VAT nuances** (JAFZA, DMCC, DAFZA qualifying 0% VAT).
 - **COD fraud gating** (per-customer cap, RTO blacklist, new-account cooldown) — open item O2.

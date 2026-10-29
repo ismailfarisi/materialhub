@@ -1,10 +1,5 @@
 // checkout.service.ts
-import type {
-  PaymentMethodThreshold,
-  ShippingRate,
-  UserAddress,
-  VendorHoliday,
-} from "@materialhub/database";
+import type { PaymentMethodThreshold, ShippingRate, UserAddress } from "@materialhub/database";
 import { BadRequestError } from "@materialhub/plugins";
 import type { Repository } from "typeorm";
 import type { CartService } from "../cart/cart.service.ts";
@@ -20,83 +15,6 @@ import type { QuoteService } from "./quote/quote.service.ts";
 import { selectedShippingFils } from "./quote/shipping-total.ts";
 import type { TaxService } from "./tax.service.ts";
 
-export interface ExpandedGiftComponent {
-  product_id: string;
-  variant_id: string | null;
-  vendor_id: string;
-  quantity: number;
-  unit_price: number;
-  line_total: number;
-  original_unit_price: number;
-  flash_deal_id: null;
-  __giftBoxRef: string; // = cart_gift_box id
-}
-
-export interface ExpandedGiftBox {
-  ref: string; // cart_gift_box id
-  gift_box_id: string;
-  box_name_snapshot: string;
-  style_snapshot: Record<string, unknown> | null;
-  occasion_snapshot: Record<string, unknown> | null;
-  packaging_price: number; // total for this line (× box.quantity)
-  gift_message: string | null;
-  recipient_name: string | null;
-}
-
-/**
- * Pure expander: turns persisted cart gift boxes into per-component order lines
- * plus aggregate packaging / discount totals and gift_order metadata.
- *
- * Correctness rule: a box's charged total === its cart unit_price
- * (itemsSubtotal − discount + packaging). We split those three parts so:
- *  - component lines feed the order subtotal (full item price, commissioned),
- *  - packaging feeds surchargeTotal,
- *  - discount feeds discountTotal (platform-absorbed; vendors paid on full price).
- * Then per box: Σ(components.line_total) + packaging − discount
- *   === box.unit_price * box.quantity.
- */
-export function expandGiftBoxes(giftBoxes: any[]): {
-  components: ExpandedGiftComponent[];
-  packagingTotal: number;
-  discountTotal: number;
-  giftOrders: ExpandedGiftBox[];
-} {
-  const components: ExpandedGiftComponent[] = [];
-  const giftOrders: ExpandedGiftBox[] = [];
-  let packagingTotal = 0;
-  let discountTotal = 0;
-  for (const gb of giftBoxes ?? []) {
-    const boxQty = gb.quantity ?? 1;
-    packagingTotal += (gb.packaging_price ?? 0) * boxQty;
-    discountTotal += (gb.discount_total ?? 0) * boxQty;
-    giftOrders.push({
-      ref: gb.id,
-      gift_box_id: gb.gift_box_id,
-      box_name_snapshot: gb.box_name_snapshot,
-      style_snapshot: gb.style_snapshot ?? null,
-      occasion_snapshot: gb.occasion_snapshot ?? null,
-      packaging_price: (gb.packaging_price ?? 0) * boxQty,
-      gift_message: gb.gift_message ?? null,
-      recipient_name: gb.recipient_name ?? null,
-    });
-    for (const c of gb.components ?? []) {
-      const qty = c.quantity * boxQty;
-      components.push({
-        product_id: c.product_id,
-        variant_id: c.variant_id,
-        vendor_id: c.vendor_id,
-        quantity: qty,
-        unit_price: c.unit_price,
-        line_total: c.unit_price * qty,
-        original_unit_price: c.unit_price,
-        flash_deal_id: null,
-        __giftBoxRef: gb.id,
-      });
-    }
-  }
-  return { components, packagingTotal, discountTotal, giftOrders };
-}
-
 export class CheckoutService {
   constructor(
     private cartService: CartService,
@@ -110,7 +28,6 @@ export class CheckoutService {
     private thresholdRepo: Repository<PaymentMethodThreshold>,
     private shippingRateRepo: Repository<ShippingRate>,
     private userAddressRepo: Repository<UserAddress>,
-    private vendorHolidayRepo: Repository<VendorHoliday>,
   ) {}
 
   async initiateCheckout(data: {
@@ -143,36 +60,16 @@ export class CheckoutService {
       }
   > {
     // 1. Fetch and validate cart
-    const { cart, items, staleItems, giftBoxes } = await this.cartService.getCart(
-      data.userId,
-      null,
-    );
+    const { cart, items, staleItems } = await this.cartService.getCart(data.userId, null);
     // getCart returns a null cart when the caller has no identity at all.
     if (!cart) {
       throw new BadRequestError("Cart is empty");
     }
-    // A cart containing only gift boxes (no loose cart_items) is NOT empty.
-    if ((items.length === 0 && (giftBoxes?.length ?? 0) === 0) || (cart as any).item_count === 0) {
+    if (items.length === 0 || (cart as any).item_count === 0) {
       throw new BadRequestError("Cart is empty");
     }
     if (staleItems.length > 0) {
       throw new BadRequestError("Cart has stale prices — please refresh your cart");
-    }
-
-    // Deal state may have changed since cart was last viewed. Re-fetch and
-    // surface any deal_ended/deal_updated notifications as a 409 so the client
-    // can show the snap-back banner before re-attempting checkout.
-    const refresh = await this.cartService.getCart(data.userId, null);
-    if (refresh.notifications.length > 0) {
-      return {
-        status: 409,
-        error: {
-          code: "deal_state_changed",
-          reason_key: "checkout.error.deal_state_changed",
-          message: "Flash deal state has changed for one or more items",
-        },
-        fresh_quote: refresh,
-      };
     }
 
     // 2. Flatten all items
@@ -180,8 +77,7 @@ export class CheckoutService {
 
     // 2a. Re-validate any coupon persisted on the cart. The discount snapshot
     // on the cart may be stale (items changed, coupon expired, usage limit hit
-    // since apply) — never charge off a stale snapshot. Coupons cover loose
-    // cart items only; gift boxes carry their own discount machinery.
+    // since apply) — never charge off a stale snapshot.
     const couponLines = toCouponLines(allItems);
     let coupon: CouponResult | null = null;
     if ((cart as any).coupon_code) {
@@ -208,20 +104,6 @@ export class CheckoutService {
         });
       }
     }
-
-    // 2b. Expand persisted gift boxes into per-component order lines. Components
-    // are appended to allItems BEFORE vendorIds is derived so gift-component
-    // vendors get the same shipping / holiday handling as loose cart items. The
-    // box packaging/discount are tracked separately and folded into the order
-    // surcharge / discount totals so each box's charged total equals its cart
-    // unit_price (items − discount + packaging).
-    const {
-      components: giftComponents,
-      packagingTotal: giftPackagingTotal,
-      discountTotal: giftDiscount,
-      giftOrders,
-    } = expandGiftBoxes(giftBoxes ?? []);
-    allItems.push(...giftComponents);
 
     // 3. Validate quote_token if provided
     if (data.quote_token) {
@@ -287,17 +169,8 @@ export class CheckoutService {
             .getMany()
         : [];
 
-      // Vendor holidays covering today — mirror the quote so a vendor-on-holiday
-      // group is excluded from shipping exactly as the quote excludes it.
-      const today = new Date().toISOString().slice(0, 10);
-      const activeHolidays: VendorHoliday[] = vendorIds.length
-        ? await this.vendorHolidayRepo
-            .createQueryBuilder("h")
-            .where("h.vendor_id IN (:...vendorIds)", { vendorIds })
-            .andWhere("h.starts_at <= :today AND h.ends_at >= :today", { today })
-            .getMany()
-        : [];
-      const onHoliday = new Set(activeHolidays.map((h) => h.vendor_id));
+      // No vendor-availability exclusions apply; every vendor group is shippable.
+      const onHoliday = new Set<string>();
 
       const shippingRates = rateRows.map((r) => ({
         id: r.id,
@@ -371,16 +244,12 @@ export class CheckoutService {
       billingAddress: data.billingAddress,
       taxTotal,
       shippingTotal,
-      // Gift box packaging is a per-box surcharge; coupon discount + gift box
-      // discount both reduce the customer total without reducing item line_totals.
-      surchargeTotal: surchargeTotal + giftPackagingTotal,
-      discountTotal: (coupon?.discount ?? 0) + giftDiscount,
+      surchargeTotal,
+      discountTotal: coupon?.discount ?? 0,
       couponId: coupon?.couponId ?? null,
       couponCode: coupon?.code ?? null,
       couponDiscount: coupon?.discount ?? 0,
-      giftOrders,
       channel: data.channel,
-      affiliateCode: (cart as any).affiliate_code ?? null,
       shippingMethod: data.shippingMethod,
       customerNotes: data.customerNotes,
       ipAddress: data.ipAddress,
@@ -388,9 +257,7 @@ export class CheckoutService {
     });
 
     // Return the order's own persisted totals so the response breakdown always
-    // reconciles with grandTotal. For non-gift orders these equal the prior
-    // values (cart.subtotal/coupon_discount/COD surcharge); for gift orders they
-    // correctly include the gift discount and packaging surcharge.
+    // reconciles with grandTotal.
     return {
       orderId: (order as any).id,
       orderNumber: (order as any).order_number,

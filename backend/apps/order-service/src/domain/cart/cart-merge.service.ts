@@ -1,4 +1,4 @@
-import type { Cart, CartGiftBox, CartItem } from "@materialhub/database";
+import type { Cart, CartItem } from "@materialhub/database";
 // cart-merge.service.ts
 import type { Repository } from "typeorm";
 import type { CartRedisService } from "./cart-redis.service.ts";
@@ -9,7 +9,6 @@ export class CartMergeService {
     private cartRepo: Repository<Cart>,
     private cartItemRepo: Repository<CartItem>,
     private redisCart: CartRedisService,
-    private cartGiftBoxRepo: Repository<CartGiftBox>,
   ) {}
 
   async mergeGuestToUser(guestSessionId: string, userId: string): Promise<void> {
@@ -70,27 +69,12 @@ export class CartMergeService {
       });
     }
 
-    // Move the guest cart's gift boxes to the user cart. Gift boxes are
-    // self-contained snapshots, so there's no quantity-merge to do — just
-    // re-point each row's cart_id at the target cart.
-    const guestGiftBoxes = await this.cartGiftBoxRepo.find({
-      where: { cart_id: guestCart.id },
-    });
-    for (const gb of guestGiftBoxes) {
-      gb.cart_id = userCart!.id;
-      await this.cartGiftBoxRepo.save(gb);
-    }
-
     // Recalculate user cart totals — the merge inserts rows into
-    // cart_items / cart_gift_boxes but doesn't touch cart.subtotal /
-    // cart.item_count. Checkout's "cart is empty" guard reads
+    // cart_items but doesn't touch cart.subtotal / cart.item_count. Checkout's "cart is empty" guard reads
     // cart.item_count, so we must refresh it here or the first
     // post-login checkout fails.
     const mergedItems = await this.cartItemRepo.find({ where: { cart_id: userCart!.id } });
-    const mergedGiftBoxes = await this.cartGiftBoxRepo.find({
-      where: { cart_id: userCart!.id },
-    });
-    const { subtotal, itemCount } = computeCartTotals(mergedItems, mergedGiftBoxes);
+    const { subtotal, itemCount } = computeCartTotals(mergedItems);
     await this.cartRepo.save({
       id: userCart!.id,
       subtotal,

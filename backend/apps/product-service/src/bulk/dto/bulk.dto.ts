@@ -1,4 +1,9 @@
-import { BulkImportMode, BulkJobFileFormat, BulkJobStatus, BulkJobType } from "@materialhub/database";
+import {
+  BulkImportMode,
+  BulkJobFileFormat,
+  BulkJobStatus,
+  BulkJobType,
+} from "@materialhub/database";
 import { Type } from "@sinclair/typebox";
 
 export const InitiateUploadBody = Type.Object({

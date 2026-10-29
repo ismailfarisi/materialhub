@@ -24,7 +24,6 @@ describe("CheckoutService", () => {
         },
       ],
       staleItems: [] as string[],
-      notifications: [] as Array<unknown>,
     });
   const mockCartService = {
     getCart: mock(defaultCartImpl),
@@ -131,17 +130,6 @@ describe("CheckoutService", () => {
   const mockUserAddressRepo = {
     findOne: mock(() => Promise.resolve({ area_id: null })),
   };
-  // No vendor is on holiday by default.
-  const mockVendorHolidayRepo = {
-    createQueryBuilder: mock(() => {
-      const qb: any = {
-        where: () => qb,
-        andWhere: () => qb,
-        getMany: () => Promise.resolve([] as any[]),
-      };
-      return qb;
-    }),
-  };
 
   let service: CheckoutService;
 
@@ -176,7 +164,6 @@ describe("CheckoutService", () => {
       mockThresholdRepo as any,
       mockShippingRateRepo as any,
       mockUserAddressRepo as any,
-      mockVendorHolidayRepo as any,
     );
   });
 
@@ -242,26 +229,6 @@ describe("CheckoutService", () => {
     expect(mockOrderCreationService.createOrder).not.toHaveBeenCalled();
   });
 
-  it("excludes shipping for a vendor on holiday (matches the quote)", async () => {
-    // The only vendor (v1) is on holiday today → its delivery group has no
-    // available methods, so selectedShippingFils returns 0.
-    mockVendorHolidayRepo.createQueryBuilder.mockImplementationOnce(() => {
-      const qb: any = {
-        where: () => qb,
-        andWhere: () => qb,
-        getMany: () => Promise.resolve([{ vendor_id: "v1" }]),
-      };
-      return qb;
-    });
-    await service.initiateCheckout({
-      userId: "u1",
-      shippingAddress: { city: "Dubai" },
-      channel: "web",
-      address_id: "addr-1",
-    });
-    expect(capturedCreateOrderArgs.shippingTotal).toBe(0);
-  });
-
   it("does not charge shipping when no address is provided (matches the quote)", async () => {
     await service.initiateCheckout({
       userId: "u1",
@@ -276,7 +243,6 @@ describe("CheckoutService", () => {
       cart: { id: "cart-1", subtotal: 0, item_count: 0 },
       items: [],
       staleItems: [],
-      notifications: [],
     });
     await expect(
       service.initiateCheckout({ userId: "user-1", shippingAddress: {}, channel: "web" }),
@@ -410,7 +376,6 @@ describe("CheckoutService", () => {
         },
       ],
       staleItems: [],
-      notifications: [],
     } as any);
     await service.initiateCheckout({
       userId: "user-1",
@@ -459,7 +424,6 @@ describe("CheckoutService", () => {
         },
       ],
       staleItems: [],
-      notifications: [],
     } as any);
     mockCouponService.validate.mockRejectedValueOnce(new BadRequestError("Coupon has expired"));
     await expect(
@@ -502,7 +466,6 @@ describe("CheckoutService", () => {
         },
       ],
       staleItems: ["item-1"] as string[],
-      notifications: [],
     });
     await expect(
       service.initiateCheckout({ userId: "user-1", shippingAddress: {}, channel: "web" }),

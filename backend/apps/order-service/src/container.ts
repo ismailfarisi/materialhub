@@ -3,7 +3,6 @@ import { AppDataSource, ensureDatabase } from "@materialhub/database";
 import {
   AuditLog,
   Cart,
-  CartGiftBox,
   CartItem,
   Category,
   Commission,
@@ -17,7 +16,6 @@ import {
   DeliveryZone,
   Dispute,
   DisputeMessage,
-  GiftOrder,
   Inventory,
   InventoryMovement,
   InventoryReservation,
@@ -49,7 +47,6 @@ import {
   Vendor,
   VendorBankAccount,
   VendorCarrierAccount,
-  VendorHoliday,
   VendorOrder,
   VendorPayout,
   VendorPayoutAdjustment,
@@ -86,12 +83,9 @@ import { CartMergeService } from "./domain/cart/cart-merge.service.ts";
 import { CartRedisService } from "./domain/cart/cart-redis.service.ts";
 import { CartController } from "./domain/cart/cart.controller.ts";
 import { CartService } from "./domain/cart/cart.service.ts";
-import { GiftBoxCartResolver } from "./domain/cart/gift-box-cart-resolver.service.ts";
-import { BookingLifecycleClient } from "./domain/checkout/booking-lifecycle.client.ts";
 import { CheckoutController } from "./domain/checkout/checkout.controller.ts";
 import { CheckoutService } from "./domain/checkout/checkout.service.ts";
 import { CouponService } from "./domain/checkout/coupon.service.ts";
-import { FlashDealApplicator } from "./domain/checkout/flash-deal-applicator.service.ts";
 import { OrderConfirmationService } from "./domain/checkout/order-confirmation.service.ts";
 import { OrderCreationService } from "./domain/checkout/order-creation.service.ts";
 import { PaymentService } from "./domain/checkout/payment.service.ts";
@@ -124,8 +118,6 @@ import { DashboardController } from "./domain/dashboard/dashboard.controller.ts"
 import { DashboardService } from "./domain/dashboard/dashboard.service.ts";
 import { DisputeController } from "./domain/disputes/dispute.controller.ts";
 import { DisputeService } from "./domain/disputes/dispute.service.ts";
-import { GiftFulfillmentController } from "./domain/gift-fulfillment/gift-fulfillment.controller.ts";
-import { GiftFulfillmentService } from "./domain/gift-fulfillment/gift-fulfillment.service.ts";
 import { createInvoiceWorker, getOrderInvoicesQueue } from "./domain/invoice/invoice.job.ts";
 import { InvoiceService } from "./domain/invoice/invoice.service.ts";
 import { AdminOrderCancellationService } from "./domain/order/admin-order-cancellation.service.ts";
@@ -145,8 +137,6 @@ import { VendorOrderController } from "./domain/order/vendor-order.controller.ts
 import { VendorOrderService } from "./domain/order/vendor-order.service.ts";
 import { VerifiedPurchaseService } from "./domain/order/verified-purchase.service.ts";
 import { PromotionsService } from "./domain/promotions/promotions.service.ts";
-import { ReferralRewardService } from "./domain/referral/referral-reward.service.ts";
-import { VendorReferralService } from "./domain/referral/vendor-referral.service.ts";
 import { RefundService } from "./domain/refund/refund.service.ts";
 import { ReturnController } from "./domain/returns/return.controller.ts";
 import { ReturnService } from "./domain/returns/return.service.ts";
@@ -200,7 +190,6 @@ const vendorEncryption = new EncryptionService(config.vendor.encryptionKey);
 
 const cartRepo = AppDataSource.getRepository(Cart);
 const cartItemRepo = AppDataSource.getRepository(CartItem);
-const cartGiftBoxRepo = AppDataSource.getRepository(CartGiftBox);
 const inventoryRepo = AppDataSource.getRepository(Inventory);
 const inventoryMovementRepo = AppDataSource.getRepository(InventoryMovement);
 const inventoryReservationRepo = AppDataSource.getRepository(InventoryReservation);
@@ -224,7 +213,6 @@ const couponUserRestrictionRepo = AppDataSource.getRepository(CouponUserRestrict
 const orderRepo = AppDataSource.getRepository(Order);
 const paymentRepo = AppDataSource.getRepository(Payment);
 const vendorOrderRepo = AppDataSource.getRepository(VendorOrder);
-const giftOrderRepo = AppDataSource.getRepository(GiftOrder);
 const orderItemRepo = AppDataSource.getRepository(OrderItem);
 const orderItemCancellationRepo = AppDataSource.getRepository(OrderItemCancellation);
 const orderStatusHistoryRepo = AppDataSource.getRepository(OrderStatusHistory);
@@ -236,7 +224,6 @@ const commissionRepo = AppDataSource.getRepository(Commission);
 const vendorPayoutRepo = AppDataSource.getRepository(VendorPayout);
 const vendorPayoutAdjustmentRepo = AppDataSource.getRepository(VendorPayoutAdjustment);
 const auditLogRepo = AppDataSource.getRepository(AuditLog);
-const vendorHolidayRepo = AppDataSource.getRepository(VendorHoliday);
 const shipmentRepo = AppDataSource.getRepository(Shipment);
 const shipmentItemRepo = AppDataSource.getRepository(ShipmentItem);
 const shipmentEventRepo = AppDataSource.getRepository(ShipmentEvent);
@@ -258,8 +245,6 @@ const productCollectionMemberRepo = AppDataSource.getRepository(ProductCollectio
 const integrationEventsQueue = getIntegrationEventsQueue();
 
 const cartRedisService = new CartRedisService(redisClient as any);
-const flashDealApplicator = new FlashDealApplicator(AppDataSource);
-const giftBoxCartResolver = new GiftBoxCartResolver();
 const cartService = new CartService(
   cartRepo,
   cartItemRepo,
@@ -267,16 +252,8 @@ const cartService = new CartService(
   productRepo,
   productVariantRepo,
   cartRedisService,
-  flashDealApplicator,
-  cartGiftBoxRepo,
-  giftBoxCartResolver,
 );
-const cartMergeService = new CartMergeService(
-  cartRepo,
-  cartItemRepo,
-  cartRedisService,
-  cartGiftBoxRepo,
-);
+const cartMergeService = new CartMergeService(cartRepo, cartItemRepo, cartRedisService);
 const cartController = new CartController(cartService, cartMergeService);
 
 const shippingService = new ShippingService(
@@ -329,7 +306,6 @@ const orderCreationService = new OrderCreationService(
   inventoryMovementRepo,
   integrationEventsQueue,
   siteSettingRepo,
-  flashDealApplicator,
   commissionService,
   shippingContributionTierRepo,
 );
@@ -338,11 +314,9 @@ const orderStatusService = new OrderStatusService(
   orderRepo,
   vendorOrderRepo,
   orderStatusHistoryRepo,
-  vendorHolidayRepo,
   orderEventQueue,
   integrationEventsQueue,
   siteSettingRepo,
-  flashDealApplicator,
   inventoryRepo,
   commissionService,
   payoutService,
@@ -359,14 +333,12 @@ const orderConfirmationService = new OrderConfirmationService(
   couponService,
   invoiceQueue,
 );
-const bookingLifecycleClient = new BookingLifecycleClient();
 const webhookService = new WebhookService(
   webhookEventRepo,
   paymentRepo,
   orderConfirmationService,
   orderStatusService,
   config.tamara,
-  bookingLifecycleClient,
 );
 const rulesEpochService = new RulesEpochService(rulesEpochRepo);
 const quoteSecret = process.env.QUOTE_TOKEN_KEY ?? "dev-only-quote-key";
@@ -377,7 +349,6 @@ const quoteService = new QuoteService(
   paymentMethodThresholdRepo,
   shippingRateRepo,
   userAddressRepo,
-  vendorHolidayRepo,
   siteSettingRepo,
   quoteSecret,
   couponService,
@@ -397,17 +368,11 @@ const checkoutService = new CheckoutService(
   paymentMethodThresholdRepo,
   shippingRateRepo,
   userAddressRepo,
-  vendorHolidayRepo,
 );
 const checkoutController = new CheckoutController(checkoutService, webhookService);
 
 const orderQueryService = new OrderQueryService(orderRepo, orderItemCancellationRepo);
-const vendorOrderService = new VendorOrderService(
-  vendorOrderRepo,
-  giftOrderRepo,
-  warehouseRepo,
-  orderItemCancellationRepo,
-);
+const vendorOrderService = new VendorOrderService(vendorOrderRepo, orderItemCancellationRepo);
 const vendorOrderController = new VendorOrderController(vendorOrderService, orderStatusService);
 const verifiedPurchaseService = new VerifiedPurchaseService(orderRepo);
 
@@ -470,7 +435,6 @@ const orderItemCancellationService = new OrderItemCancellationService(
   orderStatusService,
   orderEventQueue,
   commissionReversalService,
-  flashDealApplicator,
   {
     shipmentRepo,
     registry: shippingProviderRegistry,
@@ -529,7 +493,6 @@ const _autoShipmentWorker = createAutoShipmentWorker(
   shipmentTrackingService,
   shippingProviderRegistry,
   encryption,
-  giftOrderRepo,
   warehouseRepo,
 );
 
@@ -550,9 +513,6 @@ void scheduleCommissionSettlement(commissionSettlementQueue).catch((err: unknown
   console.error("[scheduler] failed to register the commission settlement scheduler", err),
 );
 const _commissionSettlementWorker = createCommissionSettlementWorker(commissionRepo);
-
-const giftFulfillmentService = new GiftFulfillmentService(commissionService);
-const giftFulfillmentController = new GiftFulfillmentController(giftFulfillmentService);
 
 const returnService = new ReturnService(
   returnRepo,
@@ -621,9 +581,6 @@ const couponAdminController = new CouponController(couponAdminService);
 
 const promotionsService = new PromotionsService(couponAdminService);
 
-const referralRewardService = new ReferralRewardService();
-const vendorReferralService = new VendorReferralService();
-
 const cartAbandonmentService = new CartAbandonmentService();
 const cartAbandonmentController = new CartAbandonmentController(cartAbandonmentService);
 
@@ -680,8 +637,6 @@ export const container = new Elysia({ name: "order-service-container" })
   .decorate("couponAdminController", couponAdminController)
   .decorate("couponService", couponService)
   .decorate("promotionsService", promotionsService)
-  .decorate("referralRewardService", referralRewardService)
-  .decorate("vendorReferralService", vendorReferralService)
   .decorate("cartAbandonmentController", cartAbandonmentController)
   .decorate("adminPayoutController", adminPayoutController)
   .decorate("payoutAdjustmentService", payoutAdjustmentService)
@@ -700,7 +655,6 @@ export const container = new Elysia({ name: "order-service-container" })
   .decorate("shipmentEventRepo", shipmentEventRepo)
   .decorate("orderStatusService", orderStatusService)
   .decorate("shipmentTrackingService", shipmentTrackingService)
-  .decorate("giftFulfillmentController", giftFulfillmentController)
   .decorate("paymentService", paymentService)
   .decorate("refundService", refundService)
   .decorate("paymentRepo", paymentRepo)

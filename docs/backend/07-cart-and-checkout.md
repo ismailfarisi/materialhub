@@ -14,7 +14,7 @@ It is split across three documents:
 
 | Tier | What | Why |
 |---|---|---|
-| Postgres — `carts`, `cart_items`, `cart_gift_boxes` | the authoritative cart | needs joins, coupon columns, gift-box structure |
+| Postgres — `carts`, `cart_items` | the authoritative cart | needs joins, coupon columns |
 | Redis hash — `CartRedisService`, 30-day TTL | a mirror keyed by owner | fast reads, survives as a guest's cart across sessions |
 
 The Redis key is the **owner id**: `userId` when signed in, otherwise the guest session id
@@ -24,16 +24,14 @@ The Redis key is the **owner id**: `userId` when signed in, otherwise the guest 
 
 ```ts
 {
-  cart,            // the cart row (subtotal, item_count, coupon_code, coupon_discount, affiliate_code)
+  cart,            // the cart row (subtotal, item_count, coupon_code, coupon_discount)
   items,           // grouped per vendor: [{ vendor, items: [...] }]
   staleItems,      // items whose stored unit_price no longer matches the live price
-  giftBoxes,       // persisted gift boxes with their components
-  notifications,   // e.g. deal_ended / deal_updated
 }
 ```
 
-Live flash-deal state is re-resolved on every `getCart` through `FlashDealApplicator`, which is
-why the cart can hand back `notifications` and `staleItems`.
+Live prices are re-read on every `getCart`, which is why the cart can hand back `staleItems`
+(for example a kraft paper roll whose vendor changed the price after it was added).
 
 ### Cart endpoints
 
@@ -43,8 +41,6 @@ why the cart can hand back `notifications` and `staleItems`.
 | POST | `/cart/items` | optional |
 | PATCH | `/cart/items/:variantId` | optional |
 | DELETE | `/cart` | optional |
-| POST | `/cart/gift-box` · DELETE `/cart/gift-box/:id` | optional |
-| POST | `/cart/affiliate` | optional — stamps `carts.affiliate_code` |
 | POST | `/cart/merge` | **required** — `CartMergeService` folds a guest cart into the user's |
 | GET | `/cart/health` | public |
 
@@ -143,12 +139,9 @@ flowchart TD
     B -- yes --> Z1[400 Cart is empty]
     B -- no --> C{staleItems?}
     C -- yes --> Z2[400 refresh your cart]
-    C -- no --> D[re-fetch cart; any deal notifications?]
-    D -- yes --> Z3["409 deal_state_changed + fresh_quote"]
-    D -- no --> E[re-validate persisted coupon]
+    C -- no --> E[re-validate persisted coupon]
     E -- invalid --> Z4[clear coupon, 400 explaining it was removed]
-    E -- ok --> F[expandGiftBoxes → component lines + packaging + discount]
-    F --> G{quote_token supplied?}
+    E -- ok --> G{quote_token supplied?}
     G -- yes, stale --> Z5["409 quote_token_stale + fresh_quote"]
     G --> H[extract VAT for the record]
     H --> I[recompute shipping from rates + zone + holidays]
@@ -167,23 +160,6 @@ Two things worth calling out:
 - The response returns the **order's persisted totals**, not the recomputed intermediates, so the
   breakdown always reconciles with `grand_total`.
 
-### Gift boxes
-
-`expandGiftBoxes(giftBoxes)` (a pure exported function) turns each persisted `cart_gift_box`
-into:
-
-- per-component **order lines** at full item price (so vendors are commissioned on the full
-  price),
-- a **packaging** total → `surcharge_total`,
-- a **discount** total → `discount_total` (platform-absorbed),
-- a `giftOrders[]` entry with the box/style/occasion snapshot, message and recipient.
-
-The invariant the code maintains:
-
-```
-Σ(components.line_total) + packaging − discount  ==  box.unit_price × box.quantity
-```
-
 ## Order creation
 
 `OrderCreationService.createOrder()` — one transaction, and the most important one in the
@@ -196,18 +172,16 @@ sequenceDiagram
     participant DB as Postgres (single transaction)
     participant Q as integration-events
 
-    CS->>OC: createOrder({userId, cartItems, addresses, totals, coupon, giftOrders, channel, …})
+    CS->>OC: createOrder({userId, cartItems, addresses, totals, coupon, channel, …})
     OC->>DB: load shipping-contribution tiers (global + per-vendor)
     Note over DB: BEGIN
-    OC->>DB: FlashDealApplicator.validateAndIncrement — SELECT FOR UPDATE per deal
     OC->>DB: INSERT orders (status=pending_payment, payment_status=pending, FKS-YYYY-NNNNNN)
-    loop per vendor bucket (and per gift box)
+    loop per vendor bucket
         OC->>DB: INSERT vendor_orders (status=confirmed, deadline=+2 days, default warehouse)
         OC->>DB: INSERT order_items with product/price snapshots
         OC->>DB: CommissionService.createForOrderItemInTx per item (status=held)
         OC->>DB: SELECT FOR UPDATE inventory → reserve → inventory_reservations (15 min) → movement
     end
-    OC->>DB: INSERT gift_orders, stamp gift_order_id on items and vendor_orders
     OC->>DB: INSERT order_status_history (null → pending_payment)
     Note over DB: COMMIT
     OC->>Q: emitIfEnabled vendor_order.created per vendor sub-order (best effort)
@@ -219,12 +193,11 @@ Details that matter:
 |---|---|
 | Order number | `FKS-<year>-<6-digit sequence>` from the `orders` id sequence |
 | Vendor order number | `<orderNumber>-V<n>` |
-| Grouping | `groupItemsForVendorOrders()` buckets by `vendor_id`, **except** gift components which bucket by `(vendor_id, giftBoxRef)` so a gift sub-order is all-one-box and ships to the hub, never mixed with normal items |
+| Grouping | `groupItemsForVendorOrders()` buckets items by `vendor_id` — one vendor sub-order per supplier in the cart |
 | Totals | `grand_total = subtotal − discount_total + shipping_total + surcharge_total`. `tax_total` is the extracted VAT and is **not** added |
 | Vendor order status | Created as **`confirmed`** immediately — there is no transition event, which is why payment confirmation is the trigger for auto-shipment |
-| Commission | Snapshotted per `order_item` at `held`; gift-box commissions are immediately downgraded to `held` pending hub receipt |
+| Commission | Snapshotted per `order_item` at `held` |
 | Inventory | Pessimistic lock, availability re-checked inside the lock, reservation expires in 15 minutes |
-| Gift hub | Gift boxes resolve the platform hub warehouse (`vendor_id IS NULL, is_default, is_active`); a missing hub is tolerated (null) |
 | Shipping contribution | `resolveShippingContribution(vendorSubtotal, tiers, vendorId)` picks the band; a non-matching tier logs a warning |
 | Integration events | Emitted **after commit**, per vendor order, failures swallowed |
 
@@ -244,7 +217,6 @@ payment rows land in `payments`.
 | `createCodPayment` | — | records the intent to pay cash; no gateway |
 | `createTabbySession` | Tabby | **stubbed** — see gap |
 | `createTamaraSession` | Tamara | hosted checkout session with redirect URLs |
-| `createBookingSetupIntent` / `createBookingOffSessionAuthorization` / `createBookingDepositIntent` / `captureBookingPayment` / `voidBookingPayment` | Stripe | booking-service delegates all money here (see [14](14-booking-service.md)) |
 
 ### COD is special
 
@@ -282,12 +254,8 @@ flowchart TD
     ID -- no --> LOG[insert pending row]
     LOG --> T{event type}
     T -->|payment_intent.succeeded| PS[markPaymentCaptured]
-    PS --> HAS{metadata.order_id?}
-    HAS -- yes --> MOP[OrderConfirmationService.markOrderPaid]
-    HAS -- no, booking_id --> BC[BookingLifecycleClient.confirm]
-    T -->|setup_intent.succeeded| SI[payment → authorized, stash payment_method_id → confirm booking]
-    T -->|payment_intent.payment_failed| PF[order → cancelOrder as system / booking → paymentFailed]
-    T -->|payment_intent.canceled| PC[booking only → payment cancelled]
+    PS --> MOP[OrderConfirmationService.markOrderPaid via metadata.order_id]
+    T -->|payment_intent.payment_failed| PF[order → cancelOrder as system]
 ```
 
 Tamara: `order_approved` → call Tamara's `/authorise`, mark the payment `authorized`, then
@@ -295,10 +263,6 @@ Tamara: `order_approved` → call Tamara's `/authorise`, mark the payment `autho
 but **only if it is still `pending`**, so a late duplicate terminal event cannot flip an already
 authorized/captured payment. Order cancellation is left entirely to the pending-order reaper so
 the two do not race.
-
-Booking lifecycle errors are classified: a **4xx** from booking-service is treated as
-non-retryable and swallowed (returning non-2xx to Stripe would cause an infinite retry storm for
-an event that can never succeed); a **5xx** or network failure is rethrown so Stripe retries.
 
 ## `markOrderPaid` — the single confirmation sink
 
@@ -314,7 +278,7 @@ flowchart TD
     F --> G[order_status_history row]
     G --> H[recordCouponUsage]
     H --> I[clearCustomerCart]
-    I --> J[publish: reels commissions, affiliate commissions, channel conversions — all fire-and-forget]
+    I --> J[publish sales-channel conversion events — fire-and-forget]
     J --> K[triggerAutoShipments]
     K --> L[emitOrderPlaced → order-events + invoice queue]
 ```

@@ -3,7 +3,6 @@ import type { Payment, WebhookEvent } from "@materialhub/database";
 import jwt from "jsonwebtoken";
 import type { Repository } from "typeorm";
 import type { OrderStatusService } from "../order/order-status.service.ts";
-import type { BookingLifecycleClient } from "./booking-lifecycle.client.ts";
 import type { OrderConfirmationService } from "./order-confirmation.service.ts";
 
 type FetchLike = typeof fetch;
@@ -33,12 +32,6 @@ export class WebhookService {
     private orderConfirmationService: OrderConfirmationService,
     private orderStatusService?: OrderStatusService,
     private tamaraConfig?: TamaraWebhookConfig,
-    // Phase 4 Task 3 — money stays here (order-service); a Stripe event
-    // tagged `metadata.booking_id` (no `order_id`) routes to booking-service
-    // over this client instead of the order-confirmation/order-status path.
-    // Optional so existing call sites/tests that don't touch bookings keep
-    // working unchanged.
-    private bookingLifecycleClient?: BookingLifecycleClient,
   ) {}
 
   async handleStripeWebhook(
@@ -63,25 +56,11 @@ export class WebhookService {
 
     try {
       if (eventType === "payment_intent.succeeded") {
-        await this.processPaymentSuccess(payload, eventId);
-      }
-
-      // Prepay booking confirm (spec §5.2 step 1) — SetupIntent verifies +
-      // saves the card, no money moves. Orders never use SetupIntents, so
-      // this event type is booking-only; nothing to preserve for order_id.
-      if (eventType === "setup_intent.succeeded") {
-        await this.processSetupIntentSuccess(payload, eventId);
+        await this.processPaymentSuccess(payload);
       }
 
       if (eventType === "payment_intent.payment_failed") {
-        await this.processPaymentFailure(payload, eventId);
-      }
-
-      // Booking-only today (an un-captured booking PaymentIntent voided by
-      // the reaper/off-session-auth-failure path, or expiring on its own).
-      // Orders don't currently generate/handle this event type.
-      if (eventType === "payment_intent.canceled") {
-        await this.processPaymentCanceled(payload, eventId);
+        await this.processPaymentFailure(payload);
       }
 
       (webhookEvent as any).status = "processed";
@@ -145,114 +124,36 @@ export class WebhookService {
     }
   }
 
-  private async processPaymentSuccess(payload: any, eventId: string): Promise<void> {
+  private async processPaymentSuccess(payload: any): Promise<void> {
     const orderId = payload.metadata?.order_id;
-    const bookingId = payload.metadata?.booking_id;
-    if (!orderId && !bookingId) return;
+    if (!orderId) return;
 
     // Update Stripe-specific payment row (lookup by gateway_payment_id is
     // provider-specific, so this stays here rather than in
-    // OrderConfirmationService). Shared by both order and booking payments —
-    // the booking Payment row lives in order-service too (Task 2), keyed the
-    // same way (gateway_payment_id = the PaymentIntent id).
+    // OrderConfirmationService).
     await this.markPaymentCaptured(payload.id);
 
-    if (orderId) {
-      // Delegate the provider-agnostic confirmation bundle (order status
-      // flip, inventory commit, status history, cart clear, reels publish)
-      // to the single sink. Tabby / Tamara / Checkout.com webhooks will call
-      // the same method when wired up.
-      await this.orderConfirmationService.markOrderPaid(orderId);
-      return;
-    }
-
-    // Deposit-mode booking: the capture-now PaymentIntent succeeded ->
-    // confirm the booking (spec §5.2 deposit mode). ALSO the landing spot
-    // for a PREPAY booking's authorization capture at completion (Task 9) —
-    // by the time that PI succeeds the booking is already `completed`, so
-    // this is expected to be a safe no-op on booking-service's side (see
-    // confirmBooking's 4xx handling below and BookingStatusService.confirm's
-    // idempotent-on-any-non-pending_payment-status guard).
-    await this.confirmBooking(bookingId, eventId);
+    // Delegate the provider-agnostic confirmation bundle (order status flip,
+    // inventory commit, status history, cart clear, downstream publishes) to
+    // the single sink. Tabby / Tamara / Checkout.com webhooks call the same
+    // method when wired up.
+    await this.orderConfirmationService.markOrderPaid(orderId);
   }
 
-  private async processSetupIntentSuccess(payload: any, eventId: string): Promise<void> {
-    const bookingId = payload.metadata?.booking_id;
-    if (!bookingId) return;
-
-    // Prepay mode: the SetupIntent verified + saved the card — no money
-    // moved. `authorized` is the closest fit in PaymentStatus for "verified,
-    // ready for a future off-session charge"; the real off-session charge
-    // (Task 7b's booking-auth job) writes its OWN Payment row via
-    // createBookingOffSessionAuthorization, so this doesn't collide with it.
-    const payment = await this.paymentRepo.findOne({
-      where: { gateway_payment_id: payload.id } as any,
-    });
-    if (payment) {
-      (payment as any).status = "authorized";
-      (payment as any).authorized_at = new Date();
-      // Stash the attached PaymentMethod id (the real, observable end state
-      // of the frontend's 3DS challenge — see booking-payment
-      // .client.ts/internal-booking-payment.integration.test.ts's header
-      // comment) alongside the stripe_customer_id already recorded at
-      // /setup time (payment.service.ts's createBookingSetupIntent). Task
-      // 7b's booking-auth job reads BOTH back off this same Payment row
-      // (booking.payment_id -> this row, direct DB read — booking-service
-      // and order-service already share one Postgres instance, the same
-      // pattern booking-reaper.service.ts uses to resolve a deposit's
-      // gateway_payment_id) to call createBookingOffSessionAuthorization
-      // off-session, without booking-service ever touching Stripe directly.
-      if (payload.payment_method) {
-        (payment as any).gateway_response = {
-          ...((payment as any).gateway_response ?? {}),
-          payment_method_id: payload.payment_method,
-        };
-      }
-      await this.paymentRepo.save(payment);
-    }
-
-    await this.confirmBooking(bookingId, eventId);
-  }
-
-  private async processPaymentFailure(payload: any, eventId: string): Promise<void> {
+  private async processPaymentFailure(payload: any): Promise<void> {
     const orderId = payload.metadata?.order_id;
-    const bookingId = payload.metadata?.booking_id;
-    if (!orderId && !bookingId) return;
+    if (!orderId) return;
 
-    if (orderId) {
-      if (!this.orderStatusService) {
-        console.warn("[webhook] payment_failed received but orderStatusService not wired");
-        return;
-      }
-
-      await this.orderStatusService.cancelOrder(
-        orderId,
-        { userId: "system", role: "system" } as any,
-        "Payment failed",
-      );
+    if (!this.orderStatusService) {
+      console.warn("[webhook] payment_failed received but orderStatusService not wired");
       return;
     }
 
-    const reason = payload.last_payment_error?.message ?? "Payment failed";
-    await this.markPaymentFailed(payload.id, reason);
-    await this.notifyBookingPaymentFailed(bookingId, reason, eventId);
-  }
-
-  private async processPaymentCanceled(payload: any, eventId: string): Promise<void> {
-    // Orders don't handle payment_intent.canceled today, so there's no
-    // order_id branch to preserve here — booking-only.
-    const bookingId = payload.metadata?.booking_id;
-    if (!bookingId) return;
-
-    const payment = await this.paymentRepo.findOne({
-      where: { gateway_payment_id: payload.id } as any,
-    });
-    if (payment) {
-      (payment as any).status = "cancelled";
-      await this.paymentRepo.save(payment);
-    }
-
-    await this.notifyBookingPaymentFailed(bookingId, "Payment canceled", eventId);
+    await this.orderStatusService.cancelOrder(
+      orderId,
+      { userId: "system", role: "system" } as any,
+      "Payment failed",
+    );
   }
 
   private async markPaymentCaptured(gatewayPaymentId: string): Promise<void> {
@@ -264,88 +165,6 @@ export class WebhookService {
       (payment as any).captured_at = new Date();
       await this.paymentRepo.save(payment);
     }
-  }
-
-  private async markPaymentFailed(gatewayPaymentId: string, reason: string): Promise<void> {
-    const payment = await this.paymentRepo.findOne({
-      where: { gateway_payment_id: gatewayPaymentId } as any,
-    });
-    if (payment) {
-      (payment as any).status = "failed";
-      (payment as any).failed_at = new Date();
-      (payment as any).failure_reason = reason;
-      await this.paymentRepo.save(payment);
-    }
-  }
-
-  private async confirmBooking(bookingId: string, eventId: string): Promise<void> {
-    if (!this.bookingLifecycleClient) {
-      console.warn("[webhook] booking payment succeeded but bookingLifecycleClient not wired");
-      return;
-    }
-    try {
-      await this.bookingLifecycleClient.confirm(bookingId);
-    } catch (err) {
-      this.handleBookingLifecycleError(err, bookingId, eventId, "confirm");
-    }
-  }
-
-  private async notifyBookingPaymentFailed(
-    bookingId: string,
-    reason: string,
-    eventId: string,
-  ): Promise<void> {
-    if (!this.bookingLifecycleClient) {
-      console.warn("[webhook] booking payment failed but bookingLifecycleClient not wired");
-      return;
-    }
-    try {
-      await this.bookingLifecycleClient.paymentFailed(bookingId, reason);
-    } catch (err) {
-      this.handleBookingLifecycleError(err, bookingId, eventId, "paymentFailed");
-    }
-  }
-
-  // Defense-in-depth for BookingStatusService.confirm()'s idempotency fix
-  // (booking-service side): a booking-lifecycle call can still fail for
-  // reasons THAT fix doesn't cover (e.g. an unknown booking_id -> 404, or
-  // some other genuinely-illegal-on-arrival state -> 422/400). Stripe
-  // redelivering the SAME event can never turn a 4xx into a 2xx — the
-  // request itself is what's wrong, not a transient failure — so a 4xx from
-  // BookingLifecycleClient is swallowed here as a non-retryable "processed"
-  // outcome (logged, not rethrown) instead of bubbling up through
-  // handleStripeWebhook's catch, which would mark the webhook_events row
-  // `failed` and return a non-2xx to Stripe, triggering an infinite retry
-  // storm for an event that will NEVER succeed.
-  //
-  // A 5xx (booking-service down, DB unavailable, etc — genuinely transient)
-  // or an unreachable-service error (BookingLifecycleClient.post wraps
-  // network failures in ServiceUnavailableError, statusCode 503) is still
-  // rethrown so handleStripeWebhook marks the event `failed` and Stripe
-  // retries it later, once booking-service is back.
-  //
-  // BookingLifecycleClient.post maps every non-2xx, non-5xx response to
-  // BadRequestError (statusCode 400) regardless of booking-service's actual
-  // status code (400/404/422 all collapse to 400 client-side) — so "4xx" here
-  // is simply `statusCode` in the [400, 500) range.
-  private handleBookingLifecycleError(
-    err: unknown,
-    bookingId: string,
-    eventId: string,
-    op: "confirm" | "paymentFailed",
-  ): void {
-    const statusCode = (err as { statusCode?: unknown })?.statusCode;
-    if (typeof statusCode === "number" && statusCode >= 400 && statusCode < 500) {
-      console.warn(
-        `[webhook] booking-lifecycle ${op} for booking ${bookingId} (event ${eventId}) returned ` +
-          `non-retryable ${statusCode} — treating as processed, NOT retrying: ${(err as Error)?.message}`,
-      );
-      return;
-    }
-    // 5xx / unreachable / anything without a recognizable statusCode:
-    // retryable — propagate so the ORDER-path catch in handleStripeWebhook
-    // marks this event `failed` and Stripe redelivers it.
-    throw err;
   }
 
   private verifyTamaraNotificationToken(
