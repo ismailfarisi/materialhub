@@ -9,7 +9,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from "typeorm";
-import { CreatorTier, UserRole, UserStatus } from "../enums.ts";
+import { UserRole, UserStatus } from "../enums.ts";
 import type { Cart } from "./cart.entity.ts";
 import type { Notification } from "./notification.entity.ts";
 import type { Order } from "./order.entity.ts";
@@ -104,15 +104,6 @@ export class User {
 
   @Column({ type: "int", default: 0 })
   following_count!: number;
-
-  @Column({ type: "int", default: 0 })
-  published_reel_count!: number;
-
-  @Column({ type: "enum", enum: CreatorTier, default: CreatorTier.regular })
-  creator_tier!: CreatorTier;
-
-  @Column({ type: "timestamptz", nullable: true })
-  creator_tier_earned_at!: Date | null;
 
   @CreateDateColumn({ type: "timestamptz" })
   created_at!: Date;

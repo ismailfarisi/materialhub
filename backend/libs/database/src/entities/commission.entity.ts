@@ -9,7 +9,6 @@ import {
   UpdateDateColumn,
 } from "typeorm";
 import { CommissionStatus, CommissionType } from "../enums.ts";
-import type { Booking } from "./booking.entity.ts";
 import type { OrderItem } from "./order-item.entity.ts";
 import type { Order } from "./order.entity.ts";
 import type { VendorOrder } from "./vendor-order.entity.ts";
@@ -56,15 +55,6 @@ export class Commission {
   @ManyToOne("OrderItem", { nullable: true })
   @JoinColumn({ name: "order_item_id" })
   order_item!: OrderItem | null;
-
-  // Booking-sourced commission (Phase 4 Task 9) — mutually exclusive with the
-  // order_id/vendor_order_id/order_item_id triple above.
-  @Column({ type: "uuid", nullable: true })
-  booking_id!: string | null;
-
-  @ManyToOne("Booking", { nullable: true })
-  @JoinColumn({ name: "booking_id" })
-  booking!: Booking | null;
 
   @Column({ type: "uuid", nullable: true })
   payout_id!: string | null;

@@ -109,9 +109,6 @@ export class OrderItem {
   @Column({ type: "jsonb", nullable: true })
   customization_data!: Record<string, unknown> | null;
 
-  @Column({ type: "uuid", nullable: true })
-  gift_order_id!: string | null;
-
   @CreateDateColumn({ type: "timestamptz" })
   created_at!: Date;
 

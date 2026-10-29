@@ -96,9 +96,6 @@ export class VendorOrder {
   @Column({ type: "text", nullable: true })
   booking_error!: string | null;
 
-  @Column({ type: "uuid", nullable: true })
-  gift_order_id!: string | null;
-
   @Column({ type: "timestamptz", nullable: true })
   received_at_hub_at!: Date | null;
 

@@ -13,7 +13,6 @@ import type { Product } from "./product.entity.ts";
 import type { VendorBankAccount } from "./vendor-bank-account.entity.ts";
 import type { VendorDocument } from "./vendor-document.entity.ts";
 import type { VendorFollower } from "./vendor-follower.entity.ts";
-import type { VendorHoliday } from "./vendor-holiday.entity.ts";
 import type { VendorTranslation } from "./vendor-translation.entity.ts";
 
 // Phase 3b: vendors.user_id column was dropped. Ownership is tracked exclusively
@@ -188,16 +187,6 @@ export class Vendor {
   @Column({ type: "boolean", default: false })
   details_submitted!: boolean;
 
-  // Reels program (M3)
-  @Column({ type: "timestamptz", nullable: true })
-  reels_program_joined_at?: Date | null;
-
-  @Column({ type: "numeric", precision: 5, scale: 4, default: 0.05 })
-  reels_commission_rate!: string;
-
-  @Column({ type: "timestamptz", nullable: true })
-  reels_subsidy_ends_at?: Date | null;
-
   @Column({ type: "varchar", length: 255, nullable: true })
   meta_title!: string | null;
 
@@ -224,9 +213,6 @@ export class Vendor {
 
   @OneToMany("VendorBankAccount", "vendor")
   bankAccounts!: VendorBankAccount[];
-
-  @OneToMany("VendorHoliday", "vendor")
-  holidays!: VendorHoliday[];
 
   @OneToMany("VendorFollower", "vendor")
   followers!: VendorFollower[];

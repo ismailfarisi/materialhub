@@ -162,12 +162,6 @@ export class Product {
   @Column({ type: "boolean", default: false })
   has_variants!: boolean;
 
-  @Column({ type: "boolean", default: false })
-  is_gift_eligible!: boolean;
-
-  @Column({ type: "boolean", default: false })
-  is_gift_only!: boolean;
-
   @Column({ type: "numeric", precision: 3, scale: 2, default: 0 })
   rating_avg!: number;
 
