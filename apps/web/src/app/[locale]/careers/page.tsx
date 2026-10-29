@@ -7,7 +7,7 @@ import {
 export const metadata: Metadata = {
 	title: "Careers at MaterialHub",
 	description:
-		"Build the beauty marketplace of the Gulf. Open roles, what we look for, and how we hire at MaterialHub.",
+		"Build the materials marketplace of the Gulf. Open roles, what we look for, and how we hire at MaterialHub.",
 };
 
 const VALUES = [
@@ -33,8 +33,8 @@ export default function CareersPage() {
 	return (
 		<StaticPageLayout
 			eyebrow="Careers"
-			title="Build the beauty marketplace of the Gulf."
-			intro="We're growing the team that powers MaterialHub — from product and engineering in Dubai to merchandising and creator partnerships across the UAE."
+			title="Build the materials marketplace of the Gulf."
+			intro="We're growing the team that powers MaterialHub — from product and engineering in Dubai to merchandising and supplier partnerships across the UAE."
 		>
 			<StaticSection heading="How we work">
 				<p>
@@ -67,8 +67,8 @@ export default function CareersPage() {
 				<p>
 					We aren&rsquo;t actively hiring through a public board right now,
 					but we always make room for exceptional product engineers,
-					full-stack engineers, beauty merchandisers and creator partnership
-					leads based in the UAE.
+					full-stack engineers, category merchandisers and supplier
+					partnership leads based in the UAE.
 				</p>
 				<p>
 					Send a short note and what you&rsquo;ve shipped to{" "}

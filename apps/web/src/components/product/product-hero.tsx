@@ -151,21 +151,16 @@ export function ProductHero({
 		productOutOfStock ||
 		(selectedFormat != null && (selectedFormat.available ?? 0) <= 0);
 
-	// Flash deal / compare price logic
-	const dealPrice = product.flash_deal?.deal_price ?? null;
-	const dealOriginalPrice = product.flash_deal?.original_price ?? null;
-
+	// Compare-at price logic
 	const variantPrice = selectedFormat?.price_fils ?? product.price;
-	const displayPriceFils = dealPrice ?? variantPrice;
-	const strikePriceFils = dealPrice
-		? dealOriginalPrice
-		: selectedFormat
-			? selectedFormat.compare_at_price_fils && selectedFormat.compare_at_price_fils > variantPrice
-				? selectedFormat.compare_at_price_fils
-				: null
-			: product.compare_at_price && product.compare_at_price > variantPrice
-				? product.compare_at_price
-				: null;
+	const displayPriceFils = variantPrice;
+	const strikePriceFils = selectedFormat
+		? selectedFormat.compare_at_price_fils && selectedFormat.compare_at_price_fils > variantPrice
+			? selectedFormat.compare_at_price_fils
+			: null
+		: product.compare_at_price && product.compare_at_price > variantPrice
+			? product.compare_at_price
+			: null;
 
 	const discountPercent =
 		strikePriceFils && strikePriceFils > displayPriceFils

@@ -116,7 +116,7 @@ export function BasicInfoTab({
 							value={editUsageInstructions}
 							onChange={(e) => setEditUsageInstructions(e.target.value)}
 							rows={3}
-							placeholder="Apply a small amount to clean skin..."
+							placeholder="Store flat in a dry place; apply to a clean, dust-free surface..."
 						/>
 					) : (
 						<p className="text-sm text-taupe whitespace-pre-wrap">

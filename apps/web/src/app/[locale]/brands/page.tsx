@@ -8,7 +8,7 @@ import { StaticPageLayout } from "@/components/layout/static-page-layout";
 export const metadata: Metadata = {
 	title: "Brand directory — MaterialHub",
 	description:
-		"Every brand on MaterialHub, A to Z. Discover regional houses, global favourites and indie launches in beauty, fragrance and wellness.",
+		"Every brand on MaterialHub, A to Z. Discover regional houses, global favourites and specialist suppliers in packaging, boards, leather, hardware and craft materials.",
 };
 
 export const revalidate = 600;

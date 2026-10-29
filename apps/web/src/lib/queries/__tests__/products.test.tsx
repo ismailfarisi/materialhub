@@ -9,13 +9,8 @@ vi.mock("@/lib/api", () => ({
 	},
 }));
 
-vi.mock("@/lib/api/reels", () => ({
-	getFeed: vi.fn(),
-}));
-
 import { api } from "@/lib/api";
-import { getFeed } from "@/lib/api/reels";
-import { useListingReels, useResultCount } from "../products";
+import { useResultCount } from "../products";
 
 function wrapper({ children }: { children: ReactNode }) {
 	const client = new QueryClient({
@@ -23,40 +18,6 @@ function wrapper({ children }: { children: ReactNode }) {
 	});
 	return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
-
-describe("useListingReels", () => {
-	beforeEach(() => vi.clearAllMocks());
-
-	it("fetches reels for a category slug", async () => {
-		// biome-ignore lint/suspicious/noExplicitAny: test mock
-		(getFeed as any).mockResolvedValueOnce({
-			reels: [{ id: "r1" }, { id: "r2" }],
-			nextCursor: null,
-		});
-
-		const { result } = renderHook(
-			() => useListingReels({ context: "category", categorySlug: "skincare" }),
-			{ wrapper },
-		);
-
-		await waitFor(() => expect(result.current.isSuccess).toBe(true));
-		expect(getFeed).toHaveBeenCalledWith({
-			context: "category",
-			categorySlug: "skincare",
-			limit: 12,
-		});
-		expect(result.current.data).toEqual([{ id: "r1" }, { id: "r2" }]);
-	});
-
-	it("is disabled when neither categorySlug nor vendorId is provided", () => {
-		const { result } = renderHook(
-			() => useListingReels({ context: "category" }),
-			{ wrapper },
-		);
-		expect(result.current.fetchStatus).toBe("idle");
-		expect(getFeed).not.toHaveBeenCalled();
-	});
-});
 
 describe("useResultCount", () => {
 	beforeEach(() => vi.clearAllMocks());

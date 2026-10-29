@@ -20,7 +20,7 @@ export const LOCALES = routing.locales;
 export const DEFAULT_LOCALE = routing.defaultLocale;
 
 // Indexable, crawlable marketing/informational pages. Deliberately excludes
-// account, cart, checkout, auth and reels/upload.
+// account, cart, checkout and auth.
 export const STATIC_PATHS = [
 	"/",
 	"/about",
@@ -28,13 +28,10 @@ export const STATIC_PATHS = [
 	"/contact",
 	"/careers",
 	"/faq",
-	"/gifts",
 	"/press",
 	"/privacy",
-	"/reels",
 	"/returns",
 	"/sell",
-	"/services",
 	"/shipping",
 	"/terms",
 ];

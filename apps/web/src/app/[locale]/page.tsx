@@ -10,13 +10,13 @@ import { PreviewBanner } from "@/components/layout/preview-banner";
 import { RecentlyViewed } from "@/components/home/recently-viewed";
 
 export const metadata: Metadata = {
-  title: "MaterialHub — UAE Beauty Marketplace",
+  title: "MaterialHub — UAE Materials Marketplace",
   description:
-    "Shop beauty, fragrance, skincare, makeup and wellness from trusted local and international vendors across the UAE.",
+    "Shop packaging papers, boards, PU leather, hinges, adhesives, ribbons and decoration materials from trusted local and international vendors across the UAE.",
   openGraph: {
-    title: "MaterialHub — UAE Beauty Marketplace",
+    title: "MaterialHub — UAE Materials Marketplace",
     description:
-      "Shop beauty, fragrance, skincare, makeup and wellness from trusted local and international vendors across the UAE.",
+      "Shop packaging papers, boards, PU leather, hinges, adhesives, ribbons and decoration materials from trusted local and international vendors across the UAE.",
     type: "website",
   },
 };
@@ -33,7 +33,7 @@ async function getHomePageLayout(locale: string, previewToken?: string, previewL
   const params = new URLSearchParams({ locale, device });
   if (previewToken) params.set("preview_token", previewToken);
 
-  const slug = previewToken && previewLayoutSlug ? previewLayoutSlug : "beauty-fragrance";
+  const slug = previewToken && previewLayoutSlug ? previewLayoutSlug : "home";
 
   try {
     const res = await server.get(`/layouts/${encodeURIComponent(slug)}/resolve?${params.toString()}`);
@@ -41,7 +41,7 @@ async function getHomePageLayout(locale: string, previewToken?: string, previewL
   } catch (err: any) {
     if (previewToken && err?.response?.status === 401) {
       try {
-        const fallback = await server.get(`/layouts/${encodeURIComponent(previewLayoutSlug ?? "beauty-fragrance")}/resolve?locale=${locale}&device=${device}`);
+        const fallback = await server.get(`/layouts/${encodeURIComponent(previewLayoutSlug ?? "home")}/resolve?locale=${locale}&device=${device}`);
         return { layout: fallback.data.data, previewStatus: "expired" as const };
       } catch {
         return { layout: { sections: [] }, previewStatus: "expired" as const };
@@ -113,7 +113,7 @@ export default async function HomePage({
             "@type": "Organization",
             name: "MaterialHub",
             url: "https://www.materialhubuae.com",
-            description: "UAE beauty marketplace for trusted local and international vendors",
+            description: "UAE materials marketplace for trusted local and international vendors",
           }),
         }}
       />

@@ -16,7 +16,6 @@ export interface ShipTo {
   emirate?: string | null;
   country_code?: string;
   phone?: string | null;
-  is_hub: boolean;
 }
 
 export function useVendorOrders(filters: OrderFilters = {}) {

@@ -51,18 +51,6 @@ export function useChangeUserRole() {
   });
 }
 
-export function useUpdateUserCreatorTier() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, creator_tier }: { id: string; creator_tier: string }) => {
-      const { data } = await api.patch(`/admin/users/${id}/creator-tier`, { creator_tier });
-      return data.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
-    },
-  });
-}
 
 export function useUser(id: string) {
   return useQuery({

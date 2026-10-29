@@ -8,7 +8,6 @@ interface ReviewSummary {
   repurchase_pct: number;
   avg_wear_time?: string;
   visible_results_in?: string;
-  gift_worthy_pct: number;
 }
 
 interface TheVerdictProps {
@@ -97,7 +96,6 @@ export function TheVerdict({ summary, categoryType }: TheVerdictProps) {
       <div className="flex gap-4">
         <StatCard label="Would repurchase" value={`${summary.repurchase_pct}%`} />
         {middleStat && <StatCard label={middleStat.label} value={middleStat.value} />}
-        <StatCard label="Gift-worthy" value={`${summary.gift_worthy_pct}%`} />
       </div>
     </div>
   );

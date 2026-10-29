@@ -71,38 +71,3 @@ export function useDeleteBankAccount() {
     },
   });
 }
-
-export function useVendorHolidays() {
-  return useQuery({
-    queryKey: ["vendor", "holidays"],
-    queryFn: async () => {
-      const { data } = await api.get("/vendors/me/holidays");
-      return data.data;
-    },
-  });
-}
-
-export function useCreateHoliday() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: { name: string; starts_at: string; ends_at: string }) => {
-      const { data } = await api.post("/vendors/me/holidays", payload);
-      return data.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vendor", "holidays"] });
-    },
-  });
-}
-
-export function useDeleteHoliday() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      await api.delete(`/vendors/me/holidays/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vendor", "holidays"] });
-    },
-  });
-}

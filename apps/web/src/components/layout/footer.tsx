@@ -56,10 +56,10 @@ const COLUMNS: Array<{
 	{
 		headingKey: "categories",
 		items: [
-			{ label: "Skincare", href: "/c/skincare" },
-			{ label: "Makeup", href: "/c/makeup" },
-			{ label: "Fragrance", href: "/c/fragrance" },
-			{ label: "Haircare", href: "/c/haircare" },
+			{ label: "Packaging papers", href: "/c/papers-boards" },
+			{ label: "Boxes & packaging", href: "/c/boxes-packaging" },
+			{ label: "PU leather", href: "/c/pu-leather" },
+			{ label: "Hinges & hardware", href: "/c/hardware-fittings" },
 		],
 	},
 ];
@@ -79,7 +79,7 @@ const SOCIALS = [
 		Icon: Youtube,
 		// @MaterialHubuae is NOT ours — it resolves to an unrelated personal
 		// channel (@Keerthanasuresh123). The real one is @MATERIALHUB-UAE
-		// ("MaterialHub UAE Beauty").
+		// ("MaterialHub UAE").
 		href: "https://www.youtube.com/@MATERIALHUB-UAE",
 		label: "YouTube",
 	},
@@ -121,7 +121,7 @@ export async function Footer() {
 							/>
 						</Link>
 						<p className="font-serif italic text-base md:text-lg leading-[1.5] text-nl-linen max-w-[320px] mb-6">
-							UAE&rsquo;s curated multi-vendor beauty marketplace.
+							UAE&rsquo;s multi-vendor materials marketplace.
 							Trusted local and international vendors, one address.
 						</p>
 						<div className="flex gap-2.5">

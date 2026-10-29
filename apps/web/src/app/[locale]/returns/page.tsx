@@ -33,11 +33,11 @@ export default function ReturnsPage() {
 			<StaticSection heading="What we can't take back">
 				<ul className="list-disc ps-5 space-y-2">
 					<li>
-						Hygiene-sealed products once the seal is broken — skincare
-						droppers, fragrance bottles, lipsticks, mascara.
+						Cut-to-size, opened or partially used materials — rolls, sheets
+						and adhesives once the packaging seal is broken.
 					</li>
 					<li>Personalised, engraved or made-to-order items.</li>
-					<li>Gift cards and digital vouchers.</li>
+					<li>Digital vouchers.</li>
 					<li>
 						Sale items marked &ldquo;final sale&rdquo; on the product
 						page.

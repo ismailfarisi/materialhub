@@ -33,7 +33,7 @@ import {
   Badge,
 } from "@materialhub/ui";
 import { s3UploadClient } from "@/lib/s3-upload-client";
-import { Plus, Trash, Pencil, Buildings, Calendar, Clock } from "@phosphor-icons/react";
+import { Plus, Trash, Pencil, Buildings, Clock } from "@phosphor-icons/react";
 import {
   useVendorProfile,
   useUpdateProfile,
@@ -41,9 +41,6 @@ import {
   useCreateBankAccount,
   useUpdateBankAccount,
   useDeleteBankAccount,
-  useVendorHolidays,
-  useCreateHoliday,
-  useDeleteHoliday,
 } from "@/lib/queries/settings";
 
 // ─── Profile Tab ───────────────────────────────────────────────────────────────
@@ -416,163 +413,6 @@ function BankDetailsTab() {
   );
 }
 
-// ─── Holidays Tab ──────────────────────────────────────────────────────────────
-
-const holidaySchema = z.object({
-  name: z.string().min(1, "Holiday name is required"),
-  start_date: z.string().min(1, "Start date is required"),
-  end_date: z.string().min(1, "End date is required"),
-});
-
-type HolidayFormValues = z.infer<typeof holidaySchema>;
-
-function HolidaysTab() {
-  const { data: holidays, isLoading } = useVendorHolidays();
-  const { mutate: createHoliday, isPending: creating } = useCreateHoliday();
-  const { mutate: deleteHoliday } = useDeleteHoliday();
-
-  const [dialogOpen, setDialogOpen] = useState(false);
-
-  const form = useForm<HolidayFormValues>({
-    resolver: zodResolver(holidaySchema),
-    defaultValues: { name: "", start_date: "", end_date: "" },
-  });
-
-  function onSubmit(values: HolidayFormValues) {
-    createHoliday({ name: values.name, starts_at: values.start_date, ends_at: values.end_date }, {
-      onSuccess: () => {
-        setDialogOpen(false);
-        form.reset();
-      },
-    });
-  }
-
-  const holidayList: any[] = holidays ?? [];
-
-  function formatDate(iso: string) {
-    return new Date(iso).toLocaleDateString("en-AE", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  }
-
-  return (
-    <div className="space-y-4 max-w-2xl">
-      <div className="flex justify-between items-center">
-        <p className="text-sm text-muted-foreground">
-          Set store holidays to pause order processing.
-        </p>
-        <Button size="sm" onClick={() => setDialogOpen(true)}>
-          <Plus size={14} className="mr-1" /> Add Holiday
-        </Button>
-      </div>
-
-      {isLoading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 2 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 rounded-xl" />
-          ))}
-        </div>
-      ) : holidayList.length === 0 ? (
-        <Card>
-          <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            <Calendar size={32} className="mx-auto mb-2 opacity-30" />
-            No holidays configured.
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {holidayList.map((holiday: any) => (
-            <Card key={holiday.id}>
-              <CardContent className="flex items-center gap-4 py-4">
-                <Calendar size={18} className="text-muted-foreground shrink-0" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{holiday.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDate(holiday.start_date)} – {formatDate(holiday.end_date)}
-                  </p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive hover:text-destructive"
-                  onClick={() => {
-                    if (confirm(`Delete holiday "${holiday.name}"?`)) {
-                      deleteHoliday(holiday.id);
-                    }
-                  }}
-                >
-                  <Trash size={14} />
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add Holiday</DialogTitle>
-          </DialogHeader>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Holiday Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g. Eid Al-Fitr" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="start_date"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Start Date</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="end_date"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>End Date</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={creating}>
-                  {creating ? "Saving…" : "Add Holiday"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
 // ─── Processing Tab ────────────────────────────────────────────────────────────
 
 const processingSchema = z.object({
@@ -633,13 +473,13 @@ function ProcessingTab() {
   );
 }
 
-// ─── Main Gear Page ────────────────────────────────────────────────────────
+// ─── Main Settings Page ────────────────────────────────────────────────────
 
 export default function SettingsPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Gear</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
         <p className="text-sm text-gray-500">Manage your store profile and preferences</p>
       </div>
 
@@ -647,7 +487,6 @@ export default function SettingsPage() {
         <TabsList className="mb-6">
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="bank">Bank Details</TabsTrigger>
-          <TabsTrigger value="holidays">Holidays</TabsTrigger>
           <TabsTrigger value="processing">Processing</TabsTrigger>
         </TabsList>
 
@@ -657,10 +496,6 @@ export default function SettingsPage() {
 
         <TabsContent value="bank">
           <BankDetailsTab />
-        </TabsContent>
-
-        <TabsContent value="holidays">
-          <HolidaysTab />
         </TabsContent>
 
         <TabsContent value="processing">

@@ -18,7 +18,7 @@ function RegisterContent() {
         {t("registerTitle")}
       </h1>
       <RegisterForm
-        onAuthenticated={() => router.push(returnTo || `/${locale}/beauty-quiz`)}
+        onAuthenticated={() => router.push(returnTo || `/${locale}/account`)}
       />
     </div>
   );

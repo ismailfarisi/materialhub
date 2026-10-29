@@ -5,28 +5,29 @@ import {
 } from "@/components/layout/static-page-layout";
 
 export const metadata: Metadata = {
-	title: "About MaterialHub — UAE's Beauty Marketplace",
+	title: "About MaterialHub — UAE's Materials Marketplace",
 	description:
-		"MaterialHub is a curated multi-vendor beauty marketplace built for the Gulf, bringing trusted beauty, fragrance and wellness vendors into one UAE shopping address.",
+		"MaterialHub is a multi-vendor materials marketplace built for the Gulf, bringing trusted packaging, board, leather, hardware and craft suppliers into one UAE address.",
 };
 
 export default function AboutPage() {
 	return (
 		<StaticPageLayout
 			eyebrow="Our story"
-			title="A house of brands, built for the Gulf."
-			intro="MaterialHub gathers the rituals, formulas and houses that shape modern Arabian beauty — from heritage attar makers to clean-skin founders — and brings them into one trusted address."
+			title="A marketplace of materials, built for the Gulf."
+			intro="MaterialHub gathers the papers, boards, leathers, hardware and finishing materials that makers and manufacturers rely on — from packaging mills to small craft suppliers — and brings them into one trusted address."
 		>
 			<StaticSection heading="Why we exist">
 				<p>
-					Beauty in the UAE is plural. A skincare regimen begins in Seoul,
-					travels through Paris, and ends with an oud sprayed in Sharjah.
-					Buying it should feel that effortless — one cart, one delivery,
-					one customer service line, in the language you actually speak.
+					Sourcing materials in the UAE is fragmented. A packaging board
+					comes from one mill, the PU leather from another, the hinges and
+					adhesives from a third. Buying it should feel effortless — one
+					cart, one delivery, one customer service line, in the language
+					you actually speak.
 				</p>
 				<p>
-					MaterialHub exists so customers don&rsquo;t have to choose between
-					a global edit and a regional one. We work directly with vendors
+					MaterialHub exists so businesses and makers don&rsquo;t have to
+					choose between a global supplier and a regional one. We work directly with vendors
 					to surface only authentic stock, ship from inside the country,
 					and price in fils, not guesses.
 				</p>

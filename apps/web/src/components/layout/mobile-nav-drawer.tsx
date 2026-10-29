@@ -3,7 +3,7 @@
 import type { NavTab } from "@/lib/api/navigation";
 import { useAuthModalStore } from "@/stores/auth-modal";
 import { useAuthStore } from "@/stores/auth";
-import { ChevronDown, Clapperboard, Gift, Heart, Package, Store, Tags, User, X } from "lucide-react";
+import { ChevronDown, Heart, Package, Store, Tags, User, X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -38,9 +38,7 @@ export function MobileNavDrawer({ open, onClose, tabs }: Props) {
 	if (!open) return null;
 
 	const quickLinks = [
-		{ href: `/${locale}/reels`, label: t("reels"), Icon: Clapperboard },
 		{ href: `/${locale}/brands`, label: t("brands"), Icon: Tags },
-		{ href: `/${locale}/gifts`, label: t("gifts"), Icon: Gift },
 		{ href: `/${locale}/account/wishlist`, label: t("wishlist"), Icon: Heart },
 		{ href: `/${locale}/account/orders`, label: t("trackOrder"), Icon: Package },
 		{ href: `/${locale}/sell`, label: tFooter("sell"), Icon: Store },

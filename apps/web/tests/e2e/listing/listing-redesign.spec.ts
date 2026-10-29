@@ -6,7 +6,7 @@ import { test, expect } from "@playwright/test";
  * Requires a live stack:
  *   - docker compose up
  *   - apps/web dev server on http://localhost:3000
- *   - At least one published category with seeded products + a few approved reels
+ *   - At least one published category with seeded products
  *
  * Run locally with:
  *   LISTING_E2E_STACK_UP=1 LISTING_CATEGORY_SLUG=skincare bun run test:e2e listing-redesign

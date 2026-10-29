@@ -74,7 +74,7 @@ function createMaterialHubWebMcpTools(locale: string): WebMcpTool[] {
 					query: {
 						type: "string",
 						description:
-							"Product, brand, category, or beauty concern to search for.",
+							"Product, brand, category, or material type to search for.",
 						minLength: 1,
 						maxLength: 120,
 					},

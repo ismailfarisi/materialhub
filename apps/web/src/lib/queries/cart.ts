@@ -22,7 +22,7 @@ export function useCart() {
       const staleSet = new Set(raw.staleItems || []);
 
       // Flatten vendor-grouped items and map entity fields to UI fields.
-      // unit_price is authoritative — backend re-resolves flash deals and
+      // unit_price is authoritative — backend re-resolves promotions and
       // snaps stale prices on every getCart, surfacing genuinely stale rows
       // via raw.staleItems. Don't shadow it with product.price (which would
       // lose the deal price).

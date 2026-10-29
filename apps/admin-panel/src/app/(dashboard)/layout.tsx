@@ -11,15 +11,11 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import {
 	AlertTriangle,
-	BarChart3,
-	Box,
-	CalendarCheck,
 	ClipboardList,
 	Coins,
 	CreditCard,
 	FileText,
 	FolderTree,
-	Gift,
 	Image,
 	LayoutDashboard,
 	LayoutGrid,
@@ -40,11 +36,8 @@ import {
 	Store,
 	Tag,
 	Truck,
-	UserCheck,
 	Users,
-	Video,
 	Wallet,
-	Zap,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -66,16 +59,6 @@ const navItems = [
 				label: "Cart Abandonment",
 				href: "/cart-abandonment",
 				icon: <ShoppingCart size={20} />,
-			},
-			{
-				label: "All Bookings",
-				href: "/bookings",
-				icon: <CalendarCheck size={20} />,
-			},
-			{
-				label: "Service Approvals",
-				href: "/bookings/service-approvals",
-				icon: <ClipboardList size={20} />,
 			},
 		],
 	},
@@ -122,81 +105,22 @@ const navItems = [
 		children: [
 			{ label: "Vendors", href: "/vendors", icon: <Store size={20} /> },
 			{ label: "Users", href: "/users", icon: <Users size={20} /> },
-			{
-				label: "Affiliates",
-				href: "/affiliates",
-				icon: <UserCheck size={20} />,
-			},
-		],
-	},
-	{
-		label: "Creators & Reels",
-		icon: <Video size={20} />,
-		children: [
-			{ label: "Moderation Queue", href: "/reels", icon: <Video size={20} /> },
-			{
-				label: "Creator Applications",
-				href: "/creators/applications",
-				icon: <UserCheck size={20} />,
-			},
-			{ label: "Collaborations", href: "/collabs", icon: <Video size={20} /> },
-			{
-				label: "Tagging Permissions",
-				href: "/reels/tagging-permissions",
-				icon: <ShieldCheck size={20} />,
-			},
-			{
-				label: "Analytics",
-				href: "/reels/analytics",
-				icon: <BarChart3 size={20} />,
-			},
 		],
 	},
 	{
 		label: "Promotions & Marketing",
-		icon: <Gift size={20} />,
+		icon: <Megaphone size={20} />,
 		children: [
-			{ label: "Promotions", href: "/promotions", icon: <Gift size={20} /> },
+			{ label: "Promotions", href: "/promotions", icon: <Percent size={20} /> },
 			{
 				label: "Coupons",
 				href: "/promotions/coupons",
 				icon: <Tag size={20} />,
 			},
 			{
-				label: "Flash Deals",
-				href: "/promotions/flash-deals",
-				icon: <Zap size={20} />,
-			},
-			{
 				label: "Collections",
 				href: "/promotions/collections",
 				icon: <LayoutGrid size={20} />,
-			},
-		],
-	},
-	{
-		label: "Gifting Suite",
-		icon: <Sparkles size={20} />,
-		children: [
-			{
-				label: "Occasions",
-				href: "/gifting/occasions",
-				icon: <Sparkles size={20} />,
-			},
-			{
-				label: "Box Styles",
-				href: "/gifting/styles",
-				icon: <Box size={20} />,
-			},
-			{
-				label: "Boxes",
-				href: "/gifting/boxes",
-				icon: <Gift size={20} />,
-			},
-			{
-				label: "Fulfillment",
-				href: "/gifting/fulfillment",
-				icon: <ClipboardList size={20} />,
 			},
 		],
 	},
@@ -312,7 +236,6 @@ const SEGMENT_LABEL_OVERRIDES: Record<string, string> = {
 	seo: "SEO",
 	kyc: "KYC",
 	bnpl: "BNPL",
-	"flash-deals": "Flash Deals",
 	"shipping-rates": "Shipping Rates",
 	"shipping-contribution-tiers": "Shipping Contribution Tiers",
 	"shipping-providers": "Shipping Providers",
@@ -320,9 +243,10 @@ const SEGMENT_LABEL_OVERRIDES: Record<string, string> = {
 	"cart-abandonment": "Cart Abandonment",
 	"audit-log": "Audit Log",
 	"role-permissions": "Role Permissions",
-	"tagging-permissions": "Tagging Permissions",
 	"header-navigation": "Header Navigation",
-	"service-approvals": "Service Approvals",
+	"brand-submissions": "Brand Submissions",
+	"sales-channels": "Sales Channels",
+	"pending-writes": "Pending Writes",
 };
 
 function labelForSegment(seg: string, prev?: string) {
@@ -334,8 +258,6 @@ function labelForSegment(seg: string, prev?: string) {
 		if (prev === "vendors") return "Vendor";
 		if (prev === "products") return "Product";
 		if (prev === "orders") return "Order";
-		if (prev === "bookings") return "Booking";
-		if (prev === "service-approvals") return "Service";
 		return "Detail";
 	}
 	return seg

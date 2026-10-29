@@ -12,11 +12,6 @@ const PAGE_SIZE = 250;
 /** Safety stop for the cursor loop: 100 * 250 = 25,000 products. */
 const MAX_PAGES = 100;
 
-/** Backend hard maximum: t.Numeric({ minimum: 1, maximum: 50 }) on GET /services. */
-const SERVICE_PAGE_SIZE = 50;
-/** Safety stop for the services page loop: 100 * 50 = 5,000 services. */
-const MAX_SERVICE_PAGES = 100;
-
 /**
  * Fetch and fail loudly. The previous sitemap wrapped every call in an empty
  * catch, so three separate upstream failures silently produced a sitemap
@@ -134,55 +129,4 @@ export async function getVendors(): Promise<SitemapEntry[]> {
 	return (body?.data?.facets?.vendors ?? [])
 		.filter((vendor: any) => vendor?.value)
 		.map((vendor: any) => ({ path: `/vendor/${vendor.value}` }));
-}
-
-/**
- * Service offerings for the sitemap. GET /services returns only PUBLISHED
- * offerings, so this yields an empty list until the first one is approved —
- * which is exactly the intent: the section ships now and starts emitting on
- * its own, with no follow-up task to remember.
- *
- * Paginates via the `page` query param (1-based) rather than a cursor, since
- * that's what GET /services supports. Like getProducts, this fails loudly
- * (throws) rather than silently truncating if the page cap is hit while the
- * response's `total` says more services remain.
- */
-export async function getServices(): Promise<SitemapEntry[]> {
-	const entries: SitemapEntry[] = [];
-	let fetchedCount = 0;
-	let total: number | undefined;
-
-	for (let page = 1; page <= MAX_SERVICE_PAGES; page++) {
-		const body = await fetchJson(`/services?limit=${SERVICE_PAGE_SIZE}&page=${page}`);
-		// biome-ignore lint/suspicious/noExplicitAny: untyped sitemap source row
-		const items: any[] = body?.data ?? [];
-		if (typeof body?.total === "number") total = body.total;
-
-		if (!items.length) break;
-
-		fetchedCount += items.length;
-		for (const service of items) {
-			if (!service?.slug) continue;
-			entries.push({ path: `/service/${service.slug}` });
-		}
-
-		// Stop once we've collected everything the API told us to expect. If
-		// the API never reported a total (malformed response), don't loop
-		// blindly — treat the page we have as the whole list.
-		if (total === undefined || fetchedCount >= total) break;
-	}
-
-	// If the total the API reported is more than we managed to fetch within
-	// the page cap, the service catalog exceeds our size limit and we must
-	// fail loudly rather than return a silently truncated sitemap.
-	if (total !== undefined && fetchedCount < total) {
-		console.error(
-			`[sitemap] service page loop hit page cap at ${MAX_SERVICE_PAGES} iterations with total=${total} fetchedCount=${fetchedCount}`,
-		);
-		throw new Error(
-			`sitemap upstream failed: service catalog exceeded expected size (page cap: ${MAX_SERVICE_PAGES})`,
-		);
-	}
-
-	return entries;
 }

@@ -11,10 +11,6 @@ export function jobTypeLabel(jobType: string): string {
 			return "Inventory update";
 		case "catalog_import":
 			return "Catalog import";
-		case "flash_deal_import":
-			return "Flash deals — Create";
-		case "flash_deal_delete":
-			return "Flash deals — Remove";
 		default:
 			return jobType;
 	}

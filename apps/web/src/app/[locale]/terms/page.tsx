@@ -87,7 +87,7 @@ export default function TermsPage() {
 
 			<StaticSection heading="7. User-generated content">
 				<p>
-					Reviews, questions, photos, and reels you publish on MaterialHub
+					Reviews, questions and photos you publish on MaterialHub
 					must be your own work, truthful, and free of unlawful or
 					offensive content. You grant MaterialHub a non-exclusive,
 					royalty-free, worldwide licence to display, reproduce and

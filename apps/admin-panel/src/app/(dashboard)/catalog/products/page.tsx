@@ -59,7 +59,7 @@ const STATUS_OPTIONS = [
 ];
 
 // Flatten the category tree into select options, keeping the ancestry visible
-// ("Skincare / Cleansers") since leaf names alone are often ambiguous.
+// ("Packaging / Kraft Paper") since leaf names alone are often ambiguous.
 function flattenCategories(
   categories: Category[],
   prefix = "",

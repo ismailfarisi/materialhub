@@ -2,7 +2,6 @@
 
 import {
   useChangeUserRole,
-  useUpdateUserCreatorTier,
   useUpdateUserStatus,
   useUser,
 } from "@/lib/queries/users";
@@ -64,12 +63,6 @@ interface AdminUserDetail {
   apple_id: string | null;
   wallet_balance: number;
   wallet_currency: string;
-  can_tag_unowned: boolean;
-  follower_count: number;
-  following_count: number;
-  published_reel_count: number;
-  creator_tier: string;
-  creator_tier_earned_at: string | null;
   last_login_at: string | null;
   created_at: string;
 }
@@ -89,11 +82,6 @@ const STATUS_OPTIONS = [
   { label: "Pending Verification", value: "pending_verification" },
 ];
 
-const CREATOR_TIER_OPTIONS = [
-  { label: "Regular", value: "regular" },
-  { label: "Creator", value: "creator" },
-  { label: "Influencer", value: "influencer" },
-];
 
 const ROLE_COLOR_MAP: Record<string, string> = {
   super_admin: "bg-purple-100 text-purple-700",
@@ -102,11 +90,6 @@ const ROLE_COLOR_MAP: Record<string, string> = {
   guest: "bg-pearl/100 text-taupe",
 };
 
-const CREATOR_TIER_COLOR_MAP: Record<string, string> = {
-  regular: "bg-pearl/100 text-taupe",
-  creator: "bg-amber/15 text-amber",
-  influencer: "bg-purple-100 text-purple-700",
-};
 
 function formatDate(iso: string | null) {
   if (!iso) return "—";
@@ -132,7 +115,6 @@ export default function UserDetailPage() {
   const { mutate: updateStatus, isPending: updatingStatus } =
     useUpdateUserStatus();
   const { mutate: changeRole } = useChangeUserRole();
-  const { mutate: updateCreatorTier } = useUpdateUserCreatorTier();
 
   function handleStatusChange(status: string) {
     updateStatus(
@@ -164,27 +146,6 @@ export default function UserDetailPage() {
     );
   }
 
-  function handleCreatorTierChange(creator_tier: string) {
-    updateCreatorTier(
-      { id, creator_tier },
-      {
-        onSuccess: () =>
-          toast({
-            title: "Creator tier updated",
-            description:
-              creator_tier === "regular"
-                ? "User demoted to regular."
-                : `User promoted to ${creator_tier}.`,
-          }),
-        onError: () =>
-          toast({
-            title: "Error",
-            description: "Failed to update creator tier.",
-            variant: "destructive",
-          }),
-      },
-    );
-  }
 
   if (isLoading) {
     return (
@@ -265,26 +226,6 @@ export default function UserDetailPage() {
             </Select>
           )}
 
-          {/* Creator tier */}
-          <Select
-            value={u.creator_tier ?? "regular"}
-            onValueChange={handleCreatorTierChange}
-          >
-            <SelectTrigger className="w-[140px] h-9 text-xs">
-              <SelectValue placeholder="Creator tier" />
-            </SelectTrigger>
-            <SelectContent>
-              {CREATOR_TIER_OPTIONS.map((opt) => (
-                <SelectItem
-                  key={opt.value}
-                  value={opt.value}
-                  className="text-xs"
-                >
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
 
           {/* Status */}
           <DropdownMenu>
@@ -325,7 +266,6 @@ export default function UserDetailPage() {
         <TabsList>
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="addresses">Addresses</TabsTrigger>
-          <TabsTrigger value="creator">Creator</TabsTrigger>
           <TabsTrigger value="wallet">Wallet</TabsTrigger>
         </TabsList>
 
@@ -429,76 +369,6 @@ export default function UserDetailPage() {
           <AddressesTab userId={u.id} />
         </TabsContent>
 
-        {/* Creator Tab */}
-        <TabsContent value="creator" className="mt-4 space-y-4">
-          <Card>
-            <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-base font-semibold">
-                Creator Profile
-              </CardTitle>
-              <Select
-                value={u.creator_tier ?? "regular"}
-                onValueChange={handleCreatorTierChange}
-              >
-                <SelectTrigger className="w-[150px] h-8 text-xs">
-                  <SelectValue placeholder="Set tier" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CREATOR_TIER_OPTIONS.map((opt) => (
-                    <SelectItem
-                      key={opt.value}
-                      value={opt.value}
-                      className="text-xs"
-                    >
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div>
-                  <p className="text-xs text-taupe mb-0.5">Creator Tier</p>
-                  <StatusBadge
-                    status={u.creator_tier ?? "regular"}
-                    colorMap={CREATOR_TIER_COLOR_MAP}
-                  />
-                </div>
-                <div>
-                  <p className="text-xs text-taupe mb-0.5">Tier Earned</p>
-                  <p className="text-sm text-cacao">
-                    {formatDate(u.creator_tier_earned_at)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-taupe mb-0.5">Can Tag Unowned</p>
-                  <p className="text-sm text-cacao">
-                    {u.can_tag_unowned ? "Yes" : "No"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-taupe mb-0.5">Followers</p>
-                  <p className="text-sm font-medium text-cacao">
-                    {u.follower_count ?? 0}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-taupe mb-0.5">Following</p>
-                  <p className="text-sm font-medium text-cacao">
-                    {u.following_count ?? 0}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-taupe mb-0.5">Published Reels</p>
-                  <p className="text-sm font-medium text-cacao">
-                    {u.published_reel_count ?? 0}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         {/* Wallet Tab (balance only — ledger is a Future item) */}
         <TabsContent value="wallet" className="mt-4 space-y-4">

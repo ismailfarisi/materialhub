@@ -173,8 +173,8 @@ function buildReturnsBody({
         ))}
       </div>
       <p className="whitespace-pre-line">
-        Return eligible items within {windowDays} days of delivery for a full refund. For hygiene
-        and safety, beauty, skincare and fragrance can only be returned if they are sealed, unused
+        Return eligible items within {windowDays} days of delivery for a full refund. Cut-to-size,
+        opened or partially used materials can only be returned if they are sealed, unused
         and in their original packaging — opened or used items cannot be accepted. Items must be
         returned with the invoice and any tags or seals intact.
       </p>

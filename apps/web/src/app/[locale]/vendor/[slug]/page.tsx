@@ -1,6 +1,5 @@
 import { LayoutRenderer } from "@/components/layout/layout-renderer";
 import { PreviewBanner } from "@/components/layout/preview-banner";
-import { VendorFeaturedReels } from "@/components/vendor/vendor-featured-reels";
 import { VendorStorefrontHero } from "@/components/vendor/vendor-storefront-hero";
 import { apiServer } from "@/lib/api-server";
 import { buildAlternates } from "@/lib/seo/alternates";
@@ -100,7 +99,6 @@ export default async function VendorStorefrontPage({
 			<VendorStorefrontHero vendor={layout.vendor_context ?? vendor} />
 			<main className="pb-8 md:pb-12 space-y-10 md:space-y-20">
 				<LayoutRenderer sections={layout.sections || []} />
-					<VendorFeaturedReels vendorId={vendor.id} vendorName={vendor.name} />
 			</main>
 		</>
 	);

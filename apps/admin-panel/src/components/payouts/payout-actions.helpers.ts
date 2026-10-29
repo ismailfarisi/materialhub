@@ -213,9 +213,8 @@ export interface PayoutBreakdownInput {
  *
  * The backend formula (payout.service.ts computePayoutTotals) is:
  *
- *   net_amount = items_net - shipping_contribution_total - license_spend_total
- *                + adjustment_sum
- *   adjustment_total(stored) = adjustment_sum - license_spend_total
+ *   net_amount = items_net - shipping_contribution_total + adjustment_sum
+ *   adjustment_total(stored) = adjustment_sum
  *
  * therefore
  *
@@ -279,10 +278,10 @@ export function buildPayoutBreakdown(
 			hint: "The shipping cost actually deducted from the vendor.",
 		},
 		{
-			label: "Adjustments (incl. licence spend)",
+			label: "Adjustments",
 			value: payout.adjustment_total,
 			kind: "line",
-			hint: "Signed. Negative = clawback or reel licence spend settled against this payout.",
+			hint: "Signed. Negative = clawback settled against this payout.",
 		},
 		{ label: "Net payout", value: payout.net_amount, kind: "total" },
 		{

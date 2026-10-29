@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
-import { type GetFeedParams, getFeed } from "../api/reels";
 import { applyStockDefault } from "../../components/product/listing-params";
 import { aedToFils } from "../money";
 
@@ -76,17 +75,6 @@ export function useProductQuestions(productId: string, page = 1) {
 	});
 }
 
-export function useInfluencerReels(productId: string) {
-	return useQuery({
-		queryKey: ["influencer-reels", productId],
-		queryFn: async () => {
-			const { data } = await api.get(`/products/${productId}/reels`);
-			return data.data;
-		},
-		enabled: !!productId,
-	});
-}
-
 export function useReviewSummary(productId: string) {
 	return useQuery({
 		queryKey: ["review-summary", productId],
@@ -106,27 +94,6 @@ export function useRitualProducts(productId: string) {
 			return data.data;
 		},
 		enabled: !!productId,
-	});
-}
-
-export type ListingReelsParams =
-	| { context: "category"; categorySlug?: string; categoryId?: string }
-	| { context: "vendor"; vendorId?: string };
-
-export function useListingReels(params: ListingReelsParams) {
-	const enabled =
-		(params.context === "category" &&
-			(!!params.categorySlug || !!params.categoryId)) ||
-		(params.context === "vendor" && !!params.vendorId);
-
-	return useQuery({
-		queryKey: ["listing-reels", params],
-		queryFn: async () => {
-			const feed = await getFeed({ ...(params as GetFeedParams), limit: 12 });
-			return feed.reels ?? [];
-		},
-		enabled,
-		staleTime: 5 * 60 * 1000,
 	});
 }
 

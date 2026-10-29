@@ -42,17 +42,10 @@ export function PurchasePanel({ product, reviewCount = 0, onScrollToReviews }: P
     )
   );
 
-  // Flash deal (when active) beats compare_at_price for the displayed price.
-  // The backend only attaches product.flash_deal when the deal is active, so
-  // its presence is enough — no expiry check needed here.
-  const dealPrice = product.flash_deal?.deal_price ?? null;
-  const dealOriginalPrice = product.flash_deal?.original_price ?? null;
-
   const variantPrice = selectedVariant?.price ?? product.price;
-  const displayPrice = dealPrice ?? variantPrice;
-  const strikePrice = dealPrice
-    ? dealOriginalPrice
-    : product.compare_at_price && product.compare_at_price > variantPrice
+  const displayPrice = variantPrice;
+  const strikePrice =
+    product.compare_at_price && product.compare_at_price > variantPrice
       ? product.compare_at_price
       : null;
 
@@ -162,16 +155,6 @@ export function PurchasePanel({ product, reviewCount = 0, onScrollToReviews }: P
           </>
         )}
       </div>
-      {dealPrice && product.flash_deal?.expires_at && (
-        <p className="text-xs text-copper">
-          Flash deal ends {new Date(product.flash_deal.expires_at).toLocaleString(undefined, {
-            month: "short",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </p>
-      )}
 
       {/* Variants */}
       {product.variant_attributes && (

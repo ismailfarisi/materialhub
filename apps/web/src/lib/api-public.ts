@@ -66,7 +66,7 @@ export interface PublicGetOptions {
 /**
  * GET a public endpoint and return the `data` field of the API envelope, or
  * `null` if the request failed. Callers that need the raw body (endpoints which
- * are not enveloped, e.g. `/reels/feed`) should use {@link publicGetRaw}.
+ * are not enveloped) should use {@link publicGetRaw}.
  */
 export async function publicGet<T = unknown>(
 	path: string,

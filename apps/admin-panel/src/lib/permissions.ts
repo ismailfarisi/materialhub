@@ -6,7 +6,7 @@ export const PERMISSION_DESCRIPTIONS: Record<string, string> = {
   "orders.fulfill": "Mark orders as fulfilled, generate shipments",
   "orders.refund": "Issue refunds and process returns",
   "inventory.write": "Adjust stock levels",
-  "vendor.profile.write": "Edit vendor profile, settings, holidays",
+  "vendor.profile.write": "Edit vendor profile and settings",
   "payouts.read": "View payout history",
   "bank.read": "View bank account details",
   "bank.write": "Add/remove/edit bank accounts and Stripe Connect",

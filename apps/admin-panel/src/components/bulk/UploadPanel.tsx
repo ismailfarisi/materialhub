@@ -8,11 +8,7 @@ import {
 import { type Category, useAdminCategoryTree } from "@/lib/queries/categories";
 import { useState } from "react";
 
-export type BulkJobType =
-	| "inventory_update"
-	| "catalog_import"
-	| "flash_deal_import"
-	| "flash_deal_delete";
+export type BulkJobType = "inventory_update" | "catalog_import";
 
 /** Returns the strictness label for a given job type. */
 export function strictnessLabelFor(jobType: BulkJobType): string {
@@ -20,10 +16,6 @@ export function strictnessLabelFor(jobType: BulkJobType): string {
 		case "inventory_update":
 			return "Strict (all-or-nothing)";
 		case "catalog_import":
-			return "Best effort (skip bad rows)";
-		case "flash_deal_import":
-			return "Best effort (skip bad rows)";
-		case "flash_deal_delete":
 			return "Best effort (skip bad rows)";
 	}
 }

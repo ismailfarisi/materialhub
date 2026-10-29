@@ -259,65 +259,6 @@ export function useRecommendations(limit = 12) {
   });
 }
 
-// Referrals
-export function useMyReferralCode() {
-  return useQuery({
-    queryKey: ["referral-code"],
-    queryFn: async () => {
-      const { data } = await api.get("/me/referral-code");
-      return data.data;
-    },
-  });
-}
-
-export function useMyReferrals(params?: { page?: number; limit?: number }) {
-  return useQuery({
-    queryKey: ["referrals", params],
-    queryFn: async () => {
-      const { data } = await api.get("/me/referrals", { params });
-      return data;
-    },
-  });
-}
-
-// Creator application
-export interface CreatorApplication {
-  id: string;
-  status: "pending" | "needs_info" | "approved" | "rejected";
-  review_notes: string | null;
-}
-
-export function useMyCreatorApplication() {
-  return useQuery({
-    queryKey: ["creator-application"],
-    queryFn: async () => {
-      const { data } = await api.get("/me/creator/application");
-      return (data.data ?? null) as CreatorApplication | null;
-    },
-  });
-}
-
-export function useApplyForCreator() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: {
-      display_name: string;
-      bio: string;
-      primary_category: string;
-      social_links: Record<string, string>;
-      follower_estimate?: number;
-      sample_urls?: string[];
-      motivation?: string;
-      agreed_to_terms: boolean;
-    }) => {
-      const { data } = await api.post("/me/creator/apply", payload);
-      return data.data as CreatorApplication;
-    },
-    onSuccess: (application) =>
-      queryClient.setQueryData(["creator-application"], application),
-  });
-}
-
 // Settings
 export function useUpdateProfile() {
   const queryClient = useQueryClient();

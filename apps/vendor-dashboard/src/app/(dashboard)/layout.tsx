@@ -3,7 +3,6 @@
 import { VendorPicker } from "@/components/header/vendor-picker";
 import { getMembershipsFromToken } from "@/lib/auth";
 import { useChangePassword, useLogout, useMe } from "@/lib/queries/auth";
-import { useVendorServices } from "@/lib/queries/offerings";
 import { useAuthStore } from "@/stores/auth";
 import {
 	ChangePasswordDialog,
@@ -13,20 +12,9 @@ import {
 } from "@materialhub/ui";
 import {
 	ArrowCounterClockwise,
-	CalendarBlank,
-	CalendarCheck,
-	Certificate,
-	ChartBar,
 	FileText,
-	FilmSlate,
 	Gavel,
 	Gear,
-	Handshake,
-	IdentificationCard,
-	Lightning,
-	ListChecks,
-	MapPin,
-	Megaphone,
 	Package,
 	Plug,
 	ShoppingCart,
@@ -35,29 +23,11 @@ import {
 	Tag,
 	Truck,
 	Users,
-	UsersThree,
-	VideoCamera,
 	Wallet,
 } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-
-// Bookings nav group (Task 4: Services only). Tasks 5-7 append their own
-// entries to this array — do not restructure it, just push more
-// { label, href, icon } objects (Calendar, Staff, Locations, Hours,
-// Settings) in the order they should appear under "Bookings".
-const BOOKINGS_NAV_ITEMS = [
-	// Task 6: Calendar — the daily-driver front-desk screen, placed first
-	// since it's what a vendor opens most (day/week grid of all engagements,
-	// quick actions) — see task-6-report.md.
-	{ label: "Calendar", href: "/calendar", icon: <CalendarBlank size={20} /> },
-	{ label: "Services", href: "/services", icon: <ListChecks size={20} /> },
-	// Task 5: Locations (branches + service-areas) and Staff (profile, branch/
-	// service links, weekly hours, time off) — see task-5-report.md.
-	{ label: "Locations", href: "/locations", icon: <MapPin size={20} /> },
-	{ label: "Staff", href: "/staff", icon: <UsersThree size={20} /> },
-];
+import { useEffect, useState } from "react";
 
 const dashboardItem = {
 	label: "Dashboard",
@@ -101,50 +71,7 @@ const marketingGroup = {
 	icon: <Tag size={20} />,
 	children: [
 		{ label: "Coupons", href: "/coupons", icon: <Tag size={20} /> },
-		{
-			label: "Flash Deals",
-			href: "/flash-deals",
-			icon: <Lightning size={20} />,
-		},
-		{
-			label: "Affiliates",
-			href: "/affiliates",
-			icon: <Handshake size={20} />,
-		},
 		{ label: "Bids", href: "/bids", icon: <Gavel size={20} /> },
-	],
-};
-
-const creatorStudioGroup = {
-	label: "Creator Studio",
-	icon: <VideoCamera size={20} />,
-	children: [
-		{ label: "Reels", href: "/reels", icon: <FilmSlate size={20} /> },
-		{
-			label: "Reel Analytics",
-			href: "/reels-analytics",
-			icon: <ChartBar size={20} />,
-		},
-		{
-			label: "Creator Content",
-			href: "/creator-content",
-			icon: <VideoCamera size={20} />,
-		},
-		{
-			label: "Creators",
-			href: "/creators",
-			icon: <IdentificationCard size={20} />,
-		},
-		{
-			label: "Collaborations",
-			href: "/collabs",
-			icon: <Megaphone size={20} />,
-		},
-		{
-			label: "UGC Licensing",
-			href: "/licensing",
-			icon: <Certificate size={20} />,
-		},
 	],
 };
 
@@ -191,6 +118,16 @@ const settingsGroup = {
 	],
 };
 
+const navItems = [
+	dashboardItem,
+	ordersGroup,
+	catalogGroup,
+	marketingGroup,
+	channelsGroup,
+	financeItem,
+	settingsGroup,
+];
+
 function getBreadcrumbs(pathname: string) {
 	const segments = pathname.split("/").filter(Boolean);
 	if (segments.length === 0) return [{ label: "Dashboard" }];
@@ -227,49 +164,6 @@ export default function DashboardLayout({
 	const isStoreLoading = useAuthStore((s) => s.isLoading);
 
 	const isLoading = isQueryLoading || isStoreLoading;
-
-	// Capability-gated Bookings nav (see .superpowers/sdd/task-4-brief.md):
-	// only fetch once auth has resolved and the user actually has a vendor
-	// membership (the endpoint 400s MISSING_ACTIVE_VENDOR for a bare
-	// admin/super_admin session with zero memberships).
-	const memberships = isAuthenticated ? getMembershipsFromToken() : [];
-	const isVendorScoped = memberships.length > 0;
-	const { data: offerings } = useVendorServices({
-		enabled: !isLoading && isAuthenticated && isVendorScoped,
-	});
-	const hasOfferings = (offerings?.length ?? 0) > 0;
-
-	const navItems = useMemo(() => {
-		const bookingsEntry = hasOfferings
-			? [
-					{
-						label: "Bookings & Services",
-						icon: <CalendarCheck size={20} />,
-						children: BOOKINGS_NAV_ITEMS,
-					},
-				]
-			: isVendorScoped
-				? [
-						{
-							label: "Add Services",
-							href: "/services",
-							icon: <ListChecks size={20} />,
-						},
-					]
-				: [];
-
-		return [
-			dashboardItem,
-			ordersGroup,
-			catalogGroup,
-			...bookingsEntry,
-			marketingGroup,
-			creatorStudioGroup,
-			channelsGroup,
-			financeItem,
-			settingsGroup,
-		];
-	}, [hasOfferings, isVendorScoped]);
 
 	useEffect(() => {
 		if (!isLoading && (!isAuthenticated || isError)) {

@@ -10,21 +10,15 @@ import { useRequireAuth } from "@/hooks/use-require-auth";
 import { useAuthStore } from "@/stores/auth";
 import {
   ArrowLeft,
-  CalendarClock,
   ChevronRight,
-  Gift,
   Heart,
   LifeBuoy,
-  Link2,
   type LucideIcon,
   MapPin,
   Package,
   PackageX,
   Search,
   Settings,
-  Sparkles,
-  Star,
-  Video,
   Wallet,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -35,35 +29,20 @@ interface NavItem {
   key: string;
   icon: LucideIcon;
   href: string;
-  /** Message key to use for the label, if different from `key` (e.g. "affiliate" is
-   * reserved for the nested `account.affiliate.*` translation block). */
+  /** Message key to use for the label, if different from `key`. */
   labelKey?: string;
 }
 
 const navItems: NavItem[] = [
   { key: "orders", icon: Package, href: "/account/orders" },
-  { key: "bookings", icon: CalendarClock, href: "/account/bookings" },
   { key: "returns", icon: PackageX, href: "/account/returns" },
   { key: "wishlist", icon: Heart, href: "/account/wishlist" },
   { key: "savedSearches", icon: Search, href: "/account/saved-searches" },
   { key: "addresses", icon: MapPin, href: "/account/addresses" },
   { key: "wallet", icon: Wallet, href: "/account/wallet" },
-  { key: "referrals", icon: Gift, href: "/account/referrals" },
-  { key: "affiliate", labelKey: "affiliateNavLabel", icon: Link2, href: "/account/affiliate" },
-  { key: "reels", icon: Video, href: "/account/reels" },
   { key: "support", icon: LifeBuoy, href: "/account/support" },
   { key: "settings", icon: Settings, href: "/account/settings" },
 ];
-
-/** Creator dashboard nav item — only shown to graduated creators/influencers. */
-const creatorNavItem: NavItem = { key: "creator", icon: Star, href: "/account/creator" };
-
-/** "Become a Creator" nav item — shown to non-creators so they can find the apply flow. */
-const becomeCreatorNavItem: NavItem = {
-  key: "becomeCreator",
-  icon: Star,
-  href: "/account/creator/apply",
-};
 
 export default function AccountLayout({
   children,
@@ -77,14 +56,7 @@ export default function AccountLayout({
   const { user } = useAuthStore();
   const { isReady } = useRequireAuth();
 
-  const isCreator = user?.creator_tier === "creator" || user?.creator_tier === "influencer";
-  // Insert the creator link just before Settings: the dashboard for graduated
-  // creators, or the "Become a Creator" apply flow for everyone else.
-  const visibleNavItems = [
-    ...navItems.slice(0, -1),
-    isCreator ? creatorNavItem : becomeCreatorNavItem,
-    navItems[navItems.length - 1],
-  ];
+  const visibleNavItems = navItems;
 
   // Exact match: only the menu landing page, not any subpage under it.
   const isIndex = pathname === `/${locale}/account`;
@@ -145,57 +117,6 @@ export default function AccountLayout({
             </p>
           </div>
         </div>
-
-        {/* Beauty profile nudge — shown when profile not yet completed */}
-        {user && user.beauty_profile_completed === false && (
-          <div
-            className={`mb-5 ${isIndex ? "flex" : "hidden md:flex"} items-center justify-between gap-4 flex-wrap`}
-            style={{
-              border: "1px solid rgba(184,115,51,0.35)",
-              background: "rgba(184,115,51,0.05)",
-              padding: "14px 18px",
-            }}
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <Sparkles
-                className="shrink-0"
-                style={{
-                  width: 16,
-                  height: 16,
-                  color: "hsl(var(--nl-amber))",
-                }}
-                strokeWidth={1.5}
-              />
-              <span
-                style={{
-                  fontFamily: MAISON_SANS,
-                  fontSize: 12,
-                  letterSpacing: "0.04em",
-                  color: "hsl(var(--nl-cacao))",
-                }}
-              >
-                Finish your beauty profile to get personalised picks.
-              </span>
-            </div>
-            <Link
-              href={`/${locale}/beauty-quiz`}
-              className="shrink-0 transition-colors"
-              style={{
-                fontFamily: MAISON_SANS,
-                fontSize: 10.5,
-                letterSpacing: "0.18em",
-                textTransform: "uppercase",
-                color: "hsl(var(--nl-espresso))",
-                background: "hsl(var(--nl-amber))",
-                padding: "7px 14px",
-                border: "1px solid hsl(var(--nl-amber))",
-                display: "inline-block",
-              }}
-            >
-              Take the quiz
-            </Link>
-          </div>
-        )}
 
         <div className="flex flex-col md:flex-row gap-5 md:gap-10">
           <nav

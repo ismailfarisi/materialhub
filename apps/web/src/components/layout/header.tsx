@@ -6,7 +6,7 @@ import { useAuthStore } from "@/stores/auth";
 import { useCartStore } from "@/stores/cart";
 import { useCollapseOnScroll } from "@/hooks/use-collapse-on-scroll";
 import { useMobileNavStore } from "@/stores/mobile-nav";
-import { Gift, Heart, MapPin, Menu, Search, ShoppingBag, Store, User } from "lucide-react";
+import { Heart, MapPin, Menu, Search, ShoppingBag, Store, User } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import Image from "next/image";
 import Link from "next/link";
@@ -127,15 +127,6 @@ export function Header({ tabs }: HeaderProps) {
 						>
 							<Search className="h-5 w-5" strokeWidth={1.25} />
 						</button>
-
-						{/* Gifts — desktop only */}
-						<Link
-							href={`/${locale}/gifts`}
-							className="hidden lg:inline-flex items-center gap-1.5 hover:text-nl-amber transition-colors"
-						>
-							<Gift className="h-4 w-4" strokeWidth={1.25} />
-							Gifts
-						</Link>
 
 						{/* Sell — desktop only */}
 						<Link

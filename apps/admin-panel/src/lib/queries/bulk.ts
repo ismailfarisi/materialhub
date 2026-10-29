@@ -12,11 +12,7 @@ export type BulkJobStatus =
 
 export interface BulkJobSummary {
 	id: string;
-	jobType:
-		| "inventory_update"
-		| "catalog_import"
-		| "flash_deal_import"
-		| "flash_deal_delete";
+	jobType: "inventory_update" | "catalog_import";
 	status: BulkJobStatus;
 	vendorId: string | null;
 	fileName: string;
@@ -148,23 +144,6 @@ export function useCancelBulkJob() {
 	});
 }
 
-export function useRevertBulkJob() {
-	const qc = useQueryClient();
-	return useMutation({
-		mutationFn: async (jobId: string) => {
-			const { data } = await api.post<{
-				ok: boolean;
-				revertedCount: number;
-				skippedAlreadyDeletedCount: number;
-			}>(`/bulk/jobs/${jobId}/revert`);
-			return data;
-		},
-		onSuccess: (_data, jobId) => {
-			qc.invalidateQueries({ queryKey: ["bulk-jobs"] });
-			qc.invalidateQueries({ queryKey: ["bulk-jobs", jobId] });
-		},
-	});
-}
 
 export async function fetchErrorReportUrl(
 	jobId: string,

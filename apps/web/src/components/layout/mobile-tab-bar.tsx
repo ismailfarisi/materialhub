@@ -5,12 +5,12 @@ import { useAuthModalStore } from "@/stores/auth-modal";
 import { useAuthStore } from "@/stores/auth";
 import { useCartStore } from "@/stores/cart";
 import { useMobileNavStore } from "@/stores/mobile-nav";
-import { Clapperboard, House, LayoutGrid, ShoppingBag, User } from "lucide-react";
+import { House, LayoutGrid, ShoppingBag, User } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
-const HIDDEN_ROUTES = /\/(reels|checkout|auth)(\/|$)/;
+const HIDDEN_ROUTES = /\/(checkout|auth)(\/|$)/;
 
 export function MobileTabBar() {
 	const t = useTranslations("common");
@@ -43,7 +43,7 @@ export function MobileTabBar() {
 					collapsed ? "translate-y-full" : "translate-y-0"
 				}`}
 			>
-				<div className="grid grid-cols-5 h-14">
+				<div className="grid grid-cols-4 h-14">
 					<Link href={`/${locale}`} className={itemClass(isHome)}>
 						<House className="h-5 w-5" strokeWidth={1.25} />
 						{t("home")}
@@ -52,13 +52,6 @@ export function MobileTabBar() {
 						<LayoutGrid className="h-5 w-5" strokeWidth={1.25} />
 						{tFooter("categories")}
 					</button>
-					<Link
-						href={`/${locale}/reels`}
-						className={itemClass(pathname.includes("/reels"))}
-					>
-						<Clapperboard className="h-5 w-5" strokeWidth={1.25} />
-						{t("reels")}
-					</Link>
 					<button
 						type="button"
 						onClick={toggleSlideOver}

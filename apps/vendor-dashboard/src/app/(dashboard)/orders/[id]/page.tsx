@@ -301,14 +301,7 @@ export default function OrderDetailPage() {
       {shipTo ? (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              Ship To
-              {shipTo.is_hub && (
-                <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
-                  Ship to MaterialHub Hub (gift order)
-                </span>
-              )}
-            </CardTitle>
+            <CardTitle>Ship To</CardTitle>
           </CardHeader>
           <CardContent className="text-sm space-y-1">
             <p className="font-medium">{shipTo.name}</p>

@@ -7,16 +7,16 @@ import {
 export const metadata: Metadata = {
 	title: "Press & Media — MaterialHub",
 	description:
-		"Press contacts, brand assets and the MaterialHub story for journalists, partners and creators.",
+		"Press contacts, brand assets and the MaterialHub story for journalists and partners.",
 };
 
 const FACTS = [
 	{ k: "Founded", v: "2025, Dubai" },
 	{ k: "Headquarters", v: "Dubai, United Arab Emirates" },
 	{ k: "Markets", v: "UAE (Dubai, Abu Dhabi, Sharjah)" },
-	{ k: "Categories", v: "Skincare · Makeup · Fragrance · Hair · Body · Wellness · Tools" },
+	{ k: "Categories", v: "Papers · Boards · PU Leather · Hinges · Adhesives · Ribbons · Decoration" },
 	{ k: "Languages", v: "Arabic · English · Hindi · Urdu · Malayalam" },
-	{ k: "Marketplace model", v: "Curated multi-vendor beauty marketplace" },
+	{ k: "Marketplace model", v: "Multi-vendor B2B + B2C materials marketplace" },
 ];
 
 export default function PressPage() {
@@ -28,9 +28,9 @@ export default function PressPage() {
 		>
 			<StaticSection heading="The short version">
 				<p>
-					MaterialHub is a UAE-based multi-vendor beauty marketplace. We work
-					directly with skincare, makeup, fragrance and wellness brands —
-					regional founders and global houses — to bring authentic stock
+					MaterialHub is a UAE-based multi-vendor materials marketplace. We work
+					directly with packaging, board, leather, hardware and craft suppliers —
+					regional mills and global manufacturers — to bring authentic stock
 					to Gulf customers with hyperlocal same-day delivery, Arabic-first
 					commerce, and BNPL options native to the region.
 				</p>
@@ -54,8 +54,8 @@ export default function PressPage() {
 
 			<StaticSection heading="Media contacts">
 				<p>
-					Press, interviews and regional beauty commentary, plus brand
-					partnerships, creator collaborations and retail tie-ins:{" "}
+					Press, interviews and regional industry commentary, plus brand
+					partnerships and trade tie-ins:{" "}
 					<a
 						href="mailto:info@materialhubuae.com"
 						className="text-nl-amber hover:underline"

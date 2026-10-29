@@ -12,10 +12,6 @@ interface User {
   avatar_url?: string;
   preferred_locale?: string;
   preferred_currency?: string;
-  beauty_profile_completed?: boolean;
-  creator_tier?: "regular" | "creator" | "influencer";
-  creator_tier_earned_at?: string | null;
-  can_tag_unowned?: boolean;
 }
 
 interface AuthState {

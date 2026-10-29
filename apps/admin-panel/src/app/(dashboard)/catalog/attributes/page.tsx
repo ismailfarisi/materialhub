@@ -504,7 +504,7 @@ function AttributeFormDialog({
 							className="rounded border-gray-300"
 						/>
 						<span className="text-sm text-cacao">
-							Can define a product family (color/shade group)
+							Can define a product family (colour/finish group)
 						</span>
 					</label>
 

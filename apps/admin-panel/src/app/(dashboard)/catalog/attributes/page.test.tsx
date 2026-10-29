@@ -14,8 +14,8 @@ vi.mock("@/lib/queries/attributes", () => ({
 			data: [
 				{
 					id: "attr-1",
-					name: "Skin type",
-					ar_label: "نوع البشرة",
+					name: "Material",
+					ar_label: "الخامة",
 					type: "select",
 					is_variant: false,
 					is_filterable: true,
@@ -65,6 +65,6 @@ describe("AttributesPage", () => {
 	test("shows the Arabic label below the attribute name", () => {
 		render(<AttributesPage />);
 
-		expect(screen.getByText("نوع البشرة")).toBeTruthy();
+		expect(screen.getByText("الخامة")).toBeTruthy();
 	});
 });

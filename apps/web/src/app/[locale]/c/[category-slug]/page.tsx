@@ -1,14 +1,11 @@
 import { CategoryFooterLayout } from "@/components/category/category-footer-layout";
-import { FlashDeals } from "@/components/home/flash-deals";
 import { HeroBanner } from "@/components/home/hero-banner";
 import { computeActiveFilters } from "@/components/product/filter-state";
 import { ListingHeader } from "@/components/product/listing-header";
 import { buildListingParams } from "@/components/product/listing-params";
 import { ListingResults } from "@/components/product/listing-results";
 import { ListingSeoContent } from "@/components/product/listing-seo-content";
-import { ListingStoryRail } from "@/components/product/listing-story-rail";
 import { TTL, publicGet } from "@/lib/api-public";
-import { apiServer } from "@/lib/api-server";
 import { formatAedForLocale } from "@/lib/money";
 import { buildAlternates } from "@/lib/seo/alternates";
 import { buildListingFaq } from "@/lib/seo/listing-faq";
@@ -31,11 +28,6 @@ import { notFound } from "next/navigation";
  */
 export const revalidate = 300;
 
-/**
- * Flash deals carry a countdown, so they get a much shorter lifetime than the
- * rest of the listing — a 5-minute-stale deal can be a deal that already ended.
- */
-const FLASH_DEALS_TTL = 60;
 
 interface Props {
 	params: Promise<{ locale: string; "category-slug": string }>;
@@ -118,28 +110,13 @@ export default async function CategoryPage({ params, searchParams }: Props) {
 
 	if (!category) notFound();
 
-	const server = await apiServer(locale);
 
-	const [
-		banners,
-		flashDeals,
-		productsRes,
-		listingReels,
-		facts,
-		siteSettings,
-	] = await Promise.all([
+	const [banners, productsRes, facts, siteSettings] = await Promise.all([
 		// biome-ignore lint/suspicious/noExplicitAny: untyped API response shape
 		publicGet<any[]>("/products/banners", {
 			params: { placement: "category", category: slug },
 			revalidate: TTL.productListing,
 			tags: ["banners", `category:${slug}`],
-			locale,
-		}).then((data) => data ?? []),
-		// biome-ignore lint/suspicious/noExplicitAny: untyped API response shape
-		publicGet<any[]>("/products/flash-deals", {
-			params: { category: slug },
-			revalidate: FLASH_DEALS_TTL,
-			tags: ["flash-deals", `category:${slug}`],
 			locale,
 		}).then((data) => data ?? []),
 		publicGet<{
@@ -154,16 +131,6 @@ export default async function CategoryPage({ params, searchParams }: Props) {
 			tags: ["products", `category:${slug}`],
 			locale,
 		}).then((data) => data ?? { data: [], total: 0 }),
-		// Stays on the cookie-bound client: the reel feed is ranked for the
-		// signed-in viewer, so it must not be shared across users by a cache.
-		server
-			.get("/reels/feed", {
-				params: { context: "category", categorySlug: slug, limit: 12 },
-			})
-			// biome-ignore lint/suspicious/noExplicitAny: untyped API response — FeedReel DTO pending
-			.then((r) => (r.data?.reels ?? []) as any[])
-			// biome-ignore lint/suspicious/noExplicitAny: untyped API response — FeedReel DTO pending
-			.catch(() => [] as any[]),
 		getCategoryFacts(slug, locale),
 		publicGet<Record<string, string>>("/site-settings", {
 			params: { keys: "marketplace_return_window_days" },
@@ -252,13 +219,6 @@ export default async function CategoryPage({ params, searchParams }: Props) {
 				</div>
 			)}
 
-			<ListingStoryRail
-				reels={listingReels}
-				categorySlug={slug}
-				locale={locale}
-			/>
-
-			<FlashDeals deals={flashDeals} />
 
 			<ListingResults
 				config={facetConfig}

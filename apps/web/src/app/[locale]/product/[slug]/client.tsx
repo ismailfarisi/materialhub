@@ -7,7 +7,6 @@ import { ProductHero } from "@/components/product/product-hero";
 import { ProductStory } from "@/components/product/product-story";
 import { QAAccordion } from "@/components/product/qa-accordion";
 import { Rail } from "@/components/product/rail";
-import { ReelsSection } from "@/components/product/reels-section";
 import type { SellerBlockData } from "@/components/product/seller-block";
 import { StickyBottomBar } from "@/components/product/sticky-bottom-bar";
 import { useScrollPast } from "@/hooks/use-scroll-past";
@@ -122,13 +121,6 @@ export function ProductDetailClient({
 			{/* Product Story (adaptive by category) */}
 			<ProductStory product={product} />
 
-			<ReelsSection
-				productId={product.id}
-				productTitle={product.title}
-				vendorId={product.vendor_id}
-				houseLabel={product.vendor_name ?? product.brand_name}
-				canSubmit={false}
-			/>
 
 			{/* === Recommendation rails === */}
 			<Rail

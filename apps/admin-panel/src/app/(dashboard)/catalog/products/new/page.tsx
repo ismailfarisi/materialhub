@@ -463,7 +463,7 @@ export default function NewProductPage() {
 						<div>
 							<h3 className="font-semibold text-cacao">Variable Product</h3>
 							<p className="text-sm text-taupe mt-1">
-								Comes in options like size or shade — each variant has its own
+								Comes in options like size, thickness or finish — each variant has its own
 								price, SKU, and stock.
 							</p>
 						</div>
@@ -613,7 +613,7 @@ export default function NewProductPage() {
 							<Textarea
 								value={usageInstructions}
 								onChange={(e) => setUsageInstructions(e.target.value)}
-								placeholder="Apply a small amount to clean skin..."
+								placeholder="Store flat in a dry place; apply to a clean, dust-free surface..."
 								rows={3}
 							/>
 						</div>

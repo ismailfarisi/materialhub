@@ -55,7 +55,7 @@ const growthTiles = [
   {
     title: "Commerce content",
     description:
-      "Connect storefront updates, reels, coupons, and integrations as your brand grows.",
+      "Connect storefront updates, coupons, and integrations as your business grows.",
     icon: Sparkle,
   },
 ];
@@ -150,7 +150,7 @@ function LoginForm() {
                 Register interest
               </p>
               <h1 className="max-w-3xl text-4xl font-semibold leading-[0.98] text-linen sm:text-5xl lg:text-7xl">
-                Grow your beauty brand with a dashboard built for selling.
+                Grow your materials business with a dashboard built for selling.
               </h1>
               <p className="max-w-2xl text-base leading-7 text-pearl/82 sm:text-lg">
                 Tell us about your brand and the MaterialHub UAE team will review
@@ -232,7 +232,7 @@ function LoginForm() {
                           <FormLabel>Brand name</FormLabel>
                           <FormControl>
                             <Input
-                              placeholder="Luna Glow"
+                              placeholder="Gulf Packaging Supplies"
                               autoComplete="organization"
                               className="border-pearl/25 bg-linen/95"
                               {...field}
@@ -290,7 +290,7 @@ function LoginForm() {
                           <FormLabel>Product category</FormLabel>
                           <FormControl>
                             <Input
-                              placeholder="Skincare, makeup, fragrance"
+                              placeholder="Packaging papers, boards, adhesives"
                               autoComplete="off"
                               className="border-pearl/25 bg-linen/95"
                               {...field}

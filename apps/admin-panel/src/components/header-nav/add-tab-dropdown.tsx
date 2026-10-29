@@ -82,8 +82,8 @@ export function AddTabDropdown({ onAdd, disabled }: Props) {
 		const all = categories ?? [];
 		const q = query.trim().toLowerCase();
 		if (!q) return all;
-		// Match by category name OR by parent name (so typing "beauty" surfaces
-		// every L2 under Health & Beauty). When a child matches via its parent,
+		// Match by category name OR by parent name (so typing "packaging" surfaces
+		// every L2 under Packaging Materials). When a child matches via its parent,
 		// the parent isn't auto-included — keeps results tight.
 		return all.filter(
 			(c) =>

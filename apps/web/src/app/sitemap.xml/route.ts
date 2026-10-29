@@ -14,7 +14,6 @@ export async function GET() {
 		"categories.xml",
 		"brands.xml",
 		"vendors.xml",
-		"services.xml",
 		...Array.from({ length: chunks }, (_, i) => `products-${i}.xml`),
 	];
 

@@ -20,9 +20,7 @@ import Link from "next/link";
 import { Star, ArrowRight, ArrowUpRight } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import { HeroBanner } from "@/components/home/hero-banner";
-import { FlashDeals } from "@/components/home/flash-deals";
 import { ProductCard } from "@/components/product/product-card";
-import { TrendingReelsSection } from "@/components/reels/trending-reels-section";
 import { ScrollRail } from "@/components/layout/scroll-rail";
 import { NewsletterForm } from "@/components/layout/newsletter-form";
 import { viewAllHref as resolveViewAllHref } from "@/components/layout/view-all-href";
@@ -97,16 +95,13 @@ function SectionHeader({
 const SECTION_REGISTRY: Record<string, ComponentType<SectionProps>> = {
   hero_carousel: HeroBannerAdapter,
   product_carousel: ProductCarouselAdapter,
-  flash_deals: FlashDealsAdapter,
   vendor_showcase: VendorShowcaseAdapter,
   brand_spotlight: BrandSpotlightAdapter,
   category_grid: CategoryGridAdapter,
   promotional_banner: PromotionalBannerAdapter,
   newsletter_signup: NewsletterSignupAdapter,
-  beauty_tips: BeautyTipsAdapter,
   testimonials: TestimonialsAdapter,
   trending_looks: TrendingLooksAdapter,
-  trending_reels: TrendingReelsAdapter,
 };
 
 /* ─── Layout Renderer ────────────────────────────────────────────────────── */
@@ -218,12 +213,6 @@ async function ProductCarouselAdapter({ settings, collectionSlug, data }: Sectio
   );
 }
 
-/* ─── Flash Deals Adapter ────────────────────────────────────────────────── */
-
-function FlashDealsAdapter({ data }: SectionProps) {
-  return <FlashDeals deals={(data.items || []) as any[]} />;
-}
-
 /* ─── Vendor Showcase Adapter ────────────────────────────────────────────── */
 
 interface VendorShowcaseItem {
@@ -277,11 +266,11 @@ async function VendorShowcaseAdapter({ settings, data }: SectionProps) {
   const title =
     (settings.title as any)?.[locale] ||
     (settings.title as any)?.en ||
-    "Featured beauty shops";
+    "Featured suppliers";
   const eyebrow =
     (settings.eyebrow as any)?.[locale] ||
     (settings.eyebrow as any)?.en ||
-    "Verified beauty shops";
+    "Verified suppliers";
 
   return (
     <section className="px-2 md:px-0" data-section="vendor-showcase">
@@ -823,7 +812,7 @@ async function NewsletterSignupAdapter({ settings }: SectionProps) {
   const title =
     (settings.title as any)?.[locale] ||
     (settings.title as any)?.en ||
-    "Stay Beautiful";
+    "Stay in the loop";
   const eyebrow =
     (settings.eyebrow as any)?.[locale] ||
     (settings.eyebrow as any)?.en ||
@@ -831,7 +820,7 @@ async function NewsletterSignupAdapter({ settings }: SectionProps) {
   const subtitle =
     (settings.subtitle as any)?.[locale] ||
     (settings.subtitle as any)?.en ||
-    "Exclusive beauty tips, new product launches, and quiet edits — delivered to your inbox once a month. Never more.";
+    "New materials, supplier launches and trade offers — delivered to your inbox once a month. Never more.";
 
   return (
     <section className="px-2 md:px-0" data-section="newsletter-signup">
@@ -865,90 +854,6 @@ async function NewsletterSignupAdapter({ settings }: SectionProps) {
         </div>
 
         <NewsletterForm />
-      </div>
-    </section>
-  );
-}
-
-/* ─── Beauty Tips Adapter (NEW) ──────────────────────────────────────────── */
-
-function BeautyTipCard({
-  tip,
-  locale,
-  feature = false,
-}: {
-  tip: any;
-  locale: string;
-  feature?: boolean;
-}) {
-  const imgUrl = tip.data?.image_url || tip.image_url;
-  const tipTitle =
-    tip.data?.title?.[locale] || tip.data?.title?.en || tip.data?.title || tip.title || "";
-  const category =
-    tip.data?.category?.[locale] || tip.data?.category?.en || tip.data?.category || "";
-  const link = tip.data?.link || tip.link || "#";
-
-  return (
-    <Link
-      href={link}
-      className={`group relative block h-full overflow-hidden bg-nl-russet/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber ${
-        feature ? "min-h-[320px] md:min-h-[456px]" : "min-h-[152px] md:min-h-[220px]"
-      }`}
-    >
-      {imgUrl && (
-        <Image
-          src={imgUrl}
-          alt={tipTitle}
-          fill
-          className="object-cover transition-transform duration-700 group-hover:scale-[1.04] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
-          sizes={feature ? "(max-width: 768px) 100vw, 58vw" : "(max-width: 768px) 100vw, 40vw"}
-        />
-      )}
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 bg-gradient-to-t from-nl-espresso/80 via-nl-espresso/15 to-transparent"
-      />
-      <div className="absolute inset-x-0 bottom-0 p-5 md:p-6 text-nl-linen">
-        {category && (
-          <p className="text-[9.5px] uppercase tracking-[0.24em] text-nl-linen/75 mb-2">
-            {category}
-          </p>
-        )}
-        <h3
-          className={`font-serif leading-[1.1] tracking-tight line-clamp-3 ${
-            feature ? "text-2xl md:text-[34px]" : "text-lg md:text-xl"
-          }`}
-        >
-          {tipTitle}
-        </h3>
-      </div>
-    </Link>
-  );
-}
-
-async function BeautyTipsAdapter({ settings, data }: SectionProps) {
-  const tips = (data.blocks || data.items || []) as any[];
-  if (!tips.length) return null;
-  const locale = await getLocale();
-  const title =
-    (settings.title as any)?.[locale] || (settings.title as any)?.en || "Beauty tips & guides";
-  // Asymmetric 1 + 2 split rather than three equal columns: the lead guide
-  // carries the section, the other two read as follow-on. Falls back cleanly
-  // when the CMS supplies only one or two blocks.
-  const [feature, ...rest] = tips.slice(0, 3);
-
-  return (
-    <section className="px-2 md:px-0" data-section="beauty-tips">
-      <SectionHeader title={title} subtitle="Expert advice for your beauty routine" />
-      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] gap-3 md:gap-4 px-2 md:px-0">
-        <BeautyTipCard tip={feature} locale={locale} feature />
-        {rest.length > 0 && (
-          <div className="grid grid-cols-1 gap-3 md:gap-4">
-            {rest.map((tip: any) => (
-              <BeautyTipCard key={tip.id} tip={tip} locale={locale} />
-            ))}
-          </div>
-        )}
       </div>
     </section>
   );
@@ -1053,7 +958,7 @@ async function TrendingLooksAdapter({ settings, data }: SectionProps) {
   const title = (settings.title as any)?.[locale] || (settings.title as any)?.en || "Trending looks";
   return (
     <section className="px-2 md:px-0" data-section="trending-looks">
-      <SectionHeader title={title} subtitle="Curated beauty looks from our community" />
+      <SectionHeader title={title} subtitle="Curated picks from our community" />
       {/* Fixed row tracks + a 2x2 lead tile: a deterministic mosaic. The old
           version mixed row-span with aspect-ratio, which misaligned the rows. */}
       <div className="grid grid-cols-2 md:grid-cols-4 auto-rows-[136px] md:auto-rows-[192px] gap-3 md:gap-[14px] px-2 md:px-0">
@@ -1102,19 +1007,3 @@ async function TrendingLooksAdapter({ settings, data }: SectionProps) {
   );
 }
 
-/* ─── Trending Reels Adapter ────────────────────────────────────────────── */
-
-async function TrendingReelsAdapter({ settings, data }: SectionProps) {
-  const locale = await getLocale();
-  const title = (settings.title as any)?.[locale] || (settings.title as any)?.en || "Trending Reels";
-  const subtitle = (settings.subtitle as any)?.[locale] || (settings.subtitle as any)?.en || "See what's inspiring the community";
-  const reels = (data.items || []) as any[];
-
-  return (
-    <TrendingReelsSection
-      title={title}
-      subtitle={subtitle}
-      serverReels={reels}
-    />
-  );
-}

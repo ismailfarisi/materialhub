@@ -2,7 +2,6 @@
 
 import {
   useChangeUserRole,
-  useUpdateUserCreatorTier,
   useUpdateUserStatus,
   useUsers,
 } from "@/lib/queries/users";
@@ -41,7 +40,6 @@ interface User {
   phone?: string | null;
   role: string;
   status: string;
-  creator_tier?: string;
   created_at: string;
 }
 
@@ -59,17 +57,6 @@ const STATUS_OPTIONS = [
   { label: "Inactive", value: "inactive" },
 ];
 
-const CREATOR_TIER_OPTIONS = [
-  { label: "Regular", value: "regular" },
-  { label: "Creator", value: "creator" },
-  { label: "Influencer", value: "influencer" },
-];
-
-const CREATOR_TIER_COLOR_MAP: Record<string, string> = {
-  regular: "bg-pearl/100 text-taupe",
-  creator: "bg-amber/15 text-amber",
-  influencer: "bg-purple-100 text-purple-700",
-};
 
 const ROLE_COLOR_MAP: Record<string, string> = {
   super_admin: "bg-purple-100 text-purple-700",
@@ -135,7 +122,6 @@ export default function UsersPage() {
 
   const { mutate: updateStatus } = useUpdateUserStatus();
   const { mutate: changeRole } = useChangeUserRole();
-  const { mutate: updateCreatorTier } = useUpdateUserCreatorTier();
 
   const users: User[] = data?.users ?? data?.items ?? [];
   const total: number = data?.total ?? 0;
@@ -167,27 +153,6 @@ export default function UsersPage() {
     );
   }
 
-  function handleCreatorTierChange(userId: string, creator_tier: string) {
-    updateCreatorTier(
-      { id: userId, creator_tier },
-      {
-        onSuccess: () =>
-          toast({
-            title: "Creator tier updated",
-            description:
-              creator_tier === "regular"
-                ? "User demoted to regular."
-                : `User promoted to ${creator_tier}.`,
-          }),
-        onError: () =>
-          toast({
-            title: "Error",
-            description: "Failed to update creator tier.",
-            variant: "destructive",
-          }),
-      },
-    );
-  }
 
   const columns: ColumnDef<User>[] = [
     {
@@ -227,16 +192,7 @@ export default function UsersPage() {
       header: "Status",
       cell: ({ row }) => <StatusBadge status={row.original.status} />,
     },
-    {
-      accessorKey: "creator_tier",
-      header: "Creator Tier",
-      cell: ({ row }) => (
-        <StatusBadge
-          status={row.original.creator_tier ?? "regular"}
-          colorMap={CREATOR_TIER_COLOR_MAP}
-        />
-      ),
-    },
+
     {
       accessorKey: "created_at",
       header: "Joined",
@@ -265,22 +221,6 @@ export default function UsersPage() {
               </Select>
             )}
 
-            {/* Creator tier selector */}
-            <Select
-              value={user.creator_tier ?? "regular"}
-              onValueChange={(val) => handleCreatorTierChange(user.id, val)}
-            >
-              <SelectTrigger className="w-[130px] h-8 text-xs">
-                <SelectValue placeholder="Creator tier" />
-              </SelectTrigger>
-              <SelectContent>
-                {CREATOR_TIER_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
 
             {/* Status dropdown */}
             <DropdownMenu>

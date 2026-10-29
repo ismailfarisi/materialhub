@@ -4,12 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable, StatusBadge, FiltersBar, Skeleton, Input } from "@materialhub/ui";
-import { Tag, Zap } from "lucide-react";
+import { Tag } from "lucide-react";
 import { usePromotionsOverview } from "@/lib/queries/promotions";
 
 interface PromotionRow {
   id: string;
-  type: "coupon" | "flash_deal";
+  type: "coupon";
   name: string;
   discount_display: string;
   status: "active" | "scheduled" | "expired" | "disabled";
@@ -19,10 +19,7 @@ interface PromotionRow {
   vendor_name: string | null;
 }
 
-const TYPE_OPTIONS = [
-  { label: "Coupon", value: "coupon" },
-  { label: "Flash Deal", value: "flash_deal" },
-];
+const TYPE_OPTIONS = [{ label: "Coupon", value: "coupon" }];
 
 const STATUS_OPTIONS = [
   { label: "Active", value: "active" },
@@ -105,8 +102,8 @@ export default function PromotionsPage() {
       header: "Type",
       cell: ({ row }) => (
         <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium bg-pearl/100 text-cacao">
-          {row.original.type === "coupon" ? <Tag size={12} /> : <Zap size={12} />}
-          {row.original.type === "coupon" ? "Coupon" : "Flash Deal"}
+          <Tag size={12} />
+          Coupon
         </span>
       ),
     },
@@ -114,11 +111,8 @@ export default function PromotionsPage() {
       accessorKey: "name",
       header: "Name",
       cell: ({ row }) => {
-        const { id, type, name } = row.original;
-        const href =
-          type === "coupon"
-            ? `/promotions/coupons/${id}`
-            : `/promotions/flash-deals/${id}`;
+        const { id, name } = row.original;
+        const href = `/promotions/coupons/${id}`;
         return (
           <button
             onClick={() => router.push(href)}
@@ -182,7 +176,7 @@ export default function PromotionsPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-cacao mb-1">Promotions</h1>
-          <p className="text-taupe text-sm">Manage all coupons and flash deals.</p>
+          <p className="text-taupe text-sm">Manage all coupons and promotional offers.</p>
         </div>
       </div>
 

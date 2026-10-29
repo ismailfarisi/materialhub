@@ -2,7 +2,6 @@ import { CartSlideOver } from "@/components/cart/cart-slide-over";
 import { ConsentBanner } from "@/components/consent/consent-banner";
 import { Footer } from "@/components/layout/footer";
 import { HeaderServer } from "@/components/layout/header-server";
-import { HideOnReels } from "@/components/layout/hide-on-reels";
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { Providers } from "@/components/providers";
 import { ChatWidget } from "@/components/support/chat-widget";
@@ -51,11 +50,11 @@ const interTight = Inter_Tight({
 export const metadata: Metadata = {
 	metadataBase: new URL(SITE_URL),
 	title: {
-		default: "MaterialHub — UAE Beauty Marketplace",
+		default: "MaterialHub — UAE Materials Marketplace",
 		template: "%s | MaterialHub",
 	},
 	description:
-		"Shop beauty, fragrance, skincare, makeup and wellness from trusted local and international vendors across the UAE.",
+		"Shop packaging papers, boards, PU leather, hinges, adhesives, ribbons and decoration materials from trusted local and international vendors across the UAE.",
 	manifest: "/manifest.webmanifest",
 };
 
@@ -103,18 +102,12 @@ export default async function LocaleLayout({
 					<Providers>
 						<GclidCapture />
 						<PageViewFire />
-						<HideOnReels>
-							<HeaderServer />
-						</HideOnReels>
+						<HeaderServer />
 						<main className="flex-1">{children}</main>
-						<HideOnReels>
-							<Footer />
-						</HideOnReels>
+						<Footer />
 						<MobileTabBar />
 						<CartSlideOver />
-						<HideOnReels>
-							<ChatWidget />
-						</HideOnReels>
+						<ChatWidget />
 						<ConsentBanner />
 					</Providers>
 				</NextIntlClientProvider>

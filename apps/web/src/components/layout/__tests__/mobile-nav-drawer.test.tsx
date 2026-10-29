@@ -41,7 +41,6 @@ describe("MobileNavDrawer", () => {
 
   it("shows core quick links even when tabs are empty", () => {
     renderDrawer({ open: true, onClose: () => {}, tabs: [] });
-    expect(screen.getByText("Reels")).toBeInTheDocument();
     expect(screen.getByText("Brands")).toBeInTheDocument();
     expect(screen.getByText("Track Order")).toBeInTheDocument();
     expect(screen.getByText("Log In")).toBeInTheDocument();

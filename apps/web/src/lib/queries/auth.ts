@@ -13,29 +13,22 @@ async function runPostAuthEffects(
   if (user) {
     setUser(user);
   }
-  // Refetch the canonical /auth/me (the login response omits enriched fields
-  // like beauty_profile_completed) so the store/cache carry the full user and
-  // the account nudge reflects reality immediately after login.
+  // Refetch the canonical /auth/me (the login response omits enriched
+  // fields) so the store/cache carry the full user immediately after login.
   queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
 
-  // Merge the pre-login guest state (cart + reel attributions) into the
-  // user's account. The guest session token is attached automatically by
+  // Merge the pre-login guest cart into the user's account. The guest session token is attached automatically by
   // the axios interceptor via the `x-guest-session` header.
   const guestToken = getGuestSessionToken();
   if (guestToken) {
-    const results = await Promise.allSettled([
-      api.post("/cart/merge", {}),
-      api.post("/reels/attributions/merge", {}),
-    ]);
-    // Only clear the token when BOTH merges succeed. If either fails,
-    // preserve the token so a subsequent login/request can retry the
-    // missing merge without losing data on the other surface.
+    const results = await Promise.allSettled([api.post("/cart/merge", {})]);
+    // Only clear the token when the merge succeeds. If it fails, preserve the
+    // token so a subsequent login/request can retry without losing the cart.
     if (results.every((r) => r.status === "fulfilled")) {
       clearGuestSessionToken();
     }
   }
   queryClient.invalidateQueries({ queryKey: ["cart"] });
-  queryClient.invalidateQueries({ queryKey: ["reels"] });
 }
 
 export function useMe(enabled = true) {

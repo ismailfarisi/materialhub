@@ -57,7 +57,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 	const alternates = buildAlternates(locale, `/brand/${slug}`);
 
 	// The previous title was `${brand.name} — MaterialHub`, which the root layout's
-	// "%s | MaterialHub" template then rendered as "Huda Beauty — MaterialHub |
+	// "%s | MaterialHub" template then rendered as "Acme Papers — MaterialHub |
 	// MaterialHub". The brand suffix belongs to the template alone.
 	const title: string =
 		brand.meta_title || t("seo.titleTemplate", { entity: name });

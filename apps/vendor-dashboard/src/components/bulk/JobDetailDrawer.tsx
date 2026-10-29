@@ -4,7 +4,6 @@ import {
 	useBulkJob,
 	useBulkJobChanges,
 	useCancelBulkJob,
-	useRevertBulkJob,
 } from "@/lib/queries/bulk";
 import { useState } from "react";
 import { FailedImagesTab } from "./FailedImagesTab";
@@ -16,8 +15,6 @@ function diffFieldLabel(field: string): string {
 			return "Created";
 		case "_deleted":
 			return "Deleted";
-		case "_reverted":
-			return "Reverted";
 		default:
 			return field;
 	}
@@ -30,9 +27,7 @@ export function JobDetailDrawer({
 	const { data: job } = useBulkJob(jobId);
 	const { data: changes } = useBulkJobChanges(jobId);
 	const cancel = useCancelBulkJob();
-	const revert = useRevertBulkJob();
 	const [reportUrl, setReportUrl] = useState<string | null>(null);
-	const [revertConfirmOpen, setRevertConfirmOpen] = useState(false);
 	const [tab, setTab] = useState<"overview" | "changes" | "failed_images">(
 		"overview",
 	);
@@ -44,11 +39,6 @@ export function JobDetailDrawer({
 				Loading…
 			</div>
 		);
-
-	const canRevert =
-		job.jobType === "flash_deal_import" &&
-		(job.status === "completed" || job.status === "completed_with_errors") &&
-		job.revertedAt === null;
 
 	return (
 		<>
@@ -103,25 +93,6 @@ export function JobDetailDrawer({
 						>
 							DownloadSimple report.csv
 						</a>
-					)}
-					{canRevert && (
-						<button
-							type="button"
-							onClick={() => setRevertConfirmOpen(true)}
-							className="mt-2 rounded border border-rose-300 px-3 py-1.5 text-sm text-rose-700 hover:bg-rose-50"
-						>
-							Revert
-						</button>
-					)}
-					{job.revertedAt && (
-						<span className="text-xs text-gray-500">
-							Reverted {new Date(job.revertedAt).toLocaleString()}
-						</span>
-					)}
-					{job.jobType === "flash_deal_delete" && (
-						<p className="text-xs text-gray-500">
-							Bulk deletes cannot be reverted via the UI.
-						</p>
 					)}
 				</div>
 
@@ -186,37 +157,6 @@ export function JobDetailDrawer({
 				)}
 				{tab === "failed_images" && <FailedImagesTab jobId={job.id} />}
 			</div>
-			{revertConfirmOpen && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-					<div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
-						<h3 className="text-base font-semibold">Revert this upload?</h3>
-						<p className="mt-2 text-sm text-gray-600">
-							Soft-delete {job.succeededRows ?? 0} flash deals created by this
-							upload? This cannot be undone via the UI.
-						</p>
-						<div className="mt-4 flex justify-end gap-2">
-							<button
-								type="button"
-								onClick={() => setRevertConfirmOpen(false)}
-								className="rounded border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
-							>
-								Cancel
-							</button>
-							<button
-								type="button"
-								disabled={revert.isPending}
-								onClick={async () => {
-									await revert.mutateAsync(job.id);
-									setRevertConfirmOpen(false);
-								}}
-								className="rounded bg-rose-600 px-3 py-1.5 text-sm text-white hover:bg-rose-700 disabled:opacity-50"
-							>
-								{revert.isPending ? "Reverting…" : "Revert"}
-							</button>
-						</div>
-					</div>
-				</div>
-			)}
 		</>
 	);
 }

@@ -11,9 +11,6 @@ export default function BulkLayout({ children }: { children: ReactNode }) {
 				<Link href="/bulk/catalog" className="font-medium hover:underline">
 					Catalog
 				</Link>
-				<Link href="/bulk/flash-deals" className="font-medium hover:underline">
-					Flash deals
-				</Link>
 			</div>
 			{children}
 		</div>
