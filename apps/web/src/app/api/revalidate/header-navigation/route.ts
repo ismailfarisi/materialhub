@@ -6,6 +6,7 @@ export async function POST(req: Request) {
 	if (secret !== process.env.REVALIDATE_SECRET) {
 		return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 	}
-	revalidateTag("header-navigation");
+	// Admin edits must show at once, so expire the entry instead of serving it stale.
+	revalidateTag("header-navigation", { expire: 0 });
 	return NextResponse.json({ revalidated: true, at: new Date().toISOString() });
 }

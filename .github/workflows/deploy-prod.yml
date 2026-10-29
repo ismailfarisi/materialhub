@@ -30,7 +30,7 @@ jobs:
         with:
           # Pinned: bun 1.3.14 regressed source-barrel circular-import
           # resolution ("Export named X not found"). 1.3.13 matches dev.
-          bun-version: 1.3.13
+          bun-version: 1.4.3
       - run: bun install --frozen-lockfile
       - name: Lint
         run: bunx --bun @biomejs/biome@1.9.4 check --diagnostic-level=error .

@@ -77,6 +77,7 @@ describe("TagLoader", () => {
         googleGtagId="G-X"
         googleConversionId="AW-Y/Z"
         metaPixelId={undefined}
+        tiktokPixelCode={undefined}
       />,
     );
     expect(buildMetaSpy).not.toHaveBeenCalled();
@@ -89,6 +90,7 @@ describe("TagLoader", () => {
         googleGtagId="G-X"
         googleConversionId="AW-Y/Z"
         metaPixelId="111"
+        tiktokPixelCode={undefined}
       />,
     );
     expect(buildMetaSpy).toHaveBeenCalledTimes(1);
@@ -105,6 +107,7 @@ describe("TagLoader", () => {
         googleGtagId="G-X"
         googleConversionId="AW-Y/Z"
         metaPixelId="111"
+        tiktokPixelCode={undefined}
       />,
     );
     // Channels still register on mount via useEffect (idempotent), but the
@@ -123,6 +126,7 @@ describe("TagLoader", () => {
         googleGtagId="G-X"
         googleConversionId="AW-Y/Z"
         metaPixelId="111"
+        tiktokPixelCode={undefined}
       />,
     );
     expect(buildMetaSpy).toHaveBeenCalledTimes(1);

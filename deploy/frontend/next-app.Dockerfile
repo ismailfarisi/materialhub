@@ -9,7 +9,7 @@ ARG APP
 ARG PORT
 
 # ─── Workspace manifests only, so `bun install` caches across source edits ───
-FROM oven/bun:1.3.13 AS manifests
+FROM oven/bun:1.4.3 AS manifests
 WORKDIR /src
 COPY . .
 RUN mkdir /out \
@@ -17,7 +17,7 @@ RUN mkdir /out \
   && find . -name package.json -not -path "*/node_modules/*" -not -path "./package.json" \
      -exec sh -c 'mkdir -p "/out/$(dirname "$1")" && cp "$1" "/out/$1"' _ {} \;
 
-FROM oven/bun:1.3.13 AS build
+FROM oven/bun:1.4.3 AS build
 ARG APP
 WORKDIR /app
 COPY --from=manifests /out/ ./

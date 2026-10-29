@@ -166,7 +166,7 @@ function ProductCollectionPicker({
 	const [loading, setLoading] = useState(false);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
-	const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+	const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
 	useEffect(() => {
 		function onDoc(e: globalThis.MouseEvent) {

@@ -20,9 +20,10 @@ function xml(body: string) {
 
 export async function GET(
 	_request: Request,
-	{ params }: { params: { file: string } },
+	{ params }: { params: Promise<{ file: string }> },
 ) {
-	const name = params.file.replace(/\.xml$/, "");
+	const { file } = await params;
+	const name = file.replace(/\.xml$/, "");
 
 	if (name === "static") {
 		return xml(

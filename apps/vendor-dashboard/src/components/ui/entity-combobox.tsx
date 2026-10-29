@@ -31,7 +31,7 @@ export function EntityCombobox({
   const [selectedItem, setSelectedItem] = useState<LookupItem | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     if (!value) {
@@ -191,7 +191,7 @@ export function EntityMultiCombobox({
   const [resolved, setResolved] = useState<Map<string, LookupItem>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     const missing = values.filter((v) => !resolved.has(v));

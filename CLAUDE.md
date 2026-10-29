@@ -11,7 +11,7 @@ Vendors (suppliers) run their listings, inventory, orders, shipments, coupons an
 
 - **Runtime:** Bun 1.4 (package manager and runtime), Turborepo monorepo, TypeScript strict.
 - **Backend:** ElysiaJS services with a NestJS-style structure (modules, DI in `container.ts`, lifecycle hooks). PostgreSQL 16 + PostGIS via TypeORM (migrations), Redis, BullMQ, Typesense for search.
-- **Web:** Next.js App Router apps: `apps/web` (storefront), `apps/vendor-dashboard`, `apps/admin-panel`. Shared UI in `packages/ui`.
+- **Web:** Next.js 16 (React 19, Turbopack) App Router apps: `apps/web` (storefront), `apps/vendor-dashboard`, `apps/admin-panel`. Shared UI in `packages/ui`.
 - **Payments:** Stripe (PaymentIntents + Connect payouts), Tabby, Tamara, COD. The `payments`, `commissions`, `vendor_payouts` and `webhook_events` tables are the ledger.
 - **Cloud:** AWS (EC2 + docker compose, RDS, S3 + CloudFront, SES), Terraform in `terraform/`.
 - **Lint/test:** Biome, `bun test`.

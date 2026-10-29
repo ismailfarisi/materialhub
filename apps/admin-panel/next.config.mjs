@@ -1,7 +1,6 @@
 import path from "node:path";
-import createNextIntlPlugin from "next-intl/plugin";
 
-const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
+const localMedia = process.env.NODE_ENV === "development";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -9,13 +8,13 @@ const nextConfig = {
   // Tracing root is the monorepo root so workspace deps (@materialhub/ui) land
   // in .next/standalone. `next build` always runs from this app directory.
   output: "standalone",
-  experimental: {
-    outputFileTracingRoot: path.join(process.cwd(), "../.."),
-  },
+  outputFileTracingRoot: path.join(process.cwd(), "../.."),
   images: {
+    // Next 16 refuses to optimise images from local IPs unless this is set.
+    dangerouslyAllowLocalIP: localMedia,
     remotePatterns: [
-      // Local S3 + Cloudflare Stream stand-ins (backend docker-compose); dev only.
-      ...(process.env.NODE_ENV === "development"
+      // Local S3 stand-in (backend docker-compose); dev only.
+      ...(localMedia
         ? [
             { protocol: "http", hostname: "localhost", port: "7070" },
             { protocol: "http", hostname: "localhost", port: "7071" },
@@ -37,20 +36,8 @@ const nextConfig = {
         protocol: "https",
         hostname: "*.cloudinary.com",
       },
-      {
-        protocol: "https",
-        hostname: "placehold.co",
-      },
-      {
-        protocol: "https",
-        hostname: "*.unsplash.com",
-      },
-      {
-        protocol: "https",
-        hostname: "*.cloudflarestream.com",
-      },
     ],
   },
 };
 
-export default withNextIntl(nextConfig);
+export default nextConfig;
