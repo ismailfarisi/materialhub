@@ -1,0 +1,74 @@
+import { errorHandler, requestLogger } from "@materialhub/plugins";
+import { Elysia } from "elysia";
+import { bulkRoutes } from "./bulk/index.ts";
+import { adminProductRoutes } from "./routes/admin-product.routes.ts";
+import { adminServiceOfferingRoutes } from "./routes/admin-service-offering.routes.ts";
+import { aiSettingsRoutes } from "./routes/ai-settings.routes.ts";
+import { attributeAdminRoutes } from "./routes/attribute-admin.routes.ts";
+import { attributeRoutes } from "./routes/attribute.routes.ts";
+import { brandAdminRoutes } from "./routes/brand-admin.routes.ts";
+import { brandVendorRoutes } from "./routes/brand-vendor.routes.ts";
+import { brandRoutes } from "./routes/brand.routes.ts";
+import { categoryAdminRoutes } from "./routes/category-admin.routes.ts";
+import { categoryRoutes } from "./routes/category.routes.ts";
+import { collectionAdminRoutes } from "./routes/collection-admin.routes.ts";
+import { collectionRoutes } from "./routes/collection.routes.ts";
+import { flashDealInternalRoutes } from "./routes/flash-deal-internal.routes.ts";
+import { flashDealRoutes } from "./routes/flash-deal.routes.ts";
+import { giftAdminRoutes } from "./routes/gift-admin.routes.ts";
+import { giftRoutes } from "./routes/gift.routes.ts";
+import { internalInventoryRoutes } from "./routes/internal-inventory.routes.ts";
+import { internalProductsRoutes } from "./routes/internal-products.routes.ts";
+import { inventoryRoutes } from "./routes/inventory.routes.ts";
+import { mediaRoutes } from "./routes/media.routes.ts";
+import { productAiSettingsRoutes } from "./routes/product-ai-settings.routes.ts";
+import { productGroupRoutes } from "./routes/product-group.routes.ts";
+import { productRoutes } from "./routes/product.routes.ts";
+import { recentSearchRoutes } from "./routes/recent-search.routes.ts";
+import { recentlyViewedRoutes } from "./routes/recently-viewed.routes.ts";
+import { recommendationRoutes } from "./routes/recommendation.routes.ts";
+import { savedSearchRoutes } from "./routes/saved-search.routes.ts";
+import { searchAdminRoutes } from "./routes/search-admin.routes.ts";
+import { serviceOfferingRoutes } from "./routes/service-offering.routes.ts";
+import { serviceRoutes } from "./routes/service.routes.ts";
+import { taggableProductsInternalRoutes } from "./routes/taggable-products-internal.routes.ts";
+import { trendingRoutes } from "./routes/trending.routes.ts";
+import { wishlistRoutes } from "./routes/wishlist.routes.ts";
+
+export const app = new Elysia()
+  .use(requestLogger)
+  .use(errorHandler)
+  .use(mediaRoutes)
+  .use(categoryRoutes)
+  .use(categoryAdminRoutes)
+  .use(brandRoutes)
+  .use(brandAdminRoutes)
+  .use(brandVendorRoutes)
+  .use(collectionAdminRoutes)
+  .use(giftAdminRoutes)
+  .use(attributeRoutes)
+  .use(attributeAdminRoutes)
+  .use(searchAdminRoutes)
+  .use(adminProductRoutes)
+  .use(collectionRoutes)
+  .use(giftRoutes)
+  .use(productRoutes)
+  .use(productGroupRoutes)
+  .use(serviceRoutes)
+  .use(serviceOfferingRoutes)
+  .use(adminServiceOfferingRoutes)
+  .use(inventoryRoutes)
+  .use(flashDealRoutes)
+  .use(flashDealInternalRoutes)
+  .use(internalInventoryRoutes)
+  .use(internalProductsRoutes)
+  .use(taggableProductsInternalRoutes)
+  .use(wishlistRoutes)
+  .use(recentlyViewedRoutes)
+  .use(recentSearchRoutes)
+  .use(savedSearchRoutes)
+  .use(recommendationRoutes)
+  .use(trendingRoutes)
+  .use(aiSettingsRoutes)
+  .use(productAiSettingsRoutes)
+  .use(bulkRoutes);

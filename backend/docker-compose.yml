@@ -1,0 +1,302 @@
+services:
+  # --- Infrastructure ---
+  postgres:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: materialhub
+      POSTGRES_PASSWORD: materialhub
+      POSTGRES_DB: materialhub
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U materialhub"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  typesense:
+    image: typesense/typesense:27.1
+    ports:
+      - "8108:8108"
+    volumes:
+      - typesensedata:/data
+    command: "--data-dir /data --api-key=dev-typesense-key --enable-cors"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8108/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Local stand-in for the S3 media bucket (dev only). Objects are stored as
+  # plain files under ./.local-s3/objects/<bucket>/<key>. Enable it in the
+  # backend with S3_ENDPOINT=http://localhost:7070 — see .env.example.
+  local-s3:
+    image: versity/versitygw:v1.8.0
+    command: >-
+      --access ${AWS_ACCESS_KEY_ID:-local-dev}
+      --secret ${AWS_SECRET_ACCESS_KEY:-local-dev-secret}
+      --region ${AWS_REGION:-me-south-1}
+      --cors-allow-origin *
+      posix --sidecar /meta /data
+    ports:
+      - "7070:7070"
+    volumes:
+      - ./.local-s3/objects:/data
+      - ./.local-s3/meta:/meta
+
+  # Creates the media bucket with public-read objects, like the prod bucket
+  # behind CloudFront. Idempotent; exits once done.
+  local-s3-init:
+    image: amazon/aws-cli:2.37.0
+    depends_on:
+      - local-s3
+    environment:
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-local-dev}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-local-dev-secret}
+      AWS_REGION: ${AWS_REGION:-me-south-1}
+      BUCKET: ${S3_MEDIA_BUCKET:-materialhub-media-dev}
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        s3="aws --endpoint-url http://local-s3:7070 s3api"
+        until $$s3 list-buckets >/dev/null 2>&1; do sleep 1; done
+        $$s3 head-bucket --bucket "$$BUCKET" 2>/dev/null || $$s3 create-bucket --bucket "$$BUCKET"
+        $$s3 put-bucket-policy --bucket "$$BUCKET" --policy "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":[\"s3:GetObject\"],\"Resource\":[\"arn:aws:s3:::$$BUCKET/*\"]}]}"
+        echo "local-s3 bucket $$BUCKET ready"
+
+  # Local stand-in for Cloudflare Stream (reels video, dev only). Transcodes
+  # uploads with ffmpeg into ./.local-stream/<uid>/ and posts the signed
+  # webhook to reels-service running on the host. Enable it in the backend
+  # with CLOUDFLARE_STREAM_API_BASE_URL / _DELIVERY_BASE_URL — see .env.example.
+  local-stream:
+    build: ./docker/local-stream
+    ports:
+      - "7071:7071"
+    environment:
+      PUBLIC_URL: http://localhost:7071
+      ACCOUNT_ID: ${CLOUDFLARE_STREAM_ACCOUNT_ID:-local-dev}
+      API_TOKEN: ${CLOUDFLARE_STREAM_API_TOKEN:-local-dev-token}
+      WEBHOOK_SECRET: ${CLOUDFLARE_STREAM_WEBHOOK_SECRET:-}
+      WEBHOOK_URL: http://host.docker.internal:${REELS_PORT:-3007}/reels/webhooks/cloudflare-stream
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./.local-stream:/data
+
+  # --- Services (dev mode — mount source, use bun --watch) ---
+  api-gateway:
+    build:
+      context: .
+      dockerfile: apps/api-gateway/Dockerfile
+      target: deps
+    command: bun run --watch apps/api-gateway/src/index.ts
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: apps/auth-service/Dockerfile
+      target: deps
+    command: bun run --watch apps/auth-service/src/index.ts
+    ports:
+      - "3001:3001"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  product-service:
+    build:
+      context: .
+      dockerfile: apps/product-service/Dockerfile
+      target: deps
+    command: bun run --watch apps/product-service/src/index.ts
+    ports:
+      - "3002:3002"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+      - TYPESENSE_HOST=typesense
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      typesense:
+        condition: service_healthy
+
+  order-service:
+    build:
+      context: .
+      dockerfile: apps/order-service/Dockerfile
+      target: deps
+    command: bun run --watch apps/order-service/src/index.ts
+    ports:
+      - "3003:3003"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  vendor-service:
+    build:
+      context: .
+      dockerfile: apps/vendor-service/Dockerfile
+      target: deps
+    command: bun run --watch apps/vendor-service/src/index.ts
+    ports:
+      - "3004:3004"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: apps/notification-service/Dockerfile
+      target: deps
+    command: bun run --watch apps/notification-service/src/index.ts
+    ports:
+      - "3005:3005"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  cms-service:
+    build:
+      context: .
+      dockerfile: apps/cms-service/Dockerfile
+      target: deps
+    command: bun run --watch apps/cms-service/src/index.ts
+    ports:
+      - "3006:3006"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  reels-service:
+    build:
+      context: .
+      dockerfile: apps/reels-service/Dockerfile
+      target: deps
+    command: bun run --watch apps/reels-service/src/index.ts
+    ports:
+      - "3007:3007"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET:-dev-internal-secret}
+      - ORDER_HOST=order-service
+      - CLOUDFLARE_STREAM_ACCOUNT_ID=${CLOUDFLARE_STREAM_ACCOUNT_ID:-}
+      - CLOUDFLARE_STREAM_API_TOKEN=${CLOUDFLARE_STREAM_API_TOKEN:-}
+      - CLOUDFLARE_STREAM_WEBHOOK_SECRET=${CLOUDFLARE_STREAM_WEBHOOK_SECRET:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  integration-service:
+    build:
+      context: .
+      dockerfile: apps/integration-service/Dockerfile
+      target: deps
+    command: bun run --watch apps/integration-service/src/index.ts
+    ports:
+      - "3008:3008"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+      - INTEGRATION_PORT=3008
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  redisdata:
+  typesensedata:

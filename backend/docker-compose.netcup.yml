@@ -1,0 +1,253 @@
+# MaterialHub backend — Netcup staging
+#
+# Differences from docker-compose.prod.yml:
+#   - Images: ghcr.io/${GHCR_OWNER}/materialhub-* (was ${ECR_REGISTRY}/...)
+#   - No embedded Caddy: host Caddy on the Netcup box owns 80/443 and reverse-proxies localhost:3000
+#   - Only api-gateway publishes to host (bound to 127.0.0.1 — Caddy reaches via loopback)
+#   - Postgres bound to 127.0.0.1:5432 — accessible from host shell for psql/pg_dump, not from internet
+#   - Other services internal-only via the default compose network
+#   - All app services use env_file: .env (the prod.yml lists each var explicitly,
+#     which dropped DB_PASSWORD and friends here — see deploy log run 26602000736).
+#   - Typesense healthcheck disabled because the image has no curl/wget; product-service
+#     waits on service_started instead. Typesense's own readiness handles app-side retries.
+#
+# Renders via .env that the deploy workflow SCPs to /opt/materialhub/.env.
+
+services:
+  postgres:
+    # imresamu/postgis publishes multi-arch (linux/amd64 + linux/arm64) PostGIS images;
+    # the upstream postgis/postgis tags are amd64-only and fail healthcheck on this VPS.
+    image: imresamu/postgis:16-3.4
+    environment:
+      POSTGRES_USER: ${POSTGRES_USERNAME}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USERNAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  typesense:
+    image: typesense/typesense:27.1
+    volumes:
+      - typesensedata:/data
+    command: "--data-dir /data --api-key=${TYPESENSE_API_KEY} --enable-cors"
+    # Image has no curl/wget; using disable: true so compose treats it as no
+    # healthcheck. Dependents use condition: service_started.
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+
+  api-gateway:
+    image: ghcr.io/${GHCR_OWNER}/materialhub-api-gateway:${IMAGE_TAG:-staging}
+    env_file: .env
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+      - PORT=${GATEWAY_PORT}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  auth-service:
+    image: ghcr.io/${GHCR_OWNER}/materialhub-auth-service:${IMAGE_TAG:-staging}
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+      - PORT=${AUTH_PORT}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  product-service:
+    image: ghcr.io/${GHCR_OWNER}/materialhub-product-service:${IMAGE_TAG:-staging}
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+      - PORT=${PRODUCT_PORT}
+      - TYPESENSE_HOST=typesense
+      - TYPESENSE_PORT=8108
+      - TYPESENSE_PROTOCOL=http
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      typesense:
+        condition: service_started
+    restart: unless-stopped
+
+  booking-service:
+    image: ghcr.io/${GHCR_OWNER}/materialhub-booking-service:${IMAGE_TAG:-staging}
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+      - PORT=${BOOKING_PORT}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  order-service:
+    image: ghcr.io/${GHCR_OWNER}/materialhub-order-service:${IMAGE_TAG:-staging}
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+      - PORT=${ORDER_PORT}
+      # Must match vendor-service's key byte-for-byte (AES-256-GCM): the
+      # audited bank-detail reveal (admin-payout.controller.ts revealBank)
+      # decrypts vendor_bank_accounts rows that vendor-service encrypted with
+      # this same key. A missing/mismatched key here is a deploy-time failure,
+      # not something tests catch.
+      - VENDOR_ENCRYPTION_KEY=${VENDOR_ENCRYPTION_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  vendor-service:
+    image: ghcr.io/${GHCR_OWNER}/materialhub-vendor-service:${IMAGE_TAG:-staging}
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+      - PORT=${VENDOR_PORT}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  notification-service:
+    image: ghcr.io/${GHCR_OWNER}/materialhub-notification-service:${IMAGE_TAG:-staging}
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+      - PORT=${NOTIFICATION_PORT}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  cms-service:
+    image: ghcr.io/${GHCR_OWNER}/materialhub-cms-service:${IMAGE_TAG:-staging}
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+      - PORT=${CMS_PORT}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  reels-service:
+    image: ghcr.io/${GHCR_OWNER}/materialhub-reels-service:${IMAGE_TAG:-staging}
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+      - PORT=${REELS_PORT}
+      - ORDER_HOST=${ORDER_HOST}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  integration-service:
+    image: ghcr.io/${GHCR_OWNER}/materialhub-integration-service:${IMAGE_TAG:-staging}
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+      - PORT=${INTEGRATION_PORT}
+      - INTEGRATION_FEED_BUCKET=${INTEGRATION_FEED_BUCKET}
+      - INTEGRATION_FEED_BASE_URL=${INTEGRATION_FEED_BASE_URL}
+      - WEB_BASE_URL=${WEB_BASE_URL}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  migrate:
+    image: ghcr.io/${GHCR_OWNER}/materialhub-api-gateway:${IMAGE_TAG:-staging}
+    profiles: ["tools"]
+    # @materialhub/config eagerly requireEnv's JWT_ACCESS_SECRET (and friends)
+    # at import time when NODE_ENV=production. data-source.ts pulls config
+    # in transitively, so the migration runner needs the same env surface
+    # the api-gateway has. env_file is simpler than re-listing every secret.
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USERNAME=${POSTGRES_USERNAME}
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - DB_NAME=${POSTGRES_DB}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # bun.lockb isn't shipped in the image, so workspace-script resolution
+    # (`bun run migrate` from /app) fails with "Script not found". Invoke the
+    # migration entrypoint by file path instead — matches the pattern the
+    # service Dockerfiles use (`bun run apps/<svc>/src/index.ts`).
+    command: ["bun", "run", "libs/database/src/run-migrations.ts"]
+
+volumes:
+  pgdata:
+  redisdata:
+  typesensedata:

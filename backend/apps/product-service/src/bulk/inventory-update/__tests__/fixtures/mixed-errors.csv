@@ -1,0 +1,5 @@
+sku,quantity_on_hand,note
+SKU-ALPHA,50,
+DOES-NOT-EXIST,5,
+,10,
+SKU-BETA,-5,

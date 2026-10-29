@@ -1,0 +1,19 @@
+# Prod frontend box. Caddy obtains certs via HTTP-01 once DNS points here.
+materialhubuae.com {
+	encode zstd gzip
+	reverse_proxy web:4000
+}
+
+www.materialhubuae.com {
+	redir https://materialhubuae.com{uri} 308
+}
+
+sellers.materialhubuae.com {
+	encode zstd gzip
+	reverse_proxy vendor-dashboard:4001
+}
+
+admin.materialhubuae.com {
+	encode zstd gzip
+	reverse_proxy admin-panel:4002
+}

@@ -1,0 +1,298 @@
+name: Deploy Staging (Netcup)
+
+# Default staging deploy path. Auto-deploys on backend changes merged to
+# master. Replaces the AWS EC2 staging workflow (deploy-staging.yml), which
+# is now manual-only (workflow_dispatch).
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-staging-netcup.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-staging-netcup
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  # ----- Lint + test -----
+  backend-checks:
+    name: Backend Lint & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          # Pinned: bun 1.3.14 regressed source-barrel circular-import
+          # resolution ("Export named X not found"). 1.3.13 matches dev.
+          bun-version: 1.3.13
+      - run: bun install --frozen-lockfile
+      - name: Lint
+        run: bunx --bun @biomejs/biome@1.9.4 check --diagnostic-level=error .
+        working-directory: backend
+      # Unit tests only. Integration tests (*.integration.test.ts,
+      # tests/integration/**) need live Postgres/Redis not present in CI and are
+      # run separately — see backend/scripts/test-ci.sh.
+      - name: Test
+        run: bash backend/scripts/test-ci.sh
+
+  # ----- Build all 9 services multi-arch, push to GHCR -----
+  build:
+    name: Build ${{ matrix.service }}
+    needs: backend-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - api-gateway
+          - auth-service
+          - product-service
+          - order-service
+          - vendor-service
+          - notification-service
+          - cms-service
+          - reels-service
+          - integration-service
+          - booking-service
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push (linux/arm64,linux/amd64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/apps/${{ matrix.service }}/Dockerfile
+          platforms: linux/arm64,linux/amd64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/materialhub-${{ matrix.service }}:${{ env.IMAGE_TAG }}
+            ghcr.io/${{ github.repository_owner }}/materialhub-${{ matrix.service }}:staging
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  # ----- Deploy to Netcup VPS -----
+  deploy:
+    name: Deploy to Netcup
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Render .env from secrets
+        run: |
+          # QUOTED delimiter ('EOF'): the body reaches .env VERBATIM.
+          #
+          # This is hardening, NOT a bug fix. An unquoted heredoc would also
+          # have been correct here: bash treats a backslash as special inside
+          # an unquoted heredoc ONLY before $, backtick, backslash or newline,
+          # so the `\.` escapes in CORS_PREVIEW_ORIGIN_PATTERN survived either
+          # way (verified by byte-diffing both renderings). Quoting just makes
+          # the verbatim intent explicit and stops a future edit from silently
+          # mangling the file.
+          #
+          # Actions expressions are substituted before the shell runs, so they
+          # are unaffected by the quoting. Do NOT add $VAR, $(...) or backticks
+          # to this heredoc — they will no longer expand.
+          cat > backend/.env.netcup <<'EOF'
+          NODE_ENV=production
+
+          # Image references
+          IMAGE_TAG=${{ env.IMAGE_TAG }}
+          GHCR_OWNER=${{ github.repository_owner }}
+
+          # Database — containerized Postgres on Netcup doesn't speak SSL
+          DB_SSL=false
+          POSTGRES_USERNAME=materialhub
+          POSTGRES_PASSWORD=${{ secrets.STAGING_DB_PASSWORD }}
+          POSTGRES_DB=materialhub
+          DB_HOST=postgres
+          DB_PORT=5432
+          DB_USERNAME=materialhub
+          DB_PASSWORD=${{ secrets.STAGING_DB_PASSWORD }}
+          DB_NAME=materialhub
+
+          # Redis
+          REDIS_HOST=redis
+          REDIS_PORT=6379
+
+          # Service ports
+          GATEWAY_PORT=3000
+          AUTH_PORT=3001
+          PRODUCT_PORT=3002
+          ORDER_PORT=3003
+          VENDOR_PORT=3004
+          NOTIFICATION_PORT=3005
+          CMS_PORT=3006
+          REELS_PORT=3007
+          INTEGRATION_PORT=3008
+          BOOKING_PORT=3009
+
+          # Service hostnames (docker-compose service names)
+          AUTH_HOST=auth-service
+          PRODUCT_HOST=product-service
+          ORDER_HOST=order-service
+          VENDOR_HOST=vendor-service
+          NOTIFICATION_HOST=notification-service
+          CMS_HOST=cms-service
+          REELS_HOST=reels-service
+          INTEGRATION_HOST=integration-service
+          BOOKING_HOST=booking-service
+
+          # Auth + encryption
+          JWT_ACCESS_SECRET=${{ secrets.STAGING_JWT_ACCESS_SECRET }}
+          JWT_REFRESH_SECRET=${{ secrets.STAGING_JWT_REFRESH_SECRET }}
+          INTERNAL_SERVICE_SECRET=${{ secrets.STAGING_INTERNAL_SERVICE_SECRET }}
+          TWO_FA_ENCRYPTION_KEY=${{ secrets.STAGING_TWO_FA_ENCRYPTION_KEY }}
+          VENDOR_ENCRYPTION_KEY=${{ secrets.STAGING_VENDOR_ENCRYPTION_KEY }}
+          ENCRYPTION_KEY=${{ secrets.STAGING_ENCRYPTION_KEY }}
+          BOOKING_ICAL_FEED_SECRET=${{ secrets.STAGING_BOOKING_ICAL_FEED_SECRET }}
+
+          # Storefront phone OTP
+          SMS_OTP_PROVIDER=${{ secrets.STAGING_SMS_OTP_PROVIDER }}
+          TWILIO_ACCOUNT_SID=${{ secrets.STAGING_TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN=${{ secrets.STAGING_TWILIO_AUTH_TOKEN }}
+          TWILIO_VERIFY_SERVICE_SID=${{ secrets.STAGING_TWILIO_VERIFY_SERVICE_SID }}
+
+          # Stripe
+          STRIPE_SECRET_KEY=${{ secrets.STAGING_STRIPE_SECRET_KEY }}
+          STRIPE_CONNECT_WEBHOOK_SECRET=${{ secrets.STAGING_STRIPE_CONNECT_WEBHOOK_SECRET }}
+
+          # Tamara
+          TAMARA_API_TOKEN=${{ secrets.STAGING_TAMARA_API_TOKEN }}
+          TAMARA_API_BASE_URL=${{ secrets.STAGING_TAMARA_API_BASE_URL }}
+          TAMARA_NOTIFICATION_TOKEN=${{ secrets.STAGING_TAMARA_NOTIFICATION_TOKEN }}
+          TAMARA_SUCCESS_URL=${{ secrets.STAGING_TAMARA_SUCCESS_URL }}
+          TAMARA_FAILURE_URL=${{ secrets.STAGING_TAMARA_FAILURE_URL }}
+          TAMARA_CANCEL_URL=${{ secrets.STAGING_TAMARA_CANCEL_URL }}
+          TAMARA_NOTIFICATION_URL=${{ secrets.STAGING_TAMARA_NOTIFICATION_URL }}
+
+          # PostaPlus
+          POSTAPLUS_PARTNER_KEY=${{ secrets.STAGING_POSTAPLUS_PARTNER_KEY }}
+          POSTAPLUS_TENANT=${{ secrets.STAGING_POSTAPLUS_TENANT }}
+          POSTAPLUS_CUSTOMER=${{ secrets.STAGING_POSTAPLUS_CUSTOMER }}
+          POSTAPLUS_CREATED_BY=${{ secrets.STAGING_POSTAPLUS_CREATED_BY }}
+          POSTAPLUS_BASE_URL=${{ secrets.STAGING_POSTAPLUS_BASE_URL }}
+          POSTAPLUS_SHIPMENT_TYPE=${{ secrets.STAGING_POSTAPLUS_SHIPMENT_TYPE }}
+          POSTAPLUS_PACKAGE_TYPE=${{ secrets.STAGING_POSTAPLUS_PACKAGE_TYPE }}
+          POSTAPLUS_SERVICE=${{ secrets.STAGING_POSTAPLUS_SERVICE }}
+          POSTAPLUS_VEHICLE=${{ secrets.STAGING_POSTAPLUS_VEHICLE }}
+          POSTAPLUS_PICKUP_TYPE=${{ secrets.STAGING_POSTAPLUS_PICKUP_TYPE }}
+
+          # AWS (S3 media + SES email — staying on AWS for now per migration plan)
+          # Must match the media bucket's actual region. S3 reports it via
+          # `curl -sI https://<bucket>.s3.amazonaws.com | grep x-amz-bucket-region`
+          # — materialhub-media-dev is ap-south-1, same as prod. Signing against the
+          # wrong region makes every presigned URL unusable.
+          AWS_REGION=ap-south-1
+          AWS_ACCESS_KEY_ID=${{ secrets.STAGING_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY=${{ secrets.STAGING_AWS_SECRET_ACCESS_KEY }}
+          S3_MEDIA_BUCKET=${{ secrets.STAGING_S3_MEDIA_BUCKET }}
+          CLOUDFRONT_DOMAIN=${{ secrets.STAGING_CLOUDFRONT_DOMAIN }}
+
+          # Typesense
+          TYPESENSE_HOST=typesense
+          TYPESENSE_PORT=8108
+          TYPESENSE_PROTOCOL=http
+          TYPESENSE_API_KEY=${{ secrets.STAGING_TYPESENSE_API_KEY }}
+          TYPESENSE_COLLECTION=products
+
+          # Frontend URLs (required at config-load time; used for email links + CORS allowlist)
+          # STAGING ONLY: allow this team's Vercel branch-preview origins to
+          # browser-call the staging API (anchored, team-scoped). Never set
+          # the equivalent in the prod deploy.
+          CORS_PREVIEW_ORIGIN_PATTERN=^https://ecom-[a-z0-9-]+-ismailfarisis-projects\.vercel\.app$
+          WEB_URL=https://stage.materialhubuae.com
+          VENDOR_DASHBOARD_URL=https://sellers.stage.materialhubuae.com
+          ADMIN_PANEL_URL=https://admin.stage.materialhubuae.com
+
+          # Email (AWS SES). EmailService reads APP_URL (NOT WEB_URL) for
+          # verify/reset/magic-link links, and PUBLIC_API_URL for the
+          # newsletter unsubscribe link. SES is region-scoped via SES_REGION,
+          # which happens to match AWS_REGION today (both ap-south-1) but is
+          # kept separate deliberately; materialhubuae.com is the verified identity,
+          # with production access, in ap-south-1.
+          SES_REGION=ap-south-1
+          SES_FROM_ADDRESS=noreply@materialhubuae.com
+          APP_URL=https://stage.materialhubuae.com
+          PUBLIC_API_URL=https://api.stage.materialhubuae.com
+
+          # Cloudflare Stream (reels)
+          CLOUDFLARE_STREAM_ACCOUNT_ID=${{ secrets.STAGING_CLOUDFLARE_STREAM_ACCOUNT_ID }}
+          CLOUDFLARE_STREAM_API_TOKEN=${{ secrets.STAGING_CLOUDFLARE_STREAM_API_TOKEN }}
+          CLOUDFLARE_STREAM_WEBHOOK_SECRET=${{ secrets.STAGING_CLOUDFLARE_STREAM_WEBHOOK_SECRET }}
+
+          # Cache TTLs (seconds)
+          CATEGORY_TREE_CACHE_TTL=3600
+          PRODUCT_DETAIL_CACHE_TTL=600
+          PRODUCT_LIST_CACHE_TTL=300
+
+          # Misc
+          GOOGLE_DRIVE_API_KEY=${{ secrets.STAGING_GOOGLE_DRIVE_API_KEY }}
+          EOF
+
+      - name: SCP .env + compose to Netcup
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.STAGING_NETCUP_HOST }}
+          username: ${{ secrets.STAGING_NETCUP_USER }}
+          key: ${{ secrets.STAGING_NETCUP_SSH_KEY }}
+          source: "backend/.env.netcup,backend/docker-compose.netcup.yml"
+          target: "/opt/materialhub/"
+          strip_components: 1
+          overwrite: true
+
+      - name: SSH — pull, migrate, up
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.STAGING_NETCUP_HOST }}
+          username: ${{ secrets.STAGING_NETCUP_USER }}
+          key: ${{ secrets.STAGING_NETCUP_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/materialhub
+            mv .env.netcup .env
+            chmod 600 .env
+
+            echo "=== ghcr login ==="
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
+
+            echo "=== docker pull ==="
+            docker compose -f docker-compose.netcup.yml pull
+
+            echo "=== run migrations ==="
+            docker compose -f docker-compose.netcup.yml --profile tools run --rm migrate
+
+            echo "=== up -d ==="
+            docker compose -f docker-compose.netcup.yml up -d --remove-orphans --force-recreate
+
+            echo "=== prune dangling images ==="
+            docker image prune -f
+
+            echo "=== status ==="
+            docker compose -f docker-compose.netcup.yml ps

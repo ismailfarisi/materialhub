@@ -1,0 +1,18 @@
+# Shell scripts run on Linux (EC2 boot, CI, the SSM deploy). They must keep
+# LF line endings even when checked out on Windows — a CRLF shebang breaks
+# `#!/usr/bin/env bash`, and Terraform uploads these files verbatim to S3.
+*.sh text eol=lf
+
+# Source and config files are linted by Biome, which expects LF. Git already
+# stores these as LF (core.autocrlf normalises on commit), but on Windows they
+# were being CHECKED OUT as CRLF — so `biome check .` reported a format error on
+# essentially every file in the repo, drowning real findings and failing the
+# pre-push hook. Pinning eol=lf makes the working tree match what CI lints.
+# This changes checkout only; the stored content is unchanged.
+*.ts   text eol=lf
+*.tsx  text eol=lf
+*.js   text eol=lf
+*.jsx  text eol=lf
+*.mjs  text eol=lf
+*.cjs  text eol=lf
+*.json text eol=lf

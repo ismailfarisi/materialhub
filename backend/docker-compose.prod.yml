@@ -1,0 +1,356 @@
+services:
+  # --- Infrastructure ---
+  postgres:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: ${POSTGRES_USERNAME}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USERNAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  typesense:
+    image: typesense/typesense:27.1
+    ports:
+      - "8108:8108"
+    volumes:
+      - typesensedata:/data
+    command: "--data-dir /data --api-key=${TYPESENSE_API_KEY} --enable-cors"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8108/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # --- Services (production — use built images) ---
+  api-gateway:
+    image: ${ECR_REGISTRY}/materialhub-api-gateway:${IMAGE_TAG:-latest}
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+      - PORT=${GATEWAY_PORT}
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET}
+      - AUTH_HOST=${AUTH_HOST}
+      - PRODUCT_HOST=${PRODUCT_HOST}
+      - ORDER_HOST=${ORDER_HOST}
+      - VENDOR_HOST=${VENDOR_HOST}
+      - NOTIFICATION_HOST=${NOTIFICATION_HOST}
+      - CMS_HOST=${CMS_HOST}
+      - REELS_HOST=${REELS_HOST}
+      - INTEGRATION_HOST=${INTEGRATION_HOST}
+      - INTEGRATION_PORT=${INTEGRATION_PORT}
+      - BOOKING_HOST=${BOOKING_HOST:-booking-service}
+      - BOOKING_PORT=${BOOKING_PORT:-3009}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  auth-service:
+    image: ${ECR_REGISTRY}/materialhub-auth-service:${IMAGE_TAG:-latest}
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+      - PORT=${AUTH_PORT}
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - TWO_FA_ENCRYPTION_KEY=${TWO_FA_ENCRYPTION_KEY}
+      - SMS_OTP_PROVIDER=${SMS_OTP_PROVIDER}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_VERIFY_SERVICE_SID=${TWILIO_VERIFY_SERVICE_SID}
+      # Required for SMS_OTP_PROVIDER=whatsapp. This file enumerates env
+      # explicitly (no env_file, unlike docker-compose.netcup.yml), so an
+      # omitted var is silently empty in prod while staging works fine.
+      - WHATSAPP_ACCESS_TOKEN=${WHATSAPP_ACCESS_TOKEN}
+      - WHATSAPP_PHONE_NUMBER_ID=${WHATSAPP_PHONE_NUMBER_ID}
+      - WHATSAPP_API_BASE_URL=${WHATSAPP_API_BASE_URL}
+      - WHATSAPP_TEMPLATE_LANGUAGE=${WHATSAPP_TEMPLATE_LANGUAGE}
+      - WHATSAPP_OTP_TEMPLATE_NAME=${WHATSAPP_OTP_TEMPLATE_NAME}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  product-service:
+    image: ${ECR_REGISTRY}/materialhub-product-service:${IMAGE_TAG:-latest}
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+      - PORT=${PRODUCT_PORT}
+      - TYPESENSE_HOST=${TYPESENSE_HOST}
+      - TYPESENSE_PORT=${TYPESENSE_PORT}
+      - TYPESENSE_PROTOCOL=${TYPESENSE_PROTOCOL}
+      - TYPESENSE_API_KEY=${TYPESENSE_API_KEY}
+      - TYPESENSE_COLLECTION=${TYPESENSE_COLLECTION}
+      - CATEGORY_TREE_CACHE_TTL=${CATEGORY_TREE_CACHE_TTL}
+      - PRODUCT_DETAIL_CACHE_TTL=${PRODUCT_DETAIL_CACHE_TTL}
+      - PRODUCT_LIST_CACHE_TTL=${PRODUCT_LIST_CACHE_TTL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      typesense:
+        condition: service_healthy
+    restart: unless-stopped
+
+  booking-service:
+    image: ${ECR_REGISTRY}/materialhub-booking-service:${IMAGE_TAG:-latest}
+    ports:
+      - "3009:3009"
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+      - PORT=${BOOKING_PORT:-3009}
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      # Signs internal calls to order-service (payments/refunds).
+      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET}
+      # HMAC key for outbound signed .ics feed tokens. Config fails closed in
+      # production if this is unset, so booking-service will not boot without it.
+      - BOOKING_ICAL_FEED_SECRET=${BOOKING_ICAL_FEED_SECRET}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      # Storefront base for customer deep links in booking notifications.
+      - WEB_URL=${WEB_URL}
+      # Public gateway base used to build the absolute .ics feed URL handed to vendors.
+      - PUBLIC_API_URL=${PUBLIC_API_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  order-service:
+    image: ${ECR_REGISTRY}/materialhub-order-service:${IMAGE_TAG:-latest}
+    ports:
+      - "3003:3003"
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+      - PORT=${ORDER_PORT}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_CONNECT_WEBHOOK_SECRET=${STRIPE_CONNECT_WEBHOOK_SECRET}
+      # Must match vendor-service's key byte-for-byte (AES-256-GCM): the
+      # audited bank-detail reveal (admin-payout.controller.ts revealBank)
+      # decrypts vendor_bank_accounts rows that vendor-service encrypted with
+      # this same key. A missing/mismatched key here is a deploy-time failure,
+      # not something tests catch.
+      - VENDOR_ENCRYPTION_KEY=${VENDOR_ENCRYPTION_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  vendor-service:
+    image: ${ECR_REGISTRY}/materialhub-vendor-service:${IMAGE_TAG:-latest}
+    ports:
+      - "3004:3004"
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+      - PORT=${VENDOR_PORT}
+      - VENDOR_ENCRYPTION_KEY=${VENDOR_ENCRYPTION_KEY}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  notification-service:
+    image: ${ECR_REGISTRY}/materialhub-notification-service:${IMAGE_TAG:-latest}
+    ports:
+      - "3005:3005"
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+      - PORT=${NOTIFICATION_PORT}
+      - AWS_REGION=${AWS_REGION}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      # Without these the container falls back to StubWhatsAppDispatcher
+      # (messages "sent" to stdout only) and the webhook 403s every request,
+      # so Meta's subscription handshake can never complete.
+      - WHATSAPP_ACCESS_TOKEN=${WHATSAPP_ACCESS_TOKEN}
+      - WHATSAPP_PHONE_NUMBER_ID=${WHATSAPP_PHONE_NUMBER_ID}
+      - WHATSAPP_API_BASE_URL=${WHATSAPP_API_BASE_URL}
+      - WHATSAPP_APP_SECRET=${WHATSAPP_APP_SECRET}
+      - WHATSAPP_WEBHOOK_VERIFY_TOKEN=${WHATSAPP_WEBHOOK_VERIFY_TOKEN}
+      - WHATSAPP_TEMPLATE_LANGUAGE=${WHATSAPP_TEMPLATE_LANGUAGE}
+      - WHATSAPP_OTP_TEMPLATE_NAME=${WHATSAPP_OTP_TEMPLATE_NAME}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  cms-service:
+    image: ${ECR_REGISTRY}/materialhub-cms-service:${IMAGE_TAG:-latest}
+    ports:
+      - "3006:3006"
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+      - PORT=${CMS_PORT}
+      - AWS_REGION=${AWS_REGION}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - S3_MEDIA_BUCKET=${S3_MEDIA_BUCKET}
+      - CLOUDFRONT_DOMAIN=${CLOUDFRONT_DOMAIN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  reels-service:
+    image: ${ECR_REGISTRY}/materialhub-reels-service:${IMAGE_TAG:-latest}
+    ports:
+      - "3007:3007"
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+      - PORT=${REELS_PORT}
+      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET}
+      - ORDER_HOST=${ORDER_HOST}
+      - CLOUDFLARE_STREAM_ACCOUNT_ID=${CLOUDFLARE_STREAM_ACCOUNT_ID}
+      - CLOUDFLARE_STREAM_API_TOKEN=${CLOUDFLARE_STREAM_API_TOKEN}
+      - CLOUDFLARE_STREAM_WEBHOOK_SECRET=${CLOUDFLARE_STREAM_WEBHOOK_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  integration-service:
+    image: ${ECR_REGISTRY}/materialhub-integration-service:${IMAGE_TAG:-latest}
+    mem_limit: 1g
+    ports:
+      - "3008:3008"
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - DB_HOST=postgres
+      - PORT=${INTEGRATION_PORT}
+      - INTEGRATION_PORT=${INTEGRATION_PORT}
+      - INTEGRATION_FEED_BUCKET=${INTEGRATION_FEED_BUCKET}
+      - INTEGRATION_FEED_BASE_URL=${INTEGRATION_FEED_BASE_URL}
+      - WEB_BASE_URL=${WEB_BASE_URL}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:latest
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+  alloy:
+    image: grafana/alloy:latest
+    privileged: true
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    environment:
+      - GRAFANA_CLOUD_LOKI_URL=${GRAFANA_CLOUD_LOKI_URL}
+      - GRAFANA_CLOUD_PROMETHEUS_REMOTE_WRITE_URL=${GRAFANA_CLOUD_PROMETHEUS_REMOTE_WRITE_URL}
+      - GRAFANA_CLOUD_USERNAME=${GRAFANA_CLOUD_USERNAME}
+      - GRAFANA_CLOUD_METRICS_USERNAME=${GRAFANA_CLOUD_METRICS_USERNAME}
+      - GRAFANA_CLOUD_LOGS_USERNAME=${GRAFANA_CLOUD_LOGS_USERNAME}
+      - GRAFANA_CLOUD_TOKEN=${GRAFANA_CLOUD_TOKEN}
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloydata:/var/lib/alloy/data
+      # cAdvisor (per-container metrics) needs host fs access; cgroup v2 on AL2023
+      - /:/rootfs:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+      - /var/run:/var/run:ro
+      - /dev/kmsg:/dev/kmsg
+    restart: unless-stopped
+
+  # --- Tools ---
+  migrate:
+    image: ${ECR_REGISTRY}/materialhub-api-gateway:${IMAGE_TAG:-latest}
+    profiles: ["tools"]
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USERNAME=${POSTGRES_USERNAME}
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - DB_NAME=${POSTGRES_DB}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["bun", "run", "migrate"]
+
+volumes:
+  pgdata:
+  redisdata:
+  typesensedata:
+  caddy_data:
+  caddy_config:
+  alloydata:

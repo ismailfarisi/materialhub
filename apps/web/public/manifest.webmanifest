@@ -1,0 +1,22 @@
+{
+	"name": "MaterialHub",
+	"short_name": "MaterialHub",
+	"description": "MaterialHub UAE marketplace storefront with WebMCP service worker tool support.",
+	"start_url": "/en",
+	"scope": "/",
+	"display": "standalone",
+	"background_color": "#f8f1e7",
+	"theme_color": "#8b5a2b",
+	"icons": [
+		{
+			"src": "/materialhub-logo.png",
+			"sizes": "512x512",
+			"type": "image/png"
+		}
+	],
+	"serviceworker": {
+		"src": "/webmcp-service-worker.js",
+		"scope": "/",
+		"use_cache": false
+	}
+}

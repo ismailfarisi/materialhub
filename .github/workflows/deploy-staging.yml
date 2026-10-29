@@ -1,0 +1,426 @@
+name: Deploy to Staging (AWS — legacy)
+
+# Superseded by deploy-staging-netcup.yml as the default staging deploy.
+# Kept manual-only (workflow_dispatch) as a fallback during/after cutover.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: true
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-south-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com
+
+jobs:
+  # ----- Detect what changed -----
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      api-gateway: ${{ steps.filter.outputs.api-gateway }}
+      auth-service: ${{ steps.filter.outputs.auth-service }}
+      product-service: ${{ steps.filter.outputs.product-service }}
+      order-service: ${{ steps.filter.outputs.order-service }}
+      vendor-service: ${{ steps.filter.outputs.vendor-service }}
+      notification-service: ${{ steps.filter.outputs.notification-service }}
+      cms-service: ${{ steps.filter.outputs.cms-service }}
+      reels-service: ${{ steps.filter.outputs.reels-service }}
+      integration-service: ${{ steps.filter.outputs.integration-service }}
+      any-backend: ${{ steps.filter.outputs.any-backend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api-gateway:
+              - 'backend/apps/api-gateway/**'
+              - 'backend/libs/**'
+            auth-service:
+              - 'backend/apps/auth-service/**'
+              - 'backend/libs/**'
+            product-service:
+              - 'backend/apps/product-service/**'
+              - 'backend/libs/**'
+            order-service:
+              - 'backend/apps/order-service/**'
+              - 'backend/libs/**'
+            vendor-service:
+              - 'backend/apps/vendor-service/**'
+              - 'backend/libs/**'
+            notification-service:
+              - 'backend/apps/notification-service/**'
+              - 'backend/libs/**'
+            cms-service:
+              - 'backend/apps/cms-service/**'
+              - 'backend/libs/**'
+            reels-service:
+              - 'backend/apps/reels-service/**'
+              - 'backend/libs/**'
+            integration-service:
+              - 'backend/apps/integration-service/**'
+              - 'backend/libs/**'
+            any-backend:
+              - 'backend/**'
+
+  # ----- Backend: lint & test -----
+  backend-checks:
+    name: Backend Lint & Test
+    needs: detect-changes
+    if: needs.detect-changes.outputs.any-backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Lint
+        run: bunx --bun @biomejs/biome@1.9.4 check --diagnostic-level=error .
+        working-directory: backend
+      - name: Test
+        run: >-
+          bunx turbo run test
+          --filter='@materialhub/api-gateway'
+          --filter='@materialhub/auth-service'
+          --filter='@materialhub/product-service'
+          --filter='@materialhub/order-service'
+          --filter='@materialhub/vendor-service'
+          --filter='@materialhub/notification-service'
+          --filter='@materialhub/cms-service'
+          --filter='@materialhub/reels-service'
+          --filter='@materialhub/integration-service'
+
+  # ----- Sync GitHub Secrets to AWS SSM -----
+  sync-secrets-to-ssm:
+    name: Sync Secrets → SSM
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.any-backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Push secrets to SSM
+        env:
+          JWT_ACCESS_SECRET: ${{ secrets.STAGING_JWT_ACCESS_SECRET }}
+          JWT_REFRESH_SECRET: ${{ secrets.STAGING_JWT_REFRESH_SECRET }}
+          INTERNAL_SERVICE_SECRET: ${{ secrets.STAGING_INTERNAL_SERVICE_SECRET }}
+          STRIPE_SECRET_KEY: ${{ secrets.STAGING_STRIPE_SECRET_KEY }}
+          STRIPE_CONNECT_WEBHOOK_SECRET: ${{ secrets.STAGING_STRIPE_CONNECT_WEBHOOK_SECRET }}
+          VENDOR_ENCRYPTION_KEY: ${{ secrets.STAGING_VENDOR_ENCRYPTION_KEY }}
+          ENCRYPTION_KEY: ${{ secrets.STAGING_ENCRYPTION_KEY }}
+          TWO_FA_ENCRYPTION_KEY: ${{ secrets.STAGING_TWO_FA_ENCRYPTION_KEY }}
+          CLOUDFLARE_STREAM_ACCOUNT_ID: ${{ secrets.STAGING_CLOUDFLARE_STREAM_ACCOUNT_ID }}
+          CLOUDFLARE_STREAM_API_TOKEN: ${{ secrets.STAGING_CLOUDFLARE_STREAM_API_TOKEN }}
+          CLOUDFLARE_STREAM_WEBHOOK_SECRET: ${{ secrets.STAGING_CLOUDFLARE_STREAM_WEBHOOK_SECRET }}
+          DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+          GOOGLE_DRIVE_API_KEY: ${{ secrets.STAGING_GOOGLE_DRIVE_API_KEY }}
+          GOOGLE_GEMINI_API_KEY: ${{ secrets.STAGING_GOOGLE_GEMINI_API_KEY }}
+          TYPESENSE_API_KEY: ${{ secrets.STAGING_TYPESENSE_API_KEY }}
+          TAMARA_API_TOKEN: ${{ secrets.STAGING_TAMARA_API_TOKEN }}
+          TAMARA_API_BASE_URL: ${{ secrets.STAGING_TAMARA_API_BASE_URL }}
+          TAMARA_NOTIFICATION_TOKEN: ${{ secrets.STAGING_TAMARA_NOTIFICATION_TOKEN }}
+          TAMARA_SUCCESS_URL: ${{ secrets.STAGING_TAMARA_SUCCESS_URL }}
+          TAMARA_FAILURE_URL: ${{ secrets.STAGING_TAMARA_FAILURE_URL }}
+          TAMARA_CANCEL_URL: ${{ secrets.STAGING_TAMARA_CANCEL_URL }}
+          TAMARA_NOTIFICATION_URL: ${{ secrets.STAGING_TAMARA_NOTIFICATION_URL }}
+          POSTAPLUS_PARTNER_KEY: ${{ secrets.STAGING_POSTAPLUS_PARTNER_KEY }}
+          POSTAPLUS_TENANT: ${{ secrets.STAGING_POSTAPLUS_TENANT }}
+          POSTAPLUS_CUSTOMER: ${{ secrets.STAGING_POSTAPLUS_CUSTOMER }}
+          POSTAPLUS_CREATED_BY: ${{ secrets.STAGING_POSTAPLUS_CREATED_BY }}
+          POSTAPLUS_BASE_URL: ${{ secrets.STAGING_POSTAPLUS_BASE_URL }}
+          POSTAPLUS_SHIPMENT_TYPE: ${{ secrets.STAGING_POSTAPLUS_SHIPMENT_TYPE }}
+          POSTAPLUS_PACKAGE_TYPE: ${{ secrets.STAGING_POSTAPLUS_PACKAGE_TYPE }}
+          POSTAPLUS_SERVICE: ${{ secrets.STAGING_POSTAPLUS_SERVICE }}
+          POSTAPLUS_VEHICLE: ${{ secrets.STAGING_POSTAPLUS_VEHICLE }}
+          POSTAPLUS_PICKUP_TYPE: ${{ secrets.STAGING_POSTAPLUS_PICKUP_TYPE }}
+          SMS_OTP_PROVIDER: ${{ secrets.STAGING_SMS_OTP_PROVIDER }}
+          TWILIO_ACCOUNT_SID: ${{ secrets.STAGING_TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.STAGING_TWILIO_AUTH_TOKEN }}
+          TWILIO_VERIFY_SERVICE_SID: ${{ secrets.STAGING_TWILIO_VERIFY_SERVICE_SID }}
+        run: |
+          set -euo pipefail
+          PREFIX="/materialhub/staging"
+          # Pairs: ssm_path_tail|env_var_name
+          PAIRS=(
+            "jwt/access-secret|JWT_ACCESS_SECRET"
+            "jwt/refresh-secret|JWT_REFRESH_SECRET"
+            "internal-service-secret|INTERNAL_SERVICE_SECRET"
+            "stripe/secret-key|STRIPE_SECRET_KEY"
+            "stripe/connect-webhook|STRIPE_CONNECT_WEBHOOK_SECRET"
+            "encryption/vendor-key|VENDOR_ENCRYPTION_KEY"
+            "encryption/key|ENCRYPTION_KEY"
+            "encryption/two-fa-key|TWO_FA_ENCRYPTION_KEY"
+            "cloudflare/account-id|CLOUDFLARE_STREAM_ACCOUNT_ID"
+            "cloudflare/api-token|CLOUDFLARE_STREAM_API_TOKEN"
+            "cloudflare/webhook-secret|CLOUDFLARE_STREAM_WEBHOOK_SECRET"
+            "db/password|DB_PASSWORD"
+            "google/drive-api-key|GOOGLE_DRIVE_API_KEY"
+            "google/gemini-api-key|GOOGLE_GEMINI_API_KEY"
+            "typesense/api-key|TYPESENSE_API_KEY"
+            "tamara/api-token|TAMARA_API_TOKEN"
+            "tamara/api-base-url|TAMARA_API_BASE_URL"
+            "tamara/notification-token|TAMARA_NOTIFICATION_TOKEN"
+            "tamara/success-url|TAMARA_SUCCESS_URL"
+            "tamara/failure-url|TAMARA_FAILURE_URL"
+            "tamara/cancel-url|TAMARA_CANCEL_URL"
+            "tamara/notification-url|TAMARA_NOTIFICATION_URL"
+            "postaplus/partner-key|POSTAPLUS_PARTNER_KEY"
+            "postaplus/tenant|POSTAPLUS_TENANT"
+            "postaplus/customer|POSTAPLUS_CUSTOMER"
+            "postaplus/created-by|POSTAPLUS_CREATED_BY"
+            "postaplus/base-url|POSTAPLUS_BASE_URL"
+            "postaplus/shipment-type|POSTAPLUS_SHIPMENT_TYPE"
+            "postaplus/package-type|POSTAPLUS_PACKAGE_TYPE"
+            "postaplus/service|POSTAPLUS_SERVICE"
+            "postaplus/vehicle|POSTAPLUS_VEHICLE"
+            "postaplus/pickup-type|POSTAPLUS_PICKUP_TYPE"
+            "sms/otp-provider|SMS_OTP_PROVIDER"
+            "twilio/account-sid|TWILIO_ACCOUNT_SID"
+            "twilio/auth-token|TWILIO_AUTH_TOKEN"
+            "twilio/verify-service-sid|TWILIO_VERIFY_SERVICE_SID"
+          )
+          missing=()
+          for pair in "${PAIRS[@]}"; do
+            path_tail="${pair%%|*}"
+            var_name="${pair##*|}"
+            value="${!var_name:-}"
+            if [[ -z "$value" ]]; then
+              missing+=("$var_name")
+              continue
+            fi
+            aws ssm put-parameter \
+              --name "${PREFIX}/${path_tail}" \
+              --value "$value" \
+              --type SecureString \
+              --overwrite \
+              --no-cli-pager >/dev/null
+            echo "  ✓ ${PREFIX}/${path_tail}"
+          done
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "::warning::Missing GitHub Secrets (skipped): ${missing[*]}"
+          fi
+          echo "✅ Synced $((${#PAIRS[@]} - ${#missing[@]})) of ${#PAIRS[@]} secrets"
+
+          # Static (non-secret) String params. Hardcoded values — they're
+          # docker-compose service names, ports, and derived URLs that don't
+          # change between runs. Mirrors the declarations in
+          # terraform/staging/ssm.tf::aws_ssm_parameter.static. Pushed here
+          # too so values land on every deploy without requiring a separate
+          # `terraform apply` step. Idempotent.
+          STATIC_PAIRS=(
+            "integration/host|integration-service"
+            "integration/port|3008"
+            "integration/service-url|http://integration-service:3008"
+          )
+          for pair in "${STATIC_PAIRS[@]}"; do
+            path_tail="${pair%%|*}"
+            value="${pair##*|}"
+            aws ssm put-parameter \
+              --name "${PREFIX}/${path_tail}" \
+              --value "$value" \
+              --type String \
+              --overwrite \
+              --no-cli-pager >/dev/null
+            echo "  ✓ ${PREFIX}/${path_tail} (static)"
+          done
+          echo "✅ Synced ${#STATIC_PAIRS[@]} static params"
+
+  # ----- Build & push each changed service -----
+  build-api-gateway:
+    needs: [backend-checks, detect-changes]
+    if: needs.detect-changes.outputs.api-gateway == 'true'
+    uses: ./.github/workflows/build-service.yml
+    with:
+      service: api-gateway
+      environment: staging
+      image-tag: ${{ github.sha }}
+    secrets: inherit
+
+  build-auth-service:
+    needs: [backend-checks, detect-changes]
+    if: needs.detect-changes.outputs.auth-service == 'true'
+    uses: ./.github/workflows/build-service.yml
+    with:
+      service: auth-service
+      environment: staging
+      image-tag: ${{ github.sha }}
+    secrets: inherit
+
+  build-product-service:
+    needs: [backend-checks, detect-changes]
+    if: needs.detect-changes.outputs.product-service == 'true'
+    uses: ./.github/workflows/build-service.yml
+    with:
+      service: product-service
+      environment: staging
+      image-tag: ${{ github.sha }}
+    secrets: inherit
+
+  build-order-service:
+    needs: [backend-checks, detect-changes]
+    if: needs.detect-changes.outputs.order-service == 'true'
+    uses: ./.github/workflows/build-service.yml
+    with:
+      service: order-service
+      environment: staging
+      image-tag: ${{ github.sha }}
+    secrets: inherit
+
+  build-vendor-service:
+    needs: [backend-checks, detect-changes]
+    if: needs.detect-changes.outputs.vendor-service == 'true'
+    uses: ./.github/workflows/build-service.yml
+    with:
+      service: vendor-service
+      environment: staging
+      image-tag: ${{ github.sha }}
+    secrets: inherit
+
+  build-notification-service:
+    needs: [backend-checks, detect-changes]
+    if: needs.detect-changes.outputs.notification-service == 'true'
+    uses: ./.github/workflows/build-service.yml
+    with:
+      service: notification-service
+      environment: staging
+      image-tag: ${{ github.sha }}
+    secrets: inherit
+
+  build-cms-service:
+    needs: [backend-checks, detect-changes]
+    if: needs.detect-changes.outputs.cms-service == 'true'
+    uses: ./.github/workflows/build-service.yml
+    with:
+      service: cms-service
+      environment: staging
+      image-tag: ${{ github.sha }}
+    secrets: inherit
+
+  build-reels-service:
+    needs: [backend-checks, detect-changes]
+    if: needs.detect-changes.outputs.reels-service == 'true'
+    uses: ./.github/workflows/build-service.yml
+    with:
+      service: reels-service
+      environment: staging
+      image-tag: ${{ github.sha }}
+    secrets: inherit
+
+  build-integration-service:
+    needs: [backend-checks, detect-changes]
+    if: needs.detect-changes.outputs.integration-service == 'true'
+    uses: ./.github/workflows/build-service.yml
+    with:
+      service: integration-service
+      environment: staging
+      image-tag: ${{ github.sha }}
+    secrets: inherit
+
+  # ----- Deploy to EC2 -----
+  deploy-backend:
+    name: Deploy Backend to EC2
+    needs:
+      - detect-changes
+      - sync-secrets-to-ssm
+      - build-api-gateway
+      - build-auth-service
+      - build-product-service
+      - build-order-service
+      - build-vendor-service
+      - build-notification-service
+      - build-cms-service
+      - build-reels-service
+      - build-integration-service
+    if: |
+      always() &&
+      needs.detect-changes.outputs.any-backend == 'true' &&
+      !contains(needs.*.result, 'failure') &&
+      !contains(needs.*.result, 'cancelled')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # SCP into /tmp (writable by ec2-user) — /opt/materialhub is root-owned and
+      # holds a root-owned copy from user-data, so direct overwrite as ec2-user
+      # fails with "Permission denied". The SSH step below moves it into place.
+      - name: Upload deploy artifacts to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.STAGING_EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          # drone-scp v1.6.14 (used by scp-action@v0.1.7) parses INPUT_SOURCE
+          # as a comma-separated list, NOT newline-separated. A `|` block
+          # scalar produces a single string with embedded newlines that
+          # drone-scp treats as one path and fails to find — see the
+          # "tar: empty archive" error from run 25066011756.
+          source: "scripts/refresh-env-from-ssm.sh,scripts/compose-fragments/integration-service.staging.yml"
+          target: /tmp/
+          strip_components: 1
+          overwrite: true
+
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.STAGING_EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            ECR_REGISTRY="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com"
+
+            # Move the SCP'd script into /opt/materialhub over any root-owned copy.
+            sudo install -m 755 -o root -g root \
+              /tmp/refresh-env-from-ssm.sh \
+              /opt/materialhub/refresh-env-from-ssm.sh
+            rm -f /tmp/refresh-env-from-ssm.sh
+
+            cd /opt/materialhub
+
+            # Append the integration-service compose block if absent. The
+            # compose file at /opt/materialhub/docker-compose.yml was written by
+            # user-data on first boot and is patched here for service
+            # additions that postdate the original bootstrap. Idempotent —
+            # the fragment only lands when the service entry is missing.
+            # Aesthetic note: the block lands after the migrate (tools) block
+            # rather than between reels-service and migrate. Functionally
+            # equivalent — docker-compose ignores service order.
+            if ! sudo grep -q "^  integration-service:" /opt/materialhub/docker-compose.yml; then
+              cat /tmp/compose-fragments/integration-service.staging.yml \
+                | sudo tee -a /opt/materialhub/docker-compose.yml >/dev/null
+            fi
+            rm -rf /tmp/compose-fragments
+
+            # Refresh .env from SSM (idempotent; preserves non-SSM lines,
+            # including the static entries appended above).
+            sudo AWS_REGION=ap-south-1 /opt/materialhub/refresh-env-from-ssm.sh \
+              /opt/materialhub/.env materialhub staging
+
+            aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin $ECR_REGISTRY
+            docker-compose pull
+            # Run pending migrations before cycling services, using the one-shot
+            # `migrate` profile in docker-compose.yml. Profiles: ["tools"] means
+            # it doesn't start automatically with `up`.
+            docker-compose --profile tools run --rm migrate
+            # --force-recreate ensures containers pick up new .env values
+            # even when image tags haven't changed (e.g., secret rotation only).
+            docker-compose up -d --remove-orphans --force-recreate
+            # Restart Caddy so it re-resolves the api-gateway DNS entry.
+            # When services are recreated they get new container IPs, but
+            # Caddy caches the old IP and returns 502 until restarted.
+            docker-compose restart caddy
+            docker image prune -f

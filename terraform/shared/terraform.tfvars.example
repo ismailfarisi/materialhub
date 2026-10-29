@@ -1,0 +1,8 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored
+# (see terraform/.gitignore).
+
+github_repo = "ismailfarisi/ecom"
+
+# Optional overrides
+# aws_region   = "ap-south-1"
+# project_name = "materialhub"

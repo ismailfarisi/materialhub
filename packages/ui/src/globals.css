@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+	:root {
+		/* MaterialHub UAE Brand Palette */
+		--nl-espresso: 24 20% 8%; /* #1A1208 */
+		--nl-cacao: 26 30% 12%; /* #2C1810 */
+		--nl-russet: 14 45% 37%; /* #7C4C35 */
+		--nl-amber: 28 58% 46%; /* #B87333 - signature */
+		--nl-taupe: 20 38% 47%; /* #987156 */
+		--nl-caramel: 24 61% 57%; /* #C2865C */
+		--nl-pearl: 32 40% 88%; /* #ECE1D4 */
+		--nl-linen: 30 35% 95%; /* #F2EAE0 */
+
+		/* Semantic Colors - Light Mode */
+		--background: var(--nl-linen);
+		--foreground: var(--nl-cacao);
+		--card: 30 50% 99%; /* warm near-white, sits above linen */
+		--card-foreground: var(--nl-cacao);
+		--popover: 30 50% 99%; /* warm near-white, sits above linen */
+		--popover-foreground: var(--nl-cacao);
+		--primary: var(--nl-amber);
+		--primary-foreground: var(--nl-espresso);
+		--secondary: var(--nl-pearl);
+		--secondary-foreground: var(--nl-cacao);
+		--muted: var(--nl-pearl);
+		--muted-foreground: var(--nl-taupe);
+		--accent: var(--nl-caramel);
+		--accent-foreground: var(--nl-espresso);
+		--destructive: var(--nl-russet);
+		--destructive-foreground: var(--nl-linen);
+		--border: 30 18% 78%; /* solid warm border */
+		--input: 30 22% 85%; /* solid warm input */
+		--ring: var(--nl-amber);
+		--radius: 2px;
+
+		/* Sidebar specific */
+		--sidebar: var(--nl-cacao);
+		--sidebar-foreground: var(--nl-pearl);
+		--sidebar-accent: var(--nl-amber);
+		--sidebar-muted: var(--nl-taupe);
+
+		/* Success/Warning - warm tones only */
+		--success: var(--nl-amber);
+		--success-foreground: var(--nl-espresso);
+		--warning: var(--nl-caramel);
+		--warning-foreground: var(--nl-espresso);
+	}
+
+	.dark {
+		/* Semantic Colors - Dark Mode */
+		--background: var(--nl-cacao);
+		--foreground: var(--nl-linen);
+		--card: 26 25% 18%; /* lighter than cacao for elevated surface */
+		--card-foreground: var(--nl-linen);
+		--popover: 26 25% 18%; /* lighter than cacao for elevated surface */
+		--popover-foreground: var(--nl-linen);
+		--primary: var(--nl-amber);
+		--primary-foreground: var(--nl-espresso);
+		--secondary: var(--nl-taupe); /* #987156 */
+		--secondary-foreground: var(--nl-linen);
+		--muted: var(--nl-taupe); /* #987156 */
+		--muted-foreground: var(--nl-pearl);
+		--accent: var(--nl-caramel);
+		--accent-foreground: var(--nl-espresso);
+		--destructive: var(--nl-russet);
+		--destructive-foreground: var(--nl-linen);
+		--border: 26 15% 28%; /* visible warm border */
+		--input: 26 15% 32%;
+		--ring: var(--nl-amber);
+		--sidebar: var(--nl-espresso); /* #1A1208 */
+		--sidebar-foreground: var(--nl-pearl);
+		--sidebar-accent: var(--nl-amber);
+		--sidebar-muted: var(--nl-taupe);
+		--success: var(--nl-amber);
+		--success-foreground: var(--nl-espresso);
+		--warning: var(--nl-caramel);
+		--warning-foreground: var(--nl-espresso);
+	}
+}
+
+@layer base {
+	* {
+		@apply border-border;
+	}
+	body {
+		@apply bg-background text-foreground;
+	}
+}

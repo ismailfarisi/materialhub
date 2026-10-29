@@ -1,0 +1,179 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* MaterialHub UAE Brand Palette */
+    --nl-espresso: 24 20% 8%;
+    --nl-cacao: 26 30% 12%;
+    --nl-russet: 14 45% 37%;
+    --nl-amber: 28 58% 46%;
+    --nl-taupe: 20 38% 47%;
+    --nl-caramel: 24 61% 57%;
+    --nl-pearl: 32 40% 88%;
+    --nl-linen: 30 35% 95%;
+
+    /* Semantic Colors - Light Mode */
+    --background: var(--nl-linen);
+    --foreground: var(--nl-cacao);
+    --card: 30 50% 99%;
+    --card-foreground: var(--nl-cacao);
+    --popover: 30 50% 99%;
+    --popover-foreground: var(--nl-cacao);
+    --primary: var(--nl-amber);
+    --primary-foreground: var(--nl-espresso);
+    --secondary: var(--nl-pearl);
+    --secondary-foreground: var(--nl-cacao);
+    --muted: var(--nl-pearl);
+    --muted-foreground: var(--nl-taupe);
+    --accent: var(--nl-caramel);
+    --accent-foreground: var(--nl-espresso);
+    --destructive: var(--nl-russet);
+    --destructive-foreground: var(--nl-linen);
+    --border: 30 18% 78%;
+    --input: 30 22% 85%;
+    --ring: var(--nl-amber);
+    --radius: 2px;
+
+    /* Sidebar specific */
+    --sidebar: var(--nl-cacao);
+    --sidebar-foreground: var(--nl-pearl);
+    --sidebar-accent: var(--nl-amber);
+    --sidebar-muted: var(--nl-taupe);
+
+    /* Success/Warning - warm tones only */
+    --success: var(--nl-amber);
+    --success-foreground: var(--nl-espresso);
+    --warning: var(--nl-caramel);
+    --warning-foreground: var(--nl-espresso);
+  }
+
+  .dark {
+    /* Semantic Colors - Dark Mode */
+    --background: var(--nl-cacao);
+    --foreground: var(--nl-linen);
+    --card: 26 25% 18%;
+    --card-foreground: var(--nl-linen);
+    --popover: 26 25% 18%;
+    --popover-foreground: var(--nl-linen);
+    --primary: var(--nl-amber);
+    --primary-foreground: var(--nl-espresso);
+    --secondary: 20 38% 47%;
+    --secondary-foreground: var(--nl-linen);
+    --muted: 20 38% 47%;
+    --muted-foreground: var(--nl-pearl);
+    --accent: var(--nl-caramel);
+    --accent-foreground: var(--nl-espresso);
+    --destructive: var(--nl-russet);
+    --destructive-foreground: var(--nl-linen);
+    --border: 26 15% 28%;
+    --input: 26 15% 32%;
+    --ring: var(--nl-amber);
+    --sidebar: 24 20% 8%;
+    --sidebar-foreground: var(--nl-pearl);
+    --sidebar-accent: var(--nl-amber);
+    --sidebar-muted: var(--nl-taupe);
+    --success: var(--nl-amber);
+    --success-foreground: var(--nl-espresso);
+    --warning: var(--nl-caramel);
+    --warning-foreground: var(--nl-espresso);
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* ── Responsive tables: stack into cards below md (768px) ──
+   Opt in with `data-stack="md"` on a <table>. Each <td> uses `data-label`
+   as its field label. Mark the primary cell with `data-card-title` for a
+   header; label-less cells (actions/selection) become a footer. */
+@media (max-width: 767.98px) {
+  table[data-stack="md"],
+  table[data-stack="md"] tbody {
+    display: block;
+    width: 100%;
+  }
+  table[data-stack="md"] thead {
+    display: none;
+  }
+  /* Card surface */
+  table[data-stack="md"] tr {
+    display: block;
+    margin-bottom: 0.75rem;
+    border: 1px solid hsl(var(--nl-pearl) / 0.5);
+    border-radius: 0.75rem;
+    background: hsl(var(--nl-linen));
+    overflow: hidden;
+    box-shadow: 0 1px 2px hsl(var(--nl-espresso) / 0.06);
+  }
+  /* Detail row: uppercase label + value */
+  table[data-stack="md"] td {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.6rem 0.875rem;
+    border: 0;
+    border-bottom: 1px solid hsl(var(--nl-pearl) / 0.4);
+    text-align: right;
+    font-size: 0.875rem;
+    color: hsl(var(--nl-cacao));
+  }
+  table[data-stack="md"] td:last-child {
+    border-bottom: 0;
+  }
+  table[data-stack="md"] td::before {
+    content: attr(data-label);
+    text-align: left;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: hsl(var(--nl-taupe));
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  /* Title cell: full-width bold header strip */
+  table[data-stack="md"] td[data-card-title] {
+    display: block;
+    text-align: left;
+    padding: 0.7rem 0.875rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: hsl(var(--nl-cacao));
+    background: hsl(var(--nl-pearl) / 0.25);
+    border-bottom: 1px solid hsl(var(--nl-pearl) / 0.5);
+  }
+  table[data-stack="md"] td[data-card-title]::before {
+    content: none;
+  }
+  /* Action / label-less / selection cells: footer */
+  table[data-stack="md"] td:not([data-label]):not([data-card-title]),
+  table[data-stack="md"] td[data-label=""] {
+    justify-content: flex-end;
+    gap: 0.5rem;
+    text-align: right;
+    background: hsl(var(--nl-pearl) / 0.12);
+  }
+  table[data-stack="md"] td:not([data-label]):not([data-card-title])::before,
+  table[data-stack="md"] td[data-label=""]::before {
+    content: none;
+  }
+  /* Loading skeleton / empty-state cells: plain full-width block, no card chrome */
+  table[data-stack="md"] td[data-card-full] {
+    display: block;
+    width: 100%;
+    text-align: center;
+    background: none;
+    border-bottom: 0;
+  }
+  table[data-stack="md"] td[data-card-full]::before {
+    content: none;
+  }
+}

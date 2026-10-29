@@ -1,0 +1,4 @@
+sku,quantity_on_hand,note
+SKU-100,50,morning sync
+SKU-101,0,sold out
+SKU-102,1200,restocked

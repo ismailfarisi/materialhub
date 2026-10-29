@@ -1,0 +1,11 @@
+# State (including timestamped backups written by `terraform state mv`)
+*.tfstate
+*.tfstate.*
+# Saved plans (may contain secrets)
+*.tfplan
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+*.auto.tfvars
+crash.log
+*.pem

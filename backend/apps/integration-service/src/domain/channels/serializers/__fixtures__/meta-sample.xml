@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">
+  <channel>
+    <title>MaterialHub</title>
+    <link>https://materialhubuae.com</link>
+    <description>MaterialHub marketplace catalog</description>
+    <item>
+      <g:id>prod-1</g:id>
+      <title><![CDATA[Rose Eau de Parfum]]></title>
+      <description><![CDATA[A floral fragrance.]]></description>
+      <link>https://materialhubuae.com/en/product/rose-edp</link>
+      <g:image_link>https://cdn.materialhubuae.com/p/1/a.jpg</g:image_link>
+      <g:availability>in stock</g:availability>
+      <g:price>120.00 AED</g:price>
+      <g:identifier_exists>NO</g:identifier_exists>
+      <g:condition>new</g:condition>
+    </item>
+    <item>
+      <g:id>var-1</g:id>
+      <g:item_group_id>prod-2</g:item_group_id>
+      <title><![CDATA[Matte Lipstick — Crimson]]></title>
+      <description><![CDATA[Long-wear matte finish.]]></description>
+      <link>https://materialhubuae.com/en/product/matte-lipstick</link>
+      <g:image_link>https://cdn.materialhubuae.com/p/2/a.jpg</g:image_link>
+      <g:additional_image_link>https://cdn.materialhubuae.com/p/2/b.jpg</g:additional_image_link>
+      <g:availability>out of stock</g:availability>
+      <g:price>85.00 AED</g:price>
+      <g:sale_price>69.00 AED</g:sale_price>
+      <g:brand>LuxeBeauty</g:brand>
+      <g:gtin>0123456789012</g:gtin>
+      <g:mpn>LB-MATTE-CR</g:mpn>
+      <g:identifier_exists>YES</g:identifier_exists>
+      <g:condition>new</g:condition>
+      <g:google_product_category>567</g:google_product_category>
+      <g:product_type>Health &amp; Beauty &gt; Makeup &gt; Lipstick</g:product_type>
+    </item>
+  </channel>
+</rss>

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "keys": [
+    "payment.cod.over_threshold",
+    "shipping.same_day.zone_unsupported",
+    "shipping.zone.ambiguous",
+    "shipping.group.from_city",
+    "shipping.vendor.closed",
+    "shipping.method.unavailable",
+    "checkout.notice.items_missing_cod",
+    "checkout.error.no_eligible_payment_methods",
+    "checkout.error.shipping_unavailable_for_group",
+    "checkout.error.quote_token_stale",
+    "checkout.error.items_out_of_stock"
+  ]
+}

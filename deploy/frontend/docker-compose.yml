@@ -1,0 +1,96 @@
+# Prod frontend box (/opt/materialhub-web). Synced from the repo via
+# s3://materialhub-config-prod/frontend/ on every deploy — edit here, not on the box.
+# .env (written by the deploy job): ECR_REGISTRY, IMAGE_TAG, GRAFANA_CLOUD_*.
+
+# 20 GB root disk: cap container logs (Alloy ships them to Grafana anyway).
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-app: &app
+  logging: *logging
+  restart: unless-stopped
+  healthcheck: &health
+    interval: 15s
+    timeout: 5s
+    retries: 3
+    start_period: 30s
+
+services:
+  web:
+    <<: *app
+    image: ${ECR_REGISTRY}/materialhub-web:${IMAGE_TAG}
+    mem_limit: 512m
+    environment:
+      API_URL: https://api.materialhubuae.com
+    expose:
+      - "4000"
+    volumes:
+      # ISR + next/image cache survives container recreates.
+      - ./data/next_cache:/app/apps/web/.next/cache
+    healthcheck:
+      <<: *health
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+
+  vendor-dashboard:
+    <<: *app
+    image: ${ECR_REGISTRY}/materialhub-vendor-dashboard:${IMAGE_TAG}
+    mem_limit: 320m
+    expose:
+      - "4001"
+    healthcheck:
+      <<: *health
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+
+  admin-panel:
+    <<: *app
+    image: ${ECR_REGISTRY}/materialhub-admin-panel:${IMAGE_TAG}
+    mem_limit: 320m
+    expose:
+      - "4002"
+    healthcheck:
+      <<: *health
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4002/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+
+  caddy:
+    image: caddy:2
+    logging: *logging
+    restart: unless-stopped
+    mem_limit: 128m
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data/caddy_data:/data
+      - ./data/caddy_config:/config
+    depends_on:
+      - web
+      - vendor-dashboard
+      - admin-panel
+
+  alloy:
+    image: grafana/alloy:latest
+    logging: *logging
+    privileged: true
+    restart: unless-stopped
+    mem_limit: 256m
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    env_file: .env
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./data/alloy:/var/lib/alloy/data
+      # cAdvisor (per-container metrics) needs host fs access; cgroup v2 on AL2023
+      - /:/rootfs:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+      - /var/run:/var/run:ro
+      - /dev/kmsg:/dev/kmsg

@@ -1,0 +1,745 @@
+name: Deploy to Production
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+# Serialize production deploys — never cancel a deploy that is already running.
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-south-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com
+
+jobs:
+  # ----- Backend: lint & test -----
+  backend-checks:
+    name: Backend Lint & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          # Pinned: bun 1.3.14 regressed source-barrel circular-import
+          # resolution ("Export named X not found"). 1.3.13 matches dev.
+          bun-version: 1.3.13
+      - run: bun install --frozen-lockfile
+      - name: Lint
+        run: bunx --bun @biomejs/biome@1.9.4 check --diagnostic-level=error .
+        working-directory: backend
+      # Unit tests only. Integration tests (*.integration.test.ts,
+      # tests/integration/**) need live Postgres/Redis not present in CI and are
+      # run separately — see backend/scripts/test-ci.sh.
+      - name: Test
+        run: bash backend/scripts/test-ci.sh
+
+  # ----- Sync GitHub Secrets to AWS SSM -----
+  sync-secrets-to-ssm:
+    name: Sync Secrets → SSM
+    needs: backend-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Push secrets to SSM
+        env:
+          JWT_ACCESS_SECRET: ${{ secrets.PROD_JWT_ACCESS_SECRET }}
+          JWT_REFRESH_SECRET: ${{ secrets.PROD_JWT_REFRESH_SECRET }}
+          INTERNAL_SERVICE_SECRET: ${{ secrets.PROD_INTERNAL_SERVICE_SECRET }}
+          BOOKING_ICAL_FEED_SECRET: ${{ secrets.PROD_BOOKING_ICAL_FEED_SECRET }}
+          STRIPE_SECRET_KEY: ${{ secrets.PROD_STRIPE_SECRET_KEY }}
+          STRIPE_CONNECT_WEBHOOK_SECRET: ${{ secrets.PROD_STRIPE_CONNECT_WEBHOOK_SECRET }}
+          VENDOR_ENCRYPTION_KEY: ${{ secrets.PROD_VENDOR_ENCRYPTION_KEY }}
+          ENCRYPTION_KEY: ${{ secrets.PROD_ENCRYPTION_KEY }}
+          TWO_FA_ENCRYPTION_KEY: ${{ secrets.PROD_TWO_FA_ENCRYPTION_KEY }}
+          CLOUDFLARE_STREAM_ACCOUNT_ID: ${{ secrets.PROD_CLOUDFLARE_STREAM_ACCOUNT_ID }}
+          CLOUDFLARE_STREAM_API_TOKEN: ${{ secrets.PROD_CLOUDFLARE_STREAM_API_TOKEN }}
+          CLOUDFLARE_STREAM_WEBHOOK_SECRET: ${{ secrets.PROD_CLOUDFLARE_STREAM_WEBHOOK_SECRET }}
+          GOOGLE_DRIVE_API_KEY: ${{ secrets.PROD_GOOGLE_DRIVE_API_KEY }}
+          GOOGLE_GEMINI_API_KEY: ${{ secrets.PROD_GOOGLE_GEMINI_API_KEY }}
+          TYPESENSE_API_KEY: ${{ secrets.PROD_TYPESENSE_API_KEY }}
+          TAMARA_API_TOKEN: ${{ secrets.PROD_TAMARA_API_TOKEN }}
+          TAMARA_API_BASE_URL: ${{ secrets.PROD_TAMARA_API_BASE_URL }}
+          TAMARA_NOTIFICATION_TOKEN: ${{ secrets.PROD_TAMARA_NOTIFICATION_TOKEN }}
+          TAMARA_SUCCESS_URL: ${{ secrets.PROD_TAMARA_SUCCESS_URL }}
+          TAMARA_FAILURE_URL: ${{ secrets.PROD_TAMARA_FAILURE_URL }}
+          TAMARA_CANCEL_URL: ${{ secrets.PROD_TAMARA_CANCEL_URL }}
+          TAMARA_NOTIFICATION_URL: ${{ secrets.PROD_TAMARA_NOTIFICATION_URL }}
+          POSTAPLUS_PARTNER_KEY: ${{ secrets.PROD_POSTAPLUS_PARTNER_KEY }}
+          POSTAPLUS_TENANT: ${{ secrets.PROD_POSTAPLUS_TENANT }}
+          POSTAPLUS_CUSTOMER: ${{ secrets.PROD_POSTAPLUS_CUSTOMER }}
+          POSTAPLUS_CREATED_BY: ${{ secrets.PROD_POSTAPLUS_CREATED_BY }}
+          POSTAPLUS_BASE_URL: ${{ secrets.PROD_POSTAPLUS_BASE_URL }}
+          POSTAPLUS_SHIPMENT_TYPE: ${{ secrets.PROD_POSTAPLUS_SHIPMENT_TYPE }}
+          POSTAPLUS_PACKAGE_TYPE: ${{ secrets.PROD_POSTAPLUS_PACKAGE_TYPE }}
+          POSTAPLUS_SERVICE: ${{ secrets.PROD_POSTAPLUS_SERVICE }}
+          POSTAPLUS_VEHICLE: ${{ secrets.PROD_POSTAPLUS_VEHICLE }}
+          POSTAPLUS_PICKUP_TYPE: ${{ secrets.PROD_POSTAPLUS_PICKUP_TYPE }}
+          GRAFANA_CLOUD_LOKI_URL: ${{ secrets.PROD_GRAFANA_CLOUD_LOKI_URL }}
+          GRAFANA_CLOUD_PROMETHEUS_REMOTE_WRITE_URL: ${{ secrets.PROD_GRAFANA_CLOUD_PROMETHEUS_REMOTE_WRITE_URL }}
+          GRAFANA_CLOUD_USERNAME: ${{ secrets.PROD_GRAFANA_CLOUD_USERNAME }}
+          GRAFANA_CLOUD_METRICS_USERNAME: ${{ secrets.PROD_GRAFANA_CLOUD_METRICS_USERNAME }}
+          GRAFANA_CLOUD_LOGS_USERNAME: ${{ secrets.PROD_GRAFANA_CLOUD_LOGS_USERNAME }}
+          GRAFANA_CLOUD_TOKEN: ${{ secrets.PROD_GRAFANA_CLOUD_TOKEN }}
+          SMS_OTP_PROVIDER: ${{ secrets.PROD_SMS_OTP_PROVIDER }}
+          TWILIO_ACCOUNT_SID: ${{ secrets.PROD_TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.PROD_TWILIO_AUTH_TOKEN }}
+          TWILIO_VERIFY_SERVICE_SID: ${{ secrets.PROD_TWILIO_VERIFY_SERVICE_SID }}
+          PUBLIC_API_URL: ${{ secrets.PROD_PUBLIC_API_URL }}
+          WEB_URL: ${{ secrets.PROD_WEB_URL }}
+          WEB_WWW_URL: ${{ secrets.PROD_WEB_WWW_URL }}
+        run: |
+          set -euo pipefail
+          PREFIX="/materialhub/production"
+          # Pairs: ssm_path_tail|env_var_name
+          # DB_PASSWORD is omitted — Terraform generates it and writes
+          # /materialhub/production/db/password directly.
+          PAIRS=(
+            "jwt/access-secret|JWT_ACCESS_SECRET"
+            "jwt/refresh-secret|JWT_REFRESH_SECRET"
+            "internal-service-secret|INTERNAL_SERVICE_SECRET"
+            "booking/ical-feed-secret|BOOKING_ICAL_FEED_SECRET"
+            "stripe/secret-key|STRIPE_SECRET_KEY"
+            "stripe/connect-webhook|STRIPE_CONNECT_WEBHOOK_SECRET"
+            "encryption/vendor-key|VENDOR_ENCRYPTION_KEY"
+            "encryption/key|ENCRYPTION_KEY"
+            "encryption/two-fa-key|TWO_FA_ENCRYPTION_KEY"
+            "cloudflare/account-id|CLOUDFLARE_STREAM_ACCOUNT_ID"
+            "cloudflare/api-token|CLOUDFLARE_STREAM_API_TOKEN"
+            "cloudflare/webhook-secret|CLOUDFLARE_STREAM_WEBHOOK_SECRET"
+            "google/drive-api-key|GOOGLE_DRIVE_API_KEY"
+            "google/gemini-api-key|GOOGLE_GEMINI_API_KEY"
+            "typesense/api-key|TYPESENSE_API_KEY"
+            "tamara/api-token|TAMARA_API_TOKEN"
+            "tamara/api-base-url|TAMARA_API_BASE_URL"
+            "tamara/notification-token|TAMARA_NOTIFICATION_TOKEN"
+            "tamara/success-url|TAMARA_SUCCESS_URL"
+            "tamara/failure-url|TAMARA_FAILURE_URL"
+            "tamara/cancel-url|TAMARA_CANCEL_URL"
+            "tamara/notification-url|TAMARA_NOTIFICATION_URL"
+            "postaplus/partner-key|POSTAPLUS_PARTNER_KEY"
+            "postaplus/tenant|POSTAPLUS_TENANT"
+            "postaplus/customer|POSTAPLUS_CUSTOMER"
+            "postaplus/created-by|POSTAPLUS_CREATED_BY"
+            "postaplus/base-url|POSTAPLUS_BASE_URL"
+            "postaplus/shipment-type|POSTAPLUS_SHIPMENT_TYPE"
+            "postaplus/package-type|POSTAPLUS_PACKAGE_TYPE"
+            "postaplus/service|POSTAPLUS_SERVICE"
+            "postaplus/vehicle|POSTAPLUS_VEHICLE"
+            "postaplus/pickup-type|POSTAPLUS_PICKUP_TYPE"
+            "grafana/cloud-loki-url|GRAFANA_CLOUD_LOKI_URL"
+            "grafana/cloud-prometheus-url|GRAFANA_CLOUD_PROMETHEUS_REMOTE_WRITE_URL"
+            "grafana/cloud-username|GRAFANA_CLOUD_USERNAME"
+            "grafana/cloud-metrics-username|GRAFANA_CLOUD_METRICS_USERNAME"
+            "grafana/cloud-logs-username|GRAFANA_CLOUD_LOGS_USERNAME"
+            "grafana/cloud-token|GRAFANA_CLOUD_TOKEN"
+            "sms/otp-provider|SMS_OTP_PROVIDER"
+            "twilio/account-sid|TWILIO_ACCOUNT_SID"
+            "twilio/auth-token|TWILIO_AUTH_TOKEN"
+            "twilio/verify-service-sid|TWILIO_VERIFY_SERVICE_SID"
+            "urls/public-api-url|PUBLIC_API_URL"
+            "urls/web-url|WEB_URL"
+            "urls/web-www-url|WEB_WWW_URL"
+          )
+          # Secrets without which a service cannot boot (or would boot into a
+          # silently-insecure state). A missing one used to be a ::warning::
+          # that let the deploy proceed and crash-loop containers at runtime —
+          # fail the job here instead, before any image is deployed.
+          #
+          # Deliberately NOT escalated (warn-and-continue is correct):
+          #  - all third-party integration creds (Stripe/Tamara/PostaPlus/
+          #    Twilio/Cloudflare/Google/Grafana) — the services boot and
+          #    degrade feature-by-feature without them.
+          #  - PUBLIC_API_URL / other URLs — terraform user-data seeds a
+          #    working value into /opt/materialhub/.env at first boot, and the
+          #    merge in refresh-env-from-ssm.sh preserves it when the SSM
+          #    param is absent.
+          #  - DB_PASSWORD is not in PAIRS at all (Terraform writes it).
+          REQUIRED=(
+            JWT_ACCESS_SECRET
+            JWT_REFRESH_SECRET
+            INTERNAL_SERVICE_SECRET
+            BOOKING_ICAL_FEED_SECRET
+            ENCRYPTION_KEY
+            VENDOR_ENCRYPTION_KEY
+            TWO_FA_ENCRYPTION_KEY
+            TYPESENSE_API_KEY
+          )
+          is_required() {
+            local needle="$1"
+            for r in "${REQUIRED[@]}"; do
+              [[ "$r" == "$needle" ]] && return 0
+            done
+            return 1
+          }
+          missing=()
+          missing_required=()
+          for pair in "${PAIRS[@]}"; do
+            path_tail="${pair%%|*}"
+            var_name="${pair##*|}"
+            value="${!var_name:-}"
+            if [[ -z "$value" ]]; then
+              if is_required "$var_name"; then
+                missing_required+=("$var_name")
+              else
+                missing+=("$var_name")
+              fi
+              continue
+            fi
+            aws ssm put-parameter \
+              --name "${PREFIX}/${path_tail}" \
+              --value "$value" \
+              --type SecureString \
+              --overwrite \
+              --no-cli-pager >/dev/null
+            echo "  ✓ ${PREFIX}/${path_tail}"
+          done
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "::warning::Missing OPTIONAL GitHub Secrets (skipped): ${missing[*]}"
+          fi
+          if [[ ${#missing_required[@]} -gt 0 ]]; then
+            echo "::error::Missing REQUIRED GitHub Secrets: ${missing_required[*]}"
+            echo "::error::These are required for service boot. Set them under" \
+                 "Settings → Secrets → Actions as PROD_<NAME>, then re-run this deploy."
+            exit 1
+          fi
+          skipped=$(( ${#missing[@]} + ${#missing_required[@]} ))
+          echo "✅ Synced $(( ${#PAIRS[@]} - skipped )) of ${#PAIRS[@]} secrets"
+
+  # ----- Build all services for prod (tag = full deploy) -----
+  build-api-gateway:
+    needs: backend-checks
+    uses: ./.github/workflows/build-service.yml
+    with:
+      service: api-gateway
+      environment: production
+      image-tag: ${{ github.ref_name }}
+    secrets: inherit
+
+  build-auth-service:
+    needs: backend-checks
+    uses: ./.github/workflows/build-service.yml
+    with:
+      service: auth-service
+      environment: production
+      image-tag: ${{ github.ref_name }}
+    secrets: inherit
+
+  build-product-service:
+    needs: backend-checks
+    uses: ./.github/workflows/build-service.yml
+    with:
+      service: product-service
+      environment: production
+      image-tag: ${{ github.ref_name }}
+    secrets: inherit
+
+  build-order-service:
+    needs: backend-checks
+    uses: ./.github/workflows/build-service.yml
+    with:
+      service: order-service
+      environment: production
+      image-tag: ${{ github.ref_name }}
+    secrets: inherit
+
+  build-vendor-service:
+    needs: backend-checks
+    uses: ./.github/workflows/build-service.yml
+    with:
+      service: vendor-service
+      environment: production
+      image-tag: ${{ github.ref_name }}
+    secrets: inherit
+
+  build-notification-service:
+    needs: backend-checks
+    uses: ./.github/workflows/build-service.yml
+    with:
+      service: notification-service
+      environment: production
+      image-tag: ${{ github.ref_name }}
+    secrets: inherit
+
+  build-cms-service:
+    needs: backend-checks
+    uses: ./.github/workflows/build-service.yml
+    with:
+      service: cms-service
+      environment: production
+      image-tag: ${{ github.ref_name }}
+    secrets: inherit
+
+  build-reels-service:
+    needs: backend-checks
+    uses: ./.github/workflows/build-service.yml
+    with:
+      service: reels-service
+      environment: production
+      image-tag: ${{ github.ref_name }}
+    secrets: inherit
+
+  build-integration-service:
+    needs: backend-checks
+    uses: ./.github/workflows/build-service.yml
+    with:
+      service: integration-service
+      environment: production
+      image-tag: ${{ github.ref_name }}
+    secrets: inherit
+
+  build-booking-service:
+    needs: backend-checks
+    uses: ./.github/workflows/build-service.yml
+    with:
+      service: booking-service
+      environment: production
+      image-tag: ${{ github.ref_name }}
+    secrets: inherit
+
+  # ----- Deploy to EC2 via SSM Run Command -----
+  deploy-backend:
+    name: Deploy Backend to Production
+    needs:
+      - sync-secrets-to-ssm
+      - build-api-gateway
+      - build-auth-service
+      - build-product-service
+      - build-order-service
+      - build-vendor-service
+      - build-notification-service
+      - build-cms-service
+      - build-reels-service
+      - build-integration-service
+      - build-booking-service
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Sync refresh-env-from-ssm.sh to S3
+        # The Deploy step below pulls this script from S3 onto the prod box,
+        # so it must be in sync with the repo. Without this upload step, any
+        # edit to scripts/refresh-env-from-ssm.sh is silently ignored in prod
+        # until someone manually `aws s3 cp`s it.
+        run: |
+          aws s3 cp scripts/refresh-env-from-ssm.sh \
+            s3://materialhub-config-prod/scripts/refresh-env-from-ssm.sh \
+            --region ap-south-1
+
+      - name: Deploy via SSM Run Command
+        env:
+          INSTANCE_ID: ${{ secrets.PROD_EC2_INSTANCE_ID }}
+        run: |
+          set -euo pipefail
+
+          # The script that runs ON the production box. SSM runs it as root,
+          # so no sudo and no SCP-into-/tmp dance is needed.
+          read -r -d '' REMOTE_SCRIPT <<'EOS' || true
+          set -euo pipefail
+          cd /opt/materialhub
+          aws s3 cp s3://materialhub-config-prod/scripts/refresh-env-from-ssm.sh \
+            /opt/materialhub/refresh-env-from-ssm.sh --region ap-south-1
+          chmod +x /opt/materialhub/refresh-env-from-ssm.sh
+          AWS_REGION=ap-south-1 /opt/materialhub/refresh-env-from-ssm.sh \
+            /opt/materialhub/.env materialhub production
+          if ! grep -q "TWILIO_VERIFY_SERVICE_SID" /opt/materialhub/docker-compose.yml; then
+            sed -i '/TWO_FA_ENCRYPTION_KEY=${TWO_FA_ENCRYPTION_KEY}/a\      - SMS_OTP_PROVIDER=${SMS_OTP_PROVIDER}\n      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}\n      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}\n      - TWILIO_VERIFY_SERVICE_SID=${TWILIO_VERIFY_SERVICE_SID}' \
+              /opt/materialhub/docker-compose.yml
+          fi
+          cat > /opt/materialhub/config.alloy <<'ALLOYEOF'
+          logging {
+            level  = "info"
+            format = "logfmt"
+          }
+
+          discovery.docker "containers" {
+            host = "unix:///var/run/docker.sock"
+          }
+
+          discovery.relabel "docker_logs" {
+            targets = discovery.docker.containers.targets
+
+            rule {
+              source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+              target_label  = "service"
+            }
+
+            rule {
+              source_labels = ["__meta_docker_container_name"]
+              regex         = "/(.*)"
+              target_label  = "container"
+            }
+
+            rule {
+              target_label = "environment"
+              replacement  = "production"
+            }
+          }
+
+          loki.source.docker "containers" {
+            host       = "unix:///var/run/docker.sock"
+            targets    = discovery.relabel.docker_logs.output
+            forward_to = [loki.process.docker.receiver]
+          }
+
+          loki.process "docker" {
+            stage.json {
+              expressions = {
+                level = "level",
+              }
+            }
+
+            stage.labels {
+              values = {
+                level = "",
+              }
+            }
+
+            forward_to = [loki.write.grafana_cloud.receiver]
+          }
+
+          loki.write "grafana_cloud" {
+            endpoint {
+              url = sys.env("GRAFANA_CLOUD_LOKI_URL")
+
+              basic_auth {
+                username = sys.env("GRAFANA_CLOUD_LOGS_USERNAME")
+                password = sys.env("GRAFANA_CLOUD_TOKEN")
+              }
+            }
+          }
+
+          prometheus.exporter.cadvisor "docker" {
+            docker_host      = "unix:///var/run/docker.sock"
+            storage_duration = "5m"
+          }
+
+          prometheus.scrape "cadvisor" {
+            targets         = prometheus.exporter.cadvisor.docker.targets
+            scrape_interval = "30s"
+            forward_to      = [prometheus.remote_write.grafana_cloud.receiver]
+          }
+
+          prometheus.remote_write "grafana_cloud" {
+            endpoint {
+              url = sys.env("GRAFANA_CLOUD_PROMETHEUS_REMOTE_WRITE_URL")
+
+              basic_auth {
+                username = sys.env("GRAFANA_CLOUD_METRICS_USERNAME")
+                password = sys.env("GRAFANA_CLOUD_TOKEN")
+              }
+            }
+          }
+          ALLOYEOF
+          if ! grep -q "^  alloy:" /opt/materialhub/docker-compose.yml; then
+            cat >> /opt/materialhub/docker-compose.yml <<'COMPOSEEOF'
+
+            alloy:
+              image: grafana/alloy:latest
+              privileged: true
+              restart: unless-stopped
+              mem_limit: 384m
+              command:
+                - run
+                - --server.http.listen-addr=0.0.0.0:12345
+                - --storage.path=/var/lib/alloy/data
+                - /etc/alloy/config.alloy
+              env_file: .env
+              volumes:
+                - ./config.alloy:/etc/alloy/config.alloy:ro
+                - /var/run/docker.sock:/var/run/docker.sock:ro
+                - /data/alloy:/var/lib/alloy/data
+                # cAdvisor (per-container metrics) needs host fs access; cgroup v2 on AL2023
+                - /:/rootfs:ro
+                - /sys:/sys:ro
+                - /var/lib/docker/:/var/lib/docker:ro
+                - /dev/disk/:/dev/disk:ro
+                - /var/run:/var/run:ro
+                - /dev/kmsg:/dev/kmsg
+          COMPOSEEOF
+          fi
+          ECR_REGISTRY="$(grep '^ECR_REGISTRY=' /opt/materialhub/.env | cut -d= -f2)"
+          if [ -z "$ECR_REGISTRY" ]; then
+            echo "ERROR: ECR_REGISTRY not found in /opt/materialhub/.env" >&2
+            exit 1
+          fi
+          aws ecr get-login-password --region ap-south-1 \
+            | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+          docker-compose pull
+          docker-compose --profile tools run --rm migrate
+          docker-compose up -d --remove-orphans --force-recreate
+          docker-compose restart caddy
+          docker image prune -f
+          EOS
+
+          # Send the command, capturing the command ID.
+          # --parameters must be a full JSON object: the AWS CLI's shorthand
+          # `commands=...` syntax does NOT decode JSON escapes, so `\n` would
+          # be passed literally and collapse the script onto one line.
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy ${{ github.ref_name }}" \
+            --parameters "$(jq -Rs '{commands: [.]}' <<<"$REMOTE_SCRIPT")" \
+            --query "Command.CommandId" --output text)
+          echo "SSM command: $CMD_ID"
+
+          # Poll until the command reaches a terminal state. The built-in
+          # `aws ssm wait command-executed` waiter caps at ~100s — far too
+          # short for a multi-image pull + migrations + recreate, which makes
+          # it report failure on a deploy that is still succeeding.
+          STATUS=InProgress
+          for _ in $(seq 1 90); do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+              --query Status --output text 2>/dev/null || echo Pending)
+            case "$STATUS" in
+              Success | Failed | Cancelled | TimedOut) break ;;
+            esac
+            sleep 10
+          done
+
+          echo "----- stdout -----"
+          aws ssm get-command-invocation \
+            --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+            --query StandardOutputContent --output text
+          echo "----- stderr -----"
+          aws ssm get-command-invocation \
+            --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+            --query StandardErrorContent --output text
+
+          if [[ "$STATUS" != "Success" ]]; then
+            echo "::error::Deploy failed with SSM status: $STATUS"
+            exit 1
+          fi
+          echo "✅ Deploy succeeded"
+
+  # ----- Frontends: build images (web, vendor-dashboard, admin-panel) -----
+  build-frontend:
+    name: Build ${{ matrix.app }}
+    needs: backend-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - app: web
+            port: 4000
+          - app: vendor-dashboard
+            port: 4001
+          - app: admin-panel
+            port: 4002
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # NEXT_PUBLIC_* are inlined at build time. Fails here — before any image
+      # is pushed — if a required secret is unset or still CHANGE_ME.
+      - name: Write build-time env
+        env:
+          PUBLIC_API_URL: ${{ secrets.PROD_PUBLIC_API_URL }}
+          WEB_URL: ${{ secrets.PROD_WEB_URL }}
+          STRIPE_PK: ${{ secrets.PROD_NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
+          GTAG_ID: ${{ secrets.PROD_NEXT_PUBLIC_GOOGLE_GTAG_ID }}
+          CONVERSION_ID: ${{ secrets.PROD_NEXT_PUBLIC_GOOGLE_CONVERSION_ID }}
+          META_PIXEL_ID: ${{ secrets.PROD_NEXT_PUBLIC_META_PIXEL_ID }}
+          TIKTOK_PIXEL_CODE: ${{ secrets.PROD_NEXT_PUBLIC_TIKTOK_PIXEL_CODE }}
+          TEAM_MGMT: ${{ secrets.PROD_NEXT_PUBLIC_TEAM_MANAGEMENT_ENABLED }}
+        run: bash scripts/write-frontend-env.sh "${{ matrix.app }}" "apps/${{ matrix.app }}/.env.production"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/frontend/next-app.Dockerfile
+          build-args: |
+            APP=${{ matrix.app }}
+            PORT=${{ matrix.port }}
+          tags: |
+            ${{ env.ECR_REGISTRY }}/materialhub-${{ matrix.app }}:${{ github.ref_name }}
+            ${{ env.ECR_REGISTRY }}/materialhub-${{ matrix.app }}:production
+          cache-from: type=gha,scope=frontend-${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=frontend-${{ matrix.app }}
+          push: true
+
+  # ----- Frontends: deploy to the frontend EC2 via SSM Run Command -----
+  # Runs after deploy-backend so new frontend code never talks to an old API.
+  deploy-frontend:
+    name: Deploy Frontends to Production
+    needs:
+      - build-frontend
+      - deploy-backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Sync deploy/frontend to S3
+        # The box pulls compose/Caddyfile/config.alloy from here on every
+        # deploy, so the repo is the single source of truth for its config.
+        run: |
+          aws s3 cp deploy/frontend/ s3://materialhub-config-prod/frontend/ \
+            --recursive --exclude "next-app.Dockerfile" --region ap-south-1
+
+      - name: Deploy via SSM Run Command
+        env:
+          INSTANCE_ID: ${{ secrets.PROD_FRONTEND_EC2_INSTANCE_ID }}
+          IMAGE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$INSTANCE_ID" || "$INSTANCE_ID" == "CHANGE_ME" ]]; then
+            echo "::error::PROD_FRONTEND_EC2_INSTANCE_ID is unset (or still CHANGE_ME)." \
+                 "Set it from 'terraform output -raw frontend_instance_id'."
+            exit 1
+          fi
+
+          # The script that runs ON the frontend box, as root. ECR_REGISTRY and
+          # IMAGE_TAG are prepended below.
+          read -r -d '' REMOTE_BODY <<'EOS' || true
+          set -euo pipefail
+          cd /opt/materialhub-web
+          # Bind-mount dirs; recreated here so a half-finished first boot can't
+          # leave Docker to create them root-owned (web runs as uid 1000).
+          mkdir -p data/caddy_data data/caddy_config data/next_cache data/alloy
+          chown 1000:1000 data/next_cache
+
+          # Caddy/Alloy read single-file bind mounts, which `up -d` does not
+          # refresh — note whether their config changed so we can recreate them.
+          old_sums=$(sha256sum Caddyfile config.alloy 2>/dev/null || true)
+          aws s3 cp s3://materialhub-config-prod/frontend/ . --recursive --region ap-south-1
+          new_sums=$(sha256sum Caddyfile config.alloy)
+          docker run --rm -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2 \
+            caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
+          # Grafana creds are optional — a missing one only disables shipping.
+          ssm() {
+            aws ssm get-parameter --name "/materialhub/production/$1" --with-decryption \
+              --region ap-south-1 --query Parameter.Value --output text 2>/dev/null || true
+          }
+          {
+            echo "ECR_REGISTRY=$ECR_REGISTRY"
+            echo "IMAGE_TAG=$IMAGE_TAG"
+            echo "GRAFANA_CLOUD_LOKI_URL=$(ssm grafana/cloud-loki-url)"
+            echo "GRAFANA_CLOUD_PROMETHEUS_REMOTE_WRITE_URL=$(ssm grafana/cloud-prometheus-url)"
+            echo "GRAFANA_CLOUD_USERNAME=$(ssm grafana/cloud-username)"
+            echo "GRAFANA_CLOUD_METRICS_USERNAME=$(ssm grafana/cloud-metrics-username)"
+            echo "GRAFANA_CLOUD_LOGS_USERNAME=$(ssm grafana/cloud-logs-username)"
+            echo "GRAFANA_CLOUD_TOKEN=$(ssm grafana/cloud-token)"
+          } > .env.new
+          mv .env.new .env
+          chmod 600 .env
+
+          aws ecr get-login-password --region ap-south-1 \
+            | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+          docker-compose pull
+          docker-compose up -d --remove-orphans
+          if [[ "$old_sums" != "$new_sums" ]]; then
+            echo "Caddyfile/config.alloy changed — recreating caddy and alloy"
+            docker-compose up -d --force-recreate --no-deps caddy alloy
+          fi
+
+          # Wait for all three apps to report healthy (and Caddy to be running);
+          # fail the deploy otherwise.
+          APPS="web vendor-dashboard admin-panel"
+          for _ in $(seq 1 24); do
+            unhealthy=""
+            for app in $APPS; do
+              cid=$(docker-compose ps -q "$app")
+              status=$(docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null || echo missing)
+              [[ "$status" == "healthy" ]] || unhealthy="$unhealthy $app"
+            done
+            caddy_cid=$(docker-compose ps -q caddy)
+            caddy_state=$(docker inspect -f '{{.State.Status}}' "$caddy_cid" 2>/dev/null || echo missing)
+            [[ "$caddy_state" == "running" ]] || unhealthy="$unhealthy caddy"
+            [[ -z "$unhealthy" ]] && break
+            sleep 5
+          done
+          if [[ -n "$unhealthy" ]]; then
+            echo "Unhealthy after 120s:$unhealthy" >&2
+            docker-compose ps
+            for app in $unhealthy; do docker-compose logs --tail 50 "$app"; done
+            exit 1
+          fi
+          echo "All frontends healthy"
+          # -a: images are pinned by release tag, so old releases are never
+          # dangling; running containers keep the current ones.
+          docker image prune -af
+          EOS
+          REMOTE_SCRIPT="ECR_REGISTRY='${ECR_REGISTRY}'; IMAGE_TAG='${IMAGE_TAG}'"$'\n'"${REMOTE_BODY}"
+
+          # --parameters must be a full JSON object (see deploy-backend).
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy frontends ${{ github.ref_name }}" \
+            --parameters "$(jq -Rs '{commands: [.]}' <<<"$REMOTE_SCRIPT")" \
+            --query "Command.CommandId" --output text)
+          echo "SSM command: $CMD_ID"
+
+          STATUS=InProgress
+          for _ in $(seq 1 60); do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+              --query Status --output text 2>/dev/null || echo Pending)
+            case "$STATUS" in
+              Success | Failed | Cancelled | TimedOut) break ;;
+            esac
+            sleep 10
+          done
+
+          echo "----- stdout -----"
+          aws ssm get-command-invocation \
+            --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+            --query StandardOutputContent --output text
+          echo "----- stderr -----"
+          aws ssm get-command-invocation \
+            --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+            --query StandardErrorContent --output text
+
+          if [[ "$STATUS" != "Success" ]]; then
+            echo "::error::Frontend deploy failed with SSM status: $STATUS"
+            exit 1
+          fi
+          echo "✅ Frontend deploy succeeded"

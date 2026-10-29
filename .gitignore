@@ -1,0 +1,68 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+out/
+build/
+*.tgz
+
+# Next.js
+.next/
+next-env.d.ts
+
+# Bun
+# bun.lock is tracked for reproducible CI builds
+
+# Turbo
+.turbo/
+
+# env files
+.env
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# local dev logins (never commit)
+local-credentials.md
+
+# local S3 / Cloudflare Stream stand-in data (backend docker-compose)
+.local-s3/
+.local-stream/
+
+# logs
+logs/
+*.log
+npm-debug.log*
+
+# code coverage
+coverage/
+*.lcov
+
+# caches
+.eslintcache
+.cache
+*.tsbuildinfo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Claude Code worktrees
+.claude/worktrees/
+.claude/scheduled_tasks.lock
+.worktrees/
+graphify-out/
+
+# Superpowers brainstorming companion
+.superpowers/
+.playwright-mcp/
+.vercel

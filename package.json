@@ -1,0 +1,29 @@
+{
+  "name": "materialhub",
+  "private": true,
+  "packageManager": "bun@1.3.11",
+  "scripts": {
+    "dev": "turbo run dev --concurrency 15",
+    "dev:local": "bun scripts/dev-local.ts",
+    "dev:web": "turbo run dev --filter=@materialhub/web",
+    "dev:vendor": "turbo run dev --filter=@materialhub/vendor-dashboard",
+    "dev:admin": "turbo run dev --filter=@materialhub/admin-panel",
+    "dev:backend": "turbo run dev --filter=@materialhub/api-gateway --filter=@materialhub/auth-service --filter=@materialhub/product-service --filter=@materialhub/order-service --filter=@materialhub/vendor-service --filter=@materialhub/notification-service --filter=@materialhub/cms-service"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "backend/apps/*",
+    "backend/libs/*"
+  ],
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "turbo": "^2.8.21"
+  },
+  "optionalDependencies": {
+    "sharp": "^0.34.5"
+  },
+  "overrides": {
+    "typeorm": "0.3.28"
+  }
+}

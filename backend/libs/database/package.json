@@ -1,0 +1,26 @@
+{
+  "name": "@materialhub/database",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "test": "bun test",
+    "migrate": "bun run src/run-migrations.ts",
+    "migrate:generate": "bunx typeorm migration:generate -d src/data-source.ts",
+    "migrate:revert": "bunx typeorm migration:revert -d src/data-source.ts",
+    "seed": "bun run src/seeds/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "typeorm": "^0.3.20",
+    "pg": "^8.13.0",
+    "reflect-metadata": "^0.2.2",
+    "@materialhub/config": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.0",
+    "typescript": "^5.7.0"
+  }
+}

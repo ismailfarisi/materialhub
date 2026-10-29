@@ -1,0 +1,17 @@
+# Root build context: backend/apps/*/Dockerfile and deploy/frontend/next-app.Dockerfile.
+**/node_modules
+**/.next
+**/.turbo
+.git
+.worktrees
+.superpowers
+**/.env
+**/.env.local
+**/.env.*.local
+apps/web/package-lock.json
+/*.png
+/*.sql
+docs
+db-design
+sprints
+materialhub-design-system
