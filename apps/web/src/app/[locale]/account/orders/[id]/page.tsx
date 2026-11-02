@@ -1,485 +1,272 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { useLocale, useTranslations } from "next-intl";
-import { useParams } from "next/navigation";
-import Image from "next/image";
-import { useOrder } from "@/lib/queries/orders";
+import type { VendorOrderRow } from "@/components/account/types";
+import {
+	EmptyState,
+	ErrorState,
+	ListSkeleton,
+	PageHeader,
+	Panel,
+	PanelHead,
+	Skeleton,
+	StatusBadge,
+	ValueRow,
+} from "@/components/account/account-ui";
+import { OrderLine, ReorderButton } from "@/components/account/order-parts";
 import { OrderTimeline } from "@/components/account/order-timeline";
 import { ReviewForm } from "@/components/account/review-form";
-import { useChannelEvents } from "@/lib/channels/use-channel-events";
-import { formatPrice } from "@/lib/utils";
+import { orderTone, paymentTone, statusLabel } from "@/components/account/status";
+import { Button } from "@/components/swatch";
 import { API_URL } from "@/lib/api";
-import {
-  Eyebrow,
-  SerifTitle,
-  MAISON_SERIF,
-  MAISON_SANS,
-} from "@/components/checkout/maison-primitives";
-
-const PANEL = {
-  border: "1px solid rgba(15,18,24,0.10)",
-  background: "rgba(15,18,24,0.02)",
-} as const;
+import { useChannelEvents } from "@/lib/channels/use-channel-events";
+import { useOrder } from "@/lib/queries/orders";
+import { formatPrice } from "@/lib/utils";
+import { FileText, PackageSearch, Truck } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 export default function OrderDetailPage() {
-  const t = useTranslations("account");
-  const tCommon = useTranslations("common");
-  const tOrderStatus = useTranslations("account.orderStatus");
-  const tPayStatus = useTranslations("account.paymentStatus");
-  const locale = useLocale();
-  const { id } = useParams<{ id: string }>();
-  const { data: order, isLoading } = useOrder(id);
-  const [reviewingItem, setReviewingItem] = useState<string | null>(null);
-  const { fire } = useChannelEvents();
+	const t = useTranslations("account");
+	const tCommon = useTranslations("common");
+	const tOrderStatus = useTranslations("account.orderStatus");
+	const tPayStatus = useTranslations("account.paymentStatus");
+	const locale = useLocale();
+	const { id } = useParams<{ id: string }>();
+	const { data: order, isLoading, isError, refetch } = useOrder(id);
+	const [reviewingItem, setReviewingItem] = useState<string | null>(null);
+	const { fire } = useChannelEvents();
 
-  // Fire the Purchase event (which the Google channel descriptor turns into a
-  // gtag `purchase` + Google Ads `conversion` event) once we know the order is
-  // paid. `useChannelEvents` keys the event_id by order.id in sessionStorage,
-  // so a page refresh re-fires the SAME id and the server-side Enhanced
-  // Conversions Adjustment (Task 10) can dedup against it.
-  useEffect(() => {
-    if (!order) return;
-    // Only fire for paid orders. PaymentStatus values: pending, authorized,
-    // captured, failed, refunded, partially_refunded, chargeback, cancelled.
-    // We treat "captured" (entity-canonical) and "paid" (forward-compat) as
-    // the success terminal; everything else is skipped.
-    if (
-      order.payment_status !== "captured" &&
-      order.payment_status !== "paid"
-    ) {
-      return;
-    }
+	// Fire the Purchase event (which the Google channel descriptor turns into a
+	// gtag `purchase` + Google Ads `conversion` event) once we know the order is
+	// paid. `useChannelEvents` keys the event_id by order.id in sessionStorage,
+	// so a page refresh re-fires the SAME id and the server-side Enhanced
+	// Conversions Adjustment can dedup against it.
+	useEffect(() => {
+		if (!order) return;
+		// Only fire for paid orders. PaymentStatus values: pending, authorized,
+		// captured, failed, refunded, partially_refunded, chargeback, cancelled.
+		// We treat "captured" (entity-canonical) and "paid" (forward-compat) as
+		// the success terminal; everything else is skipped.
+		if (order.payment_status !== "captured" && order.payment_status !== "paid") {
+			return;
+		}
 
-    // Sum quantities across all vendor sub-orders. The API response from
-    // `GET /buyer/orders/:id` nests items under `vendorOrders[].items`, not a
-    // top-level `items` array — see backend `OrderService.getById`.
-    const vendorOrders = order.vendorOrders || order.vendor_orders || [];
-    const quantity = vendorOrders.reduce(
-      (n: number, vo: { items?: Array<{ quantity?: number }> }) =>
-        n +
-        (vo.items?.reduce(
-          (m: number, i: { quantity?: number }) => m + (i.quantity ?? 0),
-          0,
-        ) ?? 0),
-      0,
-    );
+		// Sum quantities across all vendor sub-orders. The API response from
+		// `GET /buyer/orders/:id` nests items under `vendorOrders[].items`, not a
+		// top-level `items` array — see backend `OrderService.getById`.
+		const vendorOrders = order.vendorOrders || order.vendor_orders || [];
+		const quantity = vendorOrders.reduce(
+			(n: number, vo: { items?: Array<{ quantity?: number }> }) =>
+				n + (vo.items?.reduce((m: number, i: { quantity?: number }) => m + (i.quantity ?? 0), 0) ?? 0),
+			0,
+		);
 
-    fire("Purchase", {
-      order_id: order.id,
-      transaction_id: order.id,
-      currency: order.currency ?? "AED",
-      value_fils: order.grand_total,
-      quantity,
-      customer_email: order.user?.email ?? undefined,
-      customer_phone: order.user?.phone ?? undefined,
-    });
-  }, [order, fire]);
+		fire("Purchase", {
+			order_id: order.id,
+			transaction_id: order.id,
+			currency: order.currency ?? "AED",
+			value_fils: order.grand_total,
+			quantity,
+			customer_email: order.user?.email ?? undefined,
+			customer_phone: order.user?.phone ?? undefined,
+		});
+	}, [order, fire]);
 
-  if (isLoading) {
-    return (
-      <div
-        style={{
-          fontFamily: MAISON_SERIF,
-          fontStyle: "italic",
-          fontSize: 16,
-          color: "hsl(var(--nl-russet))",
-        }}
-      >
-        {tCommon("loading")}
-      </div>
-    );
-  }
+	if (isLoading) {
+		return (
+			<div className="grid gap-6">
+				<Skeleton className="h-8 w-56" />
+				<div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+					<ListSkeleton rows={2} />
+					<ListSkeleton rows={1} />
+				</div>
+			</div>
+		);
+	}
 
-  if (!order) return null;
+	if (isError) return <ErrorState onRetry={() => refetch()} />;
 
-  const vendorOrders = order.vendorOrders || order.vendor_orders || [];
-  const addr = order.shipping_address || {};
+	if (!order) {
+		return (
+			<EmptyState
+				icon={PackageSearch}
+				title={t("orderNotFound")}
+				body={t("orderNotFoundBody")}
+				action={{ label: t("allOrders"), href: `/${locale}/account/orders` }}
+			/>
+		);
+	}
 
-  const safeTranslate = (fn: (k: any) => string, key: string) => {
-    try {
-      return fn(key?.toLowerCase());
-    } catch {
-      return key?.replace(/_/g, " ") || "";
-    }
-  };
+	const currency = order.currency || "AED";
+	const money = (v: number) => formatPrice(v ?? 0, currency, locale);
+	const vendorOrders: VendorOrderRow[] = order.vendorOrders || order.vendor_orders || [];
+	const allItems = vendorOrders.flatMap((vo) => vo.items ?? []);
+	const addr = order.shipping_address || {};
+	const addrName = addr.full_name || `${addr.first_name || ""} ${addr.last_name || ""}`.trim();
+	const showReceipt =
+		order.payment_status === "captured" || order.payment_status === "paid" || order.status !== "pending_payment";
 
-  const rowLabel = {
-    fontFamily: MAISON_SANS,
-    fontSize: 13,
-    color: "hsl(var(--nl-russet))",
-  } as const;
-  const rowValue = {
-    fontFamily: MAISON_SANS,
-    fontSize: 13,
-    color: "hsl(var(--nl-cacao))",
-  } as const;
+	return (
+		<div>
+			<PageHeader
+				title={
+					<>
+						{t("orderDetail")} <bdi className="font-mono text-[0.8em] font-medium tabular-nums">#{order.order_number}</bdi>
+					</>
+				}
+				description={
+					<span className="inline-flex flex-wrap items-center gap-2">
+						{order.created_at && (
+							<span className="font-mono tabular-nums">
+								{new Date(order.created_at).toLocaleDateString(locale === "ar" ? "ar-AE" : "en-AE", {
+									year: "numeric",
+									month: "short",
+									day: "numeric",
+								})}
+							</span>
+						)}
+						<StatusBadge tone={orderTone(order.status)}>{statusLabel(tOrderStatus, order.status)}</StatusBadge>
+					</span>
+				}
+				action={<ReorderButton items={allItems} />}
+			/>
 
-  return (
-    <div>
-      <div className="mb-5">
-        <Eyebrow>ORDER</Eyebrow>
-        <SerifTitle size={26} className="mt-1.5 break-words">
-          {t("orderDetail")} #{order.order_number}
-        </SerifTitle>
-      </div>
+			<div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-6">
+				{/* Supplier sub-orders */}
+				<div className="grid gap-4">
+					{vendorOrders.map((vo, i) => (
+						<Panel key={vo.id}>
+							<PanelHead
+								title={
+									<>
+										{t("supplierShipment", { n: i + 1, total: vendorOrders.length })}
+										{vo.vendor_order_number && (
+											<>{" "}<span dir="ltr" className="inline-block font-mono text-[13px] font-normal tabular-nums text-nl-russet">
+												{vo.vendor_order_number}
+											</span></>
+										)}
+									</>
+								}
+							/>
+							<div className="grid gap-5 px-4 py-4 md:px-5">
+								{vo.status && <OrderTimeline currentStatus={vo.status} />}
+								<ul className="m-0 list-none divide-y divide-nl-cacao/10 p-0">
+									{(vo.items || []).map((item) => {
+										const canReview = vo.status === "delivered" && !item.is_reviewed;
+										return (
+											<OrderLine
+												key={item.id}
+												item={item}
+												currency={currency}
+												actions={
+													canReview && reviewingItem !== item.id ? (
+														<Button variant="ghost" size="sm" className="-me-3" onClick={() => setReviewingItem(item.id)}>
+															{t("leaveReview")}
+														</Button>
+													) : null
+												}
+											>
+												{canReview && reviewingItem === item.id && (
+													<ReviewForm orderItemId={item.id} onClose={() => setReviewingItem(null)} />
+												)}
+											</OrderLine>
+										);
+									})}
+								</ul>
+							</div>
+							{(vo.tracking_number || vo.status === "delivered") && (
+								<div className="flex flex-wrap items-center justify-between gap-3 border-t border-dashed border-nl-cacao/15 px-4 py-3 md:px-5">
+									{vo.tracking_number ? (
+										<p className="m-0 flex min-w-0 items-center gap-2 text-[13px] text-nl-russet">
+											<Truck className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+											<span>{t("trackShipment")}:</span>
+											<span className="break-all font-mono tabular-nums text-nl-cacao">
+												<bdi>
+													{vo.carrier ? `${vo.carrier} · ` : ""}
+													{vo.tracking_number}
+												</bdi>
+											</span>
+										</p>
+									) : (
+										<span />
+									)}
+									{vo.status === "delivered" && (
+										<Button asChild variant="outline" size="sm">
+											<Link href={`/${locale}/account/orders/${id}/return`}>{t("requestReturn")}</Link>
+										</Button>
+									)}
+								</div>
+							)}
+						</Panel>
+					))}
+				</div>
 
-      {/* Order summary */}
-      <div className="p-4 mb-3 space-y-2" style={PANEL}>
-        <div className="flex justify-between gap-2">
-          <span style={rowLabel}>{t("status")}</span>
-          <span className="text-end" style={rowValue}>
-            {safeTranslate(tOrderStatus, order.status)}
-          </span>
-        </div>
-        <div className="flex justify-between gap-2">
-          <span style={rowLabel}>{t("payment")}</span>
-          <span className="text-end" style={rowValue}>
-            {safeTranslate(tPayStatus, order.payment_status)}
-          </span>
-        </div>
-        <div className="flex justify-between gap-2">
-          <span style={rowLabel}>{t("subtotal")}</span>
-          <span style={rowValue}>
-            {formatPrice(order.subtotal, "AED", locale)}
-          </span>
-        </div>
-        {order.discount_total > 0 && (
-          <div className="flex justify-between gap-2">
-            <span style={{ ...rowLabel, color: "hsl(var(--nl-amber))" }}>
-              {t("discount")}
-            </span>
-            <span style={{ ...rowValue, color: "hsl(var(--nl-amber))" }}>
-              -{formatPrice(order.discount_total, "AED", locale)}
-            </span>
-          </div>
-        )}
-        <div className="flex justify-between gap-2">
-          <span style={rowLabel}>{t("shipping")}</span>
-          <span style={rowValue}>
-            {order.shipping_total > 0
-              ? formatPrice(order.shipping_total, "AED", locale)
-              : tCommon("free")}
-          </span>
-        </div>
-        <div className="flex justify-between gap-2">
-          <span style={rowLabel}>{t("tax")}</span>
-          <span style={rowValue}>
-            {formatPrice(order.tax_total, "AED", locale)}
-          </span>
-        </div>
-        {order.refund_total > 0 && (
-          <div className="flex justify-between gap-2">
-            <span style={{ ...rowLabel, color: "hsl(var(--nl-amber))" }}>
-              {t("refunded")}
-            </span>
-            <span style={{ ...rowValue, color: "hsl(var(--nl-amber))" }}>
-              -{formatPrice(order.refund_total, "AED", locale)}
-            </span>
-          </div>
-        )}
-        <div
-          className="flex justify-between items-baseline gap-2 pt-2.5 mt-1"
-          style={{ borderTop: "1px solid rgba(15,18,24,0.10)" }}
-        >
-          <span
-            className="uppercase"
-            style={{
-              fontFamily: MAISON_SANS,
-              fontSize: 11,
-              letterSpacing: "0.18em",
-              color: "hsl(var(--nl-russet))",
-            }}
-          >
-            {t("total")}
-          </span>
-          <span
-            style={{
-              fontFamily: MAISON_SERIF,
-              fontSize: 18,
-              color: "hsl(var(--nl-cacao))",
-            }}
-          >
-            {formatPrice(order.grand_total, "AED", locale)}
-          </span>
-        </div>
-        {(order.payment_status === "captured" ||
-          order.payment_status === "paid" ||
-          order.status !== "pending_payment") && (
-          <a
-            href={`${API_URL}/buyer/orders/${order.id}/invoice.pdf`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="uppercase mt-3 inline-block hover:underline"
-            style={{
-              fontFamily: MAISON_SANS,
-              fontSize: 10,
-              letterSpacing: "0.16em",
-              color: "hsl(var(--nl-amber))",
-            }}
-          >
-            {t("downloadReceipt")}
-          </a>
-        )}
-      </div>
+				{/* Summary */}
+				<div className="grid gap-4 lg:sticky lg:top-24">
+					<Panel>
+						<PanelHead title={t("summary")} />
+						<div className="px-4 py-3 md:px-5">
+							<ValueRow
+								label={t("payment")}
+								value={<StatusBadge tone={paymentTone(order.payment_status)}>{statusLabel(tPayStatus, order.payment_status)}</StatusBadge>}
+							/>
+							<ValueRow label={t("subtotal")} value={money(order.subtotal)} />
+							{order.discount_total > 0 && <ValueRow label={t("discount")} value={`−${money(order.discount_total)}`} />}
+							<ValueRow
+								label={t("shipping")}
+								value={order.shipping_total > 0 ? money(order.shipping_total) : tCommon("free")}
+							/>
+							<ValueRow label={t("tax")} value={money(order.tax_total)} />
+							{order.refund_total > 0 && <ValueRow label={t("refunded")} value={`−${money(order.refund_total)}`} />}
+							<ValueRow
+								strong
+								className="mt-2 border-t-2 border-nl-cacao pt-3"
+								label={t("total")}
+								value={money(order.grand_total)}
+							/>
+						</div>
+						{showReceipt && (
+							<div className="border-t border-nl-cacao/10 px-4 py-3 md:px-5">
+								<a
+									href={`${API_URL}/buyer/orders/${order.id}/invoice.pdf`}
+									target="_blank"
+									rel="noopener noreferrer"
+									className="inline-flex min-h-[40px] items-center gap-2 text-sm font-medium text-nl-cacao underline decoration-nl-cacao/25 hover:decoration-nl-amber"
+								>
+									<FileText className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+									{t("downloadReceipt")}
+								</a>
+							</div>
+						)}
+					</Panel>
 
-      {/* Shipping address */}
-      <div className="p-4 mb-3" style={PANEL}>
-        <Eyebrow className="mb-2">{t("shippingAddress")}</Eyebrow>
-        <p
-          className="break-words"
-          style={{
-            fontFamily: MAISON_SANS,
-            fontSize: 13,
-            color: "hsl(var(--nl-cacao))",
-          }}
-        >
-          {addr.full_name || `${addr.first_name || ""} ${addr.last_name || ""}`.trim()}
-        </p>
-        <p
-          className="break-words"
-          style={{
-            fontFamily: MAISON_SANS,
-            fontSize: 13,
-            color: "hsl(var(--nl-russet))",
-          }}
-        >
-          {[addr.building_name, addr.apartment, addr.floor].filter(Boolean).join(", ")}
-          {[addr.building_name, addr.apartment, addr.floor].some(Boolean) && <br />}
-          {addr.address_line_1 || addr.street}
-          {(addr.address_line_2 || addr.area) && `, ${addr.address_line_2 || addr.area}`}
-        </p>
-        <p
-          className="break-words"
-          style={{
-            fontFamily: MAISON_SANS,
-            fontSize: 13,
-            color: "hsl(var(--nl-russet))",
-          }}
-        >
-          {addr.city}
-          {addr.state || addr.emirate ? `, ${addr.state || addr.emirate}` : ""}
-          {addr.country_code ? ` — ${addr.country_code}` : ""}
-        </p>
-        {addr.phone && (
-          <p
-            className="break-words"
-            style={{
-              fontFamily: MAISON_SANS,
-              fontSize: 13,
-              color: "hsl(var(--nl-russet))",
-            }}
-          >
-            {addr.phone}
-          </p>
-        )}
-      </div>
-
-      {/* Vendor sub-orders */}
-      {vendorOrders.map((vo: any) => (
-        <div key={vo.id} className="p-4 mb-3" style={PANEL}>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
-            <h3
-              className="break-words"
-              style={{
-                fontFamily: MAISON_SANS,
-                fontSize: 13,
-                color: "hsl(var(--nl-cacao))",
-              }}
-            >
-              {vo.vendor_order_number}
-            </h3>
-            <OrderTimeline currentStatus={vo.status} />
-          </div>
-
-          {/* Items */}
-          {(vo.items || []).map((item: any) => {
-            // Null whenever the product was unpublished or removed — the row
-            // then stays plain text rather than linking to a 404.
-            const productHref = item.product_slug
-              ? `/${locale}/product/${item.product_slug}`
-              : null;
-
-            return (
-            <div
-              key={item.id}
-              className="py-3"
-              style={{
-                borderTop: "1px solid rgba(15,18,24,0.08)",
-                opacity: item.status === "cancelled" ? 0.55 : 1,
-              }}
-            >
-              <div className="flex gap-3">
-                {productHref ? (
-                  <Link
-                    href={productHref}
-                    aria-label={item.product_name}
-                    tabIndex={-1}
-                    className="relative h-16 w-16 md:h-14 md:w-14 shrink-0 overflow-hidden"
-                    style={{ background: "rgba(15,18,24,0.05)" }}
-                  >
-                    {item.product_image_url && (
-                      <Image
-                        src={item.product_image_url}
-                        alt={item.product_name}
-                        fill
-                        className="object-cover"
-                      />
-                    )}
-                  </Link>
-                ) : (
-                  <div
-                    className="relative h-16 w-16 md:h-14 md:w-14 shrink-0 overflow-hidden"
-                    style={{ background: "rgba(15,18,24,0.05)" }}
-                  >
-                    {item.product_image_url && (
-                      <Image
-                        src={item.product_image_url}
-                        alt={item.product_name}
-                        fill
-                        className="object-cover"
-                      />
-                    )}
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  {productHref ? (
-                    <Link
-                      href={productHref}
-                      className="block break-words transition-opacity hover:opacity-70"
-                      style={{
-                        fontFamily: MAISON_SANS,
-                        fontSize: 13,
-                        color: "hsl(var(--nl-cacao))",
-                      }}
-                    >
-                      {item.product_name}
-                    </Link>
-                  ) : (
-                    <p
-                      className="break-words"
-                      style={{
-                        fontFamily: MAISON_SANS,
-                        fontSize: 13,
-                        color: "hsl(var(--nl-cacao))",
-                      }}
-                    >
-                      {item.product_name}
-                    </p>
-                  )}
-                  {item.variant_name && (
-                    <p
-                      className="break-words"
-                      style={{
-                        fontFamily: MAISON_SANS,
-                        fontSize: 12,
-                        color: "hsl(var(--nl-russet))",
-                      }}
-                    >
-                      {item.variant_name}
-                    </p>
-                  )}
-                  <p
-                    style={{
-                      fontFamily: MAISON_SANS,
-                      fontSize: 12,
-                      color: "hsl(var(--nl-russet))",
-                    }}
-                  >
-                    {tCommon("qty")}: {item.quantity} ×{" "}
-                    {formatPrice(item.unit_price, "AED", locale)}
-                  </p>
-                  {item.refunded_quantity > 0 && (
-                    <p
-                      style={{
-                        fontFamily: MAISON_SANS,
-                        fontSize: 12,
-                        color: "hsl(var(--nl-amber))",
-                      }}
-                    >
-                      {t("cancelledOutOfStock")}: {item.refunded_quantity} ×
-                      {" "}— {formatPrice(item.refunded_amount, "AED", locale)}{" "}
-                      {t("refundedShort")}
-                    </p>
-                  )}
-                </div>
-                <div className="text-end shrink-0">
-                  <p
-                    className="whitespace-nowrap"
-                    style={{
-                      fontFamily: MAISON_SERIF,
-                      fontSize: 14,
-                      color: "hsl(var(--nl-cacao))",
-                    }}
-                  >
-                    {formatPrice(item.line_total, "AED", locale)}
-                  </p>
-                  {vo.status === "delivered" &&
-                    !item.is_reviewed &&
-                    reviewingItem !== item.id && (
-                      <button
-                        onClick={() => setReviewingItem(item.id)}
-                        className="uppercase mt-1.5 whitespace-nowrap hover:underline"
-                        style={{
-                          fontFamily: MAISON_SANS,
-                          fontSize: 10,
-                          letterSpacing: "0.16em",
-                          color: "hsl(var(--nl-amber))",
-                        }}
-                      >
-                        {t("leaveReview")}
-                      </button>
-                    )}
-                </div>
-              </div>
-              {/* Review form rendered full-width below the item */}
-              {vo.status === "delivered" &&
-                !item.is_reviewed &&
-                reviewingItem === item.id && (
-                  <div className="mt-3">
-                    <ReviewForm
-                      orderItemId={item.id}
-                      onClose={() => setReviewingItem(null)}
-                    />
-                  </div>
-                )}
-            </div>
-            );
-          })}
-
-          {/* Tracking */}
-          {vo.tracking_number && (
-            <div
-              className="mt-2 pt-2 break-words"
-              style={{
-                borderTop: "1px solid rgba(15,18,24,0.08)",
-                fontFamily: MAISON_SANS,
-                fontSize: 12,
-                color: "hsl(var(--nl-russet))",
-              }}
-            >
-              {t("trackShipment")}: {vo.carrier} — {vo.tracking_number}
-            </div>
-          )}
-
-          {/* Return button for delivered */}
-          {vo.status === "delivered" && (
-            <Link
-              href={`/${locale}/account/orders/${id}/return`}
-              className="uppercase mt-2.5 inline-block hover:underline"
-              style={{
-                fontFamily: MAISON_SANS,
-                fontSize: 10,
-                letterSpacing: "0.16em",
-                color: "hsl(var(--nl-amber))",
-              }}
-            >
-              {t("requestReturn")}
-            </Link>
-          )}
-        </div>
-      ))}
-    </div>
-  );
+					<Panel>
+						<PanelHead title={t("shippingAddress")} />
+						<address className="grid gap-0.5 px-4 py-4 text-sm not-italic text-nl-russet md:px-5">
+							{addrName && <span className="font-medium text-nl-cacao">{addrName}</span>}
+							{[addr.building_name, addr.apartment, addr.floor].some(Boolean) && (
+								<span className="break-words">{[addr.building_name, addr.apartment, addr.floor].filter(Boolean).join(", ")}</span>
+							)}
+							{(addr.address_line_1 || addr.street) && (
+								<span className="break-words">
+									{addr.address_line_1 || addr.street}
+									{(addr.address_line_2 || addr.area) && `, ${addr.address_line_2 || addr.area}`}
+								</span>
+							)}
+							<span className="break-words">
+								{[addr.city, addr.state || addr.emirate, addr.country_code].filter(Boolean).join(", ")}
+							</span>
+							{addr.phone && (
+								<span dir="ltr" className="font-mono tabular-nums rtl:text-end">
+									{addr.phone}
+								</span>
+							)}
+						</address>
+					</Panel>
+				</div>
+			</div>
+		</div>
+	);
 }

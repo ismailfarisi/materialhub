@@ -1,136 +1,94 @@
 "use client";
 
-import { useState } from "react";
-import { useTranslations } from "next-intl";
-import { Star } from "lucide-react";
+import { apiErrorMessage } from "./types";
+import { Button } from "@/components/swatch";
 import { useCreateReview } from "@/lib/queries/reviews";
-import {
-  Eyebrow,
-  MAISON_SANS,
-} from "@/components/checkout/maison-primitives";
+import { cn } from "@/lib/utils";
+import { Star } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useState } from "react";
+import { Field, FieldError, Input, Textarea } from "./account-ui";
 
 export function ReviewForm({
-  orderItemId,
-  onClose,
+	orderItemId,
+	onClose,
 }: {
-  orderItemId: string;
-  onClose: () => void;
+	orderItemId: string;
+	onClose: () => void;
 }) {
-  const t = useTranslations("account");
-  const tCommon = useTranslations("common");
-  const createReview = useCreateReview();
-  const [rating, setRating] = useState(0);
-  const [hoverRating, setHoverRating] = useState(0);
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
+	const t = useTranslations("account");
+	const tCommon = useTranslations("common");
+	const createReview = useCreateReview();
+	const [rating, setRating] = useState(0);
+	const [hoverRating, setHoverRating] = useState(0);
+	const [title, setTitle] = useState("");
+	const [body, setBody] = useState("");
+	const [error, setError] = useState<string | null>(null);
 
-  const inputStyle = {
-    border: "1px solid rgba(15,18,24,0.2)",
-    background: "rgba(255,255,255,0.55)",
-    fontFamily: MAISON_SANS,
-    fontSize: 13,
-    color: "hsl(var(--nl-cacao))",
-  } as const;
+	async function handleSubmit(e: React.FormEvent) {
+		e.preventDefault();
+		setError(null);
+		if (rating === 0) {
+			setError(t("reviewRatingRequired"));
+			return;
+		}
+		try {
+			await createReview.mutateAsync({
+				order_item_id: orderItemId,
+				rating,
+				title: title || undefined,
+				body: body || undefined,
+			});
+			onClose();
+		} catch (err) {
+			setError(apiErrorMessage(err, tCommon("error")));
+		}
+	}
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (rating === 0) return;
-    await createReview.mutateAsync({
-      order_item_id: orderItemId,
-      rating,
-      title: title || undefined,
-      body: body || undefined,
-    });
-    onClose();
-  }
+	const shown = hoverRating || rating;
 
-  return (
-    <form
-      onSubmit={handleSubmit}
-      className="p-4 space-y-3"
-      style={{
-        border: "1px solid rgba(15,18,24,0.10)",
-        background: "rgba(15,18,24,0.02)",
-      }}
-    >
-      <Eyebrow>{t("leaveReview")}</Eyebrow>
-      <div className="flex gap-1">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <button
-            key={star}
-            type="button"
-            onClick={() => setRating(star)}
-            onMouseEnter={() => setHoverRating(star)}
-            onMouseLeave={() => setHoverRating(0)}
-          >
-            <Star
-              className="h-6 w-6"
-              style={{
-                fill:
-                  star <= (hoverRating || rating)
-                    ? "hsl(var(--nl-amber))"
-                    : "transparent",
-                color:
-                  star <= (hoverRating || rating)
-                    ? "hsl(var(--nl-amber))"
-                    : "rgba(15,18,24,0.25)",
-              }}
-            />
-          </button>
-        ))}
-      </div>
-      <input
-        type="text"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder={t("reviewTitlePlaceholder")}
-        className="w-full px-3 py-2"
-        style={inputStyle}
-      />
-      <textarea
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        placeholder={t("reviewBodyPlaceholder")}
-        rows={3}
-        className="w-full px-3 py-2"
-        style={inputStyle}
-      />
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="submit"
-          disabled={rating === 0 || createReview.isPending}
-          className="uppercase disabled:opacity-50"
-          style={{
-            background: "hsl(var(--nl-amber))",
-            color: "hsl(var(--nl-espresso))",
-            fontFamily: MAISON_SANS,
-            fontSize: 11,
-            letterSpacing: "0.22em",
-            padding: "11px 24px",
-            border: "none",
-            borderRadius: 0,
-          }}
-        >
-          {createReview.isPending ? tCommon("loading") : tCommon("submit")}
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className="uppercase"
-          style={{
-            background: "transparent",
-            border: "1px solid rgba(15,18,24,0.4)",
-            color: "hsl(var(--nl-cacao))",
-            fontFamily: MAISON_SANS,
-            fontSize: 11,
-            letterSpacing: "0.22em",
-            padding: "11px 24px",
-            borderRadius: 0,
-          }}
-        >
-          {tCommon("cancel")}
-        </button>
-      </div>
-    </form>
-  );
+	return (
+		<form onSubmit={handleSubmit} className="grid gap-4 rounded-md bg-nl-linen/70 p-4 md:p-5">
+			<fieldset className="m-0 grid gap-1.5 border-0 p-0">
+				<legend className="mb-1.5 text-[13px] font-medium text-nl-cacao">{t("reviewRating")}</legend>
+				<div className="flex gap-0.5" onMouseLeave={() => setHoverRating(0)}>
+					{[1, 2, 3, 4, 5].map((star) => (
+						<button
+							key={star}
+							type="button"
+							aria-label={t("reviewStars", { count: star })}
+							aria-pressed={rating === star}
+							onClick={() => setRating(star)}
+							onMouseEnter={() => setHoverRating(star)}
+							className="grid h-11 w-11 place-items-center rounded-md transition-colors hover:bg-nl-cacao/[0.05]"
+						>
+							<Star
+								className={cn(
+									"h-6 w-6 transition-colors",
+									star <= shown ? "fill-nl-cacao text-nl-cacao" : "fill-transparent text-nl-cacao/30",
+								)}
+								strokeWidth={1.5}
+								aria-hidden="true"
+							/>
+						</button>
+					))}
+				</div>
+			</fieldset>
+			<Field label={t("reviewTitleLabel")} optional>
+				{(p) => <Input {...p} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} />}
+			</Field>
+			<Field label={t("reviewBodyLabel")} optional hint={t("reviewBodyHint")}>
+				{(p) => <Textarea {...p} value={body} onChange={(e) => setBody(e.target.value)} rows={3} maxLength={2000} />}
+			</Field>
+			{error && <FieldError>{error}</FieldError>}
+			<div className="flex flex-wrap gap-2">
+				<Button type="submit" disabled={createReview.isPending}>
+					{createReview.isPending ? tCommon("loading") : t("submitReview")}
+				</Button>
+				<Button type="button" variant="ghost" onClick={onClose}>
+					{tCommon("cancel")}
+				</Button>
+			</div>
+		</form>
+	);
 }
