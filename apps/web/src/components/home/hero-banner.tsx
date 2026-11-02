@@ -212,7 +212,7 @@ export function HeroBanner({
 								/>
 								<div className="absolute inset-0 max-w-[1400px] mx-auto px-6 md:px-8 flex flex-col justify-center text-white">
 									<div className="max-w-[680px] pb-16 md:pb-20">
-										<h2 className="font-display font-semibold text-[clamp(34px,5.6vw,80px)] leading-[1.02] tracking-[-0.035em] text-white m-0">
+										<h2 className="font-display font-bold [font-stretch:112%] text-[clamp(34px,5.4vw,76px)] leading-[1] tracking-[-0.03em] text-white m-0">
 											{banner.title}
 										</h2>
 										{banner.subtitle && (
@@ -221,7 +221,7 @@ export function HeroBanner({
 											</p>
 										)}
 										{banner.cta_url && (
-											<span className="mt-7 md:mt-8 inline-flex items-center gap-2 h-12 px-6 rounded-full bg-nl-amber text-white text-[15px] font-medium shadow-lift transition-transform group-hover/slide:translate-x-0.5 rtl:group-hover/slide:-translate-x-0.5">
+											<span className="mt-7 md:mt-8 inline-flex items-center gap-2 h-12 px-5 rounded-md bg-nl-amber text-white text-[15px] font-medium shadow-lift transition-transform group-hover/slide:translate-x-0.5 rtl:group-hover/slide:-translate-x-0.5">
 												Shop now
 												<ArrowRight className="h-4 w-4 rtl:rotate-180" strokeWidth={2} />
 											</span>
@@ -269,7 +269,7 @@ export function HeroBanner({
 									className="group/dot flex items-center px-1 py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
 								>
 									<span
-										className={`block h-1 rounded-full transition-[width,background-color] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-reduce:transition-none ${
+										className={`block h-1.5 rounded-[1px] transition-[width,background-color] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-reduce:transition-none ${
 											selectedIndex === i
 												? "w-8 bg-white"
 												: "w-4 bg-white/35 group-hover/dot:bg-white/60"
@@ -298,7 +298,7 @@ export function HeroBanner({
 												: "Resume automatic slide rotation"
 										}
 										aria-pressed={!isPlaying}
-										className="w-10 h-10 rounded-full border border-white/25 bg-white/10 backdrop-blur-md text-white flex items-center justify-center hover:bg-white hover:text-nl-cacao transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
+										className="w-10 h-10 rounded-md border border-white/25 bg-white/10 backdrop-blur-md text-white flex items-center justify-center hover:bg-white hover:text-nl-cacao transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
 									>
 										{isPlaying ? (
 											<Pause className="h-3.5 w-3.5" strokeWidth={1.75} />
@@ -311,7 +311,7 @@ export function HeroBanner({
 									type="button"
 									onClick={() => emblaApi?.scrollPrev()}
 									aria-label="Previous slide"
-									className="w-10 h-10 rounded-full border border-white/25 bg-white/10 backdrop-blur-md text-white flex items-center justify-center hover:bg-white hover:text-nl-cacao transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
+									className="w-10 h-10 rounded-md border border-white/25 bg-white/10 backdrop-blur-md text-white flex items-center justify-center hover:bg-white hover:text-nl-cacao transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
 								>
 									<ArrowLeft
 										className="h-3.5 w-3.5 rtl:rotate-180"
@@ -322,7 +322,7 @@ export function HeroBanner({
 									type="button"
 									onClick={() => emblaApi?.scrollNext()}
 									aria-label="Next slide"
-									className="w-10 h-10 rounded-full border border-white/25 bg-white/10 backdrop-blur-md text-white flex items-center justify-center hover:bg-white hover:text-nl-cacao transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
+									className="w-10 h-10 rounded-md border border-white/25 bg-white/10 backdrop-blur-md text-white flex items-center justify-center hover:bg-white hover:text-nl-cacao transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
 								>
 									<ArrowRight
 										className="h-3.5 w-3.5 rtl:rotate-180"

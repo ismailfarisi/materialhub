@@ -15,8 +15,8 @@ const config: Config = {
       fontFamily: {
         // `serif` is kept as an alias of the display face so existing
         // `font-serif` headings pick up the new type without a sweep.
-        display: ["var(--font-display)", "var(--font-arabic)", "Inter Tight", "system-ui", "sans-serif"],
-        serif: ["var(--font-display)", "var(--font-arabic)", "Inter Tight", "system-ui", "sans-serif"],
+        display: ["var(--font-display)", "var(--font-arabic)", "Archivo", "system-ui", "sans-serif"],
+        serif: ["var(--font-display)", "var(--font-arabic)", "Archivo", "system-ui", "sans-serif"],
         sans: ["var(--font-sans)", "var(--font-arabic)", "Geist", "system-ui", "sans-serif"],
         mono: ["var(--font-mono)", "Geist Mono", "ui-monospace", "monospace"],
       },
@@ -69,6 +69,16 @@ const config: Config = {
           text: "hsl(var(--nl-amber-text))",
         },
         carbon: "hsl(var(--nl-espresso))",
+        board: "hsl(var(--nl-linen))",
+        stock: {
+          paper: "hsl(var(--stock-paper))",
+          leather: "hsl(var(--stock-leather))",
+          hardware: "hsl(var(--stock-hardware))",
+          finishing: "hsl(var(--stock-finishing))",
+          packaging: "hsl(var(--stock-packaging))",
+          trims: "hsl(var(--stock-trims))",
+          craft: "hsl(var(--stock-craft))",
+        },
         nl: {
           linen: "hsl(var(--nl-linen))",
           pearl: "hsl(var(--nl-pearl))",
@@ -86,9 +96,8 @@ const config: Config = {
         "2xl": "calc(var(--radius) + 8px)",
       },
       boxShadow: {
-        soft: "var(--shadow-sm)",
-        card: "var(--shadow-md)",
-        lift: "var(--shadow-lg)",
+        card: "var(--shadow-card)",
+        lift: "var(--shadow-lift)",
       },
     },
   },

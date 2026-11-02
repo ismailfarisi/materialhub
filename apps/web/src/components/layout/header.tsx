@@ -74,7 +74,7 @@ export function Header({ tabs }: HeaderProps) {
 			</div>
 
 			{/* Main header — logo + search + actions */}
-			<div className="bg-nl-pearl/90 backdrop-blur-xl backdrop-saturate-150 border-b border-nl-cacao/[0.08]">
+			<div className="bg-nl-linen/92 backdrop-blur-xl backdrop-saturate-150 border-b border-nl-cacao/12">
 				<div className="max-w-[1400px] mx-auto px-4 md:px-8 grid grid-cols-[auto_1fr_auto] items-center gap-3 md:gap-8 h-16 md:h-[76px]">
 					{/* Logo */}
 					<Link
@@ -86,7 +86,7 @@ export function Header({ tabs }: HeaderProps) {
 					</Link>
 
 					{/* Search — desktop */}
-					<div className="hidden md:flex relative justify-self-center w-full max-w-[720px] items-center gap-3 h-12 ps-4 pe-1.5 rounded-full bg-nl-linen border border-transparent transition-[border-color,background-color,box-shadow] hover:border-nl-cacao/10 focus-within:bg-white focus-within:border-nl-cacao/15 focus-within:shadow-card">
+					<div className="hidden md:flex relative justify-self-center w-full max-w-[720px] items-center gap-3 h-12 ps-4 pe-1.5 rounded-md bg-nl-pearl border border-nl-cacao/15 transition-[border-color,box-shadow] hover:border-nl-cacao/35 focus-within:border-nl-cacao focus-within:shadow-card">
 						<Search
 							className="h-[18px] w-[18px] text-nl-russet shrink-0"
 							strokeWidth={1.75}
@@ -99,7 +99,7 @@ export function Header({ tabs }: HeaderProps) {
 								<SearchAutocomplete />
 							</Suspense>
 						</div>
-						<kbd className="hidden lg:inline-flex items-center h-7 px-2 rounded-md border border-nl-cacao/10 bg-white font-mono text-[11px] text-nl-russet shrink-0">
+						<kbd className="hidden lg:inline-flex items-center h-7 px-2 rounded-sm border border-nl-cacao/15 bg-nl-linen font-mono text-[11px] text-nl-russet shrink-0">
 							⌘K
 						</kbd>
 					</div>
@@ -110,7 +110,7 @@ export function Header({ tabs }: HeaderProps) {
 						<button
 							type="button"
 							onClick={() => setMobileSearchOpen(!mobileSearchOpen)}
-							className="md:hidden h-10 w-10 inline-flex items-center justify-center rounded-full hover:bg-nl-linen transition-colors"
+							className="md:hidden h-10 w-10 inline-flex items-center justify-center rounded-md hover:bg-nl-cacao/[0.06] transition-colors"
 							aria-label="Search"
 						>
 							<Search className="h-5 w-5" strokeWidth={1.75} />
@@ -119,7 +119,7 @@ export function Header({ tabs }: HeaderProps) {
 						{/* Sell — desktop only */}
 						<Link
 							href={`/${locale}/sell`}
-							className="hidden lg:inline-flex items-center gap-2 h-10 px-3.5 rounded-full hover:bg-nl-linen transition-colors"
+							className="hidden lg:inline-flex items-center gap-2 h-10 px-3.5 rounded-md hover:bg-nl-cacao/[0.06] transition-colors"
 						>
 							<Store className="h-[18px] w-[18px]" strokeWidth={1.75} />
 							Sell
@@ -129,7 +129,7 @@ export function Header({ tabs }: HeaderProps) {
 						<Link
 							href={`/${locale}/account/wishlist`}
 							aria-label="Wishlist"
-							className="hidden sm:inline-flex h-10 w-10 items-center justify-center rounded-full hover:bg-nl-linen transition-colors"
+							className="hidden sm:inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-nl-cacao/[0.06] transition-colors"
 						>
 							<Heart className="h-5 w-5" strokeWidth={1.75} />
 						</Link>
@@ -139,11 +139,11 @@ export function Header({ tabs }: HeaderProps) {
 							type="button"
 							onClick={toggleSlideOver}
 							aria-label={t("cart")}
-							className="relative h-10 w-10 inline-flex items-center justify-center rounded-full hover:bg-nl-linen transition-colors"
+							className="relative h-10 w-10 inline-flex items-center justify-center rounded-md hover:bg-nl-cacao/[0.06] transition-colors"
 						>
 							<ShoppingBag className="h-5 w-5" strokeWidth={1.75} />
 							{itemCount > 0 && (
-								<span className="absolute top-0.5 end-0 min-w-[18px] h-[18px] px-1 rounded-full bg-nl-amber text-white text-[10.5px] font-semibold tabular-nums flex items-center justify-center ring-2 ring-nl-pearl">
+								<span className="absolute top-0.5 end-0 min-w-[18px] h-[18px] px-1 rounded-sm bg-nl-amber text-white font-mono text-[10.5px] font-medium tabular-nums flex items-center justify-center ring-2 ring-nl-linen">
 									{itemCount > 99 ? "99+" : itemCount}
 								</span>
 							)}
@@ -153,9 +153,9 @@ export function Header({ tabs }: HeaderProps) {
 						{isAuthenticated ? (
 							<Link
 								href={`/${locale}/account`}
-								className="inline-flex items-center gap-2 h-10 ps-1 pe-1 lg:pe-3.5 rounded-full border border-nl-cacao/10 hover:border-nl-cacao/25 transition-colors ms-1"
+								className="inline-flex items-center gap-2 h-10 ps-1 pe-1 lg:pe-3.5 rounded-md border border-nl-cacao/15 hover:border-nl-cacao/40 transition-colors ms-1"
 							>
-								<span className="h-8 w-8 rounded-full bg-nl-cacao text-nl-pearl text-xs font-semibold inline-flex items-center justify-center">
+								<span className="h-8 w-8 rounded-sm bg-nl-cacao text-white text-xs font-semibold inline-flex items-center justify-center">
 									{user?.first_name?.[0]?.toUpperCase() || (
 										<User className="h-4 w-4" strokeWidth={1.75} />
 									)}
@@ -168,7 +168,7 @@ export function Header({ tabs }: HeaderProps) {
 							<button
 								type="button"
 								onClick={() => openAuthModal("login")}
-								className="inline-flex items-center gap-2 h-10 px-3 sm:px-4 ms-1 rounded-full bg-nl-cacao text-nl-pearl hover:bg-nl-cacao/85 transition-colors cursor-pointer"
+								className="inline-flex items-center gap-2 h-10 px-3 sm:px-4 ms-1 rounded-md bg-nl-cacao text-white hover:bg-nl-cacao/88 transition-colors cursor-pointer"
 							>
 								<User className="h-4 w-4" strokeWidth={1.75} />
 								<span className="hidden sm:inline">{t("login")}</span>
@@ -180,7 +180,7 @@ export function Header({ tabs }: HeaderProps) {
 							type="button"
 							onClick={openMobileNav}
 							aria-label="Menu"
-							className="lg:hidden h-10 w-10 inline-flex items-center justify-center rounded-full hover:bg-nl-linen transition-colors"
+							className="lg:hidden h-10 w-10 inline-flex items-center justify-center rounded-md hover:bg-nl-cacao/[0.06] transition-colors"
 						>
 							<Menu className="h-5 w-5" strokeWidth={1.75} />
 						</button>

@@ -4,60 +4,70 @@
 
 @layer base {
 	:root {
-		/* MaterialHub design system — "Studio" (2026).
-		   Cool ink on warm-neutral paper, one kraft-orange signal colour.
-		   Surfaces stay quiet so material photography carries the colour. */
-		--background: 40 20% 98%;
-		--foreground: 222 22% 10%;
+		/* MaterialHub — Swatch Book design system. See /DESIGN.md.
+		   The page is the swatch-book table: a light board-grey ground, white
+		   stock cards on top, binder-black type. Colour comes from the seven
+		   category stocks and is used as whole fields (tabs, bands, chips),
+		   never sprinkled. Cutter orange is reserved for the next action. */
+		--background: 60 4% 92%;
+		--foreground: 222 18% 11%;
 		--card: 0 0% 100%;
-		--card-foreground: 222 22% 10%;
+		--card-foreground: 222 18% 11%;
 		--popover: 0 0% 100%;
-		--popover-foreground: 222 22% 10%;
-		--primary: 222 22% 10%;
-		--primary-foreground: 40 20% 98%;
-		--secondary: 40 10% 93%;
-		--secondary-foreground: 222 22% 10%;
-		--muted: 40 10% 93%;
-		--muted-foreground: 220 9% 40%;
-		--accent: 18 88% 52%;
+		--popover-foreground: 222 18% 11%;
+		--primary: 222 18% 11%;
+		--primary-foreground: 0 0% 100%;
+		--secondary: 60 3% 86%;
+		--secondary-foreground: 222 18% 11%;
+		--muted: 60 3% 88%;
+		--muted-foreground: 220 8% 36%;
+		--accent: 16 90% 50%;
 		--accent-foreground: 0 0% 100%;
-		--destructive: 0 72% 51%;
+		--destructive: 0 72% 45%;
 		--destructive-foreground: 0 0% 100%;
-		--border: 40 8% 87%;
-		--input: 40 8% 84%;
-		--ring: 18 88% 52%;
-		--radius: 0.75rem;
+		--border: 60 3% 80%;
+		--input: 60 3% 76%;
+		--ring: 16 90% 50%;
+		--radius: 0.375rem;
 
-		/* Legacy theme aliases, remapped onto the Studio palette */
-		--cream: 40 20% 98%;
-		--warm: 40 10% 93%;
-		--warm-dark: 222 24% 8%;
-		--copper: 18 88% 52%;
-		--gold: 38 92% 55%;
-		--text-primary: 222 22% 10%;
-		--text-secondary: 220 9% 38%;
-		--text-muted: 220 8% 55%;
-		--border-warm: 40 8% 87%;
+		/* Legacy aliases, mapped onto Swatch Book */
+		--cream: 60 4% 92%;
+		--warm: 60 3% 86%;
+		--warm-dark: 220 14% 9%;
+		--copper: 16 90% 50%;
+		--gold: 42 72% 36%;
+		--text-primary: 222 18% 11%;
+		--text-secondary: 220 8% 36%;
+		--text-muted: 220 6% 50%;
+		--border-warm: 60 3% 80%;
 
 		/* Storefront surface + text tokens (names kept for compatibility).
-		   linen   — default light surface (paper)
-		   pearl   — raised light surface (cards, inputs)
-		   cacao   — ink: primary text on light
-		   russet  — slate: secondary text on light
-		   amber   — kraft orange signal: CTAs, highlights, active states
-		   espresso— carbon: dark surfaces (footer, feature bands) */
-		--nl-linen: 40 14% 95%;
-		--nl-pearl: 40 20% 98.5%;
-		--nl-cacao: 222 22% 10%;
-		--nl-russet: 220 9% 38%;
-		--nl-amber: 18 88% 52%;
-		--nl-amber-text: 18 85% 37%; /* AA-safe orange for text on light surfaces */
-		--nl-espresso: 222 24% 8%;
+		   linen    board — the page ground
+		   pearl    stock — white card surface
+		   cacao    binder ink — primary text
+		   russet   pencil — secondary text
+		   amber    cutter orange — the next action, active state, counts
+		   espresso binder black — dark bands, footer */
+		--nl-linen: 60 4% 92%;
+		--nl-pearl: 0 0% 100%;
+		--nl-cacao: 222 18% 11%;
+		--nl-russet: 220 8% 36%;
+		--nl-amber: 16 90% 50%;
+		--nl-amber-text: 16 86% 38%; /* AA on board and stock */
+		--nl-espresso: 220 14% 9%;
 
-		/* Shadows */
-		--shadow-sm: 0 1px 2px rgb(15 18 24 / 0.06);
-		--shadow-md: 0 4px 16px -4px rgb(15 18 24 / 0.10), 0 1px 2px rgb(15 18 24 / 0.06);
-		--shadow-lg: 0 24px 48px -16px rgb(15 18 24 / 0.18);
+		/* Category stocks — one material colour per top-level category.
+		   Each passes 4.5:1 with white text. */
+		--stock-paper: 213 70% 39%; /* papers-boards: paper blue */
+		--stock-leather: 352 59% 30%; /* leather-fabrics: oxblood */
+		--stock-hardware: 40 80% 30%; /* hardware-fittings: brass */
+		--stock-finishing: 165 74% 25%; /* adhesives-finishing: laminate green */
+		--stock-packaging: 24 50% 36%; /* boxes-packaging: kraft */
+		--stock-trims: 4 66% 44%; /* ribbons-trims: grosgrain red */
+		--stock-craft: 256 43% 48%; /* decoration-craft: tissue violet */
+
+		--shadow-card: 0 1px 0 rgb(17 20 27 / 0.06), 0 1px 3px rgb(17 20 27 / 0.08);
+		--shadow-lift: 0 2px 0 rgb(17 20 27 / 0.04), 0 18px 32px -14px rgb(17 20 27 / 0.28);
 	}
 }
 
@@ -75,11 +85,19 @@
 	h3,
 	h4 {
 		@apply font-display;
-		letter-spacing: -0.02em;
+		letter-spacing: -0.015em;
 		text-wrap: balance;
 	}
 	::selection {
-		background: hsl(var(--nl-amber) / 0.22);
+		background: hsl(var(--nl-amber) / 0.25);
+		color: hsl(var(--nl-cacao));
+	}
+	input,
+	textarea {
+		caret-color: hsl(var(--nl-amber));
+	}
+	a {
+		text-underline-offset: 0.2em;
 	}
 	:focus-visible {
 		outline: 2px solid hsl(var(--ring));
@@ -123,6 +141,26 @@
 }
 
 @layer utilities {
+	/* Mill-label voice: Archivo at its condensed width, set in caps. Used for
+	   spec keys, tab labels and eyebrows — never for running text. */
+	.font-condensed {
+		font-family: var(--font-display), var(--font-arabic), system-ui, sans-serif;
+		font-stretch: 72%;
+	}
+	.mill-label {
+		font-family: var(--font-display), var(--font-arabic), system-ui, sans-serif;
+		font-stretch: 72%;
+		font-weight: 600;
+		font-size: 0.75rem;
+		line-height: 1;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+	/* Archivo at its expanded width for display headlines. */
+	.font-expanded {
+		font-stretch: 112%;
+	}
+
 	/* Tint the page (and thus the vertical scrollbar-track gutter) to the
 	   checkout surface so its full-bleed linen/pearl meets the scrollbar without
 	   a lighter strip. Mobile right edge is linen; desktop right edge is the

@@ -1,5 +1,6 @@
 import { getLocale, getTranslations } from "next-intl/server";
 import Link from "next/link";
+import { STOCKS, STOCK_ORDER } from "@/components/swatch/stock";
 import { Logo } from "./logo";
 import {
 	BadgeCheck,
@@ -134,7 +135,13 @@ export async function Footer() {
 	const year = new Date().getFullYear();
 
 	return (
-		<footer className="bg-nl-espresso text-nl-pearl/70 mt-auto">
+		<footer className="bg-nl-espresso text-white/70 mt-auto">
+			{/* The book's edge: one band per category stock. */}
+			<div aria-hidden="true" className="flex h-1.5">
+				{STOCK_ORDER.map((k) => (
+					<span key={k} className="flex-1" style={{ background: STOCKS[k].color }} />
+				))}
+			</div>
 			<div className="max-w-[1400px] mx-auto px-4 md:px-8">
 				{/* Value strip — what makes buying materials here different */}
 				<ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-nl-pearl/10 border-b border-nl-pearl/10 -mx-4 md:mx-0 list-none p-0 m-0">
@@ -143,7 +150,7 @@ export async function Footer() {
 							key={title}
 							className="bg-nl-espresso px-4 md:px-6 py-5 md:py-8 flex items-start gap-3.5"
 						>
-							<span className="h-9 w-9 shrink-0 rounded-lg bg-nl-amber/15 text-nl-amber inline-flex items-center justify-center">
+							<span className="h-9 w-9 shrink-0 rounded-md bg-nl-amber/15 text-nl-amber inline-flex items-center justify-center">
 								<Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
 							</span>
 							<span>
@@ -163,7 +170,7 @@ export async function Footer() {
 						>
 							<Logo className="text-nl-pearl" />
 						</Link>
-						<p className="font-display text-xl md:text-2xl font-medium leading-[1.25] tracking-[-0.02em] text-nl-pearl max-w-[340px] mb-6">
+						<p className="font-display text-xl md:text-2xl font-semibold leading-[1.2] tracking-[-0.015em] text-white max-w-[340px] mb-6">
 							Papers, boards, leathers and fittings from UAE suppliers, in one place.
 						</p>
 						<div className="flex gap-2">
@@ -174,7 +181,7 @@ export async function Footer() {
 									target="_blank"
 									rel="noreferrer noopener"
 									aria-label={label}
-									className="w-10 h-10 rounded-full bg-nl-pearl/[0.06] flex items-center justify-center hover:bg-nl-amber hover:text-white text-nl-pearl/80 transition-colors"
+									className="w-10 h-10 rounded-md bg-white/[0.07] flex items-center justify-center hover:bg-nl-amber hover:text-white text-nl-pearl/80 transition-colors"
 								>
 									<Icon className="h-4 w-4" strokeWidth={1.75} />
 								</a>
@@ -184,7 +191,7 @@ export async function Footer() {
 
 					{COLUMNS.map((col) => (
 						<div key={col.headingKey}>
-							<h3 className="font-sans text-[13px] font-medium tracking-normal text-nl-pearl mb-4">
+							<h3 className="mill-label text-white/60 mb-4">
 								{t(col.headingKey)}
 							</h3>
 							<ul className="flex flex-col gap-3 text-sm leading-[1.4]">

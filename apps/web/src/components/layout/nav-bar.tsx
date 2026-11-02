@@ -1,4 +1,5 @@
 import type { NavTab } from "@/lib/api/navigation";
+import { stockFor } from "@/components/swatch/stock";
 import { MegaMenuRoot } from "./mega-menu-root";
 
 interface Props {
@@ -10,12 +11,13 @@ export function NavBar({ tabs }: Props) {
 	return (
 		<div className="hidden lg:block">
 			<div className="max-w-[1400px] mx-auto px-4 md:px-8">
-				<ul className="flex items-center gap-1 h-12 -mx-3 list-none m-0 p-0">
+				<ul className="flex items-center gap-1 h-12 -mx-3 list-none m-0 p-0 overflow-x-auto scrollbar-hide">
 					{tabs.map((tab) => (
 						<li key={tab.id}>
 							<a
 								href={tab.href}
-								className="inline-flex items-center h-9 px-3 rounded-full text-[14px] font-medium text-nl-russet hover:text-nl-cacao hover:bg-nl-linen transition-colors"
+								className="group inline-flex items-center gap-2 h-12 px-3 text-[14px] font-medium text-nl-russet hover:text-nl-cacao border-b-2 border-transparent hover:border-[var(--stock)] transition-colors"
+								style={{ "--stock": stockFor(tab.href.split("/").filter(Boolean).pop() ?? tab.label).color } as React.CSSProperties}
 								data-mega-tab-trigger
 								data-tab-id={tab.id}
 								aria-haspopup={
@@ -26,6 +28,12 @@ export function NavBar({ tabs }: Props) {
 										: undefined
 								}
 							>
+								{tab.kind === "category" && (
+									<span
+										aria-hidden="true"
+										className="h-2.5 w-2.5 rounded-[2px] bg-[var(--stock)]"
+									/>
+								)}
 								{tab.label}
 							</a>
 						</li>

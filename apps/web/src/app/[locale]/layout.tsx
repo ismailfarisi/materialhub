@@ -10,22 +10,19 @@ import { PageViewFire } from "@/components/tracking/page-view-fire";
 import type { Metadata, Viewport } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages, setRequestLocale } from "next-intl/server";
-import {
-	Geist,
-	Geist_Mono,
-	IBM_Plex_Sans_Arabic,
-	Inter_Tight,
-} from "next/font/google";
+import { Archivo, Geist, Geist_Mono, Readex_Pro } from "next/font/google";
 import { notFound } from "next/navigation";
 import Script from "next/script";
 import { routing } from "../../../i18n/routing";
 import { SITE_URL } from "@/lib/seo/config";
 import "../globals.css";
 
-// Studio type system: Inter Tight for display, Geist for UI and body copy,
-// Geist Mono for specs (GSM, thickness, sheet sizes, SKUs).
-const display = Inter_Tight({
+// Swatch Book type system (see /DESIGN.md): Archivo for display and, at its
+// condensed width, mill-label caps; Geist for UI and body copy; Geist Mono
+// for spec values (GSM, mm, cm, SKUs).
+const display = Archivo({
 	subsets: ["latin"],
+	axes: ["wdth"],
 	variable: "--font-display",
 	display: "swap",
 });
@@ -42,10 +39,9 @@ const mono = Geist_Mono({
 	display: "swap",
 });
 
-// Latin faces have no Arabic glyphs; the `ar` locale falls through to Plex.
-const arabic = IBM_Plex_Sans_Arabic({
+// Latin faces have no Arabic glyphs; the `ar` locale falls through to Readex.
+const arabic = Readex_Pro({
 	subsets: ["arabic"],
-	weight: ["400", "500", "600", "700"],
 	variable: "--font-arabic",
 	display: "swap",
 });
