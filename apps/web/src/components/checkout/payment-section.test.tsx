@@ -1,5 +1,4 @@
-import { render, screen } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PaymentSection } from "./payment-section";
 
@@ -57,27 +56,6 @@ vi.mock("@/stores/checkout", () => ({
   }),
 }));
 
-vi.mock("./maison-primitives", () => ({
-  MAISON_SANS: "sans",
-  MAISON_SERIF: "serif",
-  MaisonCard: ({ children, title }: { children: ReactNode; title: string }) => (
-    <section aria-label={title}>{children}</section>
-  ),
-  MaisonTile: ({
-    children,
-    disabled,
-    onClick,
-  }: {
-    children: ReactNode;
-    disabled?: boolean;
-    onClick?: () => void;
-  }) => (
-    <button disabled={disabled} onClick={onClick} type="button">
-      {children}
-    </button>
-  ),
-}));
-
 describe("PaymentSection", () => {
   beforeEach(() => {
     checkoutStore.paymentMethod = "card";
@@ -100,5 +78,16 @@ describe("PaymentSection", () => {
     render(<PaymentSection onExpressCheckoutConfirm={vi.fn()} />);
 
     expect(screen.queryByTestId("stripe-express-checkout")).not.toBeInTheDocument();
+  });
+
+  it("offers each method as a radio and selects on click", () => {
+    render(<PaymentSection onExpressCheckoutConfirm={vi.fn()} />);
+
+    const radios = screen.getAllByRole("radio");
+    expect(radios).toHaveLength(2);
+    expect(screen.getByRole("radio", { name: /methodCard/ })).toBeChecked();
+
+    fireEvent.click(screen.getByRole("radio", { name: /methodCod/ }));
+    expect(checkoutStore.setPaymentMethod).toHaveBeenCalledWith("cod");
   });
 });

@@ -3,321 +3,213 @@
 import { filsToAed } from "@/lib/money";
 import { usePaymentInstruments } from "@/lib/queries/checkout-quote";
 import type { CheckoutQuotePaymentMethod } from "@/lib/queries/checkout-quote";
+import { cn } from "@/lib/utils";
 import { type PaymentMethod, useCheckoutStore } from "@/stores/checkout";
 import { CardElement, ExpressCheckoutElement } from "@stripe/react-stripe-js";
-import { Banknote, Clock, CreditCard, Lock } from "lucide-react";
+import { AlertCircle, Banknote, CreditCard, Lock } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { MAISON_SANS, MAISON_SERIF, MaisonCard, MaisonTile } from "./maison-primitives";
+import { useMemo, useState } from "react";
+import { Notice, OptionTile, Panel } from "./checkout-ui";
+import { swatchCardStyle } from "./stripe-appearance";
 
-const METHOD_ICONS: Record<string, typeof CreditCard> = {
-  card: CreditCard,
-  cod: Banknote,
-  tabby: Clock,
-  tamara: Clock,
-};
-
-const METHOD_NAME_KEYS: Record<string, string> = {
-  card: "cardPayment",
-  cod: "cod",
-};
-
-const STATIC_LABELS: Record<string, string> = {
-  tabby: "Tabby",
-  tamara: "Tamara",
-};
+type TFn = ReturnType<typeof useTranslations<"checkout">>;
+// Reason keys come from the quote, so they are dynamic.
+type DynamicKey = Parameters<TFn>[0];
 
 // Reason templates ("between {min} and {max} AED") take values from the
 // quote's typed reason_params — money values arrive in fils.
 function reasonValues(params?: Record<string, unknown>): Record<string, string | number> {
-  return Object.fromEntries(
-    Object.entries(params ?? {}).map(([k, v]: [string, any]) => [
-      k,
-      v?.type === "money" ? filsToAed(v.value) : (v?.value ?? ""),
-    ]),
-  );
+	return Object.fromEntries(
+		Object.entries(params ?? {}).map(([k, v]) => {
+			const p = v as { type?: string; value?: string | number } | null;
+			return [k, p?.type === "money" ? filsToAed(Number(p.value)) : (p?.value ?? "")];
+		}),
+	);
 }
 
 interface PaymentSectionProps {
-  onExpressCheckoutConfirm?: Parameters<typeof ExpressCheckoutElement>[0]["onConfirm"];
+	onExpressCheckoutConfirm?: Parameters<typeof ExpressCheckoutElement>[0]["onConfirm"];
 }
 
+/** Step 3: payment method and its details. */
 export function PaymentSection({ onExpressCheckoutConfirm }: PaymentSectionProps) {
-  const t = useTranslations("checkout");
+	const t = useTranslations("checkout");
+	const { quoteData, paymentMethod, setPaymentMethod } = useCheckoutStore();
+	const { data: instrumentsData } = usePaymentInstruments();
+	const [cardError, setCardError] = useState<string | null>(null);
+	const [cardFocused, setCardFocused] = useState(false);
+	const cardStyle = useMemo(() => swatchCardStyle(), []);
 
-  const { quoteData, paymentMethod, setPaymentMethod } = useCheckoutStore();
-  const { data: instrumentsData } = usePaymentInstruments();
+	const paymentMethods = (quoteData?.payment_methods ?? []).filter((method) => method.id !== "tabby");
+	const savedCards = instrumentsData?.instruments ?? [];
+	const grandTotalFils = quoteData?.totals.grand_total_fils ?? 0;
+	const current = paymentMethods.find((m) => m.id === paymentMethod);
+	const noMethods = quoteData?.blocking_error?.code === "no_eligible_payment_methods";
 
-  const paymentMethods = (quoteData?.payment_methods ?? []).filter(
-    (method) => method.id !== "tabby"
-  );
-  const savedCards = instrumentsData?.instruments ?? [];
-  const grandTotalFils = quoteData?.totals.grand_total_fils ?? 0;
+	const methodName = (id: string) =>
+		id === "card" ? t("methodCard") : id === "cod" ? t("methodCod") : id === "tamara" ? "Tamara" : id;
+	const methodHint = (id: string) =>
+		id === "card" ? t("methodCardHint") : id === "cod" ? t("codDesc") : id === "tamara" ? t("tamaraInfo") : "";
 
-  return (
-    <MaisonCard title={t("paymentTitle")}>
-      <div
-        className="grid mb-3.5"
-        style={{
-          gridTemplateColumns: `repeat(${Math.min(paymentMethods.length || 3, 4)}, 1fr)`,
-          gap: 10,
-        }}
-      >
-        {paymentMethods.map((method: CheckoutQuotePaymentMethod) => {
-          const Icon = METHOD_ICONS[method.id] ?? CreditCard;
-          const labelKey = METHOD_NAME_KEYS[method.id];
-          const label = STATIC_LABELS[method.id] ?? (labelKey ? t(labelKey as any) : method.id);
-          const isSelected = paymentMethod === method.id;
-          return (
-            <MaisonTile
-              key={method.id}
-              selected={isSelected}
-              disabled={!method.available}
-              onClick={() => method.available && setPaymentMethod(method.id as PaymentMethod)}
-              className="flex flex-col items-center justify-center"
-            >
-              <div
-                style={{
-                  padding: "14px 10px",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 6,
-                  width: "100%",
-                }}
-              >
-                {method.id === "tamara" ? (
-                  <img
-                    src="/tamara-logo.png"
-                    alt="Tamara"
-                    className="h-5 w-auto object-contain"
-                  />
-                ) : (
-                  <Icon
-                    className="h-5 w-5"
-                    strokeWidth={1.25}
-                    style={{ color: "hsl(var(--nl-cacao))" }}
-                  />
-                )}
-                <div
-                  style={{
-                    fontFamily: MAISON_SERIF,
-                    fontSize: 13,
-                    color: "hsl(var(--nl-cacao))",
-                  }}
-                >
-                  {label}
-                </div>
-                {!method.available && method.reason_key && (
-                  <div
-                    className="uppercase text-center"
-                    style={{
-                      fontSize: 8.5,
-                      letterSpacing: "0.18em",
-                      color: "hsl(var(--nl-russet))",
-                    }}
-                  >
-                    {t(method.reason_key as any, reasonValues(method.reason_params))}
-                  </div>
-                )}
-              </div>
-            </MaisonTile>
-          );
-        })}
-      </div>
+	return (
+		<Panel id="checkout-payment" step={3} title={t("paymentTitle")}>
+			<div className="grid gap-4">
+				{noMethods && quoteData?.blocking_error && (
+					<Notice tone="error">{t(quoteData.blocking_error.i18n_key.replace(/^checkout\./, "") as DynamicKey)}</Notice>
+				)}
 
-      {/* Tab content */}
-      {paymentMethod === "card" && (
-        <div>
-          {onExpressCheckoutConfirm && grandTotalFils > 0 && (
-            <div
-              className="mb-3"
-              style={{
-                padding: "14px",
-                border: "1px solid rgba(15,18,24,0.16)",
-                background: "rgba(255,255,255,0.55)",
-              }}
-            >
-              <ExpressCheckoutElement
-                onConfirm={onExpressCheckoutConfirm}
-                options={{
-                  buttonHeight: 44,
-                  buttonTheme: {
-                    applePay: "black",
-                  },
-                  buttonType: {
-                    applePay: "check-out",
-                  },
-                  layout: {
-                    maxColumns: 1,
-                    maxRows: 1,
-                    overflow: "never",
-                  },
-                  paymentMethods: {
-                    amazonPay: "never",
-                    applePay: "auto",
-                    googlePay: "never",
-                    link: "never",
-                    paypal: "never",
-                  },
-                }}
-              />
-            </div>
-          )}
+				{quoteData === null ? (
+					<div className="grid gap-2 animate-pulse motion-reduce:animate-none" aria-hidden="true">
+						{[0, 1, 2].map((i) => (
+							<div key={i} className="h-14 rounded-md bg-nl-cacao/[0.06]" />
+						))}
+					</div>
+				) : (
+					<div role="radiogroup" aria-label={t("paymentMethodLabel")} className="grid gap-2">
+						{paymentMethods.map((method: CheckoutQuotePaymentMethod) => {
+							const Icon = method.id === "cod" ? Banknote : CreditCard;
+							return (
+								<OptionTile
+									key={method.id}
+									name="payment-method"
+									value={method.id}
+									checked={paymentMethod === method.id}
+									disabled={!method.available}
+									onSelect={() => method.available && setPaymentMethod(method.id as PaymentMethod)}
+								>
+									<span className="flex items-center gap-3">
+										<span className="grid min-w-0 flex-1">
+											<span className="font-medium text-nl-cacao">{methodName(method.id)}</span>
+											<span className="text-[13px] text-nl-russet">
+												{!method.available && method.reason_key
+													? t(method.reason_key as DynamicKey, reasonValues(method.reason_params))
+													: methodHint(method.id)}
+											</span>
+										</span>
+										{method.id === "tamara" ? (
+											<img src="/tamara-logo.png" alt="" className="h-5 w-auto shrink-0 object-contain" />
+										) : (
+											<Icon className="h-5 w-5 shrink-0 text-nl-cacao" strokeWidth={1.75} aria-hidden="true" />
+										)}
+									</span>
+								</OptionTile>
+							);
+						})}
+					</div>
+				)}
 
-          {savedCards.length > 0 && (
-            <div className="mb-3 space-y-2">
-              {savedCards.map((card) => (
-                <div
-                  key={card.id}
-                  className={`flex items-center justify-between text-sm ${card.is_expired ? "opacity-40" : ""}`}
-                  style={{
-                    padding: "10px 14px",
-                    border: "1px solid rgba(15,18,24,0.16)",
-                    background: "rgba(255,255,255,0.55)",
-                  }}
-                >
-                  <span
-                    className="capitalize"
-                    style={{
-                      fontFamily: MAISON_SERIF,
-                      fontSize: 15,
-                      color: "hsl(var(--nl-cacao))",
-                    }}
-                  >
-                    {card.brand} •••• {card.last4}
-                  </span>
-                  <span
-                    className="uppercase"
-                    style={{
-                      fontSize: 10,
-                      letterSpacing: "0.18em",
-                      color: "hsl(var(--nl-russet))",
-                    }}
-                  >
-                    {card.exp_month}/{card.exp_year}
-                    {card.is_expired && ` · ${t("expired")}`}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
+				{paymentMethod === "card" && quoteData !== null && (
+					<div className="grid gap-4 border-t border-nl-cacao/10 pt-4">
+						{onExpressCheckoutConfirm && grandTotalFils > 0 && (
+							<div className="grid gap-3">
+								<ExpressCheckoutElement
+									onConfirm={onExpressCheckoutConfirm}
+									options={{
+										buttonHeight: 44,
+										buttonTheme: { applePay: "black" },
+										buttonType: { applePay: "check-out" },
+										layout: { maxColumns: 1, maxRows: 1, overflow: "never" },
+										paymentMethods: {
+											amazonPay: "never",
+											applePay: "auto",
+											googlePay: "never",
+											link: "never",
+											paypal: "never",
+										},
+									}}
+								/>
+							</div>
+						)}
 
-          <div
-            style={{
-              padding: "14px 14px 12px",
-              border: "1px solid rgba(15,18,24,0.16)",
-              background: "rgba(255,255,255,0.55)",
-            }}
-          >
-            <div
-              className="uppercase mb-1.5 flex items-center justify-between"
-              style={{
-                fontSize: 9,
-                letterSpacing: "0.22em",
-                color: "hsl(var(--nl-russet))",
-              }}
-            >
-              <span>{t("cardNumberLabel")}</span>
-              <Lock
-                className="h-3.5 w-3.5"
-                strokeWidth={1.25}
-                style={{ color: "hsl(var(--nl-amber))" }}
-              />
-            </div>
-            <CardElement
-              options={{
-                hidePostalCode: true,
-                style: {
-                  base: {
-                    fontSize: "16px",
-                    fontFamily: "var(--font-display), 'Inter Tight', system-ui, sans-serif",
-                    color: "#13161D",
-                    "::placeholder": { color: "rgba(15,18,24,0.55)" },
-                  },
-                  invalid: { color: "#ef4444" },
-                },
-              }}
-            />
-          </div>
-        </div>
-      )}
+						{savedCards.length > 0 && (
+							<div className="grid gap-1.5">
+								<p className="m-0 text-[13px] font-medium text-nl-cacao">{t("savedCards")}</p>
+								<ul className="m-0 grid list-none gap-1.5 p-0">
+									{savedCards.map((card) => (
+										<li
+											key={card.id}
+											className={cn(
+												"flex items-center justify-between gap-3 rounded-md border border-nl-cacao/15 bg-nl-linen/50 px-3.5 py-2.5 text-[14px]",
+												card.is_expired && "text-nl-russet",
+											)}
+										>
+											<span className="capitalize">
+												{card.brand} <span className="font-mono tabular-nums">•••• {card.last4}</span>
+											</span>
+											<span className="font-mono text-[12.5px] tabular-nums text-nl-russet">
+												{String(card.exp_month).padStart(2, "0")}/{card.exp_year}
+												{card.is_expired && ` · ${t("expired")}`}
+											</span>
+										</li>
+									))}
+								</ul>
+							</div>
+						)}
 
-      {paymentMethod === "cod" &&
-        (() => {
-          const codMethod = paymentMethods.find((m) => m.id === "cod");
-          return (
-            <div
-              style={{
-                padding: "14px 16px",
-                border: "1px solid rgba(15,18,24,0.16)",
-                background: "rgba(255,255,255,0.55)",
-              }}
-            >
-              <p className="text-sm" style={{ color: "hsl(var(--nl-cacao))" }}>
-                {t("codConfirm")}
-              </p>
-              {codMethod && codMethod.surcharge_fils > 0 && (
-                <p className="text-xs mt-1" style={{ color: "hsl(var(--nl-russet))" }}>
-                  {t("payment.cod.surcharge" as any, {
-                    amount: filsToAed(codMethod.surcharge_fils),
-                  })}
-                </p>
-              )}
-            </div>
-          );
-        })()}
+						<div className="grid gap-1.5">
+							<span id="card-details-label" className="flex items-center justify-between text-[13px] font-medium text-nl-cacao">
+								{t("cardNumberLabel")}
+								<span className="inline-flex items-center gap-1 text-[12px] font-normal text-nl-russet">
+									<Lock className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
+									{t("cardSecureHint")}
+								</span>
+							</span>
+							<div
+								aria-labelledby="card-details-label"
+								className={cn(
+									"rounded-md border bg-nl-pearl px-3.5 py-[13px] transition-[border-color,box-shadow] duration-150",
+									cardError
+										? "border-destructive"
+										: cardFocused
+											? "border-nl-cacao shadow-[0_0_0_2px_hsl(var(--nl-amber)/0.9)]"
+											: "border-nl-cacao/20 hover:border-nl-cacao/40",
+								)}
+							>
+								<CardElement
+									options={{ hidePostalCode: true, style: cardStyle }}
+									onFocus={() => setCardFocused(true)}
+									onBlur={() => setCardFocused(false)}
+									onChange={(e) => setCardError(e.error?.message ?? null)}
+								/>
+							</div>
+							{cardError && (
+								<p role="alert" className="m-0 flex items-start gap-1.5 text-[13px] text-destructive">
+									<AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
+									{cardError}
+								</p>
+							)}
+						</div>
+					</div>
+				)}
 
-      {paymentMethod === "tamara" &&
-        (() => {
-          const installments = 4;
-          return (
-            <div
-              style={{
-                padding: "14px 16px",
-                border: "1px solid rgba(15,18,24,0.16)",
-                background: "rgba(255,255,255,0.55)",
-              }}
-            >
-              <p className="text-sm" style={{ color: "hsl(var(--nl-cacao))" }}>
-                {t("tamaraInfo")}
-              </p>
-              {grandTotalFils > 0 && (
-                <p
-                  className="mt-1"
-                  style={{
-                    fontFamily: MAISON_SERIF,
-                    fontSize: 14,
-                    color: "hsl(var(--nl-amber-text))",
-                  }}
-                >
-                  {t("bnplPlan", {
-                    installments,
-                    amount: filsToAed(Math.round(grandTotalFils / installments)),
-                  })}
-                </p>
-              )}
-            </div>
-          );
-        })()}
+				{paymentMethod === "cod" && current && (
+					<div className="grid gap-1 border-t border-nl-cacao/10 pt-4 text-[14px]">
+						<p className="m-0 text-nl-cacao">{t("codConfirm")}</p>
+						{current.surcharge_fils > 0 && (
+							<p className="m-0 text-[13px] text-nl-russet tabular-nums">
+								{t("payment.cod.surcharge", { amount: filsToAed(current.surcharge_fils) })}
+							</p>
+						)}
+					</div>
+				)}
 
-      {paymentMethod &&
-        (() => {
-          const current = paymentMethods.find((m) => m.id === paymentMethod);
-          if (current && !current.available && current.reason_key) {
-            return (
-              <p
-                className="mt-2 text-xs"
-                style={{
-                  color: "hsl(var(--destructive))",
-                  fontFamily: MAISON_SANS,
-                }}
-              >
-                {t(current.reason_key as any, reasonValues(current.reason_params))}
-              </p>
-            );
-          }
-          return null;
-        })()}
-    </MaisonCard>
-  );
+				{paymentMethod === "tamara" && current?.available && (
+					<div className="grid gap-1 border-t border-nl-cacao/10 pt-4 text-[14px]">
+						{grandTotalFils > 0 && (
+							<p className="m-0 font-medium text-nl-cacao tabular-nums">
+								{t("bnplPlan", { installments: 4, amount: filsToAed(Math.round(grandTotalFils / 4)) })}
+							</p>
+						)}
+						<p className="m-0 text-[13px] text-nl-russet">{t("tamaraRedirect")}</p>
+					</div>
+				)}
+
+				{current && !current.available && current.reason_key && (
+					<p className="m-0 text-[13px] text-destructive">
+						{t(current.reason_key as DynamicKey, reasonValues(current.reason_params))}
+					</p>
+				)}
+			</div>
+		</Panel>
+	);
 }

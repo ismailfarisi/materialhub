@@ -1,5 +1,11 @@
 "use client";
 
+/**
+ * @deprecated Beauty-era "maison" styling. Cart and checkout no longer use it
+ * (see `checkout-ui.tsx`); remaining importers are account and support pages.
+ * Delete this file once those move to Swatch Book.
+ */
+
 import type { ReactNode } from "react";
 
 export const MAISON_SERIF =
