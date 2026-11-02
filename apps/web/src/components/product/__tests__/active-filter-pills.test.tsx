@@ -51,7 +51,7 @@ describe("ActiveFilterPills", () => {
 			/>,
 		);
 		expect(screen.getByText("GSM")).toBeInTheDocument();
-		expect(screen.getByText("350 gsm")).toHaveClass("font-mono");
+		expect(screen.getByText("350 gsm").closest(".font-mono")).not.toBeNull();
 		expect(screen.getByLabelText("removeFilter:GSM: 350 gsm")).toHaveClass("rounded-sm");
 	});
 

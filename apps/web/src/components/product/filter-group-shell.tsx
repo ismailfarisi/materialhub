@@ -125,7 +125,8 @@ export function FilterCheckRow({
 					mono && "font-mono text-[13px] tabular-nums",
 				)}
 			>
-				{label}
+				{/* Measured values ("350 gsm", "70×100 cm") read left-to-right in Arabic too. */}
+				{mono ? <bdi dir="ltr">{label}</bdi> : label}
 			</span>
 			{count != null && (
 				<span className="font-mono text-[11.5px] tabular-nums text-nl-russet">

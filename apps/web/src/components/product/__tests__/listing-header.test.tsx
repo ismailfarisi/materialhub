@@ -83,7 +83,7 @@ describe("ListingHeader", () => {
 				]}
 			/>,
 		);
-		expect(screen.getByText("AED 4.80")).toHaveClass("font-mono");
+		expect(screen.getByText("AED 4.80").closest("dd")).toHaveClass("font-mono");
 		expect(screen.getByText("Products")).toHaveClass("mill-label");
 	});
 

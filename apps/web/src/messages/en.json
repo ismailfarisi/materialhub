@@ -578,7 +578,7 @@
     "factProducts": "Products",
     "factFrom": "From",
     "factSuppliers": "Suppliers",
-    "factSince": "On MaterialHub since",
+    "factSince": "Listed since",
     "factFollowers": "Followers",
     "factRating": "Rating",
     "reviewsCount": "{count, plural, one {# review} other {# reviews}}",

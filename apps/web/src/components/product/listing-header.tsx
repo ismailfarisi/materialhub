@@ -89,7 +89,7 @@ export function ListingHeader({
 								<div key={f.label} className="grid gap-1.5">
 									<dt className="mill-label text-white/90">{f.label}</dt>
 									<dd className="m-0 font-mono text-[18px] leading-none tabular-nums md:text-[22px]">
-										{f.value}
+										<bdi dir="ltr">{f.value}</bdi>
 									</dd>
 								</div>
 							))}

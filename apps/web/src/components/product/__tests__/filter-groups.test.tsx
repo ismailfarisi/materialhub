@@ -123,7 +123,7 @@ describe("FilterGroups", () => {
 			.map((b) => b.textContent);
 		// Spec group is rendered (and open) before price; Colour is collapsed.
 		expect(screen.getByText("specification")).toBeInTheDocument();
-		expect(screen.getByText("350 gsm")).toHaveClass("font-mono");
+		expect(screen.getByText("350 gsm").closest(".font-mono")).not.toBeNull();
 		expect(screen.queryByText("Black")).not.toBeInTheDocument();
 		expect(headings.some((h) => h?.startsWith("GSM"))).toBe(true);
 

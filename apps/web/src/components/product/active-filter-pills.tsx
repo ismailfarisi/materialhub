@@ -52,7 +52,7 @@ export function ActiveFilterPills({ pills, onRemove, onClearAll }: Props) {
 										p.mono && "font-mono text-[12.5px] tabular-nums",
 									)}
 								>
-									{p.display}
+									{p.mono ? <bdi dir="ltr">{p.display}</bdi> : p.display}
 								</span>
 							</span>
 						) : (
