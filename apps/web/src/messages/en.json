@@ -525,5 +525,140 @@
     "errors": {
       "submitFailed": "Something went wrong. Please try again."
     }
+  },
+  "content": {
+    "layout": {
+      "home": "Home",
+      "breadcrumb": "Breadcrumb",
+      "onThisPage": "On this page",
+      "documentDetails": "Document details"
+    },
+    "categories": {
+      "papers-boards": "Papers & boards",
+      "leather-fabrics": "Leather & fabrics",
+      "hardware-fittings": "Hardware & fittings",
+      "adhesives-finishing": "Adhesives & finishing",
+      "boxes-packaging": "Boxes & packaging",
+      "ribbons-trims": "Ribbons & trims",
+      "decoration-craft": "Decoration & craft"
+    },
+    "notFound": {
+      "code": "Error 404",
+      "title": "This page isn’t in the book.",
+      "body": "The link may be old or mistyped. Search the catalogue by material or spec, or open one of the seven categories.",
+      "searchLabel": "Search materials",
+      "searchPlaceholder": "e.g. greyboard 2 mm",
+      "searchButton": "Search",
+      "browse": "Browse by category",
+      "home": "Back to the home page"
+    },
+    "loading": {
+      "label": "Loading"
+    },
+    "contact": {
+      "crumb": "Contact",
+      "title": "Contact MaterialHub",
+      "intro": "Questions about an order, a material spec or a trade enquiry. Send a message and it reaches customer care as a support ticket.",
+      "formTitle": "Send a message",
+      "name": "Your name",
+      "email": "Email",
+      "topic": "Topic",
+      "topics": {
+        "order": "An order",
+        "product": "A material or listing",
+        "payment": "Payment",
+        "account": "My account",
+        "trade": "Trade or bulk enquiry"
+      },
+      "subject": "Subject",
+      "subjectHint": "For orders, include the order number.",
+      "message": "Message",
+      "messageHint": "For a material, include the spec you need: GSM, thickness, size, quantity.",
+      "send": "Send message",
+      "sending": "Sending…",
+      "required": "Required",
+      "errorRequired": "Fill in this field.",
+      "errorEmail": "Enter an email address like name@company.ae.",
+      "errorSend": "The message didn’t send. Check your connection and try again, or email us directly.",
+      "sentTitle": "Message sent",
+      "sentBody": "Your ticket number is {number}. We reply by email to {email}.",
+      "sentBodyNoNumber": "We reply by email to {email}.",
+      "sendAnother": "Send another message",
+      "detailsTitle": "Direct lines",
+      "phone": "Phone and WhatsApp",
+      "general": "General enquiries",
+      "help": "Order help",
+      "press": "Press and partnerships",
+      "sellers": "Selling on MaterialHub",
+      "sellersLink": "See how to sell with us",
+      "languages": "We answer in Arabic and English."
+    },
+    "sell": {
+      "crumb": "Sell on MaterialHub",
+      "title": "Sell your materials by the sheet, roll, pack or carton.",
+      "intro": "List on MaterialHub and reach UAE trade buyers and craft shoppers from one catalogue, without running your own storefront.",
+      "cta": "Apply to sell",
+      "signIn": "Already a supplier? Sign in to the vendor dashboard",
+      "categoriesTitle": "What sells here",
+      "categoriesBody": "Seven categories cover the materials chain. Your listings sit in the one that fits, next to competing suppliers, by spec and unit of measure.",
+      "whyTitle": "What you get",
+      "why": {
+        "payments": {
+          "t": "Buyers pay the way they want",
+          "d": "Card through Stripe, Tabby and Tamara instalments, and cash on delivery. MaterialHub collects the payment for you."
+        },
+        "payouts": {
+          "t": "Payouts to your bank account",
+          "d": "Sales are paid out on a set schedule, minus the platform commission. Commission can be a percentage, a fixed amount or tiered, and is agreed with you before you list."
+        },
+        "shipping": {
+          "t": "UAE delivery handled",
+          "d": "Shipments are booked on the platform carrier account by default, from the warehouses you add. Prefer your own carrier? Switch it off."
+        },
+        "dashboard": {
+          "t": "One dashboard for the work",
+          "d": "Listings, variants, inventory, orders, shipments, returns, coupons and payouts. Import and export listings in bulk, and add your team with their own roles."
+        },
+        "integrations": {
+          "t": "Connects to your systems",
+          "d": "Signed outbound webhooks and sales-channel feeds keep your stock and orders in step with the tools you already use."
+        },
+        "bilingual": {
+          "t": "Arabic and English",
+          "d": "The storefront runs in both languages, right to left in Arabic, on desktop and phone."
+        }
+      },
+      "stepsTitle": "How onboarding works",
+      "steps": {
+        "apply": {
+          "t": "Apply",
+          "d": "Send your business name, trade licence number, VAT registration if you have one, and a contact."
+        },
+        "verify": {
+          "t": "Verification",
+          "d": "Upload your KYC documents. The MaterialHub team reviews them and approves your account."
+        },
+        "setup": {
+          "t": "Set up",
+          "d": "Add a bank account for payouts and the warehouses you ship from."
+        },
+        "list": {
+          "t": "List and sell",
+          "d": "Add your materials with their specs, units and prices, one by one or in bulk."
+        }
+      },
+      "closingTitle": "Ready to list your range?",
+      "closingBody": "Applications are reviewed by the MaterialHub team. Your commission and payout schedule are set out in your vendor agreement before you go live."
+    },
+    "newsletter": {
+      "label": "Email address",
+      "placeholder": "you@company.ae",
+      "submit": "Subscribe",
+      "submitting": "Subscribing…",
+      "error": "That didn’t go through. Check the address and try again.",
+      "subscribed": "You’re subscribed.",
+      "subscribedNote": "Check your inbox to confirm.",
+      "promise": "New materials and supplier news. Unsubscribe any time."
+    }
   }
 }
