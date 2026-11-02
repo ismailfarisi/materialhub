@@ -1,11 +1,19 @@
 "use client";
 
-import { useState } from "react";
-import { useTranslations } from "next-intl";
-import { MAISON_SANS } from "@/components/checkout/maison-primitives";
 import { PhoneVerifyField, saveAddressErrorMessage } from "@/components/account/phone-verify-field";
+import { Button } from "@/components/swatch";
 import { UAE_EMIRATES } from "@/lib/emirates";
-
+import { useTranslations } from "next-intl";
+import { useState } from "react";
+import {
+  Field,
+  FieldError,
+  Input,
+  Select,
+  compositeClass,
+  compositeInputClass,
+  compositePrefixClass,
+} from "./account-ui";
 interface AddressFormData {
   full_name: string;
   phone: string;
@@ -37,13 +45,6 @@ const FIELDS: {
   { key: "emirate", labelKey: "emirateLabel", required: true, type: "emirate" },
 ];
 
-const inputStyle: React.CSSProperties = {
-  border: "1px solid rgba(15,18,24,0.2)",
-  background: "rgba(255,255,255,0.6)",
-  fontFamily: MAISON_SANS,
-  borderRadius: 0,
-};
-
 export function AddressForm({
   initial,
   onSubmit,
@@ -73,15 +74,6 @@ export function AddressForm({
   const [phoneVerified, setPhoneVerified] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const focusAmber = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
-    e.currentTarget.style.borderColor = "hsl(var(--nl-amber))";
-    e.currentTarget.style.boxShadow = "0 0 0 1px hsl(var(--nl-amber))";
-  };
-  const blurAmber = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
-    e.currentTarget.style.borderColor = "rgba(15,18,24,0.2)";
-    e.currentTarget.style.boxShadow = "none";
-  };
-
   return (
     <form
       onSubmit={async (e) => {
@@ -90,124 +82,90 @@ export function AddressForm({
         try {
           await onSubmit(form);
         } catch (err) {
-          setSaveError(saveAddressErrorMessage(err) ?? "Failed to save this address. Please try again.");
+          setSaveError(saveAddressErrorMessage(err) ?? t("addressSaveFailed"));
         }
       }}
-      className="space-y-3"
+      className="grid gap-5"
     >
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
         {FIELDS.map(({ key, labelKey, required, type }) => {
           const label = t(labelKey);
           if (type === "phone") {
             return (
-              <PhoneVerifyField
-                key={key}
-                value={form[key]}
-                onChange={(phone) => setForm({ ...form, [key]: phone })}
-                onVerifiedChange={setPhoneVerified}
-                originalPhone={initial?.phone}
-                required={required}
-                onFocus={focusAmber}
-                onBlur={blurAmber}
-                className="flex items-center px-3.5 py-2.5 text-sm w-full transition-all text-nl-cacao"
-                style={inputStyle}
-                prefixClassName="me-2 text-nl-russet"
-                inputClassName="w-full bg-transparent outline-none"
-                inputStyle={{ border: "none", fontFamily: MAISON_SANS }}
-              />
+              <Field key={key} label={label}>
+                {(p) => (
+                  <PhoneVerifyField
+                    id={p.id}
+                    value={form[key]}
+                    onChange={(phone) => setForm({ ...form, [key]: phone })}
+                    onVerifiedChange={setPhoneVerified}
+                    originalPhone={initial?.phone}
+                    required={required}
+                    className={compositeClass}
+                    prefixClassName={compositePrefixClass}
+                    inputClassName={compositeInputClass}
+                  />
+                )}
+              </Field>
             );
           }
           if (type === "emirate") {
             return (
-              <select
-                key={key}
-                value={form[key]}
-                onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-                onFocus={focusAmber}
-                onBlur={blurAmber}
-                required={required}
-                className="px-3.5 py-2.5 text-sm w-full outline-none transition-all text-nl-cacao"
-                style={inputStyle}
-              >
-                <option value="" disabled>
-                  {label}
-                </option>
-                {UAE_EMIRATES.map((em) => (
-                  <option key={em.value} value={em.value}>
-                    {tEmirates(em.labelKey)}
-                  </option>
-                ))}
-              </select>
+              <Field key={key} label={label}>
+                {(p) => (
+                  <Select
+                    {...p}
+                    value={form[key]}
+                    onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                    required={required}
+                  >
+                    <option value="" disabled>
+                      {t("selectEmirate")}
+                    </option>
+                    {UAE_EMIRATES.map((em) => (
+                      <option key={em.value} value={em.value}>
+                        {tEmirates(em.labelKey)}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
             );
           }
           return (
-            <input
-              key={key}
-              type="text"
-              placeholder={label}
-              value={form[key]}
-              onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-              onFocus={focusAmber}
-              onBlur={blurAmber}
-              required={required}
-              className="px-3.5 py-2.5 text-sm w-full outline-none transition-all text-nl-cacao"
-              style={inputStyle}
-            />
+            <Field key={key} label={label} optional={!required}>
+              {(p) => (
+                <Input
+                  {...p}
+                  type="text"
+                  value={form[key]}
+                  onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                  required={required}
+                  autoComplete={key === "full_name" ? "name" : key === "city" ? "address-level2" : undefined}
+                />
+              )}
+            </Field>
           );
         })}
       </div>
-      <label
-        className="flex items-center gap-2 text-sm text-nl-cacao"
-        style={{ fontFamily: MAISON_SANS }}
-      >
+      <label className="flex min-h-[44px] cursor-pointer items-center gap-3 text-sm text-nl-cacao">
         <input
           type="checkbox"
           checked={form.is_default}
           onChange={(e) => setForm({ ...form, is_default: e.target.checked })}
-          style={{ accentColor: "hsl(var(--nl-amber))" }}
+          className="h-5 w-5 rounded-sm accent-nl-cacao"
         />
         {t("setAsDefault")}
       </label>
-      {saveError && (
-        <p className="text-red-600 text-xs" role="alert">
-          {saveError}
-        </p>
-      )}
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="submit"
-          disabled={isLoading || !phoneVerified}
-          className="uppercase disabled:opacity-50"
-          style={{
-            background: "hsl(var(--nl-amber))",
-            color: "hsl(var(--nl-espresso))",
-            fontFamily: MAISON_SANS,
-            fontSize: 11,
-            letterSpacing: "0.22em",
-            padding: "13px 30px",
-            border: "none",
-            borderRadius: 0,
-          }}
-        >
-          {isLoading ? tCommon("loading") : tCommon("save")}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="uppercase transition-colors"
-          style={{
-            background: "transparent",
-            border: "1px solid rgba(15,18,24,0.4)",
-            color: "hsl(var(--nl-cacao))",
-            fontFamily: MAISON_SANS,
-            fontSize: 11,
-            letterSpacing: "0.22em",
-            padding: "13px 30px",
-            borderRadius: 0,
-          }}
-        >
+      {saveError && <FieldError>{saveError}</FieldError>}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="submit" disabled={isLoading || !phoneVerified}>
+          {isLoading ? tCommon("loading") : t("saveAddress")}
+        </Button>
+        <Button type="button" variant="ghost" onClick={onCancel}>
           {tCommon("cancel")}
-        </button>
+        </Button>
+        {!phoneVerified && <span className="text-[13px] text-nl-russet">{t("verifyPhoneToSave")}</span>}
       </div>
     </form>
   );

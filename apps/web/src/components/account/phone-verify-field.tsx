@@ -1,9 +1,12 @@
 "use client";
 
+import { Button } from "@/components/swatch";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { Check } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
+import { useEffect, useId, useState } from "react";
 import type { CSSProperties, FocusEventHandler } from "react";
+import { FieldError, inputClass } from "./account-ui";
 import {
   useConfirmPhoneVerification,
   useStartPhoneVerification,
@@ -62,11 +65,6 @@ export function saveAddressErrorMessage(err: any): string | null {
   return null;
 }
 
-const labelStyle: CSSProperties = {
-  fontSize: 10,
-  letterSpacing: "0.2em",
-};
-
 export function PhoneVerifyField({
   value,
   onChange,
@@ -102,6 +100,8 @@ export function PhoneVerifyField({
   // legacy/third-party number (grandfathered) must not dead-end the form.
   originalPhone?: string;
 }) {
+  const t = useTranslations("account.phoneVerify");
+  const codeId = useId();
   const { data: verifiedPhones } = useVerifiedPhones();
   const start = useStartPhoneVerification();
   const confirm = useConfirmPhoneVerification();
@@ -122,7 +122,7 @@ export function PhoneVerifyField({
   }, [isVerified, unchanged, onVerifiedChange]);
 
   return (
-    <div className="space-y-1.5">
+    <div className="grid gap-2">
       <PhoneInput
         id={id}
         value={value}
@@ -144,86 +144,76 @@ export function PhoneVerifyField({
       />
 
       {isVerified && (
-        <p
-          className="flex items-center gap-1 uppercase"
-          style={{ ...labelStyle, color: "hsl(var(--nl-russet))" }}
-        >
-          <Check className="h-3 w-3" strokeWidth={1.5} style={{ color: "hsl(var(--nl-amber))" }} />
-          Verified
-        </p>
+        <output className="m-0 flex items-center gap-1.5 text-[13px] font-medium text-green-800">
+          <Check className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+          {t("verified")}
+        </output>
       )}
 
       {!isVerified && unchanged && (
-        <p
-          className="uppercase"
-          style={{ ...labelStyle, color: "hsl(var(--nl-russet))", opacity: 0.7 }}
-        >
-          Unchanged — no verification needed
-        </p>
+        <p className="m-0 text-[13px] text-nl-russet">{t("unchanged")}</p>
       )}
 
       {!isVerified && !unchanged && !codeSent && (
-        <button
-          type="button"
-          disabled={!value || start.isPending}
-          onClick={() => {
-            setError(null);
-            start.mutate(value, {
-              onSuccess: () => setCodeSent(true),
-              onError: (err) => setError(messageFor(err)),
-            });
-          }}
-          className="uppercase disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{ ...labelStyle, color: "hsl(var(--nl-amber-text))" }}
-        >
-          {start.isPending ? "Sending…" : "Verify this number"}
-        </button>
-      )}
-
-      {!isVerified && !unchanged && codeSent && (
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            inputMode="numeric"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder="Enter code"
-            className="px-2.5 py-1.5 text-sm outline-none"
-            style={{
-              border: "1px solid rgba(15,18,24,0.2)",
-              background: "rgba(255,255,255,0.6)",
-              color: "hsl(var(--nl-cacao))",
-              width: 110,
-            }}
-          />
-          <button
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <Button
             type="button"
-            disabled={code.length < 4 || confirm.isPending}
+            variant="outline"
+            size="sm"
+            disabled={!value || start.isPending}
             onClick={() => {
               setError(null);
-              confirm.mutate(
-                { phone: value, code },
-                {
-                  onSuccess: () => {
-                    setCode("");
-                    setCodeSent(false);
-                  },
-                  onError: (err) => setError(messageFor(err)),
-                },
-              );
+              start.mutate(value, {
+                onSuccess: () => setCodeSent(true),
+                onError: (err) => setError(messageFor(err)),
+              });
             }}
-            className="uppercase disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ ...labelStyle, color: "hsl(var(--nl-amber-text))" }}
           >
-            {confirm.isPending ? "Checking…" : "Confirm"}
-          </button>
+            {start.isPending ? t("sending") : t("verify")}
+          </Button>
+          <span className="text-[13px] text-nl-russet">{t("verifyHint")}</span>
         </div>
       )}
 
-      {error && (
-        <p className="text-red-600 text-xs" role="alert">
-          {error}
-        </p>
+      {!isVerified && !unchanged && codeSent && (
+        <div className="grid gap-1.5 rounded-md bg-nl-linen/70 p-3">
+          <label htmlFor={codeId} className="text-[13px] font-medium text-nl-cacao">
+            {t("codeLabel")}
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              id={codeId}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              className={`${inputClass} h-11 w-36 font-mono tracking-[0.2em] tabular-nums`}
+            />
+            <Button
+              type="button"
+              size="md"
+              disabled={code.length < 4 || confirm.isPending}
+              onClick={() => {
+                setError(null);
+                confirm.mutate(
+                  { phone: value, code },
+                  {
+                    onSuccess: () => {
+                      setCode("");
+                      setCodeSent(false);
+                    },
+                    onError: (err) => setError(messageFor(err)),
+                  },
+                );
+              }}
+            >
+              {confirm.isPending ? t("checking") : t("confirm")}
+            </Button>
+          </div>
+        </div>
       )}
+
+      {error && <FieldError>{error}</FieldError>}
     </div>
   );
 }

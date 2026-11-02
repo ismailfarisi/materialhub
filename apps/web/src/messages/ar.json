@@ -237,12 +237,12 @@
     "wallet": "المحفظة",
     "settings": "الإعدادات",
     "orderHistory": "سجل الطلبات",
-    "orderDetail": "تفاصيل الطلب",
+    "orderDetail": "الطلب",
     "reorder": "إعادة الطلب",
-    "trackShipment": "تتبع الشحنة",
+    "trackShipment": "التتبع",
     "requestReturn": "طلب إرجاع",
-    "leaveReview": "أضف تقييماً",
-    "downloadReceipt": "Download receipt",
+    "leaveReview": "اكتب مراجعة",
+    "downloadReceipt": "تنزيل الإيصال",
     "walletBalance": "الرصيد",
     "transactions": "المعاملات",
     "profile": "الملف الشخصي",
@@ -325,7 +325,86 @@
       "adjustment": "تعديل",
       "cashback": "استرداد نقدي"
     },
-    "required": "مطلوب"
+    "required": "مطلوب",
+    "overview": "نظرة عامة",
+    "navLabel": "الحساب",
+    "yourAccount": "حسابك",
+    "greeting": "مرحباً، {name}",
+    "overviewIntro": "أحدث طلباتك وما تحفظه في حسابك.",
+    "recentOrders": "أحدث الطلبات",
+    "allOrders": "كل الطلبات",
+    "ordersEmptyTitle": "لا توجد طلبات بعد",
+    "ordersEmptyBody": "تظهر هنا الطلبات التي تقدمها مع مورّديها وبنودها، جاهزة لإعادة الشراء.",
+    "startBrowsing": "تصفّح المواد",
+    "savedOnAccount": "في حسابك",
+    "orderHistoryIntro": "كل طلب مع مورّديه وحالته. افتح أي طلب لشراء البنود نفسها مرة أخرى.",
+    "orderNumber": "الطلب",
+    "placedOn": "تاريخ الطلب",
+    "suppliersLabel": "المورّدون",
+    "supplierCount": "{count, plural, one {مورّد واحد} two {مورّدان} few {# مورّدين} many {# مورّداً} other {# مورّد}}",
+    "viewOrder": "عرض الطلب",
+    "reorderAdding": "جارٍ الإضافة إلى السلة…",
+    "reorderAdded": "{count, plural, one {أُضيف بند واحد إلى سلتك.} other {أُضيفت # بنود إلى سلتك.}}",
+    "reorderSkipped": "{count, plural, one {بند واحد لم يعد متاحاً.} other {# بنود لم تعد متاحة.}}",
+    "reorderNoneAvailable": "لا يمكن شراء أي من هذه البنود حالياً.",
+    "viewCart": "عرض السلة",
+    "orderNotFound": "لم يتم العثور على الطلب",
+    "orderNotFoundBody": "قد يكون تابعاً لحساب آخر، أو أن الرابط غير مكتمل.",
+    "supplierShipment": "الشحنة {n} من {total}",
+    "summary": "الملخص",
+    "backToOrder": "العودة إلى الطلب",
+    "reviewRating": "تقييمك",
+    "reviewRatingRequired": "اختر تقييماً من 1 إلى 5 نجوم.",
+    "reviewStars": "{count, plural, one {نجمة واحدة} two {نجمتان} few {# نجوم} other {# نجمة}}",
+    "reviewTitleLabel": "العنوان",
+    "reviewBodyLabel": "المراجعة",
+    "reviewBodyHint": "كيف كان القص أو الطي أو اللصق أو التشطيب؟ يقرأ المشترون الآخرون هذا.",
+    "submitReview": "نشر المراجعة",
+    "phoneVerify": {
+      "verified": "تم التحقق",
+      "unchanged": "لم يتغير، لا حاجة للتحقق",
+      "sending": "جارٍ الإرسال…",
+      "verify": "تحقّق من الرقم",
+      "verifyHint": "نرسل رمزاً عبر رسالة SMS.",
+      "codeLabel": "الرمز من الرسالة",
+      "checking": "جارٍ التحقق…",
+      "confirm": "تأكيد"
+    },
+    "addressSaveFailed": "تعذّر حفظ هذا العنوان. يرجى المحاولة مرة أخرى.",
+    "selectEmirate": "اختر الإمارة",
+    "saveAddress": "حفظ العنوان",
+    "verifyPhoneToSave": "تحقّق من رقم الهاتف للحفظ.",
+    "addressesIntro": "عناوين التوصيل لطلباتك. يُختار العنوان الافتراضي عند الدفع.",
+    "newAddress": "عنوان جديد",
+    "editAddress": "تعديل العنوان",
+    "addressesEmptyTitle": "لا توجد عناوين محفوظة",
+    "addressesEmptyBody": "أضف عنوان ورشتك أو مكتبك مرة واحدة واختره عند الدفع.",
+    "settingsIntro": "اسمك وبريدك الإلكتروني وكلمة المرور.",
+    "emailHint": "تصلك تأكيدات الطلبات والإيصالات هنا.",
+    "saveProfile": "حفظ الملف الشخصي",
+    "updatePassword": "تحديث كلمة المرور",
+    "wishlistIntro": "مواد حفظتها للمقارنة أو الطلب لاحقاً.",
+    "wishlistCount": "{count, plural, one {مادة محفوظة واحدة} other {# مواد محفوظة}}",
+    "wishlistEmptyTitle": "لم تحفظ شيئاً بعد",
+    "wishlistEmptyBody": "اضغط على القلب في أي مادة لتحفظها هنا للمقارنة والطلب.",
+    "walletIntro": "الأرصدة والمبالغ المستردة في حسابك، مع كل حركة.",
+    "walletEmptyTitle": "لا توجد حركات في المحفظة",
+    "walletEmptyBody": "ستظهر هنا المبالغ المستردة والأرصدة المضافة إلى حسابك.",
+    "savedSearchesIntro": "عمليات بحث تكررها. فعّل التنبيهات لتعرف بالنتائج الجديدة.",
+    "addSearch": "حفظ بحث",
+    "searchQueryLabel": "ابحث عن",
+    "searchQueryHint": "كلمات أو مواصفات كما تكتبها في شريط البحث.",
+    "searchQueryExample": "كرتون كرافت 1.5 مم",
+    "searchNameLabel": "الاسم",
+    "saveSearch": "حفظ البحث",
+    "savedSearchesEmptyTitle": "لا توجد عمليات بحث محفوظة",
+    "savedSearchesEmptyBody": "احفظ بحثاً لمواصفة تشتريها كثيراً، مثل «كرتون رمادي 2 مم»، وشغّله بلمسة.",
+    "alertsOn": "التنبيهات مفعّلة",
+    "alertsOff": "التنبيهات متوقفة",
+    "ui": {
+      "optional": "اختياري",
+      "loadFailed": "لم يتم التحميل. تحقّق من اتصالك وحاول مرة أخرى."
+    }
   },
   "emirates": {
     "abu_dhabi": "أبوظبي",
@@ -361,7 +440,36 @@
     "verifyCode": "تحقق من الرمز",
     "changePhone": "تغيير رقم الهاتف",
     "verifiedPhone": "رقم الهاتف المؤكد: {phone}",
-    "createAccount": "إنشاء حساب"
+    "createAccount": "إنشاء حساب",
+    "codeHint": "الرمز المكوّن من 6 أرقام في الرسالة.",
+    "codeResent": "تم إرسال رمز جديد.",
+    "getNewCode": "احصل على رمز جديد",
+    "phoneVerifiedLabel": "تم التحقق من الهاتف",
+    "phoneHint": "رقم جوال إماراتي. نرسل لك رمزاً دون الحاجة إلى كلمة مرور.",
+    "passwordHint": "8 أحرف على الأقل.",
+    "methodLabel": "طريقة الدخول",
+    "methodPhone": "الهاتف",
+    "methodEmail": "البريد الإلكتروني",
+    "emailLoginDescription": "استخدم البريد الإلكتروني وكلمة المرور الخاصين بحسابك.",
+    "phoneRegisterDescription": "تحقّق من رقم جوالك، ثم أضف اسمك وبريدك الإلكتروني.",
+    "emailRegisterDescription": "أنشئ حساباً ببريدك الإلكتروني وكلمة مرور.",
+    "shell": {
+      "label": "عن MaterialHub",
+      "catalogueTitle": "كتالوج واحد لسلسلة المواد كاملة",
+      "catalogueBody": "الورق والكرتون، الجلود والأقمشة، الإكسسوارات، المواد اللاصقة، العلب، الأشرطة ومستلزمات الحرف من مورّدين محليين ودوليين.",
+      "reorderTitle": "طلباتك جاهزة للتكرار",
+      "reorderBody": "يحتفظ كل طلب ببنوده ومواصفاته، فتصبح إعادة شراء الأصناف نفسها خطوة واحدة.",
+      "paymentsTitle": "ادفع بالطريقة التي تناسب ورشتك",
+      "paymentsBody": "البطاقة أو تابي أو تمارا أو الدفع عند الاستلام."
+    },
+    "modal": {
+      "close": "إغلاق",
+      "loginTitle": "سجّل الدخول برقم هاتفك",
+      "loginDescription": "أدخل رقم جوالك الإماراتي والرمز الذي نرسله إليك.",
+      "registerTitle": "أنشئ حسابك في MaterialHub",
+      "registerDescription": "تحقّق من هاتفك وأضف اسمك وابدأ الطلب.",
+      "useEmail": "استخدم البريد الإلكتروني وكلمة المرور"
+    }
   },
   "footer": {
     "about": "عن نورلونا",
@@ -378,7 +486,7 @@
     "verified_vendor": "بائع موثّق"
   },
   "returns": {
-    "title": "مرتجعاتي",
+    "title": "المرتجعات",
     "statusFilter": "الحالة",
     "statusLabel": "الحالة",
     "empty": "لا توجد مرتجعات بعد.",
@@ -390,7 +498,7 @@
     "selectReason": "اختر سبباً",
     "additionalDetails": "تفاصيل إضافية",
     "shipment": "الشحنة",
-    "noReturnableItems": "لا توجد عناصر مستلمة قابلة للإرجاع.",
+    "noReturnableItems": "لا يوجد ما يمكن إرجاعه بعد",
     "refundAmount": "مبلغ الاسترداد",
     "refundedAt": "تم الاسترداد في",
     "rejectionReason": "سبب الرفض",
@@ -419,8 +527,24 @@
     },
     "errors": {
       "reasonRequired": "يرجى اختيار سبب لكل شحنة تقوم بإرجاعها.",
-      "submitFailed": "تعذّر إرسال طلب الإرجاع. يرجى المحاولة مرة أخرى."
-    }
+      "submitFailed": "تعذّر إرسال طلب الإرجاع. يرجى المحاولة مرة أخرى.",
+      "reasonMissingOne": "اختر سبباً لهذه الشحنة."
+    },
+    "intro": "طلبات الإرجاع حسب الشحنة، مع حالة كل منها.",
+    "forOrder": "للطلب",
+    "noReturnableBody": "يمكن إرجاع البنود بعد تسجيل شحنتها كمستلمة.",
+    "chooseItems": "البنود المراد إرجاعها",
+    "purchasedQty": "الكمية المشتراة {qty}",
+    "detailsHint": "الصور تساعد: صف أي تلف أو مواصفة خاطئة أو نقص.",
+    "submitReturn": "إرسال طلب الإرجاع",
+    "selectToContinue": "اختر بنداً واحداً على الأقل.",
+    "emptyBody": "عند إرجاع شيء من طلب مستلم سيظهر هنا.",
+    "goToOrders": "الذهاب إلى الطلبات",
+    "emptyFiltered": "لا توجد مرتجعات بهذه الحالة",
+    "returnNumber": "المرتجع",
+    "requestedOn": "تاريخ الطلب",
+    "progress": "التقدم",
+    "refund": "الاسترداد"
   },
   "consent": {
     "title": "نستخدم ملفات تعريف الارتباط لتحسين تجربتك",
@@ -441,7 +565,11 @@
       "replyPlaceholder": "اكتب ردًا…",
       "start": "بدء المحادثة",
       "sending": "جارٍ الإرسال…",
-      "send": "إرسال"
+      "send": "إرسال",
+      "loading": "جارٍ تحميل المحادثة",
+      "nameLabel": "الاسم",
+      "emailLabel": "البريد الإلكتروني",
+      "messageLabel": "الرسالة"
     },
     "statuses": {
       "open": "مفتوحة",
@@ -451,24 +579,45 @@
       "closed": "مغلقة"
     },
     "list": {
-      "title": "تذاكر الدعم الخاصة بي",
+      "title": "الدعم",
       "empty": "لا توجد لديك تذاكر دعم بعد.",
-      "new": "تذكرة جديدة"
+      "new": "تذكرة جديدة",
+      "intro": "أسئلة عن الطلبات أو المدفوعات أو المواد، وردودنا عليها.",
+      "emptyBody": "افتح تذكرة وسيرد فريقنا هنا وعبر البريد الإلكتروني."
     },
     "detail": {
       "subject": "الموضوع",
       "status": "الحالة",
-      "ticketNumber": "التذكرة"
+      "ticketNumber": "التذكرة",
+      "notFound": "لم يتم العثور على التذكرة",
+      "conversation": "المحادثة",
+      "reply": "ردّك",
+      "replyHint": "Ctrl + Enter للإرسال.",
+      "closedNote": "هذه التذكرة مغلقة. افتح تذكرة جديدة إن احتجت مساعدة أخرى."
     },
     "form": {
       "subject": "الموضوع",
       "category": "الفئة",
       "message": "الرسالة",
       "submit": "إرسال",
-      "submitting": "جارٍ الإرسال…"
+      "submitting": "جارٍ الإرسال…",
+      "intro": "أخبرنا بما حدث. أضف رقم الطلب إن كان الأمر يتعلق بطلب.",
+      "categoryNone": "اختر الموضوع",
+      "messageHint": "رقم الطلب والبند وما تحتاجه منا."
     },
     "errors": {
       "submitFailed": "حدث خطأ ما. يرجى المحاولة مرة أخرى."
+    },
+    "categories": {
+      "order": "طلب",
+      "payment": "دفع",
+      "product": "منتج",
+      "account": "حساب"
+    },
+    "thread": {
+      "empty": "لا توجد رسائل بعد.",
+      "you": "أنت",
+      "team": "دعم MaterialHub"
     }
   }
 }
