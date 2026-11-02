@@ -344,7 +344,7 @@ function StockStatus({ outOfStock, available }: { outOfStock: boolean; available
 	const low = Number.isFinite(available) && available > 0 && available <= LOW_STOCK;
 	return (
 		<span className="inline-flex items-center gap-1.5 text-nl-cacao">
-			<span aria-hidden="true" className="h-2 w-2 rounded-[2px] bg-[hsl(var(--status-success,142_64%_32%))]" />
+			<span aria-hidden="true" className="h-2 w-2 rounded-[2px] bg-status-success" />
 			{low ? t("lowStock", { count: available }) : t("inStock")}
 		</span>
 	);

@@ -31,7 +31,7 @@ export function FanDeck({
 						className="absolute left-1/2 bottom-[6%] h-[82%] w-[26%] -ml-[13%] origin-[50%_92%] rounded-md shadow-lift transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none [transform:rotate(var(--a))] group-hover/fan:[transform:rotate(calc(var(--a)*1.45))]"
 						style={{ "--a": `${angle}deg`, background: STOCKS[k].color } as React.CSSProperties}
 					>
-						<div className="absolute inset-x-0 bottom-0 h-[30%] rounded-b-md bg-white flex flex-col justify-end p-[8%] gap-1">
+						<div className="absolute inset-x-0 bottom-0 h-[30%] rounded-b-md bg-white flex flex-col justify-start p-[8%] gap-1">
 							<span className="mill-label text-[clamp(7px,0.8vw,11px)] text-nl-cacao truncate">
 								{STOCKS[k].material}
 							</span>

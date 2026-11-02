@@ -215,6 +215,7 @@ export function ProductCard({
 						locale={locale}
 						currency={currency}
 						from={hasGroupFrom}
+						fromLabel={t("from")}
 						max={!hasGroupFrom && hasPriceRange ? product.price_max : null}
 						compareAt={!hasGroupFrom && hasStrike ? compareAt : null}
 						className="pt-1 min-w-0"

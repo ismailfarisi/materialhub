@@ -66,6 +66,13 @@
 		--stock-trims: 4 66% 44%; /* ribbons-trims: grosgrain red */
 		--stock-craft: 256 43% 48%; /* decoration-craft: tissue violet */
 
+		/* Status — state only, never decoration, never a category. Distinct
+		   from every stock (success is not laminate green). */
+		--status-success: 142 64% 30%;
+		--status-warning: 36 92% 40%;
+		--status-error: 0 72% 45%;
+		--status-info: 213 15% 40%;
+
 		--shadow-card: 0 1px 0 rgb(17 20 27 / 0.06), 0 1px 3px rgb(17 20 27 / 0.08);
 		--shadow-lift: 0 2px 0 rgb(17 20 27 / 0.04), 0 18px 32px -14px rgb(17 20 27 / 0.28);
 	}

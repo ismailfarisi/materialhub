@@ -13,6 +13,8 @@ const nextConfig = {
   output: "standalone",
   outputFileTracingRoot: path.join(process.cwd(), "../.."),
   images: {
+    // Product cards request 92 for sharp material textures; 75 is the default.
+    qualities: [75, 92],
     // Next 16 refuses to optimise images from local IPs unless this is set.
     dangerouslyAllowLocalIP: localMedia,
     remotePatterns: [

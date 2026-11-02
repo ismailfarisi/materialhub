@@ -34,8 +34,7 @@ export default async function DesignSystemPage({
 		<div className="max-w-[1400px] mx-auto px-4 md:px-8 py-10 md:py-16 grid gap-16">
 			<header className="grid md:grid-cols-[1.1fr_1fr] gap-8 items-center">
 				<div className="grid gap-4">
-					<span className="mill-label text-nl-russet">MaterialHub · Swatch Book</span>
-					<h1 className="font-display font-bold [font-stretch:112%] text-[clamp(36px,5vw,68px)] leading-[1] tracking-[-0.03em] m-0">
+										<h1 className="font-display font-bold [font-stretch:112%] text-[clamp(36px,5vw,68px)] leading-[1] tracking-[-0.03em] m-0">
 						Every category is a stock. Every product is a swatch.
 					</h1>
 					<p className="text-nl-russet text-[17px] max-w-[56ch] m-0">
@@ -47,7 +46,7 @@ export default async function DesignSystemPage({
 			</header>
 
 			<section className="grid gap-6">
-				<SectionHead kicker="Colour" title="Category stocks" />
+				<SectionHead title="Category stocks" />
 				<div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
 					{STOCK_ORDER.map((k) => (
 						<SwatchCard key={k} stock={STOCKS[k]} tabLabel={STOCKS[k].slug}>
@@ -80,7 +79,7 @@ export default async function DesignSystemPage({
 			</section>
 
 			<section className="grid gap-6">
-				<SectionHead kicker="Type" title="Archivo, Geist, Geist Mono" />
+				<SectionHead title="Archivo, Geist, Geist Mono" />
 				<div className="bg-nl-pearl rounded-md shadow-card p-6 grid gap-5">
 					<p className="font-display font-bold [font-stretch:112%] text-[56px] leading-none tracking-[-0.03em] m-0">Greyboard 2.0 mm</p>
 					<p className="font-display font-semibold text-[28px] leading-tight tracking-[-0.015em] m-0">Rigid box materials, sheet to carton</p>
@@ -96,7 +95,7 @@ export default async function DesignSystemPage({
 			</section>
 
 			<section className="grid gap-6">
-				<SectionHead kicker="Components" title="Buttons, specs and prices" />
+				<SectionHead title="Buttons, specs and prices" />
 				<div className="grid md:grid-cols-3 gap-4">
 					<div className="bg-nl-pearl rounded-md shadow-card p-5 grid gap-3 content-start">
 						<span className="mill-label text-nl-russet">Buttons</span>
@@ -141,7 +140,7 @@ export default async function DesignSystemPage({
 			</section>
 
 			<section className="grid gap-6">
-				<SectionHead kicker="Signature" title="Swatch cards" action={{ href: `/${locale}`, label: "Back to the store" }} />
+				<SectionHead title="Swatch cards" action={{ href: `/${locale}`, label: "Back to the store" }} />
 				<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
 					{(
 						[

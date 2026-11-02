@@ -70,6 +70,12 @@ const config: Config = {
         },
         carbon: "hsl(var(--nl-espresso))",
         board: "hsl(var(--nl-linen))",
+        status: {
+          success: "hsl(var(--status-success))",
+          warning: "hsl(var(--status-warning))",
+          error: "hsl(var(--status-error))",
+          info: "hsl(var(--status-info))",
+        },
         stock: {
           paper: "hsl(var(--stock-paper))",
           leather: "hsl(var(--stock-leather))",

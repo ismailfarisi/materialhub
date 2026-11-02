@@ -6,9 +6,13 @@ colors:
   stock: "hsl(0 0% 100%)"          # #FFFFFF  card surface         --nl-pearl
   binder-ink: "hsl(222 18% 11%)"   # #171A21  primary text, primary button  --nl-cacao
   pencil: "hsl(220 8% 36%)"        # #555B64  secondary text       --nl-russet
-  cutter-orange: "hsl(16 90% 50%)" # #F2500D  next action, active, counts  --nl-amber
+  cutter-orange: "hsl(16 90% 50%)" # #F24A0D  next action, active, counts  --nl-amber
   cutter-orange-text: "hsl(16 86% 38%)" # #B53A0D AA text on board/stock --nl-amber-text
   binder-black: "hsl(220 14% 9%)"  # #14161A  dark bands, footer   --nl-espresso
+  status-success: "hsl(142 64% 30%)"   # state only
+  status-warning: "hsl(36 92% 40%)"
+  status-error: "hsl(0 72% 45%)"
+  status-info: "hsl(213 15% 40%)"
   stock-paper: "hsl(213 70% 39%)"      # #1E5DA9 papers-boards
   stock-leather: "hsl(352 59% 30%)"    # #7A1F2E leather-fabrics
   stock-hardware: "hsl(40 80% 30%)"    # #8A5F0F hardware-fittings
@@ -148,7 +152,7 @@ All seven carry white text at ≥4.5:1.
 - **The Field Rule.** A stock colour fills a shape (tab, band, chip, blade) or it is not used. No coloured text, borders or icons in stock colours.
 - **The One Orange Rule.** At most one cutter-orange filled button per viewport.
 - **No stock without a category.** A stock colour always means its category. Never use one decoratively or for status.
-- Status colours (success green, warning amber, error red) are separate from the stocks and only used for state.
+- **Status colours** `--status-success`, `--status-warning`, `--status-error`, `--status-info` (Tailwind `status-*`) are separate from the stocks and only used for state: order and return timelines, stock levels, form results. Success green is deliberately darker and yellower than laminate green.
 
 ## Typography
 
@@ -163,7 +167,7 @@ All seven carry white text at ≥4.5:1.
 - Headline (600, clamp 22–32px): section titles via `SectionHead`.
 - Title (600, 15.5px): card and panel titles.
 - Body (400, 15px, lh 1.6): running text, max 65–75ch.
-- Label (600 condensed caps, 12px): kickers, spec keys, tab text, table headers. Never full sentences.
+- Label (600 condensed caps, 12px): spec keys, tab text, table headers, badges. Never full sentences, and never as a kicker above a heading.
 - Spec (mono 12–14px, tabular-nums): values only.
 
 ### Named Rules
@@ -203,13 +207,13 @@ Cards sit on the board, so depth is physical and small.
 White card, 28px stock-colour tab on top with an optional condensed-caps label and a punched hole at the end. Lifts on hover. Used for products (`ProductCard`), categories, collections, vendors and brands. A card's stock is its category's stock; vendor or brand cards use the stock of their main category.
 
 ### Mill label (`MillLabel`)
-`table`: 2px ink top rule, condensed-caps keys, mono values right-aligned, hairline rows. Product detail, comparison, order lines. `inline`: compact mono chips for cards and lists.
+`table`: 2px ink top rule, condensed-caps keys, mono values right-aligned, hairline rows. Product detail, comparison, order lines. `inline`: compact mono chips for cards and lists. Values are wrapped in `<bdi dir="ltr">` so measurements read correctly in Arabic.
 
 ### Price tag (`PriceTag`)
-Currency, amount in Archivo semibold, then `/ unit`. `from` for the lowest tier or variant. Struck-through compare-at price after. Every price names its unit when the product has one.
+Currency, amount in Archivo semibold, then `/ unit`. `from` for the lowest tier or variant (pass `fromLabel={t("from")}`). Struck-through compare-at price after. Every price names its unit when the product has one. The whole tag is bidi-isolated.
 
 ### Section head (`SectionHead`)
-Condensed-caps kicker naming the content, Archivo headline, optional "View all" link with arrow at the end.
+Archivo headline, optional one-line description below it, optional "View all" link with arrow at the end. No kicker or eyebrow above the heading: Impeccable's craft floor bans it outright.
 
 ### Stock chip (`StockChip`)
 2px-radius square in a stock colour plus optional label. Category nav tabs, filters, breadcrumbs.
@@ -236,6 +240,7 @@ Utility bar in binder black. Header on board with a white search field. Category
 ### Don't:
 - Don't bring back beauty-era patterns: rituals, routines, scent stories, ingredients, "the look", "the verdict", "maison" styling, letter-spaced lowercase labels, serif display, cream grounds.
 - Don't use pill-shaped buttons or search fields.
+- Don't put a kicker, eyebrow or small caps label above a heading.
 - Don't use gradients, glass or glows as decoration. The one exception is a dark scrim over photography for text legibility.
 - Don't colour text, borders or icons in stock colours.
 - Don't invent supplier counts, delivery times, ratings or testimonials.

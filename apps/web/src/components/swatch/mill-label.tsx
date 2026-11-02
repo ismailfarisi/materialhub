@@ -9,6 +9,7 @@ export interface Spec {
  * Mill label — the spec block printed on a ream or roll wrapper.
  * Condensed caps for the key, mono for the value, ruled rows.
  * `variant="inline"` renders compact chips for cards and lists.
+ * Values are isolated left-to-right so "70 × 100 cm" reads correctly in Arabic.
  */
 export function MillLabel({
 	specs,
@@ -29,7 +30,7 @@ export function MillLabel({
 						title={s.label}
 						className="inline-flex items-center h-6 px-1.5 rounded-sm border border-nl-cacao/15 bg-nl-linen/60 font-mono text-[11.5px] leading-none text-nl-cacao tabular-nums"
 					>
-						{s.value}
+						<bdi dir="ltr">{s.value}</bdi>
 					</li>
 				))}
 			</ul>
@@ -48,7 +49,7 @@ export function MillLabel({
 						{s.label}
 					</dt>
 					<dd className="m-0 py-2.5 border-b border-nl-cacao/12 font-mono text-[13.5px] text-nl-cacao tabular-nums text-end">
-						{s.value}
+						<bdi dir="ltr">{s.value}</bdi>
 					</dd>
 				</div>
 			))}
