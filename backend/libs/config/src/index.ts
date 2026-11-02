@@ -94,11 +94,8 @@ export const config = {
       `http://localhost:${Number(process.env.NOTIFICATION_PORT) || 3005}`,
   },
   stripe: {
-    secretKey:
-      process.env.STRIPE_SECRET_KEY ||
-      "REDACTED_STRIPE_SECRET_KEY",
-    connectWebhookSecret:
-      process.env.STRIPE_CONNECT_WEBHOOK_SECRET || "REDACTED_STRIPE_WEBHOOK_SECRET",
+    secretKey: process.env.STRIPE_SECRET_KEY || "",
+    connectWebhookSecret: process.env.STRIPE_CONNECT_WEBHOOK_SECRET || "",
   },
   tamara: {
     apiToken: process.env.TAMARA_API_TOKEN || "",
