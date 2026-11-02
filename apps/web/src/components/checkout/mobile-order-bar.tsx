@@ -62,7 +62,7 @@ export function MobileOrderBar({ items, quote, canOrder, onPlaceOrder }: MobileO
               className="flex items-center justify-between"
               style={{
                 padding: "20px 24px",
-                borderBottom: "1px solid rgba(44,24,16,0.1)",
+                borderBottom: "1px solid rgba(15,18,24,0.1)",
               }}
             >
               <div>
@@ -105,7 +105,7 @@ export function MobileOrderBar({ items, quote, canOrder, onPlaceOrder }: MobileO
                 style={{
                   width: 32,
                   height: 32,
-                  border: "1px solid rgba(44,24,16,0.12)",
+                  border: "1px solid rgba(15,18,24,0.12)",
                   color: "hsl(var(--nl-cacao))",
                 }}
               >
@@ -122,7 +122,7 @@ export function MobileOrderBar({ items, quote, canOrder, onPlaceOrder }: MobileO
                     gridTemplateColumns: "56px 1fr auto",
                     gap: 14,
                     padding: "14px 0",
-                    borderTop: "1px solid rgba(44,24,16,0.08)",
+                    borderTop: "1px solid rgba(15,18,24,0.08)",
                   }}
                 >
                   <div
@@ -182,18 +182,18 @@ export function MobileOrderBar({ items, quote, canOrder, onPlaceOrder }: MobileO
                 style={{
                   padding: "16px 24px",
                   gap: 6,
-                  borderTop: "1px solid rgba(44,24,16,0.1)",
+                  borderTop: "1px solid rgba(15,18,24,0.1)",
                 }}
               >
                 {[1, 2, 3, 4].map((i) => (
                   <div key={i} className="flex justify-between">
                     <div
                       className="h-4 w-24 animate-pulse"
-                      style={{ background: "rgba(44,24,16,0.1)" }}
+                      style={{ background: "rgba(15,18,24,0.1)" }}
                     />
                     <div
                       className="h-4 w-16 animate-pulse"
-                      style={{ background: "rgba(44,24,16,0.1)" }}
+                      style={{ background: "rgba(15,18,24,0.1)" }}
                     />
                   </div>
                 ))}
@@ -204,7 +204,7 @@ export function MobileOrderBar({ items, quote, canOrder, onPlaceOrder }: MobileO
                 style={{
                   padding: "16px 24px",
                   gap: 6,
-                  borderTop: "1px solid rgba(44,24,16,0.1)",
+                  borderTop: "1px solid rgba(15,18,24,0.1)",
                 }}
               >
                 <Row label={tCart("subtotal")} value={formatAed(quote.totals.subtotal_fils)} />
@@ -238,7 +238,7 @@ export function MobileOrderBar({ items, quote, canOrder, onPlaceOrder }: MobileO
                 <div
                   style={{
                     height: 1,
-                    background: "rgba(44,24,16,0.12)",
+                    background: "rgba(15,18,24,0.12)",
                     margin: "6px 0",
                   }}
                 />
@@ -274,7 +274,7 @@ export function MobileOrderBar({ items, quote, canOrder, onPlaceOrder }: MobileO
         className="fixed inset-x-0 bottom-0 z-30 lg:hidden"
         style={{
           background: "hsl(var(--nl-linen))",
-          borderTop: "1px solid rgba(44,24,16,0.12)",
+          borderTop: "1px solid rgba(15,18,24,0.12)",
           boxShadow: "0 -8px 24px rgba(26,18,8,0.08)",
           boxSizing: "border-box",
           maxWidth: "100vw",
@@ -319,7 +319,7 @@ export function MobileOrderBar({ items, quote, canOrder, onPlaceOrder }: MobileO
                 {quote === null ? (
                   <span
                     className="inline-block h-6 w-20 animate-pulse"
-                    style={{ background: "rgba(44,24,16,0.1)" }}
+                    style={{ background: "rgba(15,18,24,0.1)" }}
                   />
                 ) : (
                   formatAed(displayGrandTotalFils)

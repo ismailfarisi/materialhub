@@ -8,14 +8,14 @@ interface Props {
 export function NavBar({ tabs }: Props) {
 	if (tabs.length === 0) return null;
 	return (
-		<div className="hidden lg:block border-t border-nl-cacao/10 bg-nl-linen/95">
-			<div className="max-w-[1400px] mx-auto px-4 md:px-12">
-				<ul className="flex items-center gap-7 h-12 list-none m-0 p-0">
+		<div className="hidden lg:block">
+			<div className="max-w-[1400px] mx-auto px-4 md:px-8">
+				<ul className="flex items-center gap-1 h-12 -mx-3 list-none m-0 p-0">
 					{tabs.map((tab) => (
 						<li key={tab.id}>
 							<a
 								href={tab.href}
-								className="text-[12px] tracking-[0.18em] uppercase text-nl-cacao hover:text-nl-amber transition-colors"
+								className="inline-flex items-center h-9 px-3 rounded-full text-[14px] font-medium text-nl-russet hover:text-nl-cacao hover:bg-nl-linen transition-colors"
 								data-mega-tab-trigger
 								data-tab-id={tab.id}
 								aria-haspopup={

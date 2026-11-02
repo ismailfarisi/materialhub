@@ -11,10 +11,10 @@ import type { Metadata, Viewport } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages, setRequestLocale } from "next-intl/server";
 import {
-	Antic_Didone,
-	DM_Sans,
+	Geist,
+	Geist_Mono,
+	IBM_Plex_Sans_Arabic,
 	Inter_Tight,
-	Playfair_Display,
 } from "next/font/google";
 import { notFound } from "next/navigation";
 import Script from "next/script";
@@ -22,28 +22,31 @@ import { routing } from "../../../i18n/routing";
 import { SITE_URL } from "@/lib/seo/config";
 import "../globals.css";
 
-const playfair = Playfair_Display({
+// Studio type system: Inter Tight for display, Geist for UI and body copy,
+// Geist Mono for specs (GSM, thickness, sheet sizes, SKUs).
+const display = Inter_Tight({
 	subsets: ["latin"],
-	variable: "--font-playfair",
+	variable: "--font-display",
 	display: "swap",
 });
 
-const dmSans = DM_Sans({
+const sans = Geist({
 	subsets: ["latin"],
-	variable: "--font-dm-sans",
+	variable: "--font-sans",
 	display: "swap",
 });
 
-const anticDidone = Antic_Didone({
+const mono = Geist_Mono({
 	subsets: ["latin"],
-	weight: "400",
-	variable: "--font-antic",
+	variable: "--font-mono",
 	display: "swap",
 });
 
-const interTight = Inter_Tight({
-	subsets: ["latin"],
-	variable: "--font-inter-tight",
+// Latin faces have no Arabic glyphs; the `ar` locale falls through to Plex.
+const arabic = IBM_Plex_Sans_Arabic({
+	subsets: ["arabic"],
+	weight: ["400", "500", "600", "700"],
+	variable: "--font-arabic",
 	display: "swap",
 });
 
@@ -95,7 +98,7 @@ export default async function LocaleLayout({
 		<html
 			lang={locale}
 			dir={dir}
-			className={`${playfair.variable} ${dmSans.variable} ${anticDidone.variable} ${interTight.variable}`}
+			className={`${display.variable} ${sans.variable} ${mono.variable} ${arabic.variable}`}
 		>
 			<body className="min-h-screen flex flex-col font-sans">
 				<NextIntlClientProvider messages={messages} locale={locale}>

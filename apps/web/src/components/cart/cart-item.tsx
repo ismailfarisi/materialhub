@@ -6,7 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import Image from "next/image";
 import Link from "next/link";
 
-const SERIF_STACK = "var(--font-antic), var(--font-playfair), 'Antic Didone', Georgia, serif";
+const SERIF_STACK = "var(--font-display), 'Inter Tight', system-ui, sans-serif";
 
 interface CartItemData {
   variant_id: string;
@@ -46,7 +46,7 @@ export function CartItem({
       className="grid gap-[18px] py-[22px]"
       style={{
         gridTemplateColumns: "88px 1fr",
-        borderBottom: isLast ? "none" : "1px solid rgba(44,24,16,0.08)",
+        borderBottom: isLast ? "none" : "1px solid rgba(15,18,24,0.08)",
       }}
     >
       {productHref ? (
@@ -153,7 +153,7 @@ export function CartItem({
           </button>
         </div>
         <div className="mt-auto pt-3 flex items-center justify-between">
-          <div className="flex items-center" style={{ border: "1px solid rgba(44,24,16,0.16)" }}>
+          <div className="flex items-center" style={{ border: "1px solid rgba(15,18,24,0.16)" }}>
             <button
               type="button"
               onClick={() =>

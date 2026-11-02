@@ -29,7 +29,7 @@ export function DeliverySection() {
         fontSize: 10,
         letterSpacing: "0.22em",
         color: "hsl(var(--nl-russet))",
-        borderBottom: "1px solid rgba(44,24,16,0.2)",
+        borderBottom: "1px solid rgba(15,18,24,0.2)",
         paddingBottom: 1,
         fontFamily: MAISON_SANS,
       }}
@@ -43,10 +43,10 @@ export function DeliverySection() {
       {isLoading ? (
         <div
           className="animate-pulse"
-          style={{ padding: 16, border: "1px solid rgba(44,24,16,0.16)" }}
+          style={{ padding: 16, border: "1px solid rgba(15,18,24,0.16)" }}
         >
-          <div className="h-4 mb-2" style={{ width: "33%", background: "rgba(44,24,16,0.08)" }} />
-          <div className="h-3" style={{ width: "66%", background: "rgba(44,24,16,0.08)" }} />
+          <div className="h-4 mb-2" style={{ width: "33%", background: "rgba(15,18,24,0.08)" }} />
+          <div className="h-3" style={{ width: "66%", background: "rgba(15,18,24,0.08)" }} />
         </div>
       ) : (
         <div className="space-y-2.5">
@@ -64,7 +64,7 @@ export function DeliverySection() {
                   gridTemplateColumns: "20px 1fr auto",
                   gap: 14,
                   alignItems: "start",
-                  border: `1px solid ${isSelected ? "hsl(var(--nl-amber))" : "rgba(44,24,16,0.16)"}`,
+                  border: `1px solid ${isSelected ? "hsl(var(--nl-amber))" : "rgba(15,18,24,0.16)"}`,
                   background: isSelected ? "rgba(184,115,51,0.06)" : "rgba(255,255,255,0.55)",
                 }}
               >
@@ -137,7 +137,7 @@ export function DeliverySection() {
               fontSize: 10.5,
               letterSpacing: "0.22em",
               color: "hsl(var(--nl-cacao))",
-              border: "1px solid rgba(44,24,16,0.16)",
+              border: "1px solid rgba(15,18,24,0.16)",
               background: "transparent",
               fontFamily: MAISON_SANS,
             }}

@@ -156,7 +156,7 @@ export function AddressDrawer() {
           className="flex items-center justify-between"
           style={{
             padding: "24px 28px 20px",
-            borderBottom: "1px solid rgba(44,24,16,0.1)",
+            borderBottom: "1px solid rgba(15,18,24,0.1)",
           }}
         >
           <div>
@@ -191,7 +191,7 @@ export function AddressDrawer() {
             style={{
               width: 32,
               height: 32,
-              border: "1px solid rgba(44,24,16,0.12)",
+              border: "1px solid rgba(15,18,24,0.12)",
               color: "hsl(var(--nl-cacao))",
             }}
           >
@@ -219,7 +219,7 @@ export function AddressDrawer() {
                 <div
                   key={key}
                   style={{
-                    border: "1px solid rgba(44,24,16,0.16)",
+                    border: "1px solid rgba(15,18,24,0.16)",
                     background: "rgba(255,255,255,0.55)",
                     padding: "10px 14px 8px",
                   }}

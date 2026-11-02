@@ -1,5 +1,5 @@
 export default function AccountLoading() {
-  const pulse = { background: "rgba(44,24,16,0.07)" } as const;
+  const pulse = { background: "rgba(15,18,24,0.07)" } as const;
   return (
     <div className="animate-pulse space-y-4">
       <div className="h-6 w-40" style={pulse} />
@@ -8,7 +8,7 @@ export default function AccountLoading() {
           <div
             key={i}
             className="p-4 flex gap-3"
-            style={{ border: "1px solid rgba(44,24,16,0.10)" }}
+            style={{ border: "1px solid rgba(15,18,24,0.10)" }}
           >
             <div className="h-12 w-12 shrink-0" style={pulse} />
             <div className="flex-1 space-y-2 py-1">

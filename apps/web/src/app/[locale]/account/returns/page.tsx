@@ -78,7 +78,7 @@ export default function ReturnsPage() {
           }}
           className="px-2.5 py-2 text-sm"
           style={{
-            border: "1px solid rgba(44,24,16,0.2)",
+            border: "1px solid rgba(15,18,24,0.2)",
             background: "transparent",
             borderRadius: 0,
             color: "hsl(var(--nl-cacao))",
@@ -118,19 +118,19 @@ export default function ReturnsPage() {
           {t("empty")}
         </p>
       ) : (
-        <ul style={{ border: "1px solid rgba(44,24,16,0.10)" }}>
+        <ul style={{ border: "1px solid rgba(15,18,24,0.10)" }}>
           {filtered.map((ret: any, i: number) => (
             <li
               key={ret.id}
               style={
                 i > 0
-                  ? { borderTop: "1px solid rgba(44,24,16,0.08)" }
+                  ? { borderTop: "1px solid rgba(15,18,24,0.08)" }
                   : undefined
               }
             >
               <Link
                 href={`/${locale}/account/returns/${ret.id}`}
-                className="flex items-center justify-between gap-3 p-3.5 transition-colors hover:bg-[rgba(44,24,16,0.02)]"
+                className="flex items-center justify-between gap-3 p-3.5 transition-colors hover:bg-[rgba(15,18,24,0.02)]"
               >
                 <div className="min-w-0 flex-1">
                   <div

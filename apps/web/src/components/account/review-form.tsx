@@ -25,7 +25,7 @@ export function ReviewForm({
   const [body, setBody] = useState("");
 
   const inputStyle = {
-    border: "1px solid rgba(44,24,16,0.2)",
+    border: "1px solid rgba(15,18,24,0.2)",
     background: "rgba(255,255,255,0.55)",
     fontFamily: MAISON_SANS,
     fontSize: 13,
@@ -49,8 +49,8 @@ export function ReviewForm({
       onSubmit={handleSubmit}
       className="p-4 space-y-3"
       style={{
-        border: "1px solid rgba(44,24,16,0.10)",
-        background: "rgba(44,24,16,0.02)",
+        border: "1px solid rgba(15,18,24,0.10)",
+        background: "rgba(15,18,24,0.02)",
       }}
     >
       <Eyebrow>{t("leaveReview")}</Eyebrow>
@@ -73,7 +73,7 @@ export function ReviewForm({
                 color:
                   star <= (hoverRating || rating)
                     ? "hsl(var(--nl-amber))"
-                    : "rgba(44,24,16,0.25)",
+                    : "rgba(15,18,24,0.25)",
               }}
             />
           </button>
@@ -119,7 +119,7 @@ export function ReviewForm({
           className="uppercase"
           style={{
             background: "transparent",
-            border: "1px solid rgba(44,24,16,0.4)",
+            border: "1px solid rgba(15,18,24,0.4)",
             color: "hsl(var(--nl-cacao))",
             fontFamily: MAISON_SANS,
             fontSize: 11,

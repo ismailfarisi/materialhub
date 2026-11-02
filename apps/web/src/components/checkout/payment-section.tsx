@@ -133,7 +133,7 @@ export function PaymentSection({ onExpressCheckoutConfirm }: PaymentSectionProps
               className="mb-3"
               style={{
                 padding: "14px",
-                border: "1px solid rgba(44,24,16,0.16)",
+                border: "1px solid rgba(15,18,24,0.16)",
                 background: "rgba(255,255,255,0.55)",
               }}
             >
@@ -172,7 +172,7 @@ export function PaymentSection({ onExpressCheckoutConfirm }: PaymentSectionProps
                   className={`flex items-center justify-between text-sm ${card.is_expired ? "opacity-40" : ""}`}
                   style={{
                     padding: "10px 14px",
-                    border: "1px solid rgba(44,24,16,0.16)",
+                    border: "1px solid rgba(15,18,24,0.16)",
                     background: "rgba(255,255,255,0.55)",
                   }}
                 >
@@ -205,7 +205,7 @@ export function PaymentSection({ onExpressCheckoutConfirm }: PaymentSectionProps
           <div
             style={{
               padding: "14px 14px 12px",
-              border: "1px solid rgba(44,24,16,0.16)",
+              border: "1px solid rgba(15,18,24,0.16)",
               background: "rgba(255,255,255,0.55)",
             }}
           >
@@ -230,9 +230,9 @@ export function PaymentSection({ onExpressCheckoutConfirm }: PaymentSectionProps
                 style: {
                   base: {
                     fontSize: "16px",
-                    fontFamily: "var(--font-antic), var(--font-playfair), Georgia, serif",
-                    color: "#2C1810",
-                    "::placeholder": { color: "rgba(44,24,16,0.55)" },
+                    fontFamily: "var(--font-display), 'Inter Tight', system-ui, sans-serif",
+                    color: "#13161D",
+                    "::placeholder": { color: "rgba(15,18,24,0.55)" },
                   },
                   invalid: { color: "#ef4444" },
                 },
@@ -249,7 +249,7 @@ export function PaymentSection({ onExpressCheckoutConfirm }: PaymentSectionProps
             <div
               style={{
                 padding: "14px 16px",
-                border: "1px solid rgba(44,24,16,0.16)",
+                border: "1px solid rgba(15,18,24,0.16)",
                 background: "rgba(255,255,255,0.55)",
               }}
             >
@@ -274,7 +274,7 @@ export function PaymentSection({ onExpressCheckoutConfirm }: PaymentSectionProps
             <div
               style={{
                 padding: "14px 16px",
-                border: "1px solid rgba(44,24,16,0.16)",
+                border: "1px solid rgba(15,18,24,0.16)",
                 background: "rgba(255,255,255,0.55)",
               }}
             >

@@ -171,7 +171,7 @@ function ShippingTile({
         gridTemplateColumns: showChange ? "20px 28px 1fr auto auto" : "20px 28px 1fr auto",
         gap: 14,
         alignItems: "center",
-        border: `1px solid ${selected ? "hsl(var(--nl-amber))" : "rgba(44,24,16,0.16)"}`,
+        border: `1px solid ${selected ? "hsl(var(--nl-amber))" : "rgba(15,18,24,0.16)"}`,
         background: selected ? "rgba(184,115,51,0.06)" : "rgba(255,255,255,0.55)",
       }}
     >
@@ -225,7 +225,7 @@ function ShippingTile({
             fontSize: 10,
             letterSpacing: "0.22em",
             color: "hsl(var(--nl-russet))",
-            borderBottom: "1px solid rgba(44,24,16,0.2)",
+            borderBottom: "1px solid rgba(15,18,24,0.2)",
             paddingBottom: 1,
             fontFamily: MAISON_SANS,
           }}

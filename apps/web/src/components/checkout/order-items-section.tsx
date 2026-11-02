@@ -42,7 +42,7 @@ export function OrderItemsSection({ items }: OrderItemsSectionProps) {
       </div>
       <div
         style={{
-          border: "1px solid rgba(44,24,16,0.08)",
+          border: "1px solid rgba(15,18,24,0.08)",
           background: "rgba(255,255,255,0.55)",
         }}
       >
@@ -55,7 +55,7 @@ export function OrderItemsSection({ items }: OrderItemsSectionProps) {
               gap: 14,
               padding: "12px 14px",
               borderTop:
-                i === 0 ? "none" : "1px solid rgba(44,24,16,0.08)",
+                i === 0 ? "none" : "1px solid rgba(15,18,24,0.08)",
             }}
           >
             {/* The quantity badge sits outside the thumbnail box, so the
@@ -65,7 +65,7 @@ export function OrderItemsSection({ items }: OrderItemsSectionProps) {
                 className="absolute inset-0 overflow-hidden"
                 style={{
                   background: "hsl(var(--nl-linen))",
-                  border: "1px solid rgba(44,24,16,0.08)",
+                  border: "1px solid rgba(15,18,24,0.08)",
                 }}
               >
                 <Image

@@ -189,7 +189,7 @@ export function PhoneVerifyField({
             placeholder="Enter code"
             className="px-2.5 py-1.5 text-sm outline-none"
             style={{
-              border: "1px solid rgba(44,24,16,0.2)",
+              border: "1px solid rgba(15,18,24,0.2)",
               background: "rgba(255,255,255,0.6)",
               color: "hsl(var(--nl-cacao))",
               width: 110,

@@ -26,7 +26,7 @@ const REASONS: ReturnReason[] = [
 ];
 
 const FIELD_STYLE = {
-  border: "1px solid rgba(44,24,16,0.2)",
+  border: "1px solid rgba(15,18,24,0.2)",
   background: "rgba(255,255,255,0.55)",
   fontFamily: MAISON_SANS,
   fontSize: 13,
@@ -211,8 +211,8 @@ export default function ReturnPage() {
               key={vo.id}
               className="p-4 space-y-3"
               style={{
-                border: "1px solid rgba(44,24,16,0.10)",
-                background: "rgba(44,24,16,0.02)",
+                border: "1px solid rgba(15,18,24,0.10)",
+                background: "rgba(15,18,24,0.02)",
               }}
             >
               <div
@@ -231,7 +231,7 @@ export default function ReturnPage() {
                   <div
                     key={item.id}
                     className="p-3"
-                    style={{ border: "1px solid rgba(44,24,16,0.10)" }}
+                    style={{ border: "1px solid rgba(15,18,24,0.10)" }}
                   >
                     <label className="flex items-center gap-2">
                       <input
@@ -288,7 +288,7 @@ export default function ReturnPage() {
               {hasSelection && (
                 <div
                   className="space-y-2 pt-2"
-                  style={{ borderTop: "1px solid rgba(44,24,16,0.10)" }}
+                  style={{ borderTop: "1px solid rgba(15,18,24,0.10)" }}
                 >
                   <div>
                     <label className="block mb-1" style={FIELD_LABEL}>

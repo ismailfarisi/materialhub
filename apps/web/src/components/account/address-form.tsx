@@ -38,7 +38,7 @@ const FIELDS: {
 ];
 
 const inputStyle: React.CSSProperties = {
-  border: "1px solid rgba(44,24,16,0.2)",
+  border: "1px solid rgba(15,18,24,0.2)",
   background: "rgba(255,255,255,0.6)",
   fontFamily: MAISON_SANS,
   borderRadius: 0,
@@ -78,7 +78,7 @@ export function AddressForm({
     e.currentTarget.style.boxShadow = "0 0 0 1px hsl(var(--nl-amber))";
   };
   const blurAmber = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
-    e.currentTarget.style.borderColor = "rgba(44,24,16,0.2)";
+    e.currentTarget.style.borderColor = "rgba(15,18,24,0.2)";
     e.currentTarget.style.boxShadow = "none";
   };
 
@@ -197,7 +197,7 @@ export function AddressForm({
           className="uppercase transition-colors"
           style={{
             background: "transparent",
-            border: "1px solid rgba(44,24,16,0.4)",
+            border: "1px solid rgba(15,18,24,0.4)",
             color: "hsl(var(--nl-cacao))",
             fontFamily: MAISON_SANS,
             fontSize: 11,

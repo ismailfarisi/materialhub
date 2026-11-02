@@ -15,8 +15,8 @@ import {
 } from "@/components/checkout/maison-primitives";
 
 const PANEL = {
-  border: "1px solid rgba(44,24,16,0.10)",
-  background: "rgba(44,24,16,0.02)",
+  border: "1px solid rgba(15,18,24,0.10)",
+  background: "rgba(15,18,24,0.02)",
 } as const;
 
 function formatDate(iso: string, locale: string) {
@@ -154,7 +154,7 @@ export default function ReturnDetailPage() {
         {ret.rejection_reason && (
           <div
             className="pt-2 mt-2"
-            style={{ borderTop: "1px solid rgba(44,24,16,0.10)" }}
+            style={{ borderTop: "1px solid rgba(15,18,24,0.10)" }}
           >
             <div className="uppercase" style={labelStyle}>
               {t("rejectionReason")}
@@ -167,11 +167,11 @@ export default function ReturnDetailPage() {
       </div>
 
       {items.length > 0 && (
-        <div style={{ border: "1px solid rgba(44,24,16,0.10)" }}>
+        <div style={{ border: "1px solid rgba(15,18,24,0.10)" }}>
           <div
             className="p-3.5 uppercase"
             style={{
-              borderBottom: "1px solid rgba(44,24,16,0.10)",
+              borderBottom: "1px solid rgba(15,18,24,0.10)",
               fontFamily: MAISON_SANS,
               fontSize: 10,
               letterSpacing: "0.18em",
@@ -197,13 +197,13 @@ export default function ReturnDetailPage() {
                   className="p-3.5 flex items-center gap-3"
                   style={
                     idx > 0
-                      ? { borderTop: "1px solid rgba(44,24,16,0.08)" }
+                      ? { borderTop: "1px solid rgba(15,18,24,0.08)" }
                       : undefined
                   }
                 >
                   <div
                     className="relative h-16 w-16 shrink-0 overflow-hidden"
-                    style={{ background: "rgba(44,24,16,0.04)" }}
+                    style={{ background: "rgba(15,18,24,0.04)" }}
                   >
                     {image && (
                       <Image
@@ -307,7 +307,7 @@ export default function ReturnDetailPage() {
               maxLength={100}
               className="w-full px-2.5 py-2 text-sm"
               style={{
-                border: "1px solid rgba(44,24,16,0.2)",
+                border: "1px solid rgba(15,18,24,0.2)",
                 background: "rgba(255,255,255,0.55)",
                 borderRadius: 0,
                 color: "hsl(var(--nl-cacao))",
@@ -337,7 +337,7 @@ export default function ReturnDetailPage() {
               maxLength={100}
               className="w-full px-2.5 py-2 text-sm"
               style={{
-                border: "1px solid rgba(44,24,16,0.2)",
+                border: "1px solid rgba(15,18,24,0.2)",
                 background: "rgba(255,255,255,0.55)",
                 borderRadius: 0,
                 color: "hsl(var(--nl-cacao))",

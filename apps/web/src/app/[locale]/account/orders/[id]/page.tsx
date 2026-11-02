@@ -19,8 +19,8 @@ import {
 } from "@/components/checkout/maison-primitives";
 
 const PANEL = {
-  border: "1px solid rgba(44,24,16,0.10)",
-  background: "rgba(44,24,16,0.02)",
+  border: "1px solid rgba(15,18,24,0.10)",
+  background: "rgba(15,18,24,0.02)",
 } as const;
 
 export default function OrderDetailPage() {
@@ -181,7 +181,7 @@ export default function OrderDetailPage() {
         )}
         <div
           className="flex justify-between items-baseline gap-2 pt-2.5 mt-1"
-          style={{ borderTop: "1px solid rgba(44,24,16,0.10)" }}
+          style={{ borderTop: "1px solid rgba(15,18,24,0.10)" }}
         >
           <span
             className="uppercase"
@@ -306,7 +306,7 @@ export default function OrderDetailPage() {
               key={item.id}
               className="py-3"
               style={{
-                borderTop: "1px solid rgba(44,24,16,0.08)",
+                borderTop: "1px solid rgba(15,18,24,0.08)",
                 opacity: item.status === "cancelled" ? 0.55 : 1,
               }}
             >
@@ -317,7 +317,7 @@ export default function OrderDetailPage() {
                     aria-label={item.product_name}
                     tabIndex={-1}
                     className="relative h-16 w-16 md:h-14 md:w-14 shrink-0 overflow-hidden"
-                    style={{ background: "rgba(44,24,16,0.05)" }}
+                    style={{ background: "rgba(15,18,24,0.05)" }}
                   >
                     {item.product_image_url && (
                       <Image
@@ -331,7 +331,7 @@ export default function OrderDetailPage() {
                 ) : (
                   <div
                     className="relative h-16 w-16 md:h-14 md:w-14 shrink-0 overflow-hidden"
-                    style={{ background: "rgba(44,24,16,0.05)" }}
+                    style={{ background: "rgba(15,18,24,0.05)" }}
                   >
                     {item.product_image_url && (
                       <Image
@@ -453,7 +453,7 @@ export default function OrderDetailPage() {
             <div
               className="mt-2 pt-2 break-words"
               style={{
-                borderTop: "1px solid rgba(44,24,16,0.08)",
+                borderTop: "1px solid rgba(15,18,24,0.08)",
                 fontFamily: MAISON_SANS,
                 fontSize: 12,
                 color: "hsl(var(--nl-russet))",

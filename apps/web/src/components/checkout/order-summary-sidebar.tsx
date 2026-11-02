@@ -43,7 +43,7 @@ export function OrderSummarySidebar({
       className="hidden lg:flex flex-col"
       style={{
         background: "hsl(var(--nl-pearl))",
-        borderLeft: "1px solid rgba(44,24,16,0.08)",
+        borderLeft: "1px solid rgba(15,18,24,0.08)",
         minHeight: "calc(100vh - 162px)",
       }}
     >
@@ -93,7 +93,7 @@ export function OrderSummarySidebar({
               gridTemplateColumns: "70px 1fr auto",
               gap: 16,
               padding: "16px 0",
-              borderTop: "1px solid rgba(44,24,16,0.08)",
+              borderTop: "1px solid rgba(15,18,24,0.08)",
             }}
           >
             {/* The quantity badge sits outside the thumbnail box, so the
@@ -103,7 +103,7 @@ export function OrderSummarySidebar({
                 className="absolute inset-0 overflow-hidden"
                 style={{
                   background: "hsl(var(--nl-linen))",
-                  border: "1px solid rgba(44,24,16,0.08)",
+                  border: "1px solid rgba(15,18,24,0.08)",
                 }}
               >
                 <Image
@@ -185,7 +185,7 @@ export function OrderSummarySidebar({
       <div
         style={{
           padding: "20px 40px 26px",
-          borderTop: "1px solid rgba(44,24,16,0.12)",
+          borderTop: "1px solid rgba(15,18,24,0.12)",
         }}
       >
         {quote === null ? (
@@ -194,11 +194,11 @@ export function OrderSummarySidebar({
               <div key={i} className="flex justify-between">
                 <div
                   className="h-4 w-24 animate-pulse"
-                  style={{ background: "rgba(44,24,16,0.1)" }}
+                  style={{ background: "rgba(15,18,24,0.1)" }}
                 />
                 <div
                   className="h-4 w-16 animate-pulse"
-                  style={{ background: "rgba(44,24,16,0.1)" }}
+                  style={{ background: "rgba(15,18,24,0.1)" }}
                 />
               </div>
             ))}
@@ -239,7 +239,7 @@ export function OrderSummarySidebar({
             <div
               style={{
                 height: 1,
-                background: "rgba(44,24,16,0.12)",
+                background: "rgba(15,18,24,0.12)",
                 margin: "0 0 14px",
               }}
             />

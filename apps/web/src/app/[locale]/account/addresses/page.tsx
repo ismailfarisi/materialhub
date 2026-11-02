@@ -87,8 +87,8 @@ export default function AddressesPage() {
           <div
             key={addr.id}
             style={{
-              border: "1px solid rgba(44,24,16,0.10)",
-              background: "rgba(44,24,16,0.02)",
+              border: "1px solid rgba(15,18,24,0.10)",
+              background: "rgba(15,18,24,0.02)",
               padding: 16,
             }}
           >

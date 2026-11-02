@@ -10,8 +10,8 @@ import {
 } from "@/components/checkout/maison-primitives";
 
 const BOX = {
-  border: "1px solid rgba(44,24,16,0.10)",
-  background: "rgba(44,24,16,0.02)",
+  border: "1px solid rgba(15,18,24,0.10)",
+  background: "rgba(15,18,24,0.02)",
 } as const;
 
 export default function WalletPage() {
@@ -34,16 +34,16 @@ export default function WalletPage() {
         <div className="p-5 md:p-6 mb-5 md:mb-6 text-center" style={BOX}>
           <div
             className="h-3.5 w-24 mx-auto animate-pulse"
-            style={{ background: "rgba(44,24,16,0.07)" }}
+            style={{ background: "rgba(15,18,24,0.07)" }}
           />
           <div
             className="h-8 w-40 mx-auto mt-2 animate-pulse"
-            style={{ background: "rgba(44,24,16,0.07)" }}
+            style={{ background: "rgba(15,18,24,0.07)" }}
           />
         </div>
         <div
           className="h-5 w-32 mb-3 animate-pulse"
-          style={{ background: "rgba(44,24,16,0.07)" }}
+          style={{ background: "rgba(15,18,24,0.07)" }}
         />
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => (
@@ -55,16 +55,16 @@ export default function WalletPage() {
               <div className="space-y-2">
                 <div
                   className="h-3.5 w-24 animate-pulse"
-                  style={{ background: "rgba(44,24,16,0.07)" }}
+                  style={{ background: "rgba(15,18,24,0.07)" }}
                 />
                 <div
                   className="h-3 w-32 animate-pulse"
-                  style={{ background: "rgba(44,24,16,0.07)" }}
+                  style={{ background: "rgba(15,18,24,0.07)" }}
                 />
               </div>
               <div
                 className="h-3.5 w-16 animate-pulse"
-                style={{ background: "rgba(44,24,16,0.07)" }}
+                style={{ background: "rgba(15,18,24,0.07)" }}
               />
             </div>
           ))}
@@ -120,16 +120,16 @@ export default function WalletPage() {
               <div className="space-y-2">
                 <div
                   className="h-3.5 w-24 animate-pulse"
-                  style={{ background: "rgba(44,24,16,0.07)" }}
+                  style={{ background: "rgba(15,18,24,0.07)" }}
                 />
                 <div
                   className="h-3 w-32 animate-pulse"
-                  style={{ background: "rgba(44,24,16,0.07)" }}
+                  style={{ background: "rgba(15,18,24,0.07)" }}
                 />
               </div>
               <div
                 className="h-3.5 w-16 animate-pulse"
-                style={{ background: "rgba(44,24,16,0.07)" }}
+                style={{ background: "rgba(15,18,24,0.07)" }}
               />
             </div>
           ))}
@@ -205,7 +205,7 @@ export default function WalletPage() {
                     fontSize: 10,
                     letterSpacing: "0.18em",
                     color: "hsl(var(--nl-russet))",
-                    borderBottom: "1px solid rgba(44,24,16,0.10)",
+                    borderBottom: "1px solid rgba(15,18,24,0.10)",
                   }}
                 >
                   <th className="text-start py-2 font-normal">
@@ -226,7 +226,7 @@ export default function WalletPage() {
                 {txList.map((tx: any) => (
                   <tr
                     key={tx.id}
-                    style={{ borderBottom: "1px solid rgba(44,24,16,0.08)" }}
+                    style={{ borderBottom: "1px solid rgba(15,18,24,0.08)" }}
                   >
                     <td
                       className="py-2 whitespace-nowrap"

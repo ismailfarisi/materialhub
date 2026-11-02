@@ -14,7 +14,7 @@ import {
 const INPUT_CLASS =
   "w-full px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-nl-amber";
 const INPUT_STYLE = {
-  border: "1px solid rgba(44,24,16,0.2)",
+  border: "1px solid rgba(15,18,24,0.2)",
   background: "rgba(255,255,255,0.55)",
   color: "hsl(var(--nl-cacao))",
   borderRadius: 0,

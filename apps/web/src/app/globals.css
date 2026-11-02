@@ -4,46 +4,60 @@
 
 @layer base {
 	:root {
-		--background: 30 33% 97%;
-		--foreground: 18 45% 12%;
-		--card: 35 30% 98%;
-		--card-foreground: 18 45% 12%;
-		--popover: 35 30% 98%;
-		--popover-foreground: 18 45% 12%;
-		--primary: 30 52% 48%;
-		--primary-foreground: 35 30% 98%;
-		--secondary: 30 25% 90%;
-		--secondary-foreground: 18 45% 12%;
-		--muted: 30 25% 90%;
-		--muted-foreground: 25 18% 45%;
-		--accent: 30 35% 60%;
-		--accent-foreground: 35 30% 98%;
-		--destructive: 0 84.2% 60.2%;
-		--destructive-foreground: 210 40% 98%;
-		--border: 30 20% 82%;
-		--input: 30 20% 82%;
-		--ring: 30 52% 48%;
-		--radius: 0.5rem;
+		/* MaterialHub design system — "Studio" (2026).
+		   Cool ink on warm-neutral paper, one kraft-orange signal colour.
+		   Surfaces stay quiet so material photography carries the colour. */
+		--background: 40 20% 98%;
+		--foreground: 222 22% 10%;
+		--card: 0 0% 100%;
+		--card-foreground: 222 22% 10%;
+		--popover: 0 0% 100%;
+		--popover-foreground: 222 22% 10%;
+		--primary: 222 22% 10%;
+		--primary-foreground: 40 20% 98%;
+		--secondary: 40 10% 93%;
+		--secondary-foreground: 222 22% 10%;
+		--muted: 40 10% 93%;
+		--muted-foreground: 220 9% 40%;
+		--accent: 18 88% 52%;
+		--accent-foreground: 0 0% 100%;
+		--destructive: 0 72% 51%;
+		--destructive-foreground: 0 0% 100%;
+		--border: 40 8% 87%;
+		--input: 40 8% 84%;
+		--ring: 18 88% 52%;
+		--radius: 0.75rem;
 
-		/* Warm theme tokens */
-		--cream: 30 33% 97%;
-		--warm: 30 25% 90%;
-		--warm-dark: 20 35% 15%;
-		--copper: 30 52% 48%;
-		--gold: 25 40% 60%;
-		--text-primary: 18 45% 12%;
-		--text-secondary: 25 22% 36%;
-		--text-muted: 25 14% 55%;
-		--border-warm: 30 20% 82%;
+		/* Legacy theme aliases, remapped onto the Studio palette */
+		--cream: 40 20% 98%;
+		--warm: 40 10% 93%;
+		--warm-dark: 222 24% 8%;
+		--copper: 18 88% 52%;
+		--gold: 38 92% 55%;
+		--text-primary: 222 22% 10%;
+		--text-secondary: 220 9% 38%;
+		--text-muted: 220 8% 55%;
+		--border-warm: 40 8% 87%;
 
-		/* Marketplace PDP tokens (HSL) */
-		--nl-linen: 30 33% 92%; /* light surface */
-		--nl-pearl: 30 30% 95%; /* secondary light surface */
-		--nl-cacao: 18 47% 13%; /* primary text on light */
-		--nl-russet: 22 32% 32%; /* secondary text on light */
-		--nl-amber: 32 60% 48%; /* accent / link / highlight — decorative only (2.8:1 on linen) */
-		--nl-amber-text: 32 55% 34%; /* AA-safe amber for text on light surfaces (5:1 on linen) */
-		--nl-espresso: 22 50% 12%; /* dark surface (From-the-brand, Bestsellers) */
+		/* Storefront surface + text tokens (names kept for compatibility).
+		   linen   — default light surface (paper)
+		   pearl   — raised light surface (cards, inputs)
+		   cacao   — ink: primary text on light
+		   russet  — slate: secondary text on light
+		   amber   — kraft orange signal: CTAs, highlights, active states
+		   espresso— carbon: dark surfaces (footer, feature bands) */
+		--nl-linen: 40 14% 95%;
+		--nl-pearl: 40 20% 98.5%;
+		--nl-cacao: 222 22% 10%;
+		--nl-russet: 220 9% 38%;
+		--nl-amber: 18 88% 52%;
+		--nl-amber-text: 18 85% 37%; /* AA-safe orange for text on light surfaces */
+		--nl-espresso: 222 24% 8%;
+
+		/* Shadows */
+		--shadow-sm: 0 1px 2px rgb(15 18 24 / 0.06);
+		--shadow-md: 0 4px 16px -4px rgb(15 18 24 / 0.10), 0 1px 2px rgb(15 18 24 / 0.06);
+		--shadow-lg: 0 24px 48px -16px rgb(15 18 24 / 0.18);
 	}
 }
 
@@ -52,7 +66,24 @@
 		@apply border-border;
 	}
 	body {
-		@apply bg-background text-foreground;
+		@apply bg-background text-foreground antialiased;
+		font-feature-settings: "ss01", "cv11";
+		text-rendering: optimizeLegibility;
+	}
+	h1,
+	h2,
+	h3,
+	h4 {
+		@apply font-display;
+		letter-spacing: -0.02em;
+		text-wrap: balance;
+	}
+	::selection {
+		background: hsl(var(--nl-amber) / 0.22);
+	}
+	:focus-visible {
+		outline: 2px solid hsl(var(--ring));
+		outline-offset: 2px;
 	}
 
 	/* Full-bleed sections use the `left-[calc(50%-50vw)] w-screen` trick, and on
@@ -68,7 +99,7 @@
      the thinner `.scrollbar-nl` utility for the same look at 6px. */
 	html {
 		scrollbar-width: thin;
-		scrollbar-color: rgba(44, 24, 16, 0.22) transparent;
+		scrollbar-color: rgba(15, 18, 24, 0.22) transparent;
 	}
 	::-webkit-scrollbar {
 		width: 10px;
@@ -78,13 +109,13 @@
 		background: transparent;
 	}
 	::-webkit-scrollbar-thumb {
-		background-color: rgba(44, 24, 16, 0.22);
+		background-color: rgba(15, 18, 24, 0.22);
 		border-radius: 999px;
 		border: 2px solid transparent;
 		background-clip: padding-box;
 	}
 	::-webkit-scrollbar-thumb:hover {
-		background-color: rgba(44, 24, 16, 0.45);
+		background-color: rgba(15, 18, 24, 0.45);
 	}
 	::-webkit-scrollbar-corner {
 		background: transparent;
@@ -132,14 +163,14 @@
 	}
 	.scrollbar-nl:hover,
 	.scrollbar-nl:focus-within {
-		scrollbar-color: rgba(44, 24, 16, 0.32) transparent;
+		scrollbar-color: rgba(15, 18, 24, 0.32) transparent;
 	}
 	.scrollbar-nl:hover::-webkit-scrollbar-thumb,
 	.scrollbar-nl:focus-within::-webkit-scrollbar-thumb {
-		background-color: rgba(44, 24, 16, 0.32);
+		background-color: rgba(15, 18, 24, 0.32);
 	}
 	.scrollbar-nl::-webkit-scrollbar-thumb:hover {
-		background-color: var(--nl-cacao, #2c1810);
+		background-color: hsl(var(--nl-cacao));
 	}
 	.scrollbar-nl::-webkit-scrollbar-corner {
 		background: transparent;

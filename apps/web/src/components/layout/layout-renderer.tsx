@@ -230,10 +230,10 @@ interface VendorShowcaseItem {
 }
 
 const VENDOR_CREST_GRADIENTS = [
-  "linear-gradient(135deg,#C2865C,#7C4C35)",
-  "linear-gradient(135deg,#7C4C35,#2C1810)",
-  "linear-gradient(135deg,#B87333,#553628)",
-  "linear-gradient(135deg,#987156,#3d2619)",
+  "linear-gradient(135deg,#F26B2E,#B33F0E)",
+  "linear-gradient(135deg,#2A3140,#0F1218)",
+  "linear-gradient(135deg,#C9A27A,#7A5A3A)",
+  "linear-gradient(135deg,#5B6578,#262C38)",
 ];
 
 function vendorMonogram(name: string): string {

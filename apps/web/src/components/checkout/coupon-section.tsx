@@ -114,7 +114,7 @@ export function CouponSection({ onChanged }: CouponSectionProps) {
           </button>
         </div>
       ) : (
-        <div className="flex" style={{ border: "1px solid rgba(44,24,16,0.16)" }}>
+        <div className="flex" style={{ border: "1px solid rgba(15,18,24,0.16)" }}>
           <input
             type="text"
             value={input}
@@ -140,7 +140,7 @@ export function CouponSection({ onChanged }: CouponSectionProps) {
             style={{
               padding: "0 18px",
               border: "none",
-              borderLeft: "1px solid rgba(44,24,16,0.16)",
+              borderLeft: "1px solid rgba(15,18,24,0.16)",
               background: "transparent",
               fontSize: 10,
               letterSpacing: "0.22em",

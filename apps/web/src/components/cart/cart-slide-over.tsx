@@ -12,9 +12,9 @@ import { useEffect } from "react";
 import { CartItem } from "./cart-item";
 import { getFreeShippingProgress } from "./cart-shipping-threshold";
 
-const SERIF_STACK = "var(--font-antic), var(--font-playfair), 'Antic Didone', Georgia, serif";
+const SERIF_STACK = "var(--font-display), 'Inter Tight', system-ui, sans-serif";
 const SANS_STACK =
-  "var(--font-inter-tight), var(--font-dm-sans), 'Inter Tight', system-ui, sans-serif";
+  "var(--font-sans), 'Geist', system-ui, sans-serif";
 
 export function CartSlideOver() {
   const t = useTranslations("cart");
@@ -75,7 +75,7 @@ export function CartSlideOver() {
           boxShadow: "-24px 0 60px rgba(26,18,8,0.35)",
         }}
       >
-        <div className="px-8 pt-5 pb-4" style={{ borderBottom: "1px solid rgba(44,24,16,0.1)" }}>
+        <div className="px-8 pt-5 pb-4" style={{ borderBottom: "1px solid rgba(15,18,24,0.1)" }}>
           <div className="flex items-start justify-between">
             <div>
               <div
@@ -118,7 +118,7 @@ export function CartSlideOver() {
               style={{
                 width: 32,
                 height: 32,
-                border: "1px solid rgba(44,24,16,0.12)",
+                border: "1px solid rgba(15,18,24,0.12)",
                 color: "hsl(var(--nl-cacao))",
               }}
             >
@@ -149,7 +149,7 @@ export function CartSlideOver() {
                   </span>
                 )}
               </div>
-              <div className="mt-2" style={{ height: 2, background: "rgba(44,24,16,0.08)" }}>
+              <div className="mt-2" style={{ height: 2, background: "rgba(15,18,24,0.08)" }}>
                 <div
                   style={{
                     height: "100%",
@@ -165,7 +165,7 @@ export function CartSlideOver() {
 
         <div
           className="flex-1 overflow-y-auto px-8"
-          style={{ scrollbarColor: "rgba(44,24,16,0.22) transparent" }}
+          style={{ scrollbarColor: "rgba(15,18,24,0.22) transparent" }}
         >
           {items.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center text-center py-16">
@@ -224,7 +224,7 @@ export function CartSlideOver() {
           <div
             className="px-8 pt-4 pb-5"
             style={{
-              borderTop: "1px solid rgba(44,24,16,0.1)",
+              borderTop: "1px solid rgba(15,18,24,0.1)",
               background: "hsl(var(--nl-linen))",
             }}
           >
@@ -236,7 +236,7 @@ export function CartSlideOver() {
             <div
               style={{
                 height: 1,
-                background: "rgba(44,24,16,0.1)",
+                background: "rgba(15,18,24,0.1)",
                 marginBottom: 12,
               }}
             />

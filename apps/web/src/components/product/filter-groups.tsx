@@ -171,7 +171,7 @@ function RatingGroup({
 										className="h-3 w-3"
 										strokeWidth={1.25}
 										fill={i < r ? "currentColor" : "transparent"}
-										color="var(--nl-amber, #B87333)"
+										color="hsl(var(--nl-amber))"
 									/>
 								))}
 							</span>

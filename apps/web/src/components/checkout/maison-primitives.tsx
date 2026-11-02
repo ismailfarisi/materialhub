@@ -3,9 +3,9 @@
 import type { ReactNode } from "react";
 
 export const MAISON_SERIF =
-  "var(--font-antic), var(--font-playfair), 'Antic Didone', Georgia, serif";
+  "var(--font-display), 'Inter Tight', system-ui, sans-serif";
 export const MAISON_SANS =
-  "var(--font-inter-tight), var(--font-dm-sans), 'Inter Tight', system-ui, sans-serif";
+  "var(--font-sans), 'Geist', system-ui, sans-serif";
 
 export function Eyebrow({
   children,
@@ -105,8 +105,8 @@ export function MaisonCard({
       )}
       <div
         style={{
-          border: "1px solid rgba(44,24,16,0.08)",
-          background: "rgba(44,24,16,0.015)",
+          border: "1px solid rgba(15,18,24,0.08)",
+          background: "rgba(15,18,24,0.015)",
           padding: 18,
         }}
       >
@@ -124,7 +124,7 @@ export function MaisonRadio({ selected }: { selected: boolean }) {
         width: 16,
         height: 16,
         borderRadius: "50%",
-        border: `1px solid ${selected ? "hsl(var(--nl-amber))" : "rgba(44,24,16,0.3)"}`,
+        border: `1px solid ${selected ? "hsl(var(--nl-amber))" : "rgba(15,18,24,0.3)"}`,
         marginTop: 2,
         flexShrink: 0,
       }}
@@ -150,7 +150,7 @@ export function MaisonCheck({ checked }: { checked: boolean }) {
       style={{
         width: 16,
         height: 16,
-        border: "1px solid rgba(44,24,16,0.3)",
+        border: "1px solid rgba(15,18,24,0.3)",
         background: checked ? "hsl(var(--nl-amber))" : "transparent",
         flexShrink: 0,
       }}
@@ -193,7 +193,7 @@ export function MaisonTile({
       disabled={disabled}
       className={`text-start transition-all w-full disabled:opacity-40 disabled:cursor-not-allowed ${className ?? ""}`}
       style={{
-        border: `1px solid ${selected ? "hsl(var(--nl-amber))" : "rgba(44,24,16,0.16)"}`,
+        border: `1px solid ${selected ? "hsl(var(--nl-amber))" : "rgba(15,18,24,0.16)"}`,
         background: selected ? "rgba(184,115,51,0.06)" : "rgba(255,255,255,0.55)",
       }}
     >
@@ -253,7 +253,7 @@ export function MaisonStepper({
                   ? "hsl(var(--nl-russet))"
                   : i === active
                     ? "hsl(var(--nl-amber-text))"
-                    : "rgba(44,24,16,0.4)",
+                    : "rgba(15,18,24,0.4)",
             }}
           >
             <span
@@ -262,7 +262,7 @@ export function MaisonStepper({
                 width: 18,
                 height: 18,
                 borderRadius: "50%",
-                border: `1px solid ${i === active ? "hsl(var(--nl-amber))" : "rgba(44,24,16,0.3)"}`,
+                border: `1px solid ${i === active ? "hsl(var(--nl-amber))" : "rgba(15,18,24,0.3)"}`,
                 background: i < active ? "hsl(var(--nl-amber))" : "transparent",
                 color: "hsl(var(--nl-espresso))",
                 fontSize: 9,
@@ -300,7 +300,7 @@ export function MaisonStepper({
               style={{
                 width: 36,
                 height: 1,
-                background: "rgba(44,24,16,0.18)",
+                background: "rgba(15,18,24,0.18)",
               }}
             />
           )}

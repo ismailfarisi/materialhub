@@ -30,15 +30,15 @@ export default function WishlistPage() {
             <div key={i} className="space-y-2">
               <div
                 className="aspect-square animate-pulse"
-                style={{ background: "rgba(44,24,16,0.07)" }}
+                style={{ background: "rgba(15,18,24,0.07)" }}
               />
               <div
                 className="h-3.5 w-3/4 animate-pulse"
-                style={{ background: "rgba(44,24,16,0.07)" }}
+                style={{ background: "rgba(15,18,24,0.07)" }}
               />
               <div
                 className="h-3.5 w-1/2 animate-pulse"
-                style={{ background: "rgba(44,24,16,0.07)" }}
+                style={{ background: "rgba(15,18,24,0.07)" }}
               />
             </div>
           ))}
@@ -79,7 +79,7 @@ export default function WishlistPage() {
                 className="absolute top-2 end-2 p-1 transition-colors"
                 style={{
                   background: "rgba(247,243,237,0.85)",
-                  border: "1px solid rgba(44,24,16,0.16)",
+                  border: "1px solid rgba(15,18,24,0.16)",
                   color: "hsl(var(--nl-cacao))",
                 }}
               >

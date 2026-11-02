@@ -269,7 +269,7 @@ function MakerLetterBlock({ letter }: { letter: MakerLetter }) {
       <div className="mt-8 flex items-center gap-3.5">
         <div
           className="w-12 h-12 rounded-full flex items-center justify-center text-nl-linen font-serif text-xl"
-          style={{ background: "linear-gradient(135deg,#C2865C,#7C4C35)" }}
+          style={{ background: "linear-gradient(135deg,#2A3140,#0F1218)" }}
           aria-hidden="true"
         >
           {letter.author_avatar_url ? (

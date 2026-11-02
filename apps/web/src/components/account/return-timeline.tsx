@@ -54,7 +54,7 @@ export function ReturnTimeline({ currentStatus }: { currentStatus: string }) {
               <div
                 className="flex items-center justify-center h-6 w-6"
                 style={{
-                  border: `1px solid ${done ? "hsl(var(--nl-amber))" : "rgba(44,24,16,0.3)"}`,
+                  border: `1px solid ${done ? "hsl(var(--nl-amber))" : "rgba(15,18,24,0.3)"}`,
                   background: done ? "hsl(var(--nl-amber))" : "transparent",
                   color: done ? "hsl(var(--nl-espresso))" : "hsl(var(--nl-russet))",
                 }}
@@ -101,7 +101,7 @@ export function ReturnTimeline({ currentStatus }: { currentStatus: string }) {
                 style={{
                   height: 1,
                   background:
-                    i < currentIndex ? "hsl(var(--nl-amber))" : "rgba(44,24,16,0.18)",
+                    i < currentIndex ? "hsl(var(--nl-amber))" : "rgba(15,18,24,0.18)",
                 }}
               />
             )}

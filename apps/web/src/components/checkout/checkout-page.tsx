@@ -1,6 +1,7 @@
 "use client";
 
 import { useChannelEvents } from "@/lib/channels/use-channel-events";
+import { Logo } from "@/components/layout/logo";
 import { useAddresses } from "@/lib/queries/account";
 import { useCart } from "@/lib/queries/cart";
 import { useCodCheckout, useCreatePaymentIntent, useInitiateCheckout } from "@/lib/queries/checkout";
@@ -16,7 +17,7 @@ import { useEffect, useMemo } from "react";
 import { AddressDrawer } from "./address-drawer";
 import { CouponSection } from "./coupon-section";
 import { DeliverySection } from "./delivery-section";
-import { MAISON_SANS, MAISON_SERIF, MaisonMark, MaisonStepper } from "./maison-primitives";
+import { MAISON_SANS, MAISON_SERIF, MaisonStepper } from "./maison-primitives";
 import { MobileOrderBar } from "./mobile-order-bar";
 import { OrderItemsSection } from "./order-items-section";
 import { OrderSummarySidebar } from "./order-summary-sidebar";
@@ -369,30 +370,11 @@ function CheckoutInner() {
         className="flex items-center justify-between"
         style={{
           padding: "20px 32px",
-          borderBottom: "1px solid rgba(44,24,16,0.08)",
+          borderBottom: "1px solid rgba(15,18,24,0.08)",
         }}
       >
-        <div className="hidden md:flex items-center" style={{ gap: 8 }}>
-          <span
-            style={{
-              fontFamily: MAISON_SERIF,
-              fontSize: 20,
-              color: "hsl(var(--nl-cacao))",
-            }}
-          >
-            Noor
-          </span>
-          <span
-            style={{
-              fontFamily: MAISON_SERIF,
-              fontStyle: "italic",
-              fontSize: 20,
-              color: "hsl(var(--nl-amber-text))",
-            }}
-          >
-            Luna
-          </span>
-          <MaisonMark size={6} />
+        <div className="hidden md:flex items-center">
+          <Logo className="text-nl-cacao" />
         </div>
         <MaisonStepper steps={[t("stepBag"), t("stepAddress"), t("stepPay")]} active={2} />
         <div
@@ -423,7 +405,7 @@ function CheckoutInner() {
           className="lg:border-r"
           style={{
             padding: "32px 24px 48px",
-            borderColor: "rgba(44,24,16,0.08)",
+            borderColor: "rgba(15,18,24,0.08)",
           }}
         >
           <div className="mx-auto max-w-2xl lg:mx-0 lg:ms-auto lg:me-12 lg:max-w-[640px]">

@@ -17,7 +17,7 @@ import {
 } from "@/components/checkout/maison-primitives";
 
 const inputStyle: React.CSSProperties = {
-  border: "1px solid rgba(44,24,16,0.2)",
+  border: "1px solid rgba(15,18,24,0.2)",
   background: "rgba(255,255,255,0.6)",
   fontFamily: MAISON_SANS,
   borderRadius: 0,
@@ -41,7 +41,7 @@ export default function SavedSearchesPage() {
     e.currentTarget.style.boxShadow = "0 0 0 1px hsl(var(--nl-amber))";
   };
   const blurAmber = (e: React.FocusEvent<HTMLInputElement>) => {
-    e.currentTarget.style.borderColor = "rgba(44,24,16,0.2)";
+    e.currentTarget.style.borderColor = "rgba(15,18,24,0.2)";
     e.currentTarget.style.boxShadow = "none";
   };
 
@@ -105,8 +105,8 @@ export default function SavedSearchesPage() {
         <div
           className="mb-4 space-y-3"
           style={{
-            border: "1px solid rgba(44,24,16,0.10)",
-            background: "rgba(44,24,16,0.02)",
+            border: "1px solid rgba(15,18,24,0.10)",
+            background: "rgba(15,18,24,0.02)",
             padding: 16,
           }}
         >
@@ -155,7 +155,7 @@ export default function SavedSearchesPage() {
               className="uppercase transition-colors"
               style={{
                 background: "transparent",
-                border: "1px solid rgba(44,24,16,0.4)",
+                border: "1px solid rgba(15,18,24,0.4)",
                 color: "hsl(var(--nl-cacao))",
                 fontFamily: MAISON_SANS,
                 fontSize: 11,
@@ -189,8 +189,8 @@ export default function SavedSearchesPage() {
               key={item.id}
               className="flex items-center justify-between gap-2 px-3.5 md:px-4 py-3"
               style={{
-                border: "1px solid rgba(44,24,16,0.10)",
-                background: "rgba(44,24,16,0.02)",
+                border: "1px solid rgba(15,18,24,0.10)",
+                background: "rgba(15,18,24,0.02)",
               }}
             >
               <div className="flex items-center gap-3 min-w-0 flex-1">

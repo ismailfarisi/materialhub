@@ -79,7 +79,7 @@ export function OrderTimeline({ currentStatus }: { currentStatus: string }) {
               <div
                 className="flex items-center justify-center h-6 w-6"
                 style={{
-                  border: `1px solid ${reached ? "hsl(var(--nl-amber))" : "rgba(44,24,16,0.3)"}`,
+                  border: `1px solid ${reached ? "hsl(var(--nl-amber))" : "rgba(15,18,24,0.3)"}`,
                   background: reached ? "hsl(var(--nl-amber))" : "transparent",
                   color: reached
                     ? "hsl(var(--nl-espresso))"
@@ -132,7 +132,7 @@ export function OrderTimeline({ currentStatus }: { currentStatus: string }) {
                   background:
                     i < currentIndex
                       ? "hsl(var(--nl-amber))"
-                      : "rgba(44,24,16,0.18)",
+                      : "rgba(15,18,24,0.18)",
                 }}
               />
             )}
