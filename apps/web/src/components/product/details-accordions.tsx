@@ -1,62 +1,56 @@
 "use client";
 
-import { Minus, Plus } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { cn } from "@/lib/utils";
+import { Plus } from "lucide-react";
+import { type ReactNode, useId, useState } from "react";
 
 export type AccordionItem = {
-  id: string;
-  label: string;
-  body: ReactNode;
-  /** When true, this item is open on first render. */
-  defaultOpen?: boolean;
+	id: string;
+	label: string;
+	body: ReactNode;
+	/** When true, this item is open on first render. */
+	defaultOpen?: boolean;
 };
 
-interface DetailsAccordionsProps {
-  items: AccordionItem[];
-}
+/**
+ * Policy accordions (shipping, returns, guarantee). Specs never go in here:
+ * they live in the mill label next to the price.
+ */
+export function DetailsAccordions({ items }: { items: AccordionItem[] }) {
+	const initial = items.filter((i) => i.defaultOpen).map((i) => i.id);
+	const [open, setOpen] = useState<string[]>(initial);
+	const base = useId();
+	if (!items.length) return null;
 
-export function DetailsAccordions({ items }: DetailsAccordionsProps) {
-  const initial = items.find((i) => i.defaultOpen)?.id ?? null;
-  const [open, setOpen] = useState<string | null>(initial);
-  if (!items.length) return null;
-
-  return (
-    <div>
-      {items.map((item, i) => {
-        const isOpen = open === item.id;
-        return (
-          <div
-            key={item.id}
-            className={
-              i === 0 ? "border-t border-b border-nl-cacao/15" : "border-b border-nl-cacao/15"
-            }
-          >
-            <button
-              type="button"
-              onClick={() => setOpen(isOpen ? null : item.id)}
-              aria-expanded={isOpen}
-              aria-controls={`acc-panel-${item.id}`}
-              className="w-full py-5 flex items-center justify-between font-serif text-xl text-nl-cacao tracking-tight"
-            >
-              <span>{item.label}</span>
-              {isOpen ? (
-                <Minus className="w-5 h-5 text-nl-russet" aria-hidden="true" />
-              ) : (
-                <Plus className="w-5 h-5 text-nl-russet" aria-hidden="true" />
-              )}
-            </button>
-            {isOpen && (
-              <section
-                id={`acc-panel-${item.id}`}
-                aria-label={item.label}
-                className="pb-7 max-w-[760px] text-sm leading-relaxed text-nl-russet"
-              >
-                {item.body}
-              </section>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
+	return (
+		<div className="border-t-2 border-nl-cacao">
+			{items.map((item) => {
+				const isOpen = open.includes(item.id);
+				const panelId = `${base}-${item.id}`;
+				return (
+					<div key={item.id} className="border-b border-nl-cacao/12">
+						<h3 className="m-0">
+							<button
+								type="button"
+								onClick={() => setOpen((o) => (isOpen ? o.filter((x) => x !== item.id) : [...o, item.id]))}
+								aria-expanded={isOpen}
+								aria-controls={panelId}
+								className="flex w-full items-center justify-between gap-4 py-4 text-start font-display text-[15.5px] font-semibold tracking-[-0.01em] text-nl-cacao focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
+							>
+								<span>{item.label}</span>
+								<Plus
+									className={cn("h-4 w-4 shrink-0 text-nl-russet transition-transform duration-200 motion-reduce:transition-none", isOpen && "rotate-45")}
+									strokeWidth={1.75}
+									aria-hidden="true"
+								/>
+							</button>
+						</h3>
+						<div id={panelId} hidden={!isOpen} className="max-w-[70ch] pb-5 text-[14px] leading-relaxed text-nl-russet">
+							{item.body}
+						</div>
+					</div>
+				);
+			})}
+		</div>
+	);
 }

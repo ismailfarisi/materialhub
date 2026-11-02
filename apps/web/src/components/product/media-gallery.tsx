@@ -1,209 +1,159 @@
 "use client";
 
-import Image from "next/image";
-import { useState, useRef, useCallback } from "react";
-import { useTranslations } from "next-intl";
-import useEmblaCarousel from "embla-carousel-react";
-import { Play, Volume2, VolumeX, Maximize2, RotateCw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ChevronLeft, ChevronRight, ImageOff } from "lucide-react";
+import { useTranslations } from "next-intl";
+import Image from "next/image";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-interface MediaItem {
-  id: string;
-  url: string;
-  alt_text?: string;
-  type: "image" | "video" | "spin";
-  is_lifestyle?: boolean;
+export interface GalleryImage {
+	id: string;
+	url: string;
+	alt_text?: string;
 }
 
-interface MediaGalleryProps {
-  images: Array<{ id: string; url: string; alt_text?: string }>;
-  video_url?: string;
-  spin_images?: string[];
-  lifestyle_images?: Array<{ id: string; url: string; alt_text?: string }>;
-}
+/**
+ * Product photos on a white stock card. The main well is a scroll-snap strip,
+ * so phones swipe natively; thumbnails and the arrow buttons move it. On
+ * pointer devices, hovering the photo zooms in under the cursor so a buyer can
+ * read grain, weave and edge finish.
+ */
+export function MediaGallery({ images }: { images: GalleryImage[] }) {
+	const t = useTranslations("pdp");
+	const [index, setIndex] = useState(0);
+	const [zoom, setZoom] = useState<{ x: number; y: number } | null>(null);
+	const stripRef = useRef<HTMLDivElement>(null);
 
-export function MediaGallery({
-  images,
-  video_url,
-  spin_images,
-  lifestyle_images,
-}: MediaGalleryProps) {
-  const t = useTranslations("product");
-  const tCommon = useTranslations("common");
-  const [activeTab, setActiveTab] = useState<"studio" | "lifestyle">("studio");
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [isZoomed, setIsZoomed] = useState(false);
-  const [zoomPos, setZoomPos] = useState({ x: 50, y: 50 });
-  const [isMuted, setIsMuted] = useState(true);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [emblaRef, emblaApi] = useEmblaCarousel({
-    align: "start",
-    containScroll: "trimSnaps",
-  });
+	const go = useCallback((i: number) => {
+		const strip = stripRef.current;
+		const slide = strip?.children[i] as HTMLElement | undefined;
+		if (!strip || !slide) {
+			setIndex(i);
+			return;
+		}
+		// scrollLeft is negative in RTL; offsetLeft relative to the strip works in both.
+		strip.scrollTo({ left: slide.offsetLeft - strip.offsetLeft, behavior: "smooth" });
+		setIndex(i);
+	}, []);
 
-  // Build media items list
-  const mediaItems: MediaItem[] = [];
-  if (video_url) {
-    mediaItems.push({ id: "video-hero", url: video_url, type: "video" });
-  }
-  if (spin_images && spin_images.length > 0) {
-    mediaItems.push({ id: "spin-360", url: spin_images[0], type: "spin" });
-  }
-  const studioImages = images.map((img) => ({
-    ...img,
-    type: "image" as const,
-    is_lifestyle: false,
-  }));
-  const lifestyleImgs = (lifestyle_images || []).map((img) => ({
-    ...img,
-    type: "image" as const,
-    is_lifestyle: true,
-  }));
+	// biome-ignore lint/correctness/useExhaustiveDependencies: re-observe when the slide count changes
+	useEffect(() => {
+		const strip = stripRef.current;
+		if (!strip || typeof IntersectionObserver === "undefined") return;
+		const io = new IntersectionObserver(
+			(entries) => {
+				for (const e of entries) {
+					if (e.isIntersecting && e.intersectionRatio > 0.6) {
+						setIndex(Number((e.target as HTMLElement).dataset.index));
+					}
+				}
+			},
+			{ root: strip, threshold: [0.6] },
+		);
+		for (const child of Array.from(strip.children)) io.observe(child);
+		return () => io.disconnect();
+	}, [images.length]);
 
-  const displayImages = activeTab === "studio" ? studioImages : lifestyleImgs;
-  const allMedia = [...mediaItems, ...displayImages];
-  const currentItem = allMedia[selectedIndex] || allMedia[0];
+	if (images.length === 0) {
+		return (
+			<div className="flex aspect-square flex-col items-center justify-center gap-2 rounded-md bg-nl-pearl text-nl-russet shadow-card">
+				<ImageOff className="h-6 w-6" strokeWidth={1.5} aria-hidden="true" />
+				<span className="text-[13px]">{t("noImage")}</span>
+			</div>
+		);
+	}
 
-  if (!currentItem) return null;
+	const many = images.length > 1;
 
-  function handleMouseMove(e: React.MouseEvent<HTMLDivElement>) {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    setZoomPos({ x, y });
-  }
+	return (
+		<div className="grid gap-3">
+			<div className="relative overflow-hidden rounded-md bg-nl-pearl shadow-card">
+				<div
+					ref={stripRef}
+					className="flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+				>
+					{images.map((img, i) => (
+						<div
+							key={img.id}
+							data-index={i}
+							className="relative aspect-square w-full shrink-0 snap-start overflow-hidden [@media(hover:hover)]:cursor-zoom-in"
+							onMouseMove={(e) => {
+								if (!window.matchMedia("(hover: hover)").matches) return;
+								const r = e.currentTarget.getBoundingClientRect();
+								setZoom({ x: ((e.clientX - r.left) / r.width) * 100, y: ((e.clientY - r.top) / r.height) * 100 });
+							}}
+							onMouseLeave={() => setZoom(null)}
+						>
+							<Image
+								src={img.url}
+								alt={img.alt_text ?? ""}
+								fill
+								sizes="(min-width: 1024px) 58vw, 100vw"
+								priority={i === 0}
+								className="object-contain transition-transform duration-200 ease-out motion-reduce:transition-none"
+								style={
+									zoom && i === index
+										? { transform: "scale(2)", transformOrigin: `${zoom.x}% ${zoom.y}%` }
+										: undefined
+								}
+							/>
+						</div>
+					))}
+				</div>
 
-  function handleThumbnailClick(index: number) {
-    setSelectedIndex(index);
-    setIsZoomed(false);
-  }
+				{many && (
+					<>
+						<span className="absolute bottom-3 start-3 rounded-sm bg-nl-cacao/80 px-1.5 py-1 font-mono text-[11.5px] leading-none text-white tabular-nums">
+							<span className="sr-only">{t("imageCount", { n: index + 1, total: images.length })}</span>
+							<span aria-hidden="true" dir="ltr">
+								{index + 1} / {images.length}
+							</span>
+						</span>
+						<div className="absolute bottom-3 end-3 flex gap-1.5">
+							<button
+								type="button"
+								onClick={() => go(Math.max(0, index - 1))}
+								disabled={index === 0}
+								aria-label={t("previousImage")}
+								className="flex h-9 w-9 items-center justify-center rounded-md bg-nl-pearl text-nl-cacao shadow-card transition-opacity hover:bg-nl-linen disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-nl-amber"
+							>
+								<ChevronLeft className="h-4 w-4 rtl:rotate-180" strokeWidth={1.75} aria-hidden="true" />
+							</button>
+							<button
+								type="button"
+								onClick={() => go(Math.min(images.length - 1, index + 1))}
+								disabled={index === images.length - 1}
+								aria-label={t("nextImage")}
+								className="flex h-9 w-9 items-center justify-center rounded-md bg-nl-pearl text-nl-cacao shadow-card transition-opacity hover:bg-nl-linen disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-nl-amber"
+							>
+								<ChevronRight className="h-4 w-4 rtl:rotate-180" strokeWidth={1.75} aria-hidden="true" />
+							</button>
+						</div>
+					</>
+				)}
+			</div>
 
-  const hasLifestyle = lifestyleImgs.length > 0;
-
-  return (
-    <div className="space-y-3">
-      {/* Main media area */}
-      <div className="relative aspect-square overflow-hidden rounded-xl bg-warm">
-        {currentItem.type === "video" ? (
-          <div className="relative w-full h-full">
-            <video
-              ref={videoRef}
-              src={currentItem.url}
-              autoPlay
-              loop
-              muted={isMuted}
-              playsInline
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute bottom-4 end-4 flex gap-2">
-              <button
-                onClick={() => setIsMuted(!isMuted)}
-                className="p-2 bg-warm-dark/60 backdrop-blur-sm rounded-full text-white hover:bg-warm-dark/80 transition"
-              >
-                {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-              </button>
-              <button
-                onClick={() => videoRef.current?.requestFullscreen()}
-                className="p-2 bg-warm-dark/60 backdrop-blur-sm rounded-full text-white hover:bg-warm-dark/80 transition"
-              >
-                <Maximize2 className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-warm-dark/30 to-transparent pointer-events-none" />
-          </div>
-        ) : currentItem.type === "spin" ? (
-          <div className="relative w-full h-full flex items-center justify-center">
-            <Image src={currentItem.url} alt="360 view" fill className="object-cover" />
-            <div className="absolute inset-0 flex items-center justify-center bg-warm-dark/10">
-              <div className="flex flex-col items-center gap-2 text-foreground/70">
-                <RotateCw className="h-8 w-8 animate-float" />
-                <span className="text-sm font-medium">{tCommon("dragToExplore")}</span>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div
-            className="relative w-full h-full cursor-zoom-in"
-            onMouseEnter={() => setIsZoomed(true)}
-            onMouseLeave={() => setIsZoomed(false)}
-            onMouseMove={handleMouseMove}
-          >
-            <Image
-              src={currentItem.url}
-              alt={currentItem.alt_text || ""}
-              fill
-              className="object-cover transition-transform duration-200"
-              style={
-                isZoomed
-                  ? {
-                      transform: "scale(2.5)",
-                      transformOrigin: `${zoomPos.x}% ${zoomPos.y}%`,
-                    }
-                  : undefined
-              }
-              priority
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Studio / Lifestyle toggle */}
-      {hasLifestyle && (
-        <div className="flex gap-1 p-1 bg-warm rounded-full w-fit mx-auto">
-          <button
-            onClick={() => { setActiveTab("studio"); setSelectedIndex(mediaItems.length > 0 ? mediaItems.length : 0); }}
-            className={cn(
-              "px-4 py-1.5 rounded-full text-sm font-medium transition-all",
-              activeTab === "studio"
-                ? "bg-copper text-white shadow-sm"
-                : "text-foreground/60 hover:text-foreground"
-            )}
-          >
-            {t("studio")}
-          </button>
-          <button
-            onClick={() => { setActiveTab("lifestyle"); setSelectedIndex(mediaItems.length > 0 ? mediaItems.length : 0); }}
-            className={cn(
-              "px-4 py-1.5 rounded-full text-sm font-medium transition-all",
-              activeTab === "lifestyle"
-                ? "bg-copper text-white shadow-sm"
-                : "text-foreground/60 hover:text-foreground"
-            )}
-          >
-            {t("lifestyle")}
-          </button>
-        </div>
-      )}
-
-      {/* Thumbnail carousel */}
-      <div className="overflow-hidden min-w-0 w-full" ref={emblaRef}>
-        <div className="flex gap-2">
-          {allMedia.map((item, i) => (
-            <button
-              key={item.id}
-              onClick={() => handleThumbnailClick(i)}
-              className={cn(
-                "relative h-16 w-16 rounded-lg overflow-hidden shrink-0 border-2 transition-all",
-                i === selectedIndex
-                  ? "border-copper ring-2 ring-copper/30"
-                  : "border-transparent hover:border-border-warm"
-              )}
-            >
-              {item.type === "video" ? (
-                <div className="w-full h-full bg-warm-dark/20 flex items-center justify-center">
-                  <Play className="h-4 w-4 text-copper" fill="currentColor" />
-                </div>
-              ) : item.type === "spin" ? (
-                <div className="w-full h-full bg-warm flex items-center justify-center">
-                  <RotateCw className="h-4 w-4 text-copper" />
-                </div>
-              ) : (
-                <Image src={item.url} alt={item.alt_text || ""} fill className="object-cover" />
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+			{many && (
+				<ul className="m-0 flex list-none gap-2 overflow-x-auto p-0 pb-1 [scrollbar-width:thin]">
+					{images.map((img, i) => (
+						<li key={img.id} className="shrink-0">
+							<button
+								type="button"
+								onClick={() => go(i)}
+								aria-label={t("showImage", { n: i + 1 })}
+								aria-current={i === index ? "true" : undefined}
+								className={cn(
+									"relative block h-16 w-16 overflow-hidden rounded-sm bg-nl-pearl shadow-card",
+									"outline outline-2 outline-offset-2 transition-[outline-color] duration-150 focus-visible:outline-nl-amber",
+									i === index ? "outline-nl-cacao" : "outline-transparent hover:outline-nl-cacao/30",
+								)}
+							>
+								<Image src={img.url} alt="" fill sizes="64px" className="object-cover" />
+							</button>
+						</li>
+					))}
+				</ul>
+			)}
+		</div>
+	);
 }

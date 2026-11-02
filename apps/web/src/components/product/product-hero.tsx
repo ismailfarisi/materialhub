@@ -1,62 +1,52 @@
 "use client";
 
-import {
-	type Format,
-	FormatSelector,
-} from "@/components/product/format-selector";
-import {
-	type ColorGroupMember,
-	GroupSwatches,
-} from "@/components/product/group-swatches";
-import { MediaGallery } from "@/components/product/media-gallery";
+import { Breadcrumb } from "@/components/product/breadcrumb";
 import { BnplStrip } from "@/components/product/bnpl-strip";
-import {
-	NotesRitualCraftTabs,
-	type ProductTab,
-} from "@/components/product/notes-ritual-craft-tabs";
-import {
-	SellerBlock,
-	type SellerBlockData,
-} from "@/components/product/seller-block";
-import {
-	type ToneSwatch,
-	ToneSwatches,
-} from "@/components/product/tone-swatches";
+import { type ColorGroupMember, GroupSwatches } from "@/components/product/group-swatches";
+import { MediaGallery } from "@/components/product/media-gallery";
+import { SellerBlock, type SellerBlockData } from "@/components/product/seller-block";
+import { StickyBottomBar } from "@/components/product/sticky-bottom-bar";
+import { VariantSelector } from "@/components/product/variant-selector";
+import { Button, MillLabel, PriceTag, StockChip, formatFils, stockFor } from "@/components/swatch";
+import { useScrollPast } from "@/hooks/use-scroll-past";
 import { useToggleWishlist, useWishlist } from "@/lib/queries/account";
 import { useAddToCart } from "@/lib/queries/cart";
-import { cn, formatPrice } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { useCartStore } from "@/stores/cart";
-import { usePreferencesStore } from "@/stores/preferences";
-import { Heart, Package, Recycle, Truck } from "lucide-react";
-import { useLocale } from "next-intl";
-import { buildBreadcrumbJsonLd } from "@/lib/breadcrumb-jsonld";
+import { Heart, Minus, Plus, RotateCcw, Star, Truck } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+	type CategoryCrumb,
+	type PdpVariant,
+	buildOptionAxes,
+	buildSpecs,
+	normaliseVariants,
+	resolveUnit,
+} from "./pdp-data";
 
 interface ProductHeroProps {
+	// biome-ignore lint/suspicious/noExplicitAny: untyped API response shape
 	product: any;
-	/** Pre-extracted vendor card data; null when the product has no vendor (shouldn't happen on marketplace). */
+	/** Pre-extracted vendor card data; null when the product has no vendor. */
 	vendor: SellerBlockData | null;
-	/** Free-shipping threshold in fils. Falls back to a marketplace default. */
+	/** Root-to-leaf category path from the category tree. */
+	categoryPath?: CategoryCrumb[];
+	/** Free-shipping threshold in fils. */
 	freeShippingFils?: number;
-	/** "Returns within N days" — from marketplace return-window setting. */
+	/** "Returns within N days" — from the marketplace return-window setting. */
 	returnsWindowDays?: number;
-	/** Sibling color-family group from the product groups API. Null when the product is not grouped. */
+	/** Sibling colour-family listings from the product groups API. */
 	colorGroup?: {
 		grouping_attribute: { id: string; name: string } | null;
 		members: ColorGroupMember[];
 	} | null;
 }
 
-type HeroImageInput = {
-	id?: string;
-	url?: string | null;
-	alt_text?: string | null;
-};
+type HeroImageInput = { id?: string; url?: string | null; alt_text?: string | null };
 
-function hasImageUrl(
-	image: unknown,
-): image is HeroImageInput & { url: string } {
+function hasImageUrl(image: unknown): image is HeroImageInput & { url: string } {
 	return (
 		typeof image === "object" &&
 		image !== null &&
@@ -65,457 +55,341 @@ function hasImageUrl(
 	);
 }
 
+const LOW_STOCK = 10;
+
+/** Wrap a value with no Arabic letters in a left-to-right isolate. */
+function isolateLtr(v: string): string {
+	return /[\u0600-\u06FF]/.test(v) ? v : `\u2066${v}\u2069`;
+}
+
+/**
+ * Product detail, first screen: photos beside the purchase panel at `lg`.
+ * The panel reads title → price per unit → mill label (full spec table) →
+ * options → quantity and the one orange button → supplier.
+ */
 export function ProductHero({
 	product,
 	vendor,
+	categoryPath = [],
 	freeShippingFils = 15000,
 	returnsWindowDays = 7,
 	colorGroup,
 }: ProductHeroProps) {
+	const t = useTranslations("pdp");
 	const locale = useLocale();
-	const { currency } = usePreferencesStore();
 	const { openSlideOver } = useCartStore();
 	const addToCart = useAddToCart();
 	const toggleWishlist = useToggleWishlist();
 	const { data: wishlistItems } = useWishlist();
+	const { ref: ctaRef, isPast: ctaOutOfView } = useScrollPast<HTMLDivElement>();
 
-	// ---- Tones (visual variants) ------------------------------------------
-	// Read from product.tones if the API exposes them; otherwise hide the row.
-	// We treat tone variants as a separate visual axis, not as size variants.
-	const tones: ToneSwatch[] = useMemo(() => {
-		const raw = product.tones ?? product.attributes?.tones;
-		if (!Array.isArray(raw) || raw.length === 0) return [];
-		return raw.map((t: any) => ({
-			id: t.id ?? t.value,
-			background:
-				t.gradient || t.color_hex || "linear-gradient(160deg,#C2865C,#7C4C35)",
-			label: t.label ?? t.value,
-		}));
-	}, [product]);
-	const [selectedTone, setSelectedTone] = useState<string | undefined>(
-		tones[0]?.id,
+	// ---- Variants ---------------------------------------------------------
+	const variants = useMemo(() => normaliseVariants(product), [product]);
+	const axes = useMemo(() => buildOptionAxes(product, variants, t("option")), [product, variants, t]);
+	const [variantId, setVariantId] = useState<string | undefined>(
+		() => (variants.find((v) => v.available > 0) ?? variants[0])?.id,
 	);
+	const selected: PdpVariant | undefined = variants.find((v) => v.id === variantId);
 
-	// ---- Per-variant stock -----------------------------------------------
-	// The PDP API returns inventoryRecords (one per variant × warehouse) with a
-	// generated quantity_available column. Sum them per variant so we can gate the
-	// buy button on the *selected* variant, not just the product total.
-	const variantAvailability: Record<string, number> = useMemo(() => {
-		const map: Record<string, number> = {};
-		if (!Array.isArray(product.inventoryRecords)) return map;
-		for (const inv of product.inventoryRecords) {
-			if (!inv?.variant_id) continue;
-			const qty = Number(inv.quantity_available) || 0;
-			map[inv.variant_id] = (map[inv.variant_id] ?? 0) + Math.max(0, qty);
-		}
-		return map;
-	}, [product.inventoryRecords]);
+	// ---- Stock -------------------------------------------------------------
+	const productOutOfStock = product.in_stock === false || (product.quantity_available ?? 1) <= 0;
+	const outOfStock = productOutOfStock || (selected != null && selected.available <= 0);
+	const available: number = selected ? selected.available : Number(product.quantity_available ?? Number.POSITIVE_INFINITY);
+	const maxQty = Number.isFinite(available) && available > 0 ? available : 999;
 
-	// ---- Formats (size variants) ------------------------------------------
-	const formats: (Format & {
-		compare_at_price_fils?: number | null;
-		available?: number;
-	})[] = useMemo(() => {
-		if (!Array.isArray(product.variants)) return [];
-		return product.variants
-			.filter((v: any) => v?.id && v?.price != null)
-			.map((v: any) => ({
-				id: v.id,
-				label:
-					v.option_values?.format ?? v.option_values?.size ?? v.name ?? "—",
-				price_fils:
-					typeof v.price === "string" ? Number.parseInt(v.price, 10) : v.price,
-				compare_at_price_fils:
-					v.compare_at_price != null
-						? (typeof v.compare_at_price === "string" ? Number.parseInt(v.compare_at_price, 10) : v.compare_at_price)
-						: null,
-				available: variantAvailability[v.id] ?? 0,
-			}));
-	}, [product, variantAvailability]);
-	const [selectedFormatId, setSelectedFormatId] = useState<string | undefined>(
-		formats[0]?.id,
-	);
-	const selectedFormat = formats.find((f) => f.id === selectedFormatId);
+	const [quantity, setQuantity] = useState(1);
+	useEffect(() => {
+		setQuantity((q) => Math.min(Math.max(1, q), maxQty));
+	}, [maxQty]);
 
-	// Variants with no available stock — surfaced in the FormatSelector and used
-	// to disable the buy button when such a variant is the current selection.
-	const outOfStockFormatIds = useMemo(
-		() => new Set(formats.filter((f) => (f.available ?? 0) <= 0).map((f) => f.id)),
-		[formats],
-	);
+	// ---- Price -------------------------------------------------------------
+	const price: number = selected?.price ?? (Number(product.price) || 0);
+	const compareAtRaw = selected ? selected.compareAt : product.compare_at_price;
+	const compareAt = compareAtRaw != null && Number(compareAtRaw) > price ? Number(compareAtRaw) : null;
+	const unit = resolveUnit(product, selected);
 
-	// Effective out-of-stock: whole product sold out, OR the chosen variant is.
-	const productOutOfStock =
-		product.in_stock === false || (product.quantity_available ?? 1) <= 0;
-	const outOfStock =
-		productOutOfStock ||
-		(selectedFormat != null && (selectedFormat.available ?? 0) <= 0);
+	// ---- Spec table --------------------------------------------------------
+	const specs = useMemo(() => {
+		const rows = buildSpecs(product, selected, {
+			dimensions: t("dimensions"),
+			weight: t("weight"),
+			origin: t("origin"),
+			sku: t("sku"),
+		});
+		// Keep Latin measurements ("1250 gsm", "70 × 100 cm") in reading order under RTL.
+		return locale === "ar" ? rows.map((r) => ({ ...r, value: isolateLtr(r.value) })) : rows;
+	}, [product, selected, t, locale]);
 
-	// Compare-at price logic
-	const variantPrice = selectedFormat?.price_fils ?? product.price;
-	const displayPriceFils = variantPrice;
-	const strikePriceFils = selectedFormat
-		? selectedFormat.compare_at_price_fils && selectedFormat.compare_at_price_fils > variantPrice
-			? selectedFormat.compare_at_price_fils
-			: null
-		: product.compare_at_price && product.compare_at_price > variantPrice
-			? product.compare_at_price
-			: null;
-
-	const discountPercent =
-		strikePriceFils && strikePriceFils > displayPriceFils
-			? Math.round(((strikePriceFils - displayPriceFils) / strikePriceFils) * 100)
-			: 0;
+	// ---- Category / stock --------------------------------------------------
+	const root = categoryPath[0];
+	const stock = root ? stockFor(root.slug ?? root.name) : null;
 
 	const isWishlisted = (wishlistItems || []).some(
-		(item: any) => item.product_id === product.id,
+		(item: { product_id?: string }) => item.product_id === product.id,
 	);
 
 	const handleAdd = () => {
+		if (outOfStock) return;
 		addToCart.mutate(
-			{
-				productId: product.id,
-				variantId: selectedFormatId ?? null,
-				quantity: 1,
-			},
+			{ productId: product.id, variantId: selected?.id ?? null, quantity },
 			{ onSuccess: () => openSlideOver() },
 		);
 	};
 
-	// ---- Tabbed details ---------------------------------------------------
-	// Pull from product.attributes JSONB. Section is hidden when both notes and ritual+craft are empty.
-	const tabs: ProductTab[] = useMemo(() => {
-		const a = product.attributes ?? {};
-		const out: ProductTab[] = [];
-		if (Array.isArray(a.notes) && a.notes.length) {
-			out.push({
-				id: "notes",
-				label: "The notes",
-				body: (
-					<div className="grid grid-cols-3 gap-4 text-sm">
-						{a.notes.map((n: any) => (
-							<div key={n.role ?? n.label}>
-								<div className="text-[9px] tracking-[0.22em] uppercase text-nl-amber mb-1.5">
-									{n.role ?? n.label}
-								</div>
-								<div className="font-serif text-base leading-tight">
-									{n.value}
-								</div>
-							</div>
-						))}
-					</div>
-				),
-			});
-		}
-		if (a.ritual) {
-			out.push({
-				id: "ritual",
-				label: "The ritual",
-				body: (
-					<p className="text-sm leading-relaxed text-nl-russet">{a.ritual}</p>
-				),
-			});
-		}
-		if (a.craft) {
-			out.push({
-				id: "craft",
-				label: "The craft",
-				body: (
-					<p className="text-sm leading-relaxed text-nl-russet">{a.craft}</p>
-				),
-			});
-		}
-		return out;
-	}, [product]);
-
-	// ---- Image + batch badge ---------------------------------------------
 	const heroImages = useMemo(() => {
 		if (!Array.isArray(product.images)) return [];
 		return product.images
 			.filter(hasImageUrl)
+			.sort((a: { sort_order?: number }, b: { sort_order?: number }) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
 			.map((image: HeroImageInput & { url: string }, index: number) => ({
 				id: image.id ?? `${image.url}-${index}`,
 				url: image.url,
 				alt_text: image.alt_text ?? product.title,
 			}));
 	}, [product.images, product.title]);
-	const batchLabel = product.attributes?.batch_number
-		? `Batch №${product.attributes.batch_number}`
-		: null;
 
-	// Build the breadcrumb chain: Home → category path → product title.
-	// Brand is shown adjacent (after the path, before the title) when known.
-	const categoryPath: Array<{ name: string; slug?: string }> = Array.isArray(
-		product.category?.path,
-	)
-		? product.category.path.filter((p: { name?: string }) => p?.name)
-		: [];
+	const crumbs = [
+		...categoryPath.map((c) => ({ name: c.name, slug: c.slug })),
+		{ name: product.title as string },
+	];
 
-	const breadcrumbJsonLd = buildBreadcrumbJsonLd(locale, [
-		...categoryPath.map((c) => ({
-			name: c.name,
-			...(c.slug ? { path: `/c/${c.slug}` } : {}),
-		})),
-		// Current page: no path, so no self-referencing `item`.
-		{ name: product.title },
-	]);
+	const stockNote = productOutOfStock
+		? t("productOutOfStock")
+		: outOfStock
+			? t("optionOutOfStock")
+			: null;
 
 	return (
 		<div className="text-nl-cacao">
-			<div className="mx-auto max-w-[1340px] px-6 lg:px-12 py-10 lg:pb-20">
-				{/* breadcrumb + meta */}
-				<nav
-					aria-label="Breadcrumb"
-					className="flex flex-col gap-3 lg:flex-row lg:justify-between lg:items-center mb-8"
-				>
-					<ol className="text-[10px] tracking-[0.22em] uppercase text-nl-russet/55 flex flex-wrap items-center">
-						<li>
-							<Link
-								href={`/${locale}`}
-								className="hover:text-nl-cacao transition-colors"
-							>
-								Home
-							</Link>
-						</li>
-						{categoryPath.map((c) => (
-							<li key={c.slug ?? c.name} className="flex items-center">
-								<span className="mx-2" aria-hidden="true">
-									·
-								</span>
-								{c.slug ? (
-									<Link
-										href={`/${locale}/c/${c.slug}`}
-										className="hover:text-nl-cacao transition-colors"
-									>
-										{c.name}
-									</Link>
-								) : (
-									<span>{c.name}</span>
-								)}
-							</li>
-						))}
-						{product.brand_name && (
-							<li className="flex items-center">
-								<span className="mx-2" aria-hidden="true">
-									·
-								</span>
-								{product.brand_slug ? (
-									<Link
-										href={`/${locale}/brand/${encodeURIComponent(product.brand_slug)}`}
-										className="text-nl-russet hover:text-nl-cacao transition-colors"
-									>
-										{product.brand_name}
-									</Link>
-								) : (
-									<span className="text-nl-russet">{product.brand_name}</span>
-								)}
-							</li>
-						)}
-						<li className="flex items-center" aria-current="page">
-							<span className="mx-2" aria-hidden="true">
-								·
-							</span>
-							<span className="text-nl-cacao">{product.title}</span>
-						</li>
-					</ol>
-					<div className="text-[10px] tracking-[0.18em] uppercase text-nl-russet flex gap-4 items-center">
-						{product.rating_avg > 0 && (
-							<span>
-								★ {product.rating_avg.toFixed(1)} · {product.review_count ?? 0}{" "}
-								reviews
-							</span>
-						)}
-						{productOutOfStock ? (
-							<span className="text-nl-russet">● Sold out</span>
-						) : (
-							product.in_stock && (
-								<span className="text-nl-amber">● In stock</span>
-							)
-						)}
-					</div>
-				</nav>
+			<div className="mx-auto max-w-[1400px] px-4 pb-10 md:px-8 lg:pb-16">
+				<Breadcrumb items={crumbs} stock={stock} />
 
-				<script
-					type="application/ld+json"
-					// biome-ignore lint/security/noDangerouslySetInnerHtml: schema.org JSON-LD payload
-					dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
-				/>
-
-				<div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-12 lg:gap-20">
-					{/* Imagery */}
-					<div className="flex flex-col gap-3.5 min-w-0">
-						<div className="relative">
-							{heroImages.length > 0 ? (
-								<MediaGallery images={heroImages} />
-							) : (
-								<div className="aspect-[4/5] bg-nl-russet/30" />
-							)}
-							{batchLabel && (
-								<div className="absolute top-4 left-4 px-3 py-1.5 bg-nl-linen text-nl-cacao text-[9px] tracking-[0.22em] uppercase">
-									{batchLabel}
-								</div>
-							)}
-						</div>
-
-						{tones.length > 0 && (
-							<ToneSwatches
-								tones={tones}
-								selectedId={selectedTone}
-								onSelect={setSelectedTone}
-							/>
-						)}
+				<div className="mt-1 grid gap-6 lg:mt-3 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:gap-12 xl:gap-16">
+					{/* Photos */}
+					<div className="min-w-0 lg:sticky lg:top-24 lg:self-start">
+						<MediaGallery images={heroImages} />
 					</div>
 
-					{/* Buy box */}
-					<div className="lg:sticky lg:top-32 lg:self-start min-w-0">
-						{(product.brand_name || product.subtitle) && (
-							<div className="text-[10px] tracking-[0.22em] uppercase text-nl-russet">
-								{product.brand_name &&
-									(product.brand_slug ? (
+					{/* Purchase panel */}
+					<div className="grid min-w-0 content-start gap-6">
+						<header className="grid gap-3">
+							<h1 className="m-0 text-balance font-display text-[26px] font-semibold leading-[1.1] tracking-[-0.02em] md:text-[32px]">
+								{product.title}
+							</h1>
+							<div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] text-nl-russet">
+								{root && stock && <StockChip stock={stock} label={categoryPath[categoryPath.length - 1]?.name ?? root.name} />}
+								{product.brand_name && (
+									<span>
+										{product.brand_slug ? (
+											<Link
+												href={`/${locale}/brand/${encodeURIComponent(product.brand_slug)}`}
+												className="underline decoration-nl-cacao/20 underline-offset-4 hover:text-nl-cacao hover:decoration-nl-cacao/50"
+											>
+												{product.brand_name}
+											</Link>
+										) : (
+											product.brand_name
+										)}
+									</span>
+								)}
+								{vendor && (
+									<span>
+										{t("soldBy")}{" "}
 										<Link
-											href={`/${locale}/brand/${encodeURIComponent(product.brand_slug)}`}
-											className="text-nl-amber hover:underline"
+											href={`/${locale}/vendor/${vendor.slug}`}
+											className="font-medium text-nl-cacao underline decoration-nl-cacao/20 underline-offset-4 hover:decoration-nl-cacao/50"
 										>
-											{product.brand_name}
+											{vendor.name}
 										</Link>
-									) : (
-										<span className="text-nl-amber">{product.brand_name}</span>
-									))}
-								{product.brand_name && product.subtitle && <span> · </span>}
-								{product.subtitle}
+									</span>
+								)}
 							</div>
-						)}
-
-						<h1 className="font-serif text-5xl lg:text-6xl leading-[0.98] tracking-tight my-4">
-							{product.title}
-						</h1>
-						<div className="w-10 h-px bg-nl-amber mb-5" />
-
-						{/* Price block */}
-						<div className="flex items-baseline gap-3 mb-6">
-							<span className="text-3xl font-serif font-semibold text-nl-cacao">
-								{formatPrice(displayPriceFils, currency)}
-							</span>
-							{strikePriceFils && discountPercent > 0 && (
-								<>
-									<span className="text-sm text-nl-russet line-through opacity-70">
-										{formatPrice(strikePriceFils, currency)}
-									</span>
-									<span className="px-2 py-0.5 text-[10px] tracking-wider uppercase font-semibold rounded bg-nl-amber/15 text-nl-amber">
-										-{discountPercent}%
-									</span>
-								</>
+							{product.short_description && (
+								<p className="m-0 max-w-[60ch] text-[15px] leading-relaxed text-nl-russet">{product.short_description}</p>
 							)}
+						</header>
+
+						{/* Price, rating, stock */}
+						<div className="grid gap-2.5">
+							<div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+								<PriceTag amount={price} locale={locale} unit={unit} compareAt={compareAt} size="lg" />
+								{product.is_vat_inclusive !== false && (
+									<span className="text-[12.5px] text-nl-russet">{t("inclVat")}</span>
+								)}
+							</div>
+							<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px]">
+								<StockStatus outOfStock={outOfStock} available={available} />
+								{product.review_count > 0 && product.rating_avg > 0 && (
+									<a
+										href="#reviews"
+										className="inline-flex items-center gap-1.5 text-nl-cacao underline decoration-nl-cacao/20 underline-offset-4 hover:decoration-nl-cacao/50"
+									>
+										<Star className="h-3.5 w-3.5 fill-nl-cacao" strokeWidth={0} aria-hidden="true" />
+										<span className="font-mono tabular-nums">{Number(product.rating_avg).toFixed(1)}</span>
+										<span className="sr-only">{t("ratingOutOf", { rating: Number(product.rating_avg).toFixed(1) })}</span>
+										<span className="text-nl-russet">· {t("reviewCount", { count: product.review_count })}</span>
+									</a>
+								)}
+							</div>
 						</div>
 
-						{product.short_description && (
-							<p className="font-serif italic text-lg lg:text-xl leading-relaxed text-nl-russet mb-7">
-								{product.short_description}
-							</p>
-						)}
-						{product.description && (
-							<p className="text-sm leading-relaxed mb-8 max-w-[460px]">
-								{product.description.length > 320
-									? `${product.description.slice(0, 320)}…`
-									: product.description}
-							</p>
+						{/* Mill label: the full spec, never collapsed */}
+						{specs.length > 0 && (
+							<section aria-labelledby="pdp-spec" className="grid gap-2">
+								<h2 id="pdp-spec" className="mill-label m-0 text-nl-cacao">
+									{t("specification")}
+								</h2>
+								<MillLabel specs={specs} />
+							</section>
 						)}
 
-						{/* Format */}
-						{formats.length > 0 && (
-							<div className="mb-6">
-								<FormatSelector
-									formats={formats}
-									selectedId={selectedFormatId}
-									onSelect={setSelectedFormatId}
-									currency={currency}
-									eyebrowNote={product.attributes?.format_note}
-									outOfStockIds={outOfStockFormatIds}
-								/>
-							</div>
+						{axes.length > 0 && (
+							<VariantSelector axes={axes} variants={variants} selected={selected} onSelect={(v) => setVariantId(v.id)} />
 						)}
 
-						{/* Color-family siblings */}
 						{(colorGroup?.members?.length ?? 0) > 1 && (
 							<GroupSwatches
-								label={colorGroup?.grouping_attribute?.name ?? "Color"}
+								label={colorGroup?.grouping_attribute?.name ?? t("option")}
 								members={colorGroup?.members ?? []}
 								locale={locale}
 							/>
 						)}
 
-						{/* Add */}
-						<div className="flex gap-2.5 mb-6">
-							<button
-								type="button"
-								onClick={handleAdd}
-								disabled={addToCart.isPending || outOfStock}
-								aria-disabled={outOfStock}
-								className={cn(
-									"flex-1 px-8 py-4 text-xs tracking-[0.18em] uppercase transition-opacity",
-									outOfStock
-										? "bg-nl-cacao/40 text-nl-linen/60 cursor-not-allowed"
-										: "bg-nl-cacao text-nl-linen hover:opacity-95 disabled:opacity-60",
+						{/* Quantity + add */}
+						<div ref={ctaRef} className="grid gap-3">
+							<div className="flex items-stretch gap-2">
+								<QuantityStepper value={quantity} max={maxQty} onChange={setQuantity} disabled={outOfStock} />
+								{outOfStock ? (
+									<Button variant="outline" size="lg" disabled aria-disabled className="flex-1">
+										{t("outOfStock")}
+									</Button>
+								) : (
+									<Button
+										variant="signal"
+										size="lg"
+										className="flex-1"
+										onClick={handleAdd}
+										disabled={addToCart.isPending}
+									>
+										{addToCart.isPending ? t("adding") : t("addToCart")}
+										{!addToCart.isPending && quantity > 1 && (
+											<span className="font-mono text-[13px] tabular-nums text-white/85">
+												· AED {formatFils(price * quantity, locale)}
+											</span>
+										)}
+									</Button>
 								)}
-							>
-								{outOfStock
-									? "Out of stock"
-									: addToCart.isPending
-										? "Adding…"
-										: `Add to bag · ${formatPrice(displayPriceFils, currency)}`}
-							</button>
-							<button
-								type="button"
-								onClick={() => toggleWishlist.mutate(product.id)}
-								disabled={toggleWishlist.isPending}
-								aria-label={
-									isWishlisted ? "Remove from wishlist" : "Add to wishlist"
-								}
-								className="w-14 h-14 border border-nl-cacao/25 hover:border-nl-cacao/60 disabled:opacity-60 transition-colors flex items-center justify-center"
-							>
-								<Heart
-									className={cn(
-										"w-4 h-4",
-										isWishlisted
-											? "fill-nl-amber text-nl-amber"
-											: "text-nl-cacao",
-									)}
-								/>
-							</button>
-						</div>
-
-						<BnplStrip total_fils={displayPriceFils} currency={currency} className="mb-7" />
-
-						{/* Seller block */}
-						{vendor && (
-							<div className="mb-7">
-								<SellerBlock vendor={vendor} />
+								<Button
+									variant="outline"
+									size="icon"
+									className="h-12 w-12 shrink-0"
+									onClick={() => toggleWishlist.mutate(product.id)}
+									disabled={toggleWishlist.isPending}
+									aria-pressed={isWishlisted}
+									aria-label={isWishlisted ? t("removeFromWishlist") : t("addToWishlist")}
+								>
+									<Heart className={cn("h-[18px] w-[18px]", isWishlisted && "fill-nl-cacao")} strokeWidth={1.75} aria-hidden="true" />
+								</Button>
 							</div>
-						)}
-
-						{/* Tabs */}
-						{tabs.length > 0 && <NotesRitualCraftTabs tabs={tabs} />}
-
-						{/* Micro trust */}
-						<div className="flex flex-wrap gap-6 mt-7 pt-6 border-t border-nl-cacao/15 text-[10.5px] tracking-[0.1em] text-nl-russet">
-							<span className="inline-flex items-center gap-1.5">
-								<Truck className="w-4 h-4" />
-								Free shipping over {formatPrice(freeShippingFils, currency)}
-							</span>
-							{product.attributes?.is_refillable && (
-								<span className="inline-flex items-center gap-1.5">
-									<Recycle className="w-4 h-4" />
-									Refillable
-								</span>
+							{stockNote && <p className="m-0 text-[13px] text-nl-russet">{stockNote}</p>}
+							{addToCart.isError && (
+								<p role="alert" className="m-0 text-[13px] text-destructive">
+									{t("addFailed")}
+								</p>
 							)}
-							<span className="inline-flex items-center gap-1.5">
-								<Package className="w-4 h-4" />
-								Returns within {returnsWindowDays} days
-							</span>
 						</div>
+
+						{!outOfStock && <BnplStrip total_fils={price * quantity} />}
+
+						<ul className="m-0 flex list-none flex-wrap gap-x-6 gap-y-2 p-0 text-[13px] text-nl-russet">
+							<li className="inline-flex items-center gap-2">
+								<Truck className="h-4 w-4 text-nl-cacao" strokeWidth={1.75} aria-hidden="true" />
+								{t("freeShipping", { amount: `AED ${formatFils(freeShippingFils, locale)}` })}
+							</li>
+							<li className="inline-flex items-center gap-2">
+								<RotateCcw className="h-4 w-4 text-nl-cacao" strokeWidth={1.75} aria-hidden="true" />
+								{t("returns", { days: returnsWindowDays })}
+							</li>
+						</ul>
+
+						{vendor && <SellerBlock vendor={vendor} stock={stock} stockLabel={root?.name} />}
 					</div>
 				</div>
 			</div>
+
+			<StickyBottomBar
+				visible={ctaOutOfView}
+				title={product.title}
+				imageUrl={heroImages[0]?.url}
+				price={price}
+				unit={unit}
+				onAddToCart={handleAdd}
+				isPending={addToCart.isPending}
+				outOfStock={outOfStock}
+			/>
+		</div>
+	);
+}
+
+function StockStatus({ outOfStock, available }: { outOfStock: boolean; available: number }) {
+	const t = useTranslations("pdp");
+	if (outOfStock) {
+		return (
+			<span className="inline-flex items-center gap-1.5 text-nl-russet">
+				<span aria-hidden="true" className="h-2 w-2 rounded-[2px] border border-nl-russet" />
+				{t("outOfStock")}
+			</span>
+		);
+	}
+	const low = Number.isFinite(available) && available > 0 && available <= LOW_STOCK;
+	return (
+		<span className="inline-flex items-center gap-1.5 text-nl-cacao">
+			<span aria-hidden="true" className="h-2 w-2 rounded-[2px] bg-[hsl(var(--status-success,142_64%_32%))]" />
+			{low ? t("lowStock", { count: available }) : t("inStock")}
+		</span>
+	);
+}
+
+function QuantityStepper({
+	value,
+	max,
+	onChange,
+	disabled,
+}: {
+	value: number;
+	max: number;
+	onChange: (n: number) => void;
+	disabled?: boolean;
+}) {
+	const t = useTranslations("pdp");
+	const step = "flex h-full w-10 items-center justify-center text-nl-cacao transition-colors hover:bg-nl-cacao/[0.06] disabled:opacity-35 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-nl-amber";
+	return (
+		<div
+			className={cn(
+				"flex h-12 shrink-0 items-center overflow-hidden rounded-md border border-nl-cacao/25 bg-nl-pearl",
+				disabled && "opacity-45",
+			)}
+		>
+			<button type="button" className={step} onClick={() => onChange(Math.max(1, value - 1))} disabled={disabled || value <= 1} aria-label={t("decrease")}>
+				<Minus className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
+			</button>
+			<input
+				type="number"
+				inputMode="numeric"
+				min={1}
+				max={max}
+				value={value}
+				disabled={disabled}
+				aria-label={t("quantity")}
+				onChange={(e) => {
+					const n = Number.parseInt(e.target.value, 10);
+					if (Number.isFinite(n)) onChange(Math.min(Math.max(1, n), max));
+				}}
+				className="h-full w-11 border-0 bg-transparent p-0 text-center font-mono text-[14px] tabular-nums text-nl-cacao [appearance:textfield] focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+			/>
+			<button type="button" className={step} onClick={() => onChange(Math.min(max, value + 1))} disabled={disabled || value >= max} aria-label={t("increase")}>
+				<Plus className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
+			</button>
 		</div>
 	);
 }

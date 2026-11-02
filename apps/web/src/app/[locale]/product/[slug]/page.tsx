@@ -1,3 +1,4 @@
+import { findCategoryPath, primaryCategoryId, rootCategoryIndex } from "@/components/product/pdp-data";
 import { RecordView } from "@/components/product/record-view";
 import { TTL, publicGet } from "@/lib/api-public";
 import { absoluteUrl, buildAlternates } from "@/lib/seo/alternates";
@@ -108,11 +109,9 @@ export default async function ProductDetailPage({ params }: Props) {
 		vendor_verification_type: vendor?.verified_at
 			? ("verified_vendor" as const)
 			: undefined,
-		// Category path (not available in current API, use empty)
-		category: raw.productCategories?.[0] ? { path: [] } : null,
 	};
 
-	const [questions, siteSettings, shippingZoneRates, colorGroup] =
+	const [questions, siteSettings, shippingZoneRates, colorGroup, categoryTree] =
 		await Promise.all([
 			publicGet<unknown[]>(`/products/${product.id}/questions`, {
 				revalidate: TTL.productDetail,
@@ -137,10 +136,25 @@ export default async function ProductDetailPage({ params }: Props) {
 				revalidate: TTL.productDetail,
 				tags: [`product:${slug}`],
 			}),
+			// The product payload carries only a category id; the tree gives its
+			// name, its path for the breadcrumb and its top-level stock colour.
+			// biome-ignore lint/suspicious/noExplicitAny: untyped API response shape
+			publicGet<any[]>("/categories/tree", {
+				revalidate: TTL.categoryTree,
+				tags: ["categories"],
+				locale,
+			}),
 		]);
 
+	const categoryPath = findCategoryPath(categoryTree, primaryCategoryId(raw));
+	const leaf = categoryPath[categoryPath.length - 1];
+	const categoryIndex = rootCategoryIndex(categoryTree);
+	Object.assign(product, {
+		category: leaf ? { id: leaf.id, name: leaf.name, slug: leaf.slug, path: categoryPath } : null,
+	});
+
 	return (
-		<div className="bg-background min-h-screen">
+		<div className="min-h-screen bg-nl-linen">
 			<RecordView productId={product.id} />
 
 			<ProductDetailClient
@@ -155,6 +169,8 @@ export default async function ProductDetailPage({ params }: Props) {
 					shipping_policy: vendor?.shipping_policy ?? null,
 				}}
 				colorGroup={colorGroup ?? null}
+				categoryPath={categoryPath}
+				categoryIndex={categoryIndex}
 			/>
 
 			{/* JSON-LD Product */}
