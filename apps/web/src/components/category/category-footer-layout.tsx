@@ -21,10 +21,9 @@ export async function CategoryFooterLayout({
 	if (sections.length === 0) return null;
 
 	return (
-		<section className="border-t border-nl-cacao/10 bg-nl-pearl/40 py-10 md:py-16">
-			<div className="md:max-w-[1400px] md:mx-auto md:px-8">
-				<LayoutRenderer sections={sections} />
-			</div>
+		// Already inside the page container, so no width or gutter of its own.
+		<section className="border-t border-nl-cacao/12 pt-10 md:pt-14">
+			<LayoutRenderer sections={sections} />
 		</section>
 	);
 }

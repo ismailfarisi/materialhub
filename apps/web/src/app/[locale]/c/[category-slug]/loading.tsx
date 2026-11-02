@@ -1,51 +1,25 @@
+import { ListingBodySkeleton } from "@/components/product/listing-skeleton";
+
+/**
+ * Category landing while it loads: the breadcrumb line, the band's footprint in
+ * a neutral tone (the stock colour is not known until the category resolves —
+ * showing the wrong one would misfile the page), then the rail and grid.
+ */
 export default function CategoryLoading() {
-  return (
-    <div className="container py-4 animate-pulse">
-      <div className="flex gap-2 mb-4">
-        <div className="h-3 w-16 rounded bg-muted" />
-        <div className="h-3 w-3 rounded bg-muted" />
-        <div className="h-3 w-32 rounded bg-muted" />
-      </div>
-
-      <div className="aspect-[16/6] w-full rounded-2xl bg-muted mb-6" />
-
-      <div className="flex gap-2 overflow-hidden py-4">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="h-8 w-24 shrink-0 rounded-full bg-muted" />
-        ))}
-      </div>
-
-      <div className="flex flex-col lg:flex-row gap-6 mt-2">
-        <div className="hidden lg:block w-60 shrink-0 space-y-6">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="space-y-2">
-              <div className="h-5 w-32 rounded bg-muted" />
-              <div className="space-y-1.5">
-                {Array.from({ length: 5 }).map((_, j) => (
-                  <div key={j} className="h-4 w-full rounded bg-muted" />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex-1">
-          <div className="flex justify-between items-center mb-4">
-            <div className="h-5 w-32 rounded bg-muted" />
-            <div className="h-9 w-40 rounded bg-muted" />
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-            {Array.from({ length: 12 }).map((_, i) => (
-              <div key={i} className="space-y-2">
-                <div className="aspect-square rounded-xl bg-muted" />
-                <div className="h-4 w-3/4 rounded bg-muted" />
-                <div className="h-3 w-1/2 rounded bg-muted" />
-                <div className="h-4 w-1/3 rounded bg-muted" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+	return (
+		<div
+			className="mx-auto max-w-[1400px] px-4 pb-4 md:px-8"
+			aria-busy="true"
+			aria-live="polite"
+		>
+			<div className="animate-pulse motion-reduce:animate-none">
+				<div className="flex h-11 items-center gap-2.5 pt-2">
+					<div className="h-3 w-12 rounded-sm bg-nl-cacao/[0.08]" />
+					<div className="h-3 w-24 rounded-sm bg-nl-cacao/[0.08]" />
+				</div>
+				<div className="mt-1 mb-6 h-[220px] rounded-md bg-nl-cacao/[0.08] md:mb-8 md:h-[300px]" />
+			</div>
+			<ListingBodySkeleton />
+		</div>
+	);
 }

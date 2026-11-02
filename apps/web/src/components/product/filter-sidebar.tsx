@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition } from "react";
+import { clearedHref } from "./active-filters-strip";
 import { FilterGroups } from "./filter-groups";
 import type { FacetConfig, FilterDraft } from "./filter-state";
 
@@ -16,7 +17,7 @@ function readDraft(searchParams: URLSearchParams): FilterDraft {
 }
 
 export function FilterSidebar({ config }: { config: FacetConfig }) {
-	const t = useTranslations("category");
+	const t = useTranslations("browse");
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const [isPending, startTransition] = useTransition();
@@ -52,35 +53,53 @@ export function FilterSidebar({ config }: { config: FacetConfig }) {
 	);
 
 	const clearAll = useCallback(() => {
-		setDraft({});
+		const href = clearedHref(searchParams);
+		setDraft(readDraft(new URLSearchParams(href.slice(1))));
 		startTransition(() => {
-			router.replace("?", { scroll: false });
+			router.replace(href, { scroll: false });
 		});
-	}, [router]);
+	}, [router, searchParams]);
+
+	const hasFilters = Object.keys(draft).some(
+		(k) => !["sort", "q", "view"].includes(k),
+	);
 
 	return (
 		<aside
-			className="scrollbar-nl hidden w-full shrink-0 pb-20 pe-1 lg:sticky lg:top-24 lg:block lg:max-h-[calc(100vh-6rem)] lg:w-64 lg:overflow-y-auto"
+			className="scrollbar-nl hidden shrink-0 pb-16 pe-2 lg:sticky lg:top-[8.75rem] lg:block lg:max-h-[calc(100vh-9.75rem)] lg:w-[264px] lg:overflow-y-auto"
 			aria-label={t("filters")}
+			aria-busy={isPending || undefined}
 			data-pending={isPending ? "true" : undefined}
 		>
-			<div className="flex items-baseline justify-between pt-1 pb-1">
-				<span className="font-serif text-2xl text-nl-cacao">Refine</span>
-				<button
-					type="button"
-					onClick={clearAll}
-					className="text-[10px] uppercase tracking-[0.22em] text-nl-russet hover:text-nl-cacao"
-				>
-					{t("clearAll")}
-				</button>
+			<div className="flex h-10 items-center justify-between gap-3">
+				<h2 className="m-0 font-display text-[17px] font-semibold tracking-[-0.01em] text-nl-cacao">
+					{t("filters")}
+				</h2>
+				{hasFilters && (
+					<button
+						type="button"
+						onClick={clearAll}
+						className="h-8 rounded-sm px-1 text-[13px] font-medium text-nl-russet underline decoration-nl-cacao/20 underline-offset-4 transition-colors hover:text-nl-cacao hover:decoration-nl-cacao focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
+					>
+						{t("clearAll")}
+					</button>
+				)}
 			</div>
 
-			<FilterGroups
-				config={config}
-				draft={draft}
-				setDraft={commit}
-				layout="vertical"
-			/>
+			<div
+				className={
+					isPending
+						? "opacity-70 transition-opacity duration-150"
+						: "transition-opacity duration-150"
+				}
+			>
+				<FilterGroups
+					config={config}
+					draft={draft}
+					setDraft={commit}
+					layout="vertical"
+				/>
+			</div>
 		</aside>
 	);
 }

@@ -7,33 +7,33 @@ import {
 
 describe("buildListingParams", () => {
 	it("maps ?page to the backend's cursor param", () => {
-		const params = buildListingParams("fragrance", { page: "3" });
+		const params = buildListingParams("papers-boards", { page: "3" });
 		expect(params.cursor).toBe("3");
 		expect(params).not.toHaveProperty("page");
 	});
 
 	it("maps ?sort to the backend's sortBy param", () => {
-		const params = buildListingParams("fragrance", { sort: "price_asc" });
+		const params = buildListingParams("papers-boards", { sort: "price_asc" });
 		expect(params.sortBy).toBe("price_asc");
 		expect(params).not.toHaveProperty("sort");
 	});
 
 	it("omits cursor/sortBy when neither paginating nor sorting", () => {
-		const params = buildListingParams("fragrance", {});
+		const params = buildListingParams("papers-boards", {});
 		expect(params).not.toHaveProperty("cursor");
 		expect(params).not.toHaveProperty("sortBy");
-		expect(params).toMatchObject({ category: "fragrance", limit: 24 });
+		expect(params).toMatchObject({ category: "papers-boards", limit: 24 });
 	});
 
 	it("forwards filter params alongside the translated ones and converts price to fils", () => {
-		const params = buildListingParams("fragrance", {
+		const params = buildListingParams("papers-boards", {
 			brand: "ajmal",
 			minPrice: "200",
 			page: "2",
 			sort: "rating",
 		});
 		expect(params).toMatchObject({
-			category: "fragrance",
+			category: "papers-boards",
 			limit: 24,
 			brand: "ajmal",
 			// storefront AED (200) → backend fils (20000)
@@ -44,7 +44,7 @@ describe("buildListingParams", () => {
 	});
 
 	it("converts minPrice/maxPrice from AED to fils, rounding fractional AED", () => {
-		const params = buildListingParams("fragrance", {
+		const params = buildListingParams("papers-boards", {
 			minPrice: "50",
 			maxPrice: "199.99",
 		});
@@ -53,29 +53,29 @@ describe("buildListingParams", () => {
 	});
 
 	it("drops a non-numeric price param instead of forwarding NaN", () => {
-		const params = buildListingParams("fragrance", { minPrice: "abc" });
+		const params = buildListingParams("papers-boards", { minPrice: "abc" });
 		expect(params).not.toHaveProperty("minPrice");
 	});
 
 	it("respects a custom page size", () => {
-		const params = buildListingParams("fragrance", {}, 48);
+		const params = buildListingParams("papers-boards", {}, 48);
 		expect(params.limit).toBe(48);
 	});
 
 	it("includes the route locale for backend localization", () => {
-		const params = buildListingParams("fragrance", {}, 24, "ar");
+		const params = buildListingParams("papers-boards", {}, 24, "ar");
 		expect(params.locale).toBe("ar");
 	});
 });
 
 describe("buildSearchListingParams", () => {
 	it("maps ?page to cursor and ?sort to sortBy, like category listings", () => {
-		const params = buildSearchListingParams("lip", {
+		const params = buildSearchListingParams("kraft", {
 			page: "2",
 			sort: "rating",
 		});
 		expect(params).toMatchObject({
-			q: "lip",
+			q: "kraft",
 			limit: 24,
 			cursor: "2",
 			sortBy: "rating",
@@ -86,18 +86,18 @@ describe("buildSearchListingParams", () => {
 
 	it("sets q from the explicit query and never duplicates the URL's q param", () => {
 		// `q` lives in the URL too; the explicit query argument must win.
-		const params = buildSearchListingParams("lipstick", { q: "lip" });
-		expect(params.q).toBe("lipstick");
+		const params = buildSearchListingParams("kraft paper", { q: "kraft" });
+		expect(params.q).toBe("kraft paper");
 	});
 
 	it("forwards filter params alongside the translated ones and converts price to fils", () => {
-		const params = buildSearchListingParams("lip", {
+		const params = buildSearchListingParams("kraft", {
 			brand: "ajmal",
 			minPrice: "200",
 			page: "3",
 		});
 		expect(params).toMatchObject({
-			q: "lip",
+			q: "kraft",
 			limit: 24,
 			brand: "ajmal",
 			minPrice: 20000,
@@ -106,13 +106,13 @@ describe("buildSearchListingParams", () => {
 	});
 
 	it("omits cursor/sortBy when neither paginating nor sorting", () => {
-		const params = buildSearchListingParams("lip", {});
+		const params = buildSearchListingParams("kraft", {});
 		expect(params).not.toHaveProperty("cursor");
 		expect(params).not.toHaveProperty("sortBy");
 	});
 
 	it("includes the route locale for backend localization", () => {
-		const params = buildSearchListingParams("lip", {}, 24, "ar");
+		const params = buildSearchListingParams("kraft", {}, 24, "ar");
 		expect(params.locale).toBe("ar");
 	});
 });
@@ -124,7 +124,7 @@ describe("in-stock default", () => {
 	});
 
 	it("hides sold-out products on brand listings by default", () => {
-		const params = buildBrandListingParams("ouai", {});
+		const params = buildBrandListingParams("gulf-board", {});
 		expect(params.inStock).toBe("true");
 	});
 

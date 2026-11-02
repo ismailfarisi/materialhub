@@ -1,62 +1,82 @@
 "use client";
 
+import { PriceTag } from "@/components/swatch";
 import type { RailProduct } from "@/lib/queries/recommendations";
-import { cn, formatPrice } from "@/lib/utils";
+import { useLocale, useTranslations } from "next-intl";
 import Image from "next/image";
 import Link from "next/link";
 
 interface RailCardProps {
-  item: RailProduct;
-  /** Set to true on the bestsellers rail for the currently-viewed product. */
-  isViewing?: boolean;
-  /** Override the eyebrow line — defaults to vendor/brand name. */
-  eyebrow?: string;
-  /** Set on dark-mode rails so text contrasts. */
-  dark?: boolean;
-  /** Optional locale prefix for the product link. */
-  localePrefix?: string;
+	item: RailProduct;
+	/** Set to true on the bestsellers rail for the currently-viewed product. */
+	isViewing?: boolean;
+	/** Override the supplier line — defaults to brand, then vendor name. */
+	eyebrow?: string;
+	/** Kept for API compatibility; cards are white stock on any band. */
+	dark?: boolean;
+	/** Optional locale prefix for the product link (defaults to the current locale). */
+	localePrefix?: string;
 }
 
-export function RailCard({ item, isViewing, eyebrow, dark, localePrefix = "" }: RailCardProps) {
-  const image = item.images?.[0];
-  const eyebrowText =
-    eyebrow ?? item.brand?.name ?? item.vendor?.business_name ?? item.vendor?.name ?? null;
+/**
+ * Compact product card for rails. Recommendation payloads carry no category
+ * name, so the card has no stock tab (a guessed stock would misfile it); it is
+ * otherwise a swatch card: image well, supplier, name, price.
+ */
+export function RailCard({ item, isViewing, eyebrow, localePrefix }: RailCardProps) {
+	const locale = useLocale();
+	const t = useTranslations("common");
+	const tb = useTranslations("browse");
+	const image = item.images?.[0];
+	const supplier =
+		eyebrow ?? item.brand?.name ?? item.vendor?.business_name ?? item.vendor?.name ?? null;
+	const href = `${localePrefix ?? `/${locale}`}/product/${item.slug}`;
+	const compareAt =
+		typeof item.compare_at_price === "number" && item.compare_at_price > item.price
+			? item.compare_at_price
+			: null;
 
-  const href = `${localePrefix}/product/${item.slug}`;
-
-  const cardText = dark ? "text-nl-linen" : "text-nl-cacao";
-  const eyebrowColor = dark ? "text-nl-amber" : "text-nl-russet";
-  const priceColor = dark ? "text-nl-pearl" : "text-nl-russet";
-
-  return (
-    <Link href={href} className="flex-shrink-0 w-[252px] block group" aria-label={item.name}>
-      <div className="relative aspect-[4/5] overflow-hidden mb-4 bg-nl-russet/30">
-        {image?.url ? (
-          <Image
-            src={image.url}
-            alt={image.alt_text ?? item.name}
-            fill
-            sizes="252px"
-            className="object-cover transition-transform duration-500 group-hover:scale-[1.02]"
-          />
-        ) : null}
-        {isViewing && (
-          <div className="absolute top-3 left-3 px-2.5 py-1 bg-nl-amber text-nl-espresso text-[9px] tracking-[0.22em] uppercase">
-            You&apos;re viewing
-          </div>
-        )}
-      </div>
-
-      {eyebrowText && (
-        <div className={cn("text-[9px] tracking-[0.22em] uppercase mb-2", eyebrowColor)}>
-          {eyebrowText}
-        </div>
-      )}
-      <div className={cn("font-serif text-xl leading-tight mb-2", cardText)}>{item.name}</div>
-      <div className="h-px w-7 bg-nl-amber mb-2.5" />
-      <div className={cn("text-xs tracking-wider", priceColor)}>
-        {formatPrice(item.price, "AED")}
-      </div>
-    </Link>
-  );
+	return (
+		<Link
+			href={href}
+			className="group flex h-full flex-col overflow-hidden rounded-md bg-nl-pearl shadow-card transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lift focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+		>
+			<div className="relative aspect-[4/3] overflow-hidden bg-nl-linen">
+				{image?.url ? (
+					<Image
+						src={image.url}
+						alt={image.alt_text ?? item.name}
+						fill
+						sizes="252px"
+						className="object-cover transition-transform duration-500 group-hover:scale-[1.03] motion-reduce:transition-none"
+					/>
+				) : (
+					<span className="mill-label absolute inset-0 grid place-items-center text-nl-russet/70">
+						{t("noImage")}
+					</span>
+				)}
+				{isViewing && (
+					<span className="mill-label absolute top-2.5 start-2.5 inline-flex h-6 items-center rounded-sm bg-nl-cacao px-2 text-white">
+						{tb("viewing")}
+					</span>
+				)}
+				{item.in_stock === false && (
+					<span className="mill-label absolute inset-x-0 bottom-0 bg-nl-cacao/85 py-1.5 text-center text-white">
+						{t("outOfStock")}
+					</span>
+				)}
+			</div>
+			<div className="flex flex-1 flex-col gap-1.5 p-3.5">
+				{supplier && (
+					<span className="truncate text-[12.5px] text-nl-russet">{supplier}</span>
+				)}
+				<span className="font-display text-[15px] font-semibold leading-[1.25] tracking-[-0.01em] text-nl-cacao line-clamp-2">
+					{item.name}
+				</span>
+				<div className="mt-auto border-t border-dashed border-nl-cacao/15 pt-2">
+					<PriceTag amount={item.price} locale={locale} compareAt={compareAt} size="sm" />
+				</div>
+			</div>
+		</Link>
+	);
 }

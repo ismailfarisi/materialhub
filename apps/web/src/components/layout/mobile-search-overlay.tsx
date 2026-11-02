@@ -20,6 +20,7 @@ interface Props {
 
 export function MobileSearchOverlay({ open, onClose, tabs }: Props) {
 	const t = useTranslations("common");
+	const tb = useTranslations("browse");
 	const locale = useLocale();
 	const router = useRouter();
 	const [query, setQuery] = useState("");
@@ -66,19 +67,26 @@ export function MobileSearchOverlay({ open, onClose, tabs }: Props) {
 		data.products.length + data.categories.length + data.brands.length > 0;
 	const hasRecents = !!recents?.length;
 
+	const iconButton =
+		"inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-nl-cacao hover:bg-nl-cacao/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber";
+
 	return (
-		<div className="fixed inset-0 z-50 bg-background flex flex-col">
-			<div className="sticky top-0 bg-background border-b border-border/50 flex items-center gap-2 px-3 py-2">
-				<button
-					type="button"
-					onClick={onClose}
-					aria-label={t("back")}
-					className="p-2 rounded-full hover:bg-muted"
-				>
-					<ArrowLeft className="h-5 w-5" />
+		<dialog
+			open
+			aria-modal="true"
+			aria-label={t("search")}
+			className="fixed inset-0 z-50 m-0 flex h-full w-full max-w-none flex-col bg-nl-linen p-0 text-nl-cacao"
+		>
+			<div className="sticky top-0 flex items-center gap-1 border-b border-nl-cacao/12 bg-nl-linen px-2 py-2">
+				<button type="button" onClick={onClose} aria-label={t("back")} className={iconButton}>
+					<ArrowLeft className="h-5 w-5 rtl:rotate-180" strokeWidth={1.75} />
 				</button>
 				<form onSubmit={handleSubmit} className="relative flex-1">
-					<Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
+					<Search
+						aria-hidden="true"
+						className="pointer-events-none absolute start-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-nl-russet"
+						strokeWidth={1.75}
+					/>
 					{/*
 					 * text-base (16px) is deliberate: iOS Safari auto-zooms into any
 					 * focused input under 16px, and this input auto-focuses on open —
@@ -89,30 +97,33 @@ export function MobileSearchOverlay({ open, onClose, tabs }: Props) {
 						type="text"
 						value={query}
 						onChange={(e) => setQuery(e.target.value)}
-						placeholder={`${t("search")}...`}
-						className="w-full bg-muted/50 border border-border/50 rounded-full ps-10 pr-4 py-2 text-base outline-none focus:bg-background focus:border-primary/30"
+						placeholder={`${t("search")}`}
+						aria-label={t("search")}
+						enterKeyHint="search"
+						className="h-12 w-full rounded-md border border-nl-cacao/15 bg-nl-pearl ps-10 pe-11 text-base text-nl-cacao outline-none transition-colors placeholder:text-nl-russet hover:border-nl-cacao/35 focus:border-nl-cacao"
 					/>
+					{query && (
+						<button
+							type="button"
+							onClick={() => {
+								setQuery("");
+								inputRef.current?.focus();
+							}}
+							aria-label={t("clear")}
+							className="absolute end-0.5 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-md text-nl-russet hover:text-nl-cacao"
+						>
+							<X className="h-4 w-4" strokeWidth={2} />
+						</button>
+					)}
 				</form>
-				{query && (
-					<button
-						type="button"
-						onClick={() => {
-							setQuery("");
-							inputRef.current?.focus();
-						}}
-						aria-label={t("clear")}
-						className="p-2 rounded-full hover:bg-muted"
-					>
-						<X className="h-5 w-5" />
-					</button>
-				)}
 			</div>
-			<div className="flex-1 overflow-y-auto p-2">
+			<div className="flex-1 overflow-y-auto overscroll-contain">
 				{hasAnyResults && data ? (
 					<SearchAutocompleteResults
 						data={data}
 						query={query}
 						activeIndex={-1}
+						inline
 						onSelect={() => {
 							recordSearch(query);
 							onClose();
@@ -121,39 +132,52 @@ export function MobileSearchOverlay({ open, onClose, tabs }: Props) {
 				) : query.trim().length < 2 ? (
 					<>
 						<EmptySearchState
+							inline
 							onSelect={onClose}
-							categories={tabs?.map((tab) => ({ label: tab.label, href: tab.href }))}
+							categories={tabs?.map((tab) => ({
+								label: tab.label,
+								href: tab.href,
+								isCategory: tab.kind === "category",
+							}))}
 						/>
 						{!hasRecents && !tabs?.length && (
-							<div className="text-center text-sm text-muted-foreground/70 py-12">
+							<p className="m-0 px-4 py-12 text-center text-[14px] text-nl-russet">
 								{t("searchHint")}
-							</div>
+							</p>
 						)}
 					</>
-				) : (
-					<div className="text-center text-sm text-muted-foreground/70 py-12">
-						{t("noResultsFor", { query })}
-						{data?.did_you_mean && (
-							<div className="mt-2">
-								Did you mean{" "}
-								<button
-									type="button"
-									className="text-primary hover:underline"
-									onMouseDown={() => {
-										const suggestion = data.did_you_mean ?? "";
-										router.push(
-											`/${locale}/search?q=${encodeURIComponent(suggestion)}`,
-										);
-										onClose();
-									}}
-								>
-									&ldquo;{data.did_you_mean}&rdquo;
-								</button>?
-							</div>
+				) : data ? (
+					<div className="grid gap-1 px-4 py-10 text-center text-[14px]" aria-live="polite">
+						<p className="m-0 font-medium text-nl-cacao">
+							{tb("noResultsTitle", { query: query.trim() })}
+						</p>
+						{data.did_you_mean ? (
+							<p className="m-0 text-nl-russet">
+								{tb.rich("didYouMean", {
+									suggestion: data.did_you_mean,
+									link: (chunks) => (
+										<button
+											type="button"
+											className="font-medium text-nl-cacao underline decoration-nl-cacao/30 underline-offset-4"
+											onMouseDown={() => {
+												const suggestion = data.did_you_mean ?? "";
+												router.push(
+													`/${locale}/search?q=${encodeURIComponent(suggestion)}`,
+												);
+												onClose();
+											}}
+										>
+											{chunks}
+										</button>
+									),
+								})}
+							</p>
+						) : (
+							<p className="m-0 text-nl-russet">{tb("noResultsShortHint")}</p>
 						)}
 					</div>
-				)}
+				) : null}
 			</div>
-		</div>
+		</dialog>
 	);
 }

@@ -1,39 +1,20 @@
+import { ListingBodySkeleton } from "@/components/product/listing-skeleton";
+
 export default function SearchLoading() {
-  return (
-    <div className="container py-4 animate-pulse">
-      <div className="h-7 w-72 rounded bg-muted mb-4" />
-
-      <div className="flex flex-col lg:flex-row gap-6 mt-2">
-        <div className="hidden lg:block w-60 shrink-0 space-y-6">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="space-y-2">
-              <div className="h-5 w-32 rounded bg-muted" />
-              <div className="space-y-1.5">
-                {Array.from({ length: 5 }).map((_, j) => (
-                  <div key={j} className="h-4 w-full rounded bg-muted" />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex-1">
-          <div className="flex justify-between items-center mb-4">
-            <div className="h-5 w-32 rounded bg-muted" />
-            <div className="h-9 w-40 rounded bg-muted" />
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-            {Array.from({ length: 12 }).map((_, i) => (
-              <div key={i} className="space-y-2">
-                <div className="aspect-square rounded-xl bg-muted" />
-                <div className="h-4 w-3/4 rounded bg-muted" />
-                <div className="h-3 w-1/2 rounded bg-muted" />
-                <div className="h-4 w-1/3 rounded bg-muted" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+	return (
+		<div
+			className="mx-auto max-w-[1400px] px-4 pb-4 md:px-8"
+			aria-busy="true"
+			aria-live="polite"
+		>
+			<div className="animate-pulse pt-2 pb-6 motion-reduce:animate-none md:pb-8">
+				<div className="flex h-11 items-center gap-2.5">
+					<div className="h-3 w-12 rounded-sm bg-nl-cacao/[0.08]" />
+					<div className="h-3 w-16 rounded-sm bg-nl-cacao/[0.08]" />
+				</div>
+				<div className="mt-1 h-9 w-72 max-w-full rounded-sm bg-nl-cacao/[0.09]" />
+			</div>
+			<ListingBodySkeleton wide />
+		</div>
+	);
 }

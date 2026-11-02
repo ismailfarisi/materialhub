@@ -33,7 +33,7 @@ const MAX_LINKED_BRANDS = 8;
  * Crawlable copy at the foot of a product listing: what the listing holds, what
  * it costs, which brands are in it, and the questions a shopper asks before
  * buying. A listing page whose only text is product-card titles gives Google
- * almost nothing to match a query like "how much is lipstick in the UAE"
+ * almost nothing to match a query like "how much is greyboard in the UAE"
  * against, and nothing to rank on beyond the category name itself.
  *
  * Every sentence is generated from live data — count, price floor, brand facets,
@@ -64,16 +64,16 @@ export async function ListingSeoContent({
 		variant === "category" ? facts.brands.slice(0, MAX_LINKED_BRANDS) : [];
 
 	return (
-		<section className="border-t border-nl-cacao/10 px-2 py-10 md:px-8 md:py-14">
-			<div className="grid gap-10 md:mx-auto md:max-w-[1400px] md:grid-cols-2 md:gap-16">
+		<section className="mt-14 border-t border-nl-cacao/12 pt-10 pb-6 md:mt-20 md:pt-14">
+			<div className="grid gap-10 md:grid-cols-2 md:gap-16">
 				{hasFacts && (
 					<div>
-						<h2 className="font-serif text-[26px] leading-tight text-nl-cacao md:text-[32px]">
+						<h2 className="m-0 font-display text-[clamp(1.375rem,2.6vw,2rem)] font-semibold leading-[1.08] tracking-[-0.02em] text-nl-cacao">
 							{t("seo.aboutHeading", { entity: entityName })}
 						</h2>
 
-						<div className="mt-4 space-y-3 text-[15px] leading-relaxed text-nl-cacao/75">
-							<p>
+						<div className="mt-4 grid max-w-[65ch] gap-3 text-[15px] leading-relaxed text-nl-russet">
+							<p className="m-0">
 								{t(INTRO_KEY[variant], {
 									entity: entityName,
 									count: facts.total,
@@ -82,7 +82,7 @@ export async function ListingSeoContent({
 							</p>
 
 							{facts.minPriceFils !== null && (
-								<p>
+								<p className="m-0">
 									{t("seo.aboutPrice", {
 										entity: entityName,
 										price: formatAedForLocale(facts.minPriceFils, locale),
@@ -94,20 +94,21 @@ export async function ListingSeoContent({
 
 						{linkedBrands.length > 0 && (
 							<div className="mt-7">
-								<span className="block text-[10px] uppercase tracking-[0.3em] text-nl-russet">
+								<h3 className="mill-label m-0 text-nl-russet">
 									{t("seo.brandsHeading")}
-								</span>
-								<div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
+								</h3>
+								<ul className="m-0 mt-3 flex list-none flex-wrap gap-2 p-0">
 									{linkedBrands.map((brand) => (
-										<Link
-											key={brand.value}
-											href={`/${locale}/brand/${brand.value}`}
-											className="text-[13px] text-nl-cacao/80 underline decoration-nl-cacao/20 underline-offset-4 transition-colors hover:text-nl-cacao hover:decoration-nl-amber"
-										>
-											{brand.label}
-										</Link>
+										<li key={brand.value}>
+											<Link
+												href={`/${locale}/brand/${brand.value}`}
+												className="inline-flex h-9 items-center rounded-sm border border-nl-cacao/15 bg-nl-pearl px-3 text-[13.5px] text-nl-cacao transition-colors hover:border-nl-cacao/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
+											>
+												{brand.label}
+											</Link>
+										</li>
 									))}
-								</div>
+								</ul>
 							</div>
 						)}
 					</div>
@@ -115,17 +116,17 @@ export async function ListingSeoContent({
 
 				{faq.length > 0 && (
 					<div>
-						<h2 className="font-serif text-[26px] leading-tight text-nl-cacao md:text-[32px]">
+						<h2 className="m-0 font-display text-[clamp(1.375rem,2.6vw,2rem)] font-semibold leading-[1.08] tracking-[-0.02em] text-nl-cacao">
 							{t("seo.faqHeading")}
 						</h2>
 
-						<dl className="mt-4 divide-y divide-nl-cacao/10 border-t border-nl-cacao/10">
+						<dl className="m-0 mt-4 border-t-2 border-nl-cacao">
 							{faq.map((entry) => (
-								<div key={entry.question} className="py-4">
-									<dt className="text-[14px] font-medium text-nl-cacao">
+								<div key={entry.question} className="border-b border-nl-cacao/12 py-4">
+									<dt className="font-display text-[15.5px] font-semibold leading-snug tracking-[-0.01em] text-nl-cacao">
 										{entry.question}
 									</dt>
-									<dd className="mt-1.5 text-[15px] leading-relaxed text-nl-cacao/75">
+									<dd className="m-0 mt-1.5 max-w-[65ch] text-[15px] leading-relaxed text-nl-russet">
 										{entry.answer}
 									</dd>
 								</div>

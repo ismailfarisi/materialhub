@@ -8,35 +8,35 @@ vi.useFakeTimers();
 const tab: NavTab = {
   id: "t1",
   kind: "category",
-  label: "Makeup",
-  href: "/c/makeup",
-  subcategories: [{ label: "Lipstick", href: "/c/lipstick" }],
+  label: "Papers & Boards",
+  href: "/c/papers-boards",
+  subcategories: [{ label: "Art Papers", href: "/c/art-papers" }],
   brand_list: { title: "Brands", see_all_href: "/brands", brands: [] },
   promo_tiles: [],
 };
 
 describe("MegaMenuRoot", () => {
   it("opens panel after 100ms on tab hover", async () => {
-    document.body.innerHTML = `<div><a data-mega-tab-trigger data-tab-id="t1" href="/c/makeup">Makeup</a></div>`;
+    document.body.innerHTML = `<div><a data-mega-tab-trigger data-tab-id="t1" href="/c/papers-boards">Papers &amp; Boards</a></div>`;
     render(<MegaMenuRoot tabs={[tab]} />);
     const trigger = document.querySelector("[data-mega-tab-trigger]")!;
     fireEvent.mouseEnter(trigger);
-    expect(screen.queryByText("Lipstick")).not.toBeInTheDocument();
+    expect(screen.queryByText("Art Papers")).not.toBeInTheDocument();
     await act(async () => {
       vi.advanceTimersByTime(110);
     });
-    expect(screen.getByText("Lipstick")).toBeInTheDocument();
+    expect(screen.getByText("Art Papers")).toBeInTheDocument();
   });
 
   it("closes panel on Escape", async () => {
-    document.body.innerHTML = `<div><a data-mega-tab-trigger data-tab-id="t1" href="/c/makeup">Makeup</a></div>`;
+    document.body.innerHTML = `<div><a data-mega-tab-trigger data-tab-id="t1" href="/c/papers-boards">Papers &amp; Boards</a></div>`;
     render(<MegaMenuRoot tabs={[tab]} />);
     fireEvent.mouseEnter(document.querySelector("[data-mega-tab-trigger]")!);
     await act(async () => {
       vi.advanceTimersByTime(110);
     });
-    expect(screen.getByText("Lipstick")).toBeInTheDocument();
+    expect(screen.getByText("Art Papers")).toBeInTheDocument();
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByText("Lipstick")).not.toBeInTheDocument();
+    expect(screen.queryByText("Art Papers")).not.toBeInTheDocument();
   });
 });
