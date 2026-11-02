@@ -1,108 +1,111 @@
-import type { Metadata } from "next";
+import { SpecTable } from "@/components/content/spec-table";
 import {
 	StaticPageLayout,
 	StaticSection,
+	contentsFrom,
 } from "@/components/layout/static-page-layout";
+import type { Metadata } from "next";
+import { getLocale } from "next-intl/server";
+import Link from "next/link";
 
 export const metadata: Metadata = {
-	title: "Returns & Refunds — MaterialHub",
+	title: "Returns and refunds | MaterialHub",
 	description:
-		"MaterialHub's 7-day returns policy: what you can return, how to start a return, refund times and exclusions.",
+		"Request a return within 7 days of delivery: what qualifies, how to start a return, what happens next and how refunds are paid.",
 };
 
-export default function ReturnsPage() {
+const HEADINGS = [
+	"What you can return",
+	"What can’t be returned",
+	"How to start a return",
+	"What happens next",
+	"Refunds",
+	"Damaged or wrong items",
+];
+
+export default async function ReturnsPage() {
+	const locale = await getLocale();
+	const [can, cannot, start, next, refunds, damaged] = HEADINGS;
 	return (
 		<StaticPageLayout
-			eyebrow="Returns"
-			title="Seven days to change your mind."
-			intro="If something isn't quite right, you have 7 days from delivery to return it. We pay the pickup if the item is faulty, mis-shipped or damaged in transit."
+			contentLang="en"
+			eyebrow="Help"
+			title="Returns and refunds"
+			intro="You have 7 days from delivery to request a return. Start it from your order, and the supplier who sold the item handles it with us."
+			label={[
+				{ label: "Return window", value: "7 days" },
+				{ label: "Counted from", value: "Delivery" },
+				{ label: "Start from", value: "My orders" },
+				{ label: "Refund to", value: "Original payment" },
+			]}
+			contents={contentsFrom(HEADINGS)}
 		>
-			<StaticSection heading="What you can return">
-				<ul className="list-disc ps-5 space-y-2">
-					<li>
-						Unopened, unused items in their original packaging, with all
-						seals intact.
-					</li>
-					<li>
-						Faulty, damaged or incorrectly delivered items, opened or
-						not.
-					</li>
+			<StaticSection heading={can}>
+				<ul>
+					<li>Unopened material in its original packaging, with seals and wrappers intact.</li>
+					<li>Anything that arrived damaged, faulty or not as described, opened or not.</li>
+					<li>The wrong item, colour, size or quantity.</li>
 				</ul>
 			</StaticSection>
 
-			<StaticSection heading="What we can't take back">
-				<ul className="list-disc ps-5 space-y-2">
+			<StaticSection heading={cannot}>
+				<ul>
 					<li>
-						Cut-to-size, opened or partially used materials — rolls, sheets
-						and adhesives once the packaging seal is broken.
+						Material that has been cut to size, opened or partly used: sheets,
+						rolls, cloth and leather once unwrapped, adhesives once the seal is
+						broken.
 					</li>
-					<li>Personalised, engraved or made-to-order items.</li>
-					<li>Digital vouchers.</li>
-					<li>
-						Sale items marked &ldquo;final sale&rdquo; on the product
-						page.
-					</li>
+					<li>Made-to-order, printed or personalised items.</li>
+					<li>Items marked &ldquo;final sale&rdquo; on the product page.</li>
 				</ul>
 			</StaticSection>
 
-			<StaticSection heading="How to start a return">
-				<ol className="list-decimal ps-5 space-y-2">
+			<StaticSection heading={start}>
+				<ol>
 					<li>
-						Go to{" "}
-						<a
-							href="account/orders"
-							className="text-nl-amber hover:underline"
-						>
-							My orders
-						</a>{" "}
-						and open the order you want to return.
+						Open <Link href={`/${locale}/account/orders`}>My orders</Link> and
+						choose the order.
 					</li>
-					<li>
-						Tap <strong>Return item</strong>, choose a reason and
-						upload a photo if the item is damaged.
-					</li>
-					<li>
-						Pick a pickup window — we collect from your shipping
-						address at no charge for faulty/wrong items, AED 19 for
-						change-of-mind.
-					</li>
-					<li>
-						Hand the item to the courier in its original packaging with
-						the printable return label.
-					</li>
+					<li>Select the items to return and the reason. Add details and photos if something arrived damaged.</li>
+					<li>Submit the request. You&rsquo;ll see its status on the order and in <Link href={`/${locale}/account/returns`}>Returns</Link>.</li>
 				</ol>
 			</StaticSection>
 
-			<StaticSection heading="Refunds">
+			<StaticSection heading={next}>
+				<SpecTable
+					caption="Return statuses"
+					columns={["Status", "What it means"]}
+					rows={[
+						["Requested", "Your request is with the supplier and MaterialHub."],
+						["Approved", "The return is accepted. You’ll get instructions to send it back."],
+						["Rejected", "The return doesn’t qualify. The reason is shown on the request."],
+						["Shipped back", "The item is on its way back to the supplier."],
+						["Received", "The supplier has the item and is checking its condition."],
+						["Refunded", "The refund has been issued to your original payment method."],
+					]}
+				/>
+			</StaticSection>
+
+			<StaticSection heading={refunds}>
 				<p>
-					Once your return reaches the vendor and passes a quick
-					condition check, your refund is issued within 24 hours and
-					lands back on the original payment method in 5–10 working
-					days. Refunds to MaterialHub Wallet credit are instant and worth
-					5% more.
+					Refunds go back to the payment method you used: your card, or your
+					Tabby or Tamara plan. For cash-on-delivery orders, the refund method
+					is shown on your return. How long a refund takes to show depends on
+					your bank or provider.
+				</p>
+				<p>
+					We don&rsquo;t swap items directly. Return the original and place a
+					new order for the one you need.
 				</p>
 			</StaticSection>
 
-			<StaticSection heading="Exchanges">
+			<StaticSection heading={damaged}>
 				<p>
-					We don&rsquo;t do swap-style exchanges — return the original
-					and place a new order at the current price. This keeps stock
-					and shipping clean across vendors.
-				</p>
-			</StaticSection>
-
-			<StaticSection heading="Damaged or wrong items">
-				<p>
-					Get in touch within 48 hours of delivery via{" "}
-					<a
-						href="mailto:help@materialhubuae.com"
-						className="text-nl-amber hover:underline"
-					>
-						help@materialhubuae.com
-					</a>{" "}
-					or the chat widget. Include your order number and a photo of
-					the issue. We&rsquo;ll arrange a free pickup and dispatch a
-					replacement or refund the same day.
+					Tell us as soon as you can, with your order number and a photo of the
+					problem, by starting a return or through{" "}
+					<Link href={`/${locale}/contact`}>customer care</Link>. You
+					won&rsquo;t pay to send back an item that arrived damaged, faulty or
+					wrong.
 				</p>
 			</StaticSection>
 		</StaticPageLayout>

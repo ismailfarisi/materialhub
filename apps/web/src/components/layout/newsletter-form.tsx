@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowRight, Check } from "lucide-react";
+import { Button } from "@/components/swatch";
+import { AlertCircle, ArrowRight, Check } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
 
 const SUBSCRIBED_FLAG = "materialhub:newsletter-subscribed";
 
 export function NewsletterForm() {
+	const t = useTranslations("content.newsletter");
 	const user = useAuthStore((s) => s.user);
 	const [email, setEmail] = useState("");
 	const [status, setStatus] = useState<
@@ -60,65 +63,60 @@ export function NewsletterForm() {
 	if (status === "just-subscribed" || status === "already-subscribed") {
 		return (
 			<div
-				className="w-full"
+				className="w-full flex items-start gap-3 rounded-md bg-nl-pearl shadow-card p-4"
 				{...(status === "just-subscribed"
 					? { role: "status", "aria-live": "polite" as const }
 					: {})}
 				data-state="newsletter-subscribed"
 			>
-				<div className="flex items-center gap-2.5 border-b border-nl-cacao pb-3">
-					<Check className="h-5 w-5 text-nl-cacao" strokeWidth={1.25} />
-					<span className="font-serif text-lg md:text-[22px] text-nl-cacao">
-						You're subscribed — welcome to the edit.
-					</span>
+				<span className="grid place-items-center h-6 w-6 shrink-0 rounded-sm bg-nl-cacao text-nl-pearl">
+					<Check className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+				</span>
+				<div className="grid gap-0.5">
+					<p className="m-0 text-[15px] font-medium text-nl-cacao">{t("subscribed")}</p>
+					<p className="m-0 text-[13px] text-nl-russet">{t("subscribedNote")}</p>
 				</div>
-				<p className="mt-5 text-[10.5px] tracking-[0.18em] uppercase text-nl-russet">
-					Check your inbox for a confirmation.
-				</p>
 			</div>
 		);
 	}
 
+	const invalid = status === "error";
 	return (
-		<form className="w-full" onSubmit={handleSubmit} aria-label="Newsletter signup">
-			<div className="flex items-end border-b border-nl-cacao pb-1">
+		<form className="w-full grid gap-2" onSubmit={handleSubmit} aria-label={t("label")}>
+			<label htmlFor="newsletter-email" className="text-[13px] font-medium text-nl-cacao">
+				{t("label")}
+			</label>
+			<div className="flex gap-2">
 				<input
+					id="newsletter-email"
 					type="email"
 					required
+					autoComplete="email"
 					value={email}
-					onChange={(e) => setEmail(e.target.value)}
-					placeholder="your@email.com"
-					aria-label="Email address"
-					className="flex-1 min-w-0 bg-transparent outline-none font-serif text-lg md:text-[22px] text-nl-cacao placeholder:text-nl-cacao/40 py-3"
+					onChange={(e) => {
+						setEmail(e.target.value);
+						if (invalid) setStatus("idle");
+					}}
+					placeholder={t("placeholder")}
+					aria-invalid={invalid || undefined}
+					aria-describedby={invalid ? "newsletter-error" : "newsletter-promise"}
+					className="h-12 flex-1 min-w-0 rounded-md border border-nl-cacao/15 bg-nl-pearl px-3.5 text-[15px] text-nl-cacao placeholder:text-nl-russet/80 transition-colors hover:border-nl-cacao/35 focus:border-nl-cacao focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber aria-[invalid=true]:border-red-700"
 				/>
-				<button
-					type="submit"
-					disabled={status === "submitting"}
-					className="inline-flex items-center gap-2.5 bg-nl-cacao text-nl-linen px-5 py-3.5 md:px-6 md:py-[14px] text-[10.5px] tracking-[0.22em] uppercase hover:bg-nl-espresso transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-				>
-					{status === "submitting" ? "Subscribing…" : "Subscribe"}
-					<ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" strokeWidth={1.25} />
-				</button>
+				<Button type="submit" size="lg" disabled={status === "submitting"}>
+					{status === "submitting" ? t("submitting") : t("submit")}
+					<ArrowRight className="h-4 w-4 rtl:rotate-180" strokeWidth={1.75} aria-hidden="true" />
+				</Button>
 			</div>
-			{status === "error" && (
-				<p className="mt-3 text-[10.5px] tracking-[0.18em] uppercase text-red-700" role="alert">
-					Something went wrong. Please try again.
+			{invalid ? (
+				<p id="newsletter-error" className="m-0 flex items-center gap-1.5 text-[13px] text-red-700" role="alert">
+					<AlertCircle className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+					{t("error")}
+				</p>
+			) : (
+				<p id="newsletter-promise" className="m-0 text-[13px] text-nl-russet">
+					{t("promise")}
 				</p>
 			)}
-			<div className="flex flex-wrap gap-4 md:gap-[18px] mt-5 text-[10.5px] tracking-[0.18em] uppercase text-nl-russet">
-				<span className="inline-flex items-center gap-1.5">
-					<Check className="h-3.5 w-3.5" strokeWidth={1.25} />
-					No spam
-				</span>
-				<span className="inline-flex items-center gap-1.5">
-					<Check className="h-3.5 w-3.5" strokeWidth={1.25} />
-					Unsubscribe anytime
-				</span>
-				<span className="inline-flex items-center gap-1.5">
-					<Check className="h-3.5 w-3.5" strokeWidth={1.25} />
-					38K subscribers
-				</span>
-			</div>
 		</form>
 	);
 }

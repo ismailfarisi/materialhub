@@ -1,82 +1,67 @@
-import type { Metadata } from "next";
 import {
 	StaticPageLayout,
 	StaticSection,
+	contentsFrom,
 } from "@/components/layout/static-page-layout";
+import { MillLabel } from "@/components/swatch";
+import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-	title: "Press & Media — MaterialHub",
+	title: "Press and media | MaterialHub",
 	description:
-		"Press contacts, brand assets and the MaterialHub story for journalists and partners.",
+		"Press contact, fact sheet and brand assets for journalists and partners writing about MaterialHub.",
 };
 
+const HEADINGS = ["The short version", "Fact sheet", "Press contact", "Brand assets"];
+
 const FACTS = [
-	{ k: "Founded", v: "2025, Dubai" },
-	{ k: "Headquarters", v: "Dubai, United Arab Emirates" },
-	{ k: "Markets", v: "UAE (Dubai, Abu Dhabi, Sharjah)" },
-	{ k: "Categories", v: "Papers · Boards · PU Leather · Hinges · Adhesives · Ribbons · Decoration" },
-	{ k: "Languages", v: "Arabic · English · Hindi · Urdu · Malayalam" },
-	{ k: "Marketplace model", v: "Multi-vendor B2B + B2C materials marketplace" },
+	{ label: "Company", value: "MaterialHub FZ-LLC" },
+	{ label: "Based in", value: "Dubai, UAE" },
+	{ label: "Market", value: "United Arab Emirates" },
+	{ label: "Model", value: "Multi-vendor marketplace, trade and retail" },
+	{ label: "Categories", value: "7" },
+	{ label: "Languages", value: "English, Arabic" },
+	{ label: "Payments", value: "Card, Tabby, Tamara, cash on delivery" },
 ];
 
 export default function PressPage() {
+	const [short, facts, contact, assets] = HEADINGS;
 	return (
 		<StaticPageLayout
-			eyebrow="Press"
-			title="Press, partnerships, and the MaterialHub story."
-			intro="For interviews, brand assets or partnership enquiries, our press team is one email away."
+			contentLang="en"
+			eyebrow="Company"
+			title="Press and media"
+			intro="For interviews, fact checks, brand assets or partnership enquiries, email us and tell us your outlet and deadline."
+			contents={contentsFrom(HEADINGS)}
 		>
-			<StaticSection heading="The short version">
+			<StaticSection heading={short}>
 				<p>
-					MaterialHub is a UAE-based multi-vendor materials marketplace. We work
-					directly with packaging, board, leather, hardware and craft suppliers —
-					regional mills and global manufacturers — to bring authentic stock
-					to Gulf customers with hyperlocal same-day delivery, Arabic-first
-					commerce, and BNPL options native to the region.
+					MaterialHub is a UAE marketplace for packaging, manufacturing,
+					finishing and craft materials. Suppliers list papers and boards, PU
+					and bonded leather, book cloth, hinges and magnets, adhesives, foils,
+					boxes and cartons, and ribbons and trims in one catalogue, by spec and
+					unit of measure. Trade buyers and craft shoppers compare suppliers and
+					order in one checkout.
 				</p>
 			</StaticSection>
 
-			<StaticSection heading="Fact sheet">
-				<div className="not-prose border border-nl-cacao/10 divide-y divide-nl-cacao/10 bg-white/40">
-					{FACTS.map((f) => (
-						<div
-							key={f.k}
-							className="grid grid-cols-[140px_1fr] md:grid-cols-[200px_1fr] gap-4 px-5 py-4 text-[14px]"
-						>
-							<dt className="text-[10px] tracking-[0.2em] uppercase text-nl-russet/80 self-center">
-								{f.k}
-							</dt>
-							<dd className="text-nl-cacao">{f.v}</dd>
-						</div>
-					))}
-				</div>
+			<StaticSection heading={facts}>
+				<MillLabel specs={FACTS} className="max-w-[640px] [&_dd]:text-start md:[&_dd]:text-end" />
 			</StaticSection>
 
-			<StaticSection heading="Media contacts">
+			<StaticSection heading={contact}>
 				<p>
-					Press, interviews and regional industry commentary, plus brand
-					partnerships and trade tie-ins:{" "}
-					<a
-						href="mailto:info@materialhubuae.com"
-						className="text-nl-amber hover:underline"
-					>
-						info@materialhubuae.com
-					</a>
+					Press, interviews, industry commentary and partnerships:{" "}
+					<a href="mailto:info@materialhubuae.com">info@materialhubuae.com</a>
 				</p>
 			</StaticSection>
 
-			<StaticSection heading="Brand assets">
+			<StaticSection heading={assets}>
 				<p>
-					Logo lockups, founder portraits and approved photography are
-					available on request. Please email{" "}
-					<a
-						href="mailto:info@materialhubuae.com"
-						className="text-nl-amber hover:underline"
-					>
-						info@materialhubuae.com
-					</a>{" "}
-					with your outlet and intended use and we&rsquo;ll send a kit
-					within one business day.
+					The MaterialHub wordmark and approved imagery are available on
+					request. Email{" "}
+					<a href="mailto:info@materialhubuae.com">info@materialhubuae.com</a>{" "}
+					with your outlet and how you plan to use them.
 				</p>
 			</StaticSection>
 		</StaticPageLayout>
