@@ -1,97 +1,146 @@
 "use client";
 
 import { CartItem } from "@/components/cart/cart-item";
+import {
+	type CartLineItem,
+	cartPieceCount,
+	cartSubtotalFils,
+	groupBySupplier,
+	isLineUnavailable,
+} from "@/components/cart/cart-lines";
+import { CartSkeleton } from "@/components/cart/cart-skeleton";
+import { CartSummary } from "@/components/cart/cart-summary";
+import { Button, FanDeck, PriceTag } from "@/components/swatch";
 import { useCart } from "@/lib/queries/cart";
-import { formatPrice } from "@/lib/utils";
+import { AlertCircle, ArrowRight, Search } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 export default function CartPage() {
 	const t = useTranslations("cart");
-	const tCommon = useTranslations("common");
 	const locale = useLocale();
-	const { data: cart, isLoading } = useCart();
+	const { data: cart, isLoading, isError, refetch, isRefetching } = useCart();
 
-	if (isLoading) {
+	// The cart query is often already resolved (header badge) before hydration;
+	// render the server's skeleton for the first client pass to match it.
+	const [mounted, setMounted] = useState(false);
+	useEffect(() => setMounted(true), []);
+
+	if (!mounted || isLoading) return <CartSkeleton />;
+
+	if (isError) {
 		return (
-			<div className="container py-20 text-center text-muted-foreground">
-				{tCommon("loading")}
+			<div className="mx-auto max-w-[1400px] px-4 py-16 md:px-8">
+				<div className="mx-auto grid max-w-md justify-items-start gap-3 rounded-md bg-nl-pearl p-6 shadow-card">
+					<AlertCircle className="h-6 w-6 text-destructive" strokeWidth={1.75} aria-hidden="true" />
+					<h1 className="m-0 font-display text-xl font-semibold tracking-[-0.01em] text-nl-cacao">
+						{t("loadErrorTitle")}
+					</h1>
+					<p className="m-0 text-[14px] text-nl-russet">{t("loadErrorBody")}</p>
+					<Button variant="primary" onClick={() => refetch()} disabled={isRefetching} className="mt-2">
+						{t("retry")}
+					</Button>
+				</div>
 			</div>
 		);
 	}
 
-	const items = cart?.items || [];
+	const items: CartLineItem[] = cart?.items ?? [];
 
 	if (items.length === 0) {
 		return (
-			<div className="container py-20 text-center">
-				<p className="text-muted-foreground mb-4">{t("empty")}</p>
-				<Link href={`/${locale}`} className="text-primary hover:underline">
-					{tCommon("continueShopping")}
-				</Link>
+			<div className="mx-auto max-w-[1400px] px-4 py-12 md:px-8 md:py-20">
+				<div className="mx-auto grid max-w-3xl items-center gap-8 md:grid-cols-[220px_1fr] md:gap-12">
+					<FanDeck className="mx-auto w-full max-w-[200px] md:max-w-none" spread={7} />
+					<div className="grid justify-items-start gap-3 text-start">
+						<h1 className="m-0 font-display text-[28px] font-semibold leading-tight tracking-[-0.02em] text-nl-cacao">
+							{t("emptyTitle")}
+						</h1>
+						<p className="m-0 max-w-[48ch] text-[15px] leading-relaxed text-nl-russet">{t("emptyBody")}</p>
+						<div className="mt-3 flex flex-wrap gap-2">
+							<Button asChild variant="primary">
+								<Link href={`/${locale}`}>
+									{t("browseCta")}
+									<ArrowRight className="h-4 w-4 rtl:rotate-180" strokeWidth={1.75} aria-hidden="true" />
+								</Link>
+							</Button>
+							<Button asChild variant="outline">
+								<Link href={`/${locale}/search`}>
+									<Search className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+									{t("searchCta")}
+								</Link>
+							</Button>
+						</div>
+					</div>
+				</div>
 			</div>
 		);
 	}
 
-	// Group by vendor
-	const vendorGroups = items.reduce(
-		(groups: Record<string, any[]>, item: any) => {
-			const vendor = item.vendor_name || "Other";
-			if (!groups[vendor]) groups[vendor] = [];
-			groups[vendor].push(item);
-			return groups;
-		},
-		{},
-	);
-
-	// Prices are VAT-inclusive (UAE 5% standard rate). subtotal = total for
-	// the cart view; the embedded VAT is shown as a small "incl. VAT" hint
-	// rather than a separate add-on line.
-	const subtotal = items.reduce(
-		(sum: number, item: any) => sum + item.current_price * item.quantity,
-		0,
-	);
-	const total = subtotal;
+	const groups = groupBySupplier(items);
+	const subtotalFils = cartSubtotalFils(items);
+	const hasUnavailable = items.some(isLineUnavailable);
 
 	return (
-		<div className="container py-6">
-			<h1 className="text-2xl font-bold mb-6">{t("title")}</h1>
-			<div className="flex flex-col lg:flex-row gap-8">
-				<div className="flex-1 space-y-6">
-					{Object.entries(vendorGroups).map(([vendor, vendorItems]) => (
-						<div key={vendor}>
-							<h3 className="text-sm font-medium text-muted-foreground mb-2">
-								{t("vendorGroup", { vendor })}
-							</h3>
-							{(vendorItems as any[]).map((item: any) => (
-								<CartItem key={item.variant_id} item={item} />
-							))}
-						</div>
+		<div className="mx-auto max-w-[1400px] px-4 py-8 md:px-8 md:py-10">
+			<div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
+				<div className="flex items-baseline gap-3">
+					<h1 className="m-0 font-display text-[28px] font-semibold leading-tight tracking-[-0.02em] text-nl-cacao md:text-[32px]">
+						{t("pageTitle")}
+					</h1>
+					<span className="text-[13px] tabular-nums text-nl-russet">
+						{t("itemsCount", { count: cartPieceCount(items) })}
+					</span>
+				</div>
+				<Link
+					href={`/${locale}`}
+					className="text-sm font-medium text-nl-cacao underline decoration-nl-cacao/25 underline-offset-4 hover:decoration-nl-cacao"
+				>
+					{t("continueShopping")}
+				</Link>
+			</div>
+
+			<div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-8">
+				<div className="grid gap-4">
+					{groups.map((group) => (
+						<section
+							key={group.key}
+							aria-labelledby={`supplier-${group.key}`}
+							className="rounded-md bg-nl-pearl shadow-card"
+						>
+							<header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-nl-cacao/10 px-4 py-3.5 sm:px-6">
+								<h2 id={`supplier-${group.key}`} className="m-0 text-[14px] font-normal text-nl-russet">
+									{t.rich("soldBy", {
+										vendor: group.vendorName,
+										b: (chunks) => (
+											<span className="font-display text-[15px] font-semibold tracking-[-0.01em] text-nl-cacao">
+												{chunks}
+											</span>
+										),
+									})}
+								</h2>
+								<span className="flex items-baseline gap-2 text-[13px] text-nl-russet">
+									<span className="tabular-nums">
+										{t("linesCount", { count: group.items.length })}
+									</span>
+									<span aria-hidden="true">·</span>
+									<PriceTag amount={group.subtotalFils} locale={locale} size="sm" />
+								</span>
+							</header>
+							<ul className="m-0 list-none divide-y divide-nl-cacao/10 px-4 sm:px-6">
+								{group.items.map((item) => (
+									<li key={item.variant_id}>
+										<CartItem item={item} />
+									</li>
+								))}
+							</ul>
+						</section>
 					))}
 				</div>
 
-				{/* Order summary */}
-				<div className="lg:w-80">
-					<div className="border rounded-lg p-4 space-y-3 sticky top-20">
-						<h3 className="font-semibold">{t("title")}</h3>
-						<div className="flex justify-between text-sm">
-							<span>{t("subtotal")}</span>
-							<span>{formatPrice(subtotal)}</span>
-						</div>
-						<div className="flex justify-between font-semibold border-t pt-3">
-							<span>{t("total")}</span>
-							<span>{formatPrice(total)}</span>
-						</div>
-						<p className="text-xs text-muted-foreground text-right">
-							Prices include 5% VAT
-						</p>
-						<Link
-							href={`/${locale}/checkout`}
-							className="block text-center bg-primary text-primary-foreground py-3 rounded-lg font-medium hover:bg-primary/90"
-						>
-							{t("checkout")}
-						</Link>
-					</div>
+				<div className="lg:sticky lg:top-24">
+					<CartSummary subtotalFils={subtotalFils} hasUnavailable={hasUnavailable} />
 				</div>
 			</div>
 		</div>

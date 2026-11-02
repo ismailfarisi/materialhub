@@ -31,6 +31,7 @@ export function useCart() {
           const primaryImage = item.product?.images?.find((img: any) => img.is_primary)
             || item.product?.images?.[0];
           return {
+            id: item.id,
             product_id: item.product_id,
             variant_id: item.variant_id || item.product_id,
             vendor_id: item.vendor_id || group.vendor_id,
@@ -43,6 +44,11 @@ export function useCart() {
             is_stale: staleSet.has(item.id),
             quantity: item.quantity,
             vendor_name: group.vendor_name || "Other",
+            // Display-only: spec chips on cart/checkout lines and an
+            // "unavailable" state when the listing was unpublished.
+            options: item.variant?.option_values ?? null,
+            sku: item.variant?.sku || item.product?.sku || null,
+            product_status: item.product?.status ?? null,
           };
         })
       );

@@ -1,7 +1,8 @@
 "use client";
 
 import { useChannelEvents } from "@/lib/channels/use-channel-events";
-import { Logo } from "@/components/layout/logo";
+import type { CartLineItem } from "@/components/cart/cart-lines";
+import { Button } from "@/components/swatch";
 import { useAddresses } from "@/lib/queries/account";
 import { useCart } from "@/lib/queries/cart";
 import { useCodCheckout, useCreatePaymentIntent, useInitiateCheckout } from "@/lib/queries/checkout";
@@ -12,17 +13,19 @@ import { loadStripe } from "@stripe/stripe-js";
 import type { StripeElementsOptions, StripeExpressCheckoutElementConfirmEvent } from "@stripe/stripe-js";
 import { Lock } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo } from "react";
 import { AddressDrawer } from "./address-drawer";
 import { CouponSection } from "./coupon-section";
 import { DeliverySection } from "./delivery-section";
-import { MAISON_SANS, MAISON_SERIF, MaisonStepper } from "./maison-primitives";
+import { Notice, StepIndicator } from "./checkout-ui";
 import { MobileOrderBar } from "./mobile-order-bar";
 import { OrderItemsSection } from "./order-items-section";
 import { OrderSummarySidebar } from "./order-summary-sidebar";
 import { PaymentSection } from "./payment-section";
 import { ShippingSection } from "./shipping-section";
+import { STRIPE_FONTS, swatchAppearance } from "./stripe-appearance";
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "");
 const STRIPE_DEFAULT_POSTAL_CODE = "00000";
@@ -56,7 +59,7 @@ function CheckoutInner() {
     reset,
   } = useCheckoutStore();
 
-  const { data: cart } = useCart();
+  const { data: cart, isLoading: cartLoading } = useCart();
   const { data: addresses } = useAddresses();
   const initiate = useInitiateCheckout();
   const paymentIntent = useCreatePaymentIntent();
@@ -71,19 +74,9 @@ function CheckoutInner() {
     if (quoteResult) setQuote(quoteResult);
   }, [quoteResult, setQuote]);
 
-  // Checkout is full-bleed in a darker surface (linen/pearl) than the app's
-  // base body background, so the transparent scrollbar-track gutter reads as a
-  // lighter strip on the right. Tint the body to the checkout surface while
-  // mounted so the gutter blends; restore on unmount. Scoped here — other
-  // pages sit on light cards over the base bg and don't need it.
-  useEffect(() => {
-    document.body.classList.add("checkout-bleed");
-    return () => document.body.classList.remove("checkout-bleed");
-  }, []);
-
-  const items = cart?.items || [];
+  const items: CartLineItem[] = cart?.items || [];
   const cartSubtotal = items.reduce(
-    (sum: number, item: any) => sum + item.current_price * item.quantity,
+    (sum: number, item) => sum + item.current_price * item.quantity,
     0,
   );
 
@@ -159,7 +152,7 @@ function CheckoutInner() {
         fire("InitiateCheckout", {
           currency: "AED",
           value_fils: cartSubtotal,
-          quantity: items.reduce((n: number, i: any) => n + i.quantity, 0),
+          quantity: items.reduce((n, i) => n + i.quantity, 0),
         });
 
         const order = await initiate.mutateAsync({
@@ -355,135 +348,72 @@ function CheckoutInner() {
     await refetchQuote();
   }
 
+  const stepCurrent =
+    selectedAddressId && quoteData && !quoteData.requires_address ? 2 : 1;
+  const otherBlockingError =
+    blockingError &&
+    blockingError.code !== "shipping_unavailable_for_group" &&
+    blockingError.code !== "no_eligible_payment_methods"
+      ? blockingError
+      : null;
+
+  if (!cartLoading && items.length === 0) {
+    return (
+      <div className="mx-auto max-w-[1400px] px-4 py-16 md:px-8">
+        <div className="mx-auto grid max-w-md justify-items-start gap-3 rounded-md bg-nl-pearl p-6 shadow-card">
+          <h1 className="m-0 font-display text-xl font-semibold tracking-[-0.01em] text-nl-cacao">
+            {t("emptyTitle")}
+          </h1>
+          <p className="m-0 text-[14px] text-nl-russet">{t("emptyBody")}</p>
+          <Button asChild variant="primary" className="mt-2">
+            <Link href={`/${locale}`}>{t("emptyCta")}</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div
-      className="-mt-[1px]"
-      style={{
-        background: "hsl(var(--nl-linen))",
-        color: "hsl(var(--nl-cacao))",
-        fontFamily: MAISON_SANS,
-        minHeight: "calc(100vh - 80px)",
-      }}
-    >
-      {/* Masthead */}
-      <header
-        className="flex items-center justify-between"
-        style={{
-          padding: "20px 32px",
-          borderBottom: "1px solid rgba(15,18,24,0.08)",
-        }}
-      >
-        <div className="hidden md:flex items-center">
-          <Logo className="text-nl-cacao" />
-        </div>
-        <MaisonStepper steps={[t("stepBag"), t("stepAddress"), t("stepPay")]} active={2} />
-        <div
-          className="flex items-center uppercase"
-          style={{
-            gap: 8,
-            fontSize: 10,
-            letterSpacing: "0.22em",
-            color: "hsl(var(--nl-russet))",
-          }}
-        >
-          <Lock
-            className="h-3.5 w-3.5"
-            strokeWidth={1.25}
-            style={{ color: "hsl(var(--nl-amber))" }}
-          />
-          {t("secure")}
-        </div>
-      </header>
+    <div className="mx-auto max-w-[1400px] px-4 pb-36 pt-6 md:px-8 md:pt-8 lg:pb-16">
+      <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-4">
+        <h1 className="m-0 font-display text-[28px] font-semibold leading-tight tracking-[-0.02em] text-nl-cacao md:text-[32px]">
+          {t("title")}
+        </h1>
+        <StepIndicator
+          steps={[
+            { label: t("stepCart"), href: `/${locale}/cart` },
+            { label: t("stepDelivery") },
+            { label: t("stepPayment") },
+          ]}
+          current={stepCurrent}
+          doneLabel={t("stepDone")}
+          currentLabel={t("stepCurrent")}
+        />
+      </div>
 
-      {/* Amber rule */}
-      <div style={{ height: 2, background: "hsl(var(--nl-amber))" }} />
-
-      {/* Body — two-column on desktop, stacked on mobile */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr]">
-        {/* LEFT — form */}
-        <div
-          className="lg:border-r"
-          style={{
-            padding: "32px 24px 48px",
-            borderColor: "rgba(15,18,24,0.08)",
-          }}
-        >
-          <div className="mx-auto max-w-2xl lg:mx-0 lg:ms-auto lg:me-12 lg:max-w-[640px]">
-            <div
-              className="uppercase mb-3"
-              style={{
-                fontSize: 10,
-                letterSpacing: "0.32em",
-                color: "hsl(var(--nl-amber-text))",
-              }}
-            >
-              ── {t("title")}
-            </div>
-            <h1
-              style={{
-                fontFamily: MAISON_SERIF,
-                fontSize: "clamp(2rem, 5vw, 2.75rem)",
-                lineHeight: 1.05,
-                letterSpacing: "-0.01em",
-                fontWeight: 400,
-                margin: "0 0 28px",
-                color: "hsl(var(--nl-cacao))",
-              }}
-            >
-              {t("pageTitlePre")}{" "}
-              <span
-                style={{
-                  fontStyle: "italic",
-                  color: "hsl(var(--nl-amber-text))",
-                }}
-              >
-                {t("pageTitleEmphasis")}
-              </span>{" "}
-              {t("pageTitlePost")}
-            </h1>
-
-            <div className="space-y-2">
-              <OrderItemsSection items={items} />
-              <DeliverySection />
-              <ShippingSection />
-              <PaymentSection onExpressCheckoutConfirm={handleExpressCheckoutConfirm} />
-              <CouponSection onChanged={handleCouponChanged} />
-
-              {blockingError && (
-                <div
-                  className="p-3 text-sm"
-                  style={{
-                    background: "rgba(220, 38, 38, 0.06)",
-                    border: "1px solid rgba(220, 38, 38, 0.3)",
-                    color: "hsl(var(--destructive))",
-                  }}
-                >
-                  {t(
-                    (blockingError.i18n_key ?? "").replace(
-                      /^checkout\./,
-                      "",
-                    ) as unknown as Parameters<typeof t>[0],
-                  )}
-                </div>
+      <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-8">
+        <div className="grid gap-4">
+          {otherBlockingError && (
+            <Notice tone="error" title={t("blockedTitle")}>
+              {t(
+                (otherBlockingError.i18n_key ?? "").replace(
+                  /^checkout\./,
+                  "",
+                ) as unknown as Parameters<typeof t>[0],
               )}
-
-              {error && (
-                <div
-                  className="p-3 text-sm"
-                  style={{
-                    background: "rgba(220, 38, 38, 0.06)",
-                    border: "1px solid rgba(220, 38, 38, 0.3)",
-                    color: "hsl(var(--destructive))",
-                  }}
-                >
-                  {error}
-                </div>
-              )}
-            </div>
-          </div>
+            </Notice>
+          )}
+          <OrderItemsSection items={items} quote={quoteData} />
+          <DeliverySection />
+          <ShippingSection items={items} />
+          <PaymentSection onExpressCheckoutConfirm={handleExpressCheckoutConfirm} />
+          <CouponSection onChanged={handleCouponChanged} />
+          <p className="m-0 flex items-start gap-2 px-1 text-[12.5px] leading-relaxed text-nl-russet lg:hidden">
+            <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+            {t("secureNote")}
+          </p>
         </div>
 
-        {/* RIGHT — order summary (desktop) */}
         <OrderSummarySidebar
           items={items}
           quote={quoteData}
@@ -492,7 +422,6 @@ function CheckoutInner() {
         />
       </div>
 
-      {/* Mobile sticky bar */}
       <MobileOrderBar
         items={items}
         quote={quoteData}
@@ -518,6 +447,8 @@ export function CheckoutPage() {
       mode: "payment",
       currency: "aed",
       amount: stripeElementsAmount,
+      appearance: swatchAppearance(),
+      fonts: STRIPE_FONTS,
     }),
     [stripeElementsAmount],
   );
