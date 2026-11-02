@@ -1,4 +1,5 @@
-import { ListingHeader } from "@/components/product/listing-header";
+import { CollectionNotice } from "@/components/home/collection-empty";
+import { CollectionHeader } from "@/components/home/collection-header";
 import { ListingSeoContent } from "@/components/product/listing-seo-content";
 import { Pagination } from "@/components/product/pagination";
 import { ProductGrid } from "@/components/product/product-grid";
@@ -163,6 +164,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
 	);
 
 	const t = await getTranslations({ locale, namespace: "category" });
+	const th = await getTranslations({ locale, namespace: "home" });
 
 	const products = data.items || [];
 	const total = data.total || 0;
@@ -198,20 +200,34 @@ export default async function CollectionPage({ params, searchParams }: Props) {
 	const faqJsonLd = buildFaqJsonLd(faq);
 
 	return (
-		<div className="mx-auto max-w-[1400px] py-4">
-			<ListingHeader
-				breadcrumbItems={[{ name: data.collection.name }]}
-				title={data.collection.name}
-				intro={data.collection.description || undefined}
-			/>
+		<div className="mx-auto max-w-[1400px]">
+			<div className="px-4 md:px-8 pb-10 md:pb-16">
+				<CollectionHeader
+					locale={locale}
+					title={data.collection.name}
+					intro={data.collection.description}
+					total={total}
+					items={products}
+					complete={total > 0 && total <= products.length}
+				/>
 
-			{/* No filter sidebar: a collection is a curated set (pins, rules and
+				{/* No filter sidebar: a collection is a curated set (pins, rules and
 			    exclusions resolved server-side) and the endpoint returns no facets,
 			    so filter controls here would be inert. Sort and paging are real. */}
-			<div className="mt-2 px-2 md:px-8">
-				<SortToolbar totalResults={total} />
-				<ProductGrid products={products} view={search.view} />
-				<Pagination totalItems={total} pageSize={PER_PAGE} />
+				{products.length > 0 ? (
+					<div className="grid gap-4">
+						<SortToolbar totalResults={total} />
+						<ProductGrid products={products} view={search.view} />
+						<Pagination totalItems={total} pageSize={PER_PAGE} />
+					</div>
+				) : (
+					<CollectionNotice
+						locale={locale}
+						title={th("collection.emptyTitle")}
+						body={th("collection.emptyBody")}
+						categoryLabel={(k) => th(`stocks.${k}.name`)}
+					/>
+				)}
 			</div>
 
 			<ListingSeoContent

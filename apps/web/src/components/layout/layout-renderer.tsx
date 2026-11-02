@@ -1,1009 +1,970 @@
-/* Hallmark · redesign · genre: editorial · scope: legacy-adapter migration
- * Voice: the nl-* maison system already established by the ProductCarousel /
- * VendorShowcase / BrandSpotlightCards / CategoryGrid adapters below —
- * Playfair display, square corners, hairline rules, amber accent under 5%,
- * lucide at 1.25 stroke. Adopted deliberately; diversification is suspended
- * because this file's job is one voice, not variety.
- * Not inherited from the reference sections: per-section eyebrows and the
- * italic-accent-word heading. Both are named tells and anti-patterns.md
- * forbids propagating them for structural parity.
+/**
+ * Renders CMS layout sections (home, vendor storefront, category footer) in
+ * the Swatch Book system. See /DESIGN.md.
  *
- * pre-emit critique: P4 H4 E4 S5 R5 V5 (variety intentionally suspended)
- * contrast: pass (40-41) · tokens: pass (48) · honest: pass (46) · icons: pass (30)
- * mobile: pass (34, 49, 50-54) · motion: pass (18, 27) — the root overflow-x
- * clip and the reduced-motion tiers live in app/globals.css; the hero carousel
- * pause control lives in components/home/hero-banner.tsx.
+ * - Every section opens with `SectionHead` (Archivo headline, optional "View
+ *   all" on the trailing edge). No kickers: a CMS `eyebrow` is shown as a
+ *   plain supporting line under the headline instead.
+ * - Vendors, brands and categories are swatch cards. A card's tab is its
+ *   category stock when the data names one; otherwise it is binder ink, so a
+ *   stock colour never appears without a category behind it.
+ * - The only dark band is the brand spotlight; the only scrims sit over
+ *   photography for legibility.
  */
-import type { ComponentType } from "react";
-import Image from "next/image";
-import Link from "next/link";
-import { Star, ArrowRight, ArrowUpRight } from "lucide-react";
-import { getLocale, getTranslations } from "next-intl/server";
 import { HeroBanner } from "@/components/home/hero-banner";
-import { ProductCard } from "@/components/product/product-card";
+import { SectionBoundary } from "@/components/home/section-boundary";
+import {
+	NEUTRAL_STOCK,
+	NEUTRAL_STOCK_ON_DARK,
+	matchStock,
+} from "@/components/home/stock-match";
 import { ScrollRail } from "@/components/layout/scroll-rail";
 import { NewsletterForm } from "@/components/layout/newsletter-form";
 import { viewAllHref as resolveViewAllHref } from "@/components/layout/view-all-href";
+import { ProductCard } from "@/components/product/product-card";
+import {
+	PriceTag,
+	SectionHead,
+	type Stock,
+	SwatchCard,
+} from "@/components/swatch";
+import { buttonVariants } from "@/components/swatch/button";
+import { cn } from "@/lib/utils";
+import { ArrowRight, Star } from "lucide-react";
+import { getLocale, getTranslations } from "next-intl/server";
+import Image from "next/image";
+import Link from "next/link";
+import { type ComponentType, Fragment, type ReactNode } from "react";
 import { BackgroundVideo } from "./background-video";
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
 
 interface SectionData {
-  id: string;
-  type: string;
-  position: number;
-  settings: Record<string, unknown>;
-  source_mode: string;
-  /** Present when the section is backed by a curated collection. */
-  collection_slug?: string;
-  data: { blocks?: unknown[]; items?: unknown[] };
+	id: string;
+	type: string;
+	position: number;
+	settings: Record<string, unknown>;
+	source_mode: string;
+	/** Present when the section is backed by a curated collection. */
+	collection_slug?: string;
+	data: { blocks?: unknown[]; items?: unknown[] };
 }
 
 interface SectionProps {
-  settings: Record<string, unknown>;
-  collectionSlug?: string;
-  data: { blocks?: unknown[]; items?: unknown[] };
+	settings: Record<string, unknown>;
+	collectionSlug?: string;
+	data: { blocks?: unknown[]; items?: unknown[] };
 }
 
-/* ─── Section Header Component ───────────────────────────────────────────── */
+// biome-ignore lint/suspicious/noExplicitAny: CMS block JSONB is untyped
+type AnyBlock = any;
 
-/**
- * Shared section head for the adapters that don't hand-roll their own.
- * Matches the maison head used by ProductCarousel / VendorShowcase / CategoryGrid:
- * serif title left, uppercase micro-link right, single column on mobile.
- * No eyebrow slot and no icon slot — both were the old generic voice, and the
- * icons in particular pulled three unrelated accent colours onto one page.
- */
-function SectionHeader({
-  title,
-  subtitle,
-  viewAllHref,
-  viewAllLabel = "View all",
-}: {
-  title: string;
-  subtitle?: string;
-  viewAllHref?: string;
-  viewAllLabel?: string;
-}) {
-  return (
-    <div className="flex items-end justify-between gap-6 mb-6 md:mb-9 px-2 md:px-0">
-      <div className="min-w-0">
-        <h2 className="font-serif text-3xl md:text-[44px] leading-[1.05] tracking-tight text-nl-cacao [overflow-wrap:anywhere]">
-          {title}
-        </h2>
-        {subtitle && (
-          <p className="text-sm leading-[1.6] text-nl-russet max-w-[46ch] mt-3">
-            {subtitle}
-          </p>
-        )}
-      </div>
-      {viewAllHref && (
-        <Link
-          href={viewAllHref}
-          className="hidden md:inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[11px] uppercase tracking-[0.22em] text-nl-russet hover:text-nl-amber transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-nl-cacao"
-        >
-          {viewAllLabel}
-          <ArrowRight className="h-3 w-3 rtl:rotate-180" />
-        </Link>
-      )}
-    </div>
-  );
+/** Read a localised CMS field: `{ en, ar }`, a plain string, or nothing. */
+function localized(value: unknown, locale: string): string | undefined {
+	if (typeof value === "string") return value || undefined;
+	if (value && typeof value === "object") {
+		const v = value as Record<string, unknown>;
+		const hit = v[locale] ?? v.en;
+		return typeof hit === "string" && hit ? hit : undefined;
+	}
+	return undefined;
 }
+
+/** Rail that bleeds to the screen edge on mobile and keeps hover lift unclipped. */
+const RAIL =
+	"flex gap-3 md:gap-4 overflow-x-auto scrollbar-hide snap-x snap-mandatory -mx-4 px-4 md:mx-0 md:px-0 pt-1 pb-4 scroll-ps-4 md:scroll-ps-0";
 
 /* ─── Registry ───────────────────────────────────────────────────────────── */
 
 const SECTION_REGISTRY: Record<string, ComponentType<SectionProps>> = {
-  hero_carousel: HeroBannerAdapter,
-  product_carousel: ProductCarouselAdapter,
-  vendor_showcase: VendorShowcaseAdapter,
-  brand_spotlight: BrandSpotlightAdapter,
-  category_grid: CategoryGridAdapter,
-  promotional_banner: PromotionalBannerAdapter,
-  newsletter_signup: NewsletterSignupAdapter,
-  testimonials: TestimonialsAdapter,
-  trending_looks: TrendingLooksAdapter,
+	hero_carousel: HeroBannerAdapter,
+	product_carousel: ProductCarouselAdapter,
+	vendor_showcase: VendorShowcaseAdapter,
+	brand_spotlight: BrandSpotlightAdapter,
+	category_grid: CategoryGridAdapter,
+	promotional_banner: PromotionalBannerAdapter,
+	newsletter_signup: NewsletterSignupAdapter,
+	testimonials: TestimonialsAdapter,
+	trending_looks: InspirationAdapter,
 };
 
 /* ─── Layout Renderer ────────────────────────────────────────────────────── */
 
-export function LayoutRenderer({ sections }: { sections: SectionData[] }) {
-  return (
-    <div className="space-y-10 md:space-y-20">
-      {sections.map((section, index) => {
-        const Component = SECTION_REGISTRY[section.type];
-        if (!Component) return null;
-        return (
-          <div
-            key={section.id}
-            className="animate-fade-in-up md:max-w-[1400px] md:mx-auto md:px-8"
-            style={{ animationDelay: `${index * 80}ms`, animationFillMode: "both" }}
-          >
-            <Component
-              settings={section.settings}
-              collectionSlug={section.collection_slug}
-              data={section.data}
-            />
-          </div>
-        );
-      })}
-    </div>
-  );
+export function LayoutRenderer({
+	sections,
+	afterHero,
+}: {
+	sections: SectionData[];
+	/**
+	 * Rendered straight after the first hero carousel, or first if the layout
+	 * has none. The home page puts the category-stock row here.
+	 */
+	afterHero?: ReactNode;
+}) {
+	const known = sections.filter((s) => SECTION_REGISTRY[s.type]);
+	const heroIndex = known.findIndex((s) => s.type === "hero_carousel");
+
+	return (
+		<div className="space-y-10 md:space-y-16">
+			{afterHero && heroIndex === -1 && afterHero}
+			{known.map((section, index) => {
+				const Component = SECTION_REGISTRY[section.type];
+				return (
+					<Fragment key={section.id}>
+						<div
+							className="max-w-[1400px] mx-auto px-4 md:px-8"
+							data-section-type={section.type}
+						>
+							<SectionBoundary>
+								<Component
+									settings={section.settings}
+									collectionSlug={section.collection_slug}
+									data={section.data}
+								/>
+							</SectionBoundary>
+						</div>
+						{afterHero && index === heroIndex && afterHero}
+					</Fragment>
+				);
+			})}
+		</div>
+	);
 }
 
-/* ─── Hero Carousel Adapter ──────────────────────────────────────────────── */
+/* ─── Hero Carousel ──────────────────────────────────────────────────────── */
 
 /**
  * Exported for the block-JSONB wiring test: `data.video.url` reaching a real
  * rendered <video> is otherwise unverified at every level.
  */
 export async function HeroBannerAdapter({ settings, data }: SectionProps) {
-  const locale = await getLocale();
-  const banners = (data.blocks || []).map((b: any, i: number) => ({
-    id: b.id || `slide-${i}`,
-    title: b.data?.title?.[locale] || b.data?.title?.en || "",
-    subtitle: b.data?.cta_text?.[locale] || b.data?.cta_text?.en || undefined,
-    image_url: b.data?.image?.desktop?.url || "",
-    mobile_image_url: b.data?.image?.mobile?.url,
-    cta_url: b.data?.cta_link,
-    focal_point: b.data?.image?.focal_point,
-    video_url: b.data?.video?.url,
-  }));
-  return (
-    <HeroBanner
-      banners={banners}
-      autoplay={(settings.autoplay as boolean) ?? true}
-      interval={(settings.interval_ms as number) ?? 6000}
-    />
-  );
+	const locale = await getLocale();
+	const t = await getTranslations("home");
+	const banners = (data.blocks || []).map((b: AnyBlock, i: number) => ({
+		id: b.id || `slide-${i}`,
+		title: localized(b.data?.title, locale) ?? "",
+		subtitle: localized(b.data?.subtitle, locale),
+		cta_label: localized(b.data?.cta_text, locale) ?? t("shopNow"),
+		image_url: b.data?.image?.desktop?.url || "",
+		mobile_image_url: b.data?.image?.mobile?.url,
+		cta_url: b.data?.cta_link,
+		focal_point: b.data?.image?.focal_point,
+		video_url: b.data?.video?.url,
+	}));
+	return (
+		<HeroBanner
+			banners={banners}
+			autoplay={(settings.autoplay as boolean) ?? true}
+			interval={(settings.interval_ms as number) ?? 6000}
+		/>
+	);
 }
 
-/* ─── Product Carousel Adapter ───────────────────────────────────────────── */
+/* ─── Product Carousel ───────────────────────────────────────────────────── */
 
-async function ProductCarouselAdapter({ settings, collectionSlug, data }: SectionProps) {
-  const products = (data.items || []) as any[];
-  if (!products.length) return null;
-  const locale = await getLocale();
-  const title =
-    (settings.title as any)?.[locale] ||
-    (settings.title as any)?.en ||
-    "Products";
-  const eyebrow =
-    (settings.eyebrow as any)?.[locale] ||
-    (settings.eyebrow as any)?.en ||
-    undefined;
-  // "View all" lands on the same set the rail was drawn from — see view-all-href.ts.
-  const viewAllTarget = resolveViewAllHref(settings, collectionSlug, locale);
+async function ProductCarouselAdapter({
+	settings,
+	collectionSlug,
+	data,
+}: SectionProps) {
+	const products = (data.items || []) as AnyBlock[];
+	if (!products.length) return null;
+	const locale = await getLocale();
+	const t = await getTranslations("home");
+	const title = localized(settings.title, locale) ?? t("recentProducts");
+	const note = localized(settings.eyebrow, locale);
 
-  // Italicize the last word in amber as the design's signature accent.
-  const words = title.split(/\s+/);
-  const head = words.length > 1 ? words.slice(0, -1).join(" ") : "";
-  const accent = words.length > 1 ? words[words.length - 1] : title;
-
-  return (
-    <section className="px-2 md:px-0">
-      <div className="flex items-end justify-between mb-6 md:mb-9 px-2 md:px-0">
-        <div>
-          {eyebrow && (
-            <p className="text-[11px] uppercase tracking-[0.22em] text-nl-russet">
-              {eyebrow}
-            </p>
-          )}
-          <h2 className="font-serif text-3xl md:text-[44px] leading-[1.05] tracking-tight text-nl-cacao mt-2 md:mt-3">
-            {head && <>{head} </>}
-            <span className="italic text-nl-amber">{accent}</span>
-          </h2>
-        </div>
-        <Link
-          href={viewAllTarget}
-          className="hidden md:inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.22em] text-nl-russet hover:text-nl-amber transition-colors"
-        >
-          View all
-          <ArrowRight className="h-3 w-3 rtl:rotate-180" />
-        </Link>
-      </div>
-
-      <ScrollRail className="flex gap-4 overflow-x-auto scrollbar-hide pb-4 snap-x snap-mandatory px-2 md:px-0 scroll-ps-2 md:scroll-ps-0">
-        {products.map((product: any) => (
-          <div key={product.id} className="flex-none w-[220px] md:w-[260px] snap-start">
-            <ProductCard product={product} />
-          </div>
-        ))}
-      </ScrollRail>
-    </section>
-  );
+	return (
+		<section data-section="product-carousel" className="grid gap-5 md:gap-6">
+			<SectionHead
+				title={title}
+				action={{
+					// "View all" lands on the same set the rail was drawn from — see view-all-href.ts.
+					href: resolveViewAllHref(settings, collectionSlug, locale),
+					label: t("viewAll"),
+				}}
+			/>
+			{note && <SectionNote>{note}</SectionNote>}
+			<ScrollRail className={RAIL}>
+				{products.map((product) => (
+					<div
+						key={product.id}
+						className="flex-none w-[200px] md:w-[264px] snap-start"
+					>
+						<ProductCard product={product} />
+					</div>
+				))}
+			</ScrollRail>
+		</section>
+	);
 }
 
-/* ─── Vendor Showcase Adapter ────────────────────────────────────────────── */
+function SectionNote({
+	children,
+	tone = "ink",
+}: { children: ReactNode; tone?: "ink" | "inverse" }) {
+	return (
+		<p
+			className={cn(
+				"-mt-2 md:-mt-3 m-0 max-w-[65ch] text-[15px] leading-[1.6]",
+				tone === "ink" ? "text-nl-russet" : "text-white/75",
+			)}
+		>
+			{children}
+		</p>
+	);
+}
+
+/* ─── Shared card bits ───────────────────────────────────────────────────── */
+
+function monogram(name: string): string {
+	return (
+		name
+			.split(/\s+/)
+			.filter(Boolean)
+			.slice(0, 2)
+			.map((w) => w[0]?.toUpperCase() ?? "")
+			.join("") || "?"
+	);
+}
+
+function compact(n: number | null | undefined, locale: string): string | null {
+	if (n == null || !Number.isFinite(Number(n))) return null;
+	return new Intl.NumberFormat(locale === "ar" ? "ar-AE" : "en-AE", {
+		notation: "compact",
+		maximumFractionDigits: 1,
+	}).format(Number(n));
+}
+
+/** Logo well: board ground, cut corners. Monogram in ink when there's no logo. */
+function LogoWell({
+	src,
+	name,
+	size = 56,
+}: { src?: string | null; name: string; size?: number }) {
+	return (
+		<span
+			aria-hidden="true"
+			style={{ width: size, height: size }}
+			className="shrink-0 grid place-items-center overflow-hidden rounded-md bg-nl-linen text-nl-cacao font-display font-semibold text-lg [font-stretch:112%]"
+		>
+			{src ? (
+				<Image
+					src={src}
+					alt=""
+					width={size}
+					height={size}
+					sizes={`${size}px`}
+					className="h-full w-full object-contain p-1.5"
+				/>
+			) : (
+				monogram(name)
+			)}
+		</span>
+	);
+}
+
+/** Localised top-level category name for a stock, used as a card's tab label. */
+function stockLabeller(t: (key: string) => string) {
+	return (stock: Stock | null) =>
+		stock ? t(`stocks.${stock.key}.name`) : undefined;
+}
+
+/* ─── Vendor Showcase ────────────────────────────────────────────────────── */
 
 interface VendorShowcaseItem {
-  id: string;
-  slug?: string;
-  name: string;
-  logo_url?: string | null;
-  city?: string | null;
-  tagline?: string | null;
-  monogram?: string | null;
-  rating_avg?: number | null;
-  follower_count?: number | null;
-  total_orders?: number | null;
-  sponsored?: boolean;
-}
-
-const VENDOR_CREST_GRADIENTS = [
-  "linear-gradient(135deg,#F26B2E,#B33F0E)",
-  "linear-gradient(135deg,#2A3140,#0F1218)",
-  "linear-gradient(135deg,#C9A27A,#7A5A3A)",
-  "linear-gradient(135deg,#5B6578,#262C38)",
-];
-
-function vendorMonogram(name: string): string {
-  return (
-    name
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((w) => w[0]?.toUpperCase() ?? "")
-      .join("") || "?"
-  );
-}
-
-function vendorCrestGradient(seed: string): string {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) | 0;
-  return VENDOR_CREST_GRADIENTS[Math.abs(hash) % VENDOR_CREST_GRADIENTS.length];
-}
-
-function formatCompact(n: number | null | undefined): string | null {
-  if (n == null) return null;
-  if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K`;
-  return String(n);
+	id: string;
+	slug?: string;
+	name: string;
+	logo_url?: string | null;
+	city?: string | null;
+	tagline?: string | null;
+	monogram?: string | null;
+	rating_avg?: number | null;
+	follower_count?: number | null;
+	total_orders?: number | null;
+	sponsored?: boolean;
+	/** Optional: main category, when the resolver provides it. */
+	category_slug?: string | null;
+	category_name?: string | null;
 }
 
 async function VendorShowcaseAdapter({ settings, data }: SectionProps) {
-  const vendors = (data.items || []) as VendorShowcaseItem[];
-  if (!vendors.length) return null;
-  const locale = await getLocale();
-  const title =
-    (settings.title as any)?.[locale] ||
-    (settings.title as any)?.en ||
-    "Featured suppliers";
-  const eyebrow =
-    (settings.eyebrow as any)?.[locale] ||
-    (settings.eyebrow as any)?.en ||
-    "Verified suppliers";
+	const vendors = (data.items || []) as VendorShowcaseItem[];
+	if (!vendors.length) return null;
+	const locale = await getLocale();
+	const t = await getTranslations("home");
+	const stockLabel = stockLabeller(t);
+	const title = localized(settings.title, locale) ?? t("featuredVendors");
+	const note = localized(settings.eyebrow, locale);
 
-  return (
-    <section className="px-2 md:px-0" data-section="vendor-showcase">
-      <div className="flex items-end justify-between mb-6 md:mb-9 px-2 md:px-0">
-        <div>
-          <p className="text-[11px] uppercase tracking-[0.22em] text-nl-russet">
-            {eyebrow}
-          </p>
-          <h2 className="font-serif text-3xl md:text-[44px] leading-[1.05] tracking-tight mt-2 md:mt-3 text-nl-cacao">
-            {title}
-          </h2>
-        </div>
-        <Link
-          href={`/${locale}/search`}
-          className="hidden md:inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.22em] text-nl-russet hover:text-nl-amber transition-colors"
-        >
-          All shops
-          <ArrowRight className="h-3 w-3 rtl:rotate-180" />
-        </Link>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        {vendors.map((vendor) => {
-          const name = vendor.name || "Vendor";
-          const monogram = vendor.monogram || vendorMonogram(name);
-          const accent = vendorCrestGradient(name);
-          const ratingText =
-            vendor.rating_avg != null ? Number(vendor.rating_avg).toFixed(1) : null;
-          const followersText = formatCompact(vendor.follower_count);
-          const ordersText = formatCompact(vendor.total_orders);
-
-          return (
-            <Link
-              key={vendor.id}
-              href={`/${locale}/vendor/${vendor.slug || vendor.id}`}
-              className="group relative block bg-nl-linen border border-nl-cacao/10 px-6 pt-7 pb-6 transition-[transform,border-color] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:-translate-y-1 hover:border-nl-amber"
-            >
-              {vendor.sponsored && (
-                <span
-                  aria-hidden="true"
-                  className="absolute top-4 right-4 text-[8.5px] uppercase tracking-[0.3em] text-nl-amber"
-                >
-                  · Sponsored
-                </span>
-              )}
-
-              <div
-                className="w-16 h-16 flex items-center justify-center overflow-hidden text-nl-linen font-serif text-[24px] tracking-[0.05em] mb-[18px]"
-                style={{ background: accent }}
-                aria-hidden="true"
-              >
-                {vendor.logo_url ? (
-                  <Image
-                    src={vendor.logo_url}
-                    alt=""
-                    width={64}
-                    height={64}
-                    sizes="64px"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  monogram
-                )}
-              </div>
-
-              <h3 className="font-serif text-[22px] leading-[1.1] text-nl-cacao truncate group-hover:text-nl-cacao transition-colors">
-                {name}
-              </h3>
-              {vendor.city && (
-                <p className="text-[10px] uppercase tracking-[0.22em] text-nl-russet mt-1">
-                  {vendor.city}
-                </p>
-              )}
-              {vendor.tagline && (
-                <p className="font-serif italic text-[13.5px] leading-[1.5] text-nl-cacao/70 mt-3.5 min-h-[44px] line-clamp-2">
-                  &ldquo;{vendor.tagline}&rdquo;
-                </p>
-              )}
-
-              <div className="h-px bg-nl-cacao/10 mt-[18px] mb-3.5" />
-
-              <div className="flex items-center justify-between text-[11px] text-nl-russet">
-                {ratingText ? (
-                  <span className="flex items-center gap-1">
-                    <Star className="h-2.5 w-2.5 fill-nl-amber text-nl-amber" />
-                    {ratingText}
-                  </span>
-                ) : (
-                  <span />
-                )}
-                {followersText ? (
-                  <span>{followersText} followers</span>
-                ) : (
-                  <span />
-                )}
-                {ordersText ? <span>{ordersText} orders</span> : <span />}
-              </div>
-            </Link>
-          );
-        })}
-      </div>
-
-      <Link
-        href={`/${locale}/search`}
-        className="md:hidden mt-4 flex items-center justify-center gap-1.5 text-[11px] uppercase tracking-[0.22em] text-nl-russet hover:text-nl-amber transition-colors"
-      >
-        All shops
-        <ArrowRight className="h-3 w-3 rtl:rotate-180" />
-      </Link>
-    </section>
-  );
+	return (
+		<section data-section="vendor-showcase" className="grid gap-5 md:gap-6">
+			<SectionHead
+				title={title}
+				action={{ href: `/${locale}/search`, label: t("allSuppliers") }}
+			/>
+			{note && <SectionNote>{note}</SectionNote>}
+			<ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 list-none m-0 p-0">
+				{vendors.map((vendor) => {
+					const name = vendor.name || t("supplier");
+					const matched = matchStock(
+						vendor.category_slug,
+						vendor.category_name,
+						vendor.tagline,
+					);
+					const rating =
+						vendor.rating_avg != null && Number(vendor.rating_avg) > 0
+							? Number(vendor.rating_avg).toFixed(1)
+							: null;
+					const followers = compact(vendor.follower_count, locale);
+					const orders = compact(vendor.total_orders, locale);
+					const tab = vendor.sponsored
+						? t("sponsored")
+						: (stockLabel(matched) ?? t("supplier"));
+					return (
+						<SwatchCard
+							key={vendor.id}
+							as="li"
+							stock={matched ?? NEUTRAL_STOCK}
+							tabLabel={tab}
+							className="group"
+						>
+							<Link
+								href={`/${locale}/vendor/${vendor.slug || vendor.id}`}
+								className="flex flex-1 flex-col gap-4 p-4 md:p-5 rounded-b-md focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-nl-amber"
+							>
+								<span className="flex items-center gap-3.5 min-w-0">
+									<LogoWell
+										src={vendor.logo_url}
+										name={vendor.monogram || name}
+									/>
+									<span className="grid gap-1 min-w-0">
+										<span className="font-display font-semibold text-[15.5px] leading-tight tracking-[-0.01em] text-nl-cacao truncate">
+											{name}
+										</span>
+										{vendor.city && (
+											<span className="text-[13px] text-nl-russet truncate">
+												{vendor.city}
+											</span>
+										)}
+									</span>
+								</span>
+								{vendor.tagline && (
+									<span className="text-[14px] leading-[1.5] text-nl-cacao/80 line-clamp-2">
+										{vendor.tagline}
+									</span>
+								)}
+								{(rating || followers || orders) && (
+									<span className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 pt-3 border-t border-dashed border-nl-cacao/15 font-mono text-[12.5px] tabular-nums text-nl-russet">
+										{rating && (
+											<span className="inline-flex items-center gap-1 text-nl-cacao">
+												<Star
+													aria-hidden="true"
+													className="h-3.5 w-3.5 fill-nl-cacao text-nl-cacao"
+													strokeWidth={1.5}
+												/>
+												<span className="sr-only">
+													{t("rating", { rating })}
+												</span>
+												<span aria-hidden="true">{rating}</span>
+											</span>
+										)}
+										{followers && (
+											<span>{t("followers", { count: followers })}</span>
+										)}
+										{orders && <span>{t("orders", { count: orders })}</span>}
+									</span>
+								)}
+							</Link>
+						</SwatchCard>
+					);
+				})}
+			</ul>
+		</section>
+	);
 }
 
-/* ─── Brand Spotlight Adapter ────────────────────────────────────────────── */
+/* ─── Brand Spotlight ────────────────────────────────────────────────────── */
 
 interface BrandSpotlightProductPeek {
-  id: string;
-  name: string;
-  slug: string;
-  price: number;
-  image_url: string | null;
+	id: string;
+	name: string;
+	slug: string;
+	price: number;
+	image_url: string | null;
 }
 interface BrandSpotlightItem {
-  id: string;
-  name: string;
-  slug: string;
-  logo_url: string | null;
-  description: string | null;
-  product_count: number;
-  is_featured: boolean;
-  top_products: BrandSpotlightProductPeek[];
+	id: string;
+	name: string;
+	slug: string;
+	logo_url: string | null;
+	description: string | null;
+	product_count: number;
+	is_featured: boolean;
+	top_products: BrandSpotlightProductPeek[];
 }
 
 async function BrandSpotlightAdapter({ settings, data }: SectionProps) {
-  const items = (data.items || []) as BrandSpotlightItem[];
-  const blocks = (data.blocks || []) as any[];
+	const items = (data.items || []) as BrandSpotlightItem[];
+	const blocks = (data.blocks || []) as AnyBlock[];
 
-  // New path: query-mode section returned hydrated brand+products items.
-  if (items.length > 0) {
-    return <BrandSpotlightCards items={items} settings={settings} />;
-  }
-  // Legacy path: section is still in manual mode (live layouts not yet republished).
-  if (blocks.length > 0) {
-    const locale = await getLocale();
-    return <BrandSpotlightLegacy blocks={blocks} settings={settings} locale={locale} />;
-  }
-  return null;
+	// Query-mode section: hydrated brand + top products.
+	if (items.length > 0)
+		return <BrandSpotlightCards items={items} settings={settings} />;
+	// Legacy manual-mode section (layouts not yet republished).
+	if (blocks.length > 0)
+		return <BrandSpotlightLegacy blocks={blocks} settings={settings} />;
+	return null;
 }
 
-function BrandSpotlightLegacy({ blocks, settings, locale }: { blocks: any[]; settings: SectionProps["settings"]; locale: string }) {
-  const title = (settings.title as any)?.[locale] || (settings.title as any)?.en || "Top brands";
-  return (
-    <section className="px-2 md:px-0" data-section="brand-spotlight-legacy">
-      <SectionHeader
-        title={title}
-        viewAllHref={`/${locale}/brands`}
-        viewAllLabel="All brands"
-      />
-      <div className="scroll-fade-r">
-        <div className="grid grid-flow-col grid-rows-2 auto-cols-max gap-3 md:gap-[14px] overflow-x-auto scrollbar-hide snap-x snap-mandatory px-2 md:px-0 pb-2 scroll-ps-2 md:scroll-ps-0">
-          {blocks.map((brand: any) => {
-            const brandName = brand.data?.name?.[locale] || brand.data?.name?.en || brand.data?.name || brand.name || "";
-            const logoUrl = brand.data?.logo_url || brand.logo_url;
-            return (
-              <Link
-                key={brand.id}
-                href={brand.data?.link || brand.link || "#"}
-                className="group flex flex-col items-center justify-center gap-3.5 p-5 bg-nl-linen border border-nl-cacao/10 hover:border-nl-amber transition-colors duration-300 aspect-square snap-start shrink-0 w-[110px] md:w-[160px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-cacao"
-              >
-                {logoUrl && (
-                  <Image
-                    src={logoUrl}
-                    alt=""
-                    width={72}
-                    height={72}
-                    className="object-contain grayscale group-hover:grayscale-0 transition-[filter] duration-500 motion-reduce:transition-none"
-                  />
-                )}
-                <p className="text-[10px] uppercase tracking-[0.22em] text-center text-nl-russet line-clamp-2">
-                  {brandName}
-                </p>
-              </Link>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
+async function BrandSpotlightLegacy({
+	blocks,
+	settings,
+}: { blocks: AnyBlock[]; settings: SectionProps["settings"] }) {
+	const locale = await getLocale();
+	const t = await getTranslations("home");
+	const title = localized(settings.title, locale) ?? t("brands");
+	return (
+		<section
+			data-section="brand-spotlight-legacy"
+			className="grid gap-5 md:gap-6"
+		>
+			<SectionHead
+				title={title}
+				action={{ href: `/${locale}/brands`, label: t("allBrands") }}
+			/>
+			<ScrollRail className={RAIL}>
+				{blocks.map((brand) => {
+					const brandName =
+						localized(brand.data?.name, locale) ?? brand.name ?? "";
+					const logoUrl = brand.data?.logo_url || brand.logo_url;
+					return (
+						<SwatchCard
+							key={brand.id}
+							stock={
+								matchStock(brand.data?.category, brandName) ?? NEUTRAL_STOCK
+							}
+							className="flex-none snap-start w-[148px] md:w-[184px]"
+						>
+							<Link
+								href={brand.data?.link || brand.link || `/${locale}/brands`}
+								className="flex flex-1 flex-col items-center gap-3 p-4 text-center rounded-b-md focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-nl-amber"
+							>
+								<LogoWell src={logoUrl} name={brandName} size={72} />
+								<span className="font-display font-semibold text-[14px] leading-tight text-nl-cacao line-clamp-2">
+									{brandName}
+								</span>
+							</Link>
+						</SwatchCard>
+					);
+				})}
+			</ScrollRail>
+		</section>
+	);
 }
 
 async function BrandSpotlightCards({
-  items,
-  settings,
-}: {
-  items: BrandSpotlightItem[];
-  settings: SectionProps["settings"];
-}) {
-  const locale = await getLocale();
-  const title =
-    (settings.title as any)?.[locale] || (settings.title as any)?.en || "Top brands";
-  const eyebrow =
-    (settings.eyebrow as any)?.[locale] ||
-    (settings.eyebrow as any)?.en ||
-    "Curated edits from labels we love";
-  const aedFormat = new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency: "AED",
-    maximumFractionDigits: 0,
-  });
+	items,
+	settings,
+}: { items: BrandSpotlightItem[]; settings: SectionProps["settings"] }) {
+	const locale = await getLocale();
+	const t = await getTranslations("home");
+	const stockLabel = stockLabeller(t);
+	const title = localized(settings.title, locale) ?? t("brands");
+	const note = localized(settings.eyebrow, locale);
 
-  return (
-    <section
-      data-section="brand-spotlight"
-      className="relative left-[calc(50%-50vw)] w-screen bg-nl-cacao py-12 text-nl-linen rtl:left-auto rtl:right-[calc(50%-50vw)] md:py-[72px]"
-    >
-      <div className="max-w-[1400px] mx-auto px-4 md:px-12">
-        <div className="flex items-end justify-between mb-8 md:mb-10">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.22em] text-nl-amber">
-              {eyebrow}
-            </p>
-            <h2 className="font-serif text-3xl md:text-5xl leading-[1.05] tracking-tight mt-2 md:mt-3">
-              {title}
-            </h2>
-          </div>
-          <Link
-            href={`/${locale}/search`}
-            className="hidden md:inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.22em] text-nl-amber hover:text-nl-pearl transition-colors"
-          >
-            View all brands
-            <ArrowRight className="h-3 w-3 rtl:rotate-180" />
-          </Link>
-        </div>
-      </div>
+	return (
+		<section
+			data-section="brand-spotlight"
+			className="relative left-[calc(50%-50vw)] w-screen bg-nl-espresso py-10 md:py-16 rtl:left-auto rtl:right-[calc(50%-50vw)]"
+		>
+			<div className="max-w-[1400px] mx-auto px-4 md:px-8 grid gap-5 md:gap-6">
+				{/* SectionHead in its inverse tone (the shared one is ink-only). */}
+				<div className="flex items-end justify-between gap-4">
+					<h2 className="m-0 font-display font-semibold text-[clamp(22px,2.6vw,32px)] leading-[1.08] tracking-[-0.02em] text-white">
+						{title}
+					</h2>
+					<Link
+						href={`/${locale}/brands`}
+						className="group inline-flex items-center gap-1.5 shrink-0 text-sm font-medium text-white underline decoration-white/30 hover:decoration-nl-amber"
+					>
+						{t("allBrands")}
+						<ArrowRight
+							className="h-4 w-4 transition-transform group-hover:translate-x-0.5 rtl:rotate-180 rtl:group-hover:-translate-x-0.5"
+							strokeWidth={1.75}
+						/>
+					</Link>
+				</div>
+				{note && <SectionNote tone="inverse">{note}</SectionNote>}
 
-      <ScrollRail className="flex gap-4 md:gap-[18px] overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-2 px-4 md:px-12 scroll-ps-4 md:scroll-ps-12 max-w-[1400px] mx-auto">
-        {items.map((brand) => {
-          const monogram = vendorMonogram(brand.name);
-          const minPriceFils = brand.top_products.length
-            ? Math.min(...brand.top_products.map((p) => p.price))
-            : null;
-          const subtitle =
-            brand.description && brand.description.length <= 32
-              ? `${brand.product_count} ${brand.product_count === 1 ? "product" : "products"} · ${brand.description}`
-              : `${brand.product_count} ${brand.product_count === 1 ? "product" : "products"}`;
+				<ScrollRail className={RAIL}>
+					{items.map((brand) => {
+						const matched = matchStock(
+							brand.description,
+							...brand.top_products.map((p) => p.name),
+						);
+						const minPrice = brand.top_products.length
+							? Math.min(...brand.top_products.map((p) => p.price))
+							: null;
+						return (
+							<SwatchCard
+								key={brand.id}
+								stock={matched ?? NEUTRAL_STOCK_ON_DARK}
+								tabLabel={stockLabel(matched)}
+								className="group flex-none snap-start w-[292px] md:w-[340px]"
+							>
+								<div className="relative flex flex-1 flex-col gap-4 p-4 md:p-5">
+									{/* Whole-card link sits under the thumbnails, which link to their products. */}
+									<Link
+										href={`/${locale}/brand/${brand.slug}`}
+										aria-label={`${brand.name}: ${t("productCount", { count: brand.product_count })}`}
+										className="absolute inset-0 z-0 rounded-b-md focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-nl-amber"
+									/>
+									<div className="relative z-10 pointer-events-none flex items-center gap-3.5 min-w-0">
+										<LogoWell
+											src={brand.logo_url}
+											name={brand.name}
+											size={48}
+										/>
+										<div className="grid gap-1 min-w-0">
+											<span className="font-display font-semibold text-[15.5px] leading-tight tracking-[-0.01em] text-nl-cacao truncate">
+												{brand.name}
+											</span>
+											<span className="font-mono text-[12.5px] tabular-nums text-nl-russet">
+												{t("productCount", { count: brand.product_count })}
+											</span>
+										</div>
+									</div>
 
-          return (
-            <div
-              key={brand.id}
-              className="group relative flex-none snap-start w-[300px] md:w-[360px] bg-nl-espresso border border-nl-pearl/10 hover:border-nl-amber transition-colors duration-300 px-7 pt-8 pb-6"
-            >
-              <Link
-                href={`/${locale}/brand/${brand.slug}`}
-                aria-label={`Shop all ${brand.name} products (${brand.product_count} items)`}
-                className="absolute inset-0 z-0"
-              />
+									<div className="relative z-10 grid grid-cols-3 gap-2">
+										{[0, 1, 2].map((i) => {
+											const p = brand.top_products[i];
+											if (!p)
+												return (
+													<span
+														key={`empty-${i}`}
+														aria-hidden="true"
+														className="aspect-square rounded-sm bg-nl-linen"
+													/>
+												);
+											return (
+												<Link
+													key={p.id}
+													href={`/${locale}/product/${p.slug}`}
+													aria-label={p.name}
+													className="relative block aspect-square overflow-hidden rounded-sm bg-nl-linen focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
+												>
+													{p.image_url && (
+														<Image
+															src={p.image_url}
+															alt=""
+															fill
+															className="object-cover"
+															sizes="(max-width: 768px) 30vw, 110px"
+														/>
+													)}
+												</Link>
+											);
+										})}
+									</div>
 
-              <div className="relative z-10 pointer-events-none flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-[52px] h-[52px] flex items-center justify-center border border-nl-amber text-nl-amber font-serif text-[22px] shrink-0 overflow-hidden">
-                    {brand.logo_url ? (
-                      <Image
-                        src={brand.logo_url}
-                        alt=""
-                        width={52}
-                        height={52}
-                        sizes="52px"
-                        className="w-full h-full object-contain"
-                      />
-                    ) : (
-                      monogram
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-serif text-2xl leading-[1.05] truncate">
-                      {brand.name}
-                    </p>
-                    <p className="text-[9.5px] uppercase tracking-[0.22em] text-nl-pearl/70 mt-1 truncate">
-                      {subtitle}
-                    </p>
-                  </div>
-                </div>
-                <ArrowUpRight
-                  aria-hidden="true"
-                  className="h-[18px] w-[18px] text-nl-amber shrink-0 rtl:-scale-x-100"
-                  strokeWidth={1.25}
-                />
-              </div>
-
-              <div className="relative z-10 grid grid-cols-3 gap-2.5 mb-[18px]">
-                {[0, 1, 2].map((i) => {
-                  const p = brand.top_products[i];
-                  if (!p) {
-                    return (
-                      <div
-                        key={`empty-${i}`}
-                        aria-hidden="true"
-                        className="aspect-[4/5] bg-nl-pearl/5"
-                      />
-                    );
-                  }
-                  return (
-                    <Link
-                      key={p.id}
-                      href={`/${locale}/product/${p.slug}`}
-                      aria-label={p.name}
-                      className="block relative aspect-[4/5] overflow-hidden bg-nl-pearl/5 pointer-events-auto group/thumb"
-                    >
-                      {p.image_url ? (
-                        <Image
-                          src={p.image_url}
-                          alt={p.name}
-                          fill
-                          className="object-cover group-hover/thumb:scale-105 transition-transform duration-300"
-                          sizes="(max-width: 768px) 33vw, 120px"
-                        />
-                      ) : null}
-                    </Link>
-                  );
-                })}
-              </div>
-
-              <div className="relative z-10 pointer-events-none flex items-center justify-between pt-3.5 border-t border-nl-pearl/10">
-                <div className="min-w-0">
-                  {minPriceFils !== null ? (
-                    <>
-                      <span className="text-[9px] uppercase tracking-[0.22em] text-nl-pearl/70">
-                        From
-                      </span>
-                      <span className="ml-2 font-serif text-[22px] text-nl-linen">
-                        {aedFormat.format(minPriceFils / 100)}
-                      </span>
-                    </>
-                  ) : (
-                    <span className="text-[9px] uppercase tracking-[0.22em] text-nl-pearl/70">
-                      New arrivals
-                    </span>
-                  )}
-                </div>
-                <span className="inline-flex items-center gap-1.5 text-[9.5px] uppercase tracking-[0.22em] text-nl-pearl border border-nl-pearl px-4 py-2.5 group-hover:border-nl-amber group-hover:text-nl-amber transition-colors">
-                  Shop all
-                  <ArrowRight className="h-3 w-3 rtl:rotate-180" />
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </ScrollRail>
-
-      <div className="max-w-[1400px] mx-auto px-4 md:px-12">
-        <Link
-          href={`/${locale}/search`}
-          className="md:hidden mt-6 flex items-center justify-center gap-1.5 text-[11px] uppercase tracking-[0.22em] text-nl-amber hover:text-nl-pearl transition-colors"
-        >
-          View all brands
-          <ArrowRight className="h-3 w-3 rtl:rotate-180" />
-        </Link>
-      </div>
-    </section>
-  );
+									<div className="relative z-10 pointer-events-none mt-auto flex items-center justify-between gap-3 pt-3 border-t border-dashed border-nl-cacao/15">
+										{minPrice !== null ? (
+											<PriceTag
+												amount={minPrice}
+												locale={locale}
+												from
+												size="sm"
+											/>
+										) : (
+											<span className="text-[13px] text-nl-russet">
+												{t("newArrivals")}
+											</span>
+										)}
+										<span className="inline-flex items-center gap-1 text-[13px] font-medium text-nl-cacao">
+											{t("shopAll")}
+											<ArrowRight
+												className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 rtl:rotate-180 rtl:group-hover:-translate-x-0.5"
+												strokeWidth={1.75}
+											/>
+										</span>
+									</div>
+								</div>
+							</SwatchCard>
+						);
+					})}
+				</ScrollRail>
+			</div>
+		</section>
+	);
 }
 
-/* ─── Category Grid Adapter ──────────────────────────────────────────────── */
+/* ─── Category Grid ──────────────────────────────────────────────────────── */
 
 async function CategoryGridAdapter({ settings, data }: SectionProps) {
-  const items = (data.blocks || data.items || []) as any[];
-  if (!items.length) return null;
-  const locale = await getLocale();
-  const t = await getTranslations("common");
-  const title =
-    (settings.title as any)?.[locale] ||
-    (settings.title as any)?.en ||
-    "Shop by category";
-  const eyebrow =
-    (settings.eyebrow as any)?.[locale] ||
-    t("categoriesCount", { count: items.length });
+	const items = (data.blocks || data.items || []) as AnyBlock[];
+	if (!items.length) return null;
+	const locale = await getLocale();
+	const t = await getTranslations("home");
+	const tc = await getTranslations("common");
+	const stockLabel = stockLabeller(t);
+	const title = localized(settings.title, locale) ?? t("shopByMaterial");
+	const note = localized(settings.eyebrow, locale);
 
-  return (
-    <section className="px-2 md:px-0" data-section="category-grid">
-      <div className="flex items-end justify-between mb-6 md:mb-9 px-2 md:px-0">
-        <div>
-          <p className="text-[11px] uppercase tracking-[0.22em] text-nl-russet">
-            {eyebrow}
-          </p>
-          <h2 className="font-serif text-3xl md:text-[44px] leading-[1.05] tracking-tight mt-2 md:mt-3 text-nl-cacao">
-            {title}
-          </h2>
-        </div>
-        <Link
-          href={`/${locale}/search`}
-          className="hidden md:inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.22em] text-nl-russet hover:text-nl-amber transition-colors"
-        >
-          {t("allCategories")}
-          <ArrowUpRight className="h-3.5 w-3.5 rtl:-scale-x-100" strokeWidth={1.25} />
-        </Link>
-      </div>
-
-      <div className="flex items-center justify-end mb-2 px-2 md:px-0">
-        <span className="inline-flex items-center gap-1.5 text-[10px] tracking-[0.22em] uppercase text-nl-russet/60">
-          {t("dragToExplore")}
-          <ArrowRight className="h-3 w-3 rtl:rotate-180 animate-[nudge_2.4s_ease-in-out_infinite]" />
-        </span>
-      </div>
-
-      <ScrollRail className="flex gap-3 md:gap-[14px] overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-2 -mx-2 md:mx-0 px-2 md:px-0 scroll-ps-2 md:scroll-ps-0">
-        {items.map((cat: any, i: number) => {
-          const imgUrl = cat.data?.image_url || cat.image_url;
-          const name = cat.data?.name?.[locale] || cat.data?.name?.en || cat.data?.name || cat.name;
-          const link = cat.data?.link || cat.link || `/${locale}/c/${cat.slug || cat.id}`;
-          const count =
-            cat.data?.product_count ?? cat.product_count ?? cat.data?.count ?? cat.count ?? null;
-          return (
-            <Link
-              key={cat.id}
-              href={link}
-              className="group relative block flex-none snap-start w-[200px] md:w-[260px] aspect-[3/4] overflow-hidden bg-nl-russet/15 transition-transform duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:-translate-y-0.5"
-            >
-              {imgUrl && (
-                <Image
-                  src={imgUrl}
-                  alt={name || ""}
-                  fill
-                  className="object-cover group-hover:scale-[1.04] transition-transform duration-700"
-                  sizes="(max-width: 768px) 50vw, 25vw"
-                />
-              )}
-              <div className="absolute inset-0 bg-gradient-to-b from-nl-espresso/10 via-nl-espresso/10 to-nl-espresso/65" />
-
-              <div className="absolute top-4 left-5 text-[9.5px] tracking-[0.24em] uppercase text-nl-linen/75">
-                {String(i + 1).padStart(2, "0")}
-              </div>
-
-              <div className="absolute left-5 right-5 bottom-5 text-nl-linen">
-                <p className="font-serif text-2xl md:text-[28px] leading-[1.05] tracking-tight">
-                  {name}
-                </p>
-                <div className="flex items-center justify-between mt-2.5">
-                  {count != null && (
-                    <span className="text-[10px] tracking-[0.2em] uppercase opacity-75">
-                      {typeof count === "number"
-                        ? `${count.toLocaleString()} products`
-                        : `${count} products`}
-                    </span>
-                  )}
-                  <span className="ms-auto flex items-center gap-1.5 text-[10px] tracking-[0.22em] uppercase">
-                    Shop
-                    <ArrowRight className="h-3 w-3 rtl:rotate-180 transition-transform group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5" />
-                  </span>
-                </div>
-              </div>
-            </Link>
-          );
-        })}
-      </ScrollRail>
-
-      <Link
-        href={`/${locale}/search`}
-        className="md:hidden mt-4 flex items-center justify-center gap-1.5 text-[11px] uppercase tracking-[0.22em] text-nl-russet hover:text-nl-amber transition-colors"
-      >
-        {t("allCategories")}
-        <ArrowUpRight className="h-3.5 w-3.5 rtl:-scale-x-100" strokeWidth={1.25} />
-      </Link>
-    </section>
-  );
+	return (
+		<section data-section="category-grid" className="grid gap-5 md:gap-6">
+			<SectionHead
+				title={title}
+				action={{ href: `/${locale}/search`, label: tc("allCategories") }}
+			/>
+			{note && <SectionNote>{note}</SectionNote>}
+			<ScrollRail className={RAIL}>
+				{items.map((cat) => {
+					const imgUrl = cat.data?.image_url || cat.image_url;
+					const name = localized(cat.data?.name, locale) ?? cat.name ?? "";
+					const slug = cat.data?.slug || cat.slug;
+					const link =
+						cat.data?.link || cat.link || `/${locale}/c/${slug || cat.id}`;
+					const count =
+						cat.data?.product_count ??
+						cat.product_count ??
+						cat.data?.count ??
+						cat.count ??
+						null;
+					const matched = matchStock(
+						slug,
+						cat.data?.parent_slug ?? cat.parent_slug,
+						name,
+					);
+					return (
+						<SwatchCard
+							key={cat.id}
+							stock={matched ?? NEUTRAL_STOCK}
+							tabLabel={stockLabel(matched)}
+							className="group flex-none snap-start w-[200px] md:w-[248px]"
+						>
+							<Link
+								href={link}
+								className="flex flex-1 flex-col rounded-b-md focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-nl-amber"
+							>
+								<span className="relative block aspect-[4/3] bg-nl-linen overflow-hidden">
+									{imgUrl && (
+										<Image
+											src={imgUrl}
+											alt=""
+											fill
+											className="object-cover"
+											sizes="(max-width: 768px) 200px, 248px"
+										/>
+									)}
+								</span>
+								<span className="flex items-end justify-between gap-3 p-3.5 md:p-4">
+									<span className="grid gap-1 min-w-0">
+										<span className="font-display font-semibold text-[15.5px] leading-tight tracking-[-0.01em] text-nl-cacao line-clamp-2">
+											{name}
+										</span>
+										{count != null && (
+											<span className="font-mono text-[12.5px] tabular-nums text-nl-russet">
+												{t("productCount", { count: Number(count) })}
+											</span>
+										)}
+									</span>
+									<ArrowRight
+										aria-hidden="true"
+										className="h-4 w-4 shrink-0 text-nl-cacao transition-transform group-hover:translate-x-0.5 rtl:rotate-180 rtl:group-hover:-translate-x-0.5"
+										strokeWidth={1.75}
+									/>
+								</span>
+							</Link>
+						</SwatchCard>
+					);
+				})}
+			</ScrollRail>
+		</section>
+	);
 }
 
-/* ─── Promotional Banner Adapter ─────────────────────────────────────────── */
+/* ─── Promotional Banner ─────────────────────────────────────────────────── */
 
 /** Exported for the block-JSONB wiring test — see HeroBannerAdapter. */
 export async function PromotionalBannerAdapter({ data }: SectionProps) {
-  const block = (data.blocks || [])[0] as any;
-  if (!block) return null;
-  const imgUrl = block.data?.image?.desktop?.url;
-  const mobileImgUrl = block.data?.image?.mobile?.url;
-  const videoUrl = block.data?.video?.url as string | undefined;
+	const block = (data.blocks || [])[0] as AnyBlock;
+	if (!block) return null;
+	const imgUrl = block.data?.image?.desktop?.url;
+	const mobileImgUrl = block.data?.image?.mobile?.url;
+	const videoUrl = block.data?.video?.url as string | undefined;
 
-  const locale = await getLocale();
-  const title = block.data?.title?.[locale] || block.data?.title?.en || "";
-  const ctaLink = block.data?.cta_link || "#";
-  const ctaText = block.data?.cta_text?.[locale] || block.data?.cta_text?.en || "Shop Now";
+	const locale = await getLocale();
+	const t = await getTranslations("home");
+	const title = localized(block.data?.title, locale) ?? "";
+	const subtitle = localized(block.data?.subtitle, locale);
+	const ctaLink = block.data?.cta_link || `/${locale}/search`;
+	const ctaText = localized(block.data?.cta_text, locale) ?? t("shopNow");
 
-  const focalPoint = block.data?.image?.focal_point;
-  const objectPosition =
-    focalPoint && typeof focalPoint.x === "number" && typeof focalPoint.y === "number"
-      ? `${focalPoint.x * 100}% ${focalPoint.y * 100}%`
-      : "center";
+	const focalPoint = block.data?.image?.focal_point;
+	const objectPosition =
+		focalPoint &&
+		typeof focalPoint.x === "number" &&
+		typeof focalPoint.y === "number"
+			? `${focalPoint.x * 100}% ${focalPoint.y * 100}%`
+			: "center";
 
-  return (
-    <section>
-      <Link
-        href={ctaLink}
-        className="group block relative w-full aspect-[16/10] sm:aspect-[2.4/1] md:aspect-[4/1] overflow-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
-      >
-        {imgUrl && (
-          <>
-            <Image
-              src={imgUrl}
-              alt={title}
-              fill
-              className="object-cover hidden md:block"
-              style={{ objectPosition }}
-              sizes="100vw"
-            />
-            <Image
-              src={mobileImgUrl || imgUrl}
-              alt={title}
-              fill
-              className="object-cover md:hidden"
-              style={{ objectPosition }}
-              sizes="100vw"
-            />
-            {videoUrl && (
-              <BackgroundVideo src={videoUrl} poster={imgUrl} objectPosition={objectPosition} />
-            )}
-          </>
-        )}
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-nl-espresso/80 via-nl-espresso/35 to-transparent"
-        />
-        <div className="absolute inset-0 flex flex-col justify-end md:justify-center p-5 sm:p-7 md:p-12">
-          <h3 className="font-serif text-xl sm:text-2xl md:text-[40px] leading-[1.05] tracking-tight text-nl-linen mb-3 md:mb-5 max-w-[560px] line-clamp-2">
-            {title}
-          </h3>
-          <span className="inline-flex w-fit items-center gap-1.5 whitespace-nowrap border border-nl-linen/70 text-nl-linen px-4 py-2.5 text-[9.5px] md:text-[10px] uppercase tracking-[0.22em] group-hover:border-nl-amber group-hover:text-nl-amber transition-colors">
-            {ctaText}
-            <ArrowRight className="h-3 w-3 rtl:rotate-180" />
-          </span>
-        </div>
-      </Link>
-    </section>
-  );
+	return (
+		<section data-section="promotional-banner">
+			<Link
+				href={ctaLink}
+				className="group relative block w-full overflow-hidden rounded-md bg-nl-espresso shadow-card aspect-[5/4] sm:aspect-[2.4/1] md:aspect-[3.6/1] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
+			>
+				{imgUrl && (
+					<>
+						<Image
+							src={imgUrl}
+							alt=""
+							fill
+							className="object-cover hidden md:block"
+							style={{ objectPosition }}
+							sizes="(max-width: 1400px) 100vw, 1336px"
+						/>
+						<Image
+							src={mobileImgUrl || imgUrl}
+							alt=""
+							fill
+							className="object-cover md:hidden"
+							style={{ objectPosition }}
+							sizes="100vw"
+						/>
+						{videoUrl && (
+							<BackgroundVideo
+								src={videoUrl}
+								poster={imgUrl}
+								objectPosition={objectPosition}
+							/>
+						)}
+					</>
+				)}
+				{/* Scrim for legibility over photography — the one allowed gradient. */}
+				<span
+					aria-hidden="true"
+					className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r rtl:md:bg-gradient-to-l from-nl-espresso/85 via-nl-espresso/40 to-transparent"
+				/>
+				<span className="absolute inset-0 flex flex-col justify-end md:justify-center gap-3 md:gap-4 p-5 sm:p-7 md:p-12">
+					<span className="max-w-[560px] font-display font-bold [font-stretch:112%] text-[clamp(24px,3.4vw,44px)] leading-[1.02] tracking-[-0.03em] text-white line-clamp-3">
+						{title}
+					</span>
+					{subtitle && (
+						<span className="max-w-[46ch] text-[15px] leading-[1.55] text-white/80 line-clamp-2">
+							{subtitle}
+						</span>
+					)}
+					<span
+						className={cn(
+							buttonVariants({ variant: "inverse", size: "md" }),
+							"w-fit mt-1 md:mt-2",
+						)}
+					>
+						{ctaText}
+						<ArrowRight
+							className="h-4 w-4 transition-transform group-hover:translate-x-0.5 rtl:rotate-180 rtl:group-hover:-translate-x-0.5"
+							strokeWidth={1.75}
+						/>
+					</span>
+				</span>
+			</Link>
+		</section>
+	);
 }
 
-/* ─── Newsletter Signup Adapter ──────────────────────────────────────────── */
+/* ─── Newsletter Signup ──────────────────────────────────────────────────── */
 
 async function NewsletterSignupAdapter({ settings }: SectionProps) {
-  const locale = await getLocale();
-  const title =
-    (settings.title as any)?.[locale] ||
-    (settings.title as any)?.en ||
-    "Stay in the loop";
-  const eyebrow =
-    (settings.eyebrow as any)?.[locale] ||
-    (settings.eyebrow as any)?.en ||
-    "Letters from the house";
-  const subtitle =
-    (settings.subtitle as any)?.[locale] ||
-    (settings.subtitle as any)?.en ||
-    "New materials, supplier launches and trade offers — delivered to your inbox once a month. Never more.";
+	const locale = await getLocale();
+	const title =
+		localized(settings.title, locale) ?? "New materials, once a month";
+	const subtitle =
+		localized(settings.subtitle, locale) ??
+		"Supplier launches, restocks and trade offers from MaterialHub. One email a month; unsubscribe any time.";
 
-  return (
-    <section className="px-2 md:px-0" data-section="newsletter-signup">
-      <div className="relative bg-nl-pearl px-6 py-10 md:px-12 md:py-16 grid grid-cols-1 md:grid-cols-[1fr_1.2fr] items-center gap-8 md:gap-12">
-        <span
-          aria-hidden="true"
-          className="absolute top-5 right-5 font-serif text-2xl text-nl-amber tracking-[0.4em] select-none"
-        >
-          ✻
-        </span>
-
-        <div>
-          <p className="text-[11px] uppercase tracking-[0.22em] text-nl-russet">
-            {eyebrow}
-          </p>
-          <h2 className="font-serif text-3xl md:text-[clamp(36px,4vw,52px)] leading-[1.05] tracking-tight mt-3 md:mt-3.5 text-nl-cacao">
-            {title.split(" ").length > 1 ? (
-              <>
-                {title.split(" ").slice(0, -1).join(" ")}{" "}
-                <span className="italic text-nl-amber">
-                  {title.split(" ").slice(-1)}
-                </span>
-              </>
-            ) : (
-              title
-            )}
-          </h2>
-          <p className="font-serif italic text-base md:text-[17px] leading-[1.5] text-nl-cacao/75 max-w-[420px] mt-4">
-            {subtitle}
-          </p>
-        </div>
-
-        <NewsletterForm />
-      </div>
-    </section>
-  );
+	return (
+		<section data-section="newsletter-signup">
+			<div className="grid grid-cols-1 md:grid-cols-[1fr_1.1fr] items-center gap-6 md:gap-12 rounded-md bg-nl-pearl shadow-card px-5 py-8 md:px-12 md:py-12">
+				<div className="grid gap-3">
+					<h2 className="m-0 font-display font-semibold text-[clamp(22px,2.6vw,32px)] leading-[1.08] tracking-[-0.02em] text-nl-cacao">
+						{title}
+					</h2>
+					<p className="m-0 max-w-[52ch] text-[15px] leading-[1.6] text-nl-russet">
+						{subtitle}
+					</p>
+				</div>
+				<NewsletterForm />
+			</div>
+		</section>
+	);
 }
 
-/* ─── Testimonials Adapter (NEW) ─────────────────────────────────────────── */
+/* ─── Testimonials ───────────────────────────────────────────────────────── */
 
 async function TestimonialsAdapter({ settings, data }: SectionProps) {
-  const reviews = (data.blocks || data.items || []) as any[];
-  if (!reviews.length) return null;
-  const locale = await getLocale();
-  const title =
-    (settings.title as any)?.[locale] || (settings.title as any)?.en || "In their words";
+	const reviews = (data.blocks || data.items || []) as AnyBlock[];
+	if (!reviews.length) return null;
+	const locale = await getLocale();
+	const t = await getTranslations("home");
+	const title = localized(settings.title, locale) ?? "From buyers";
 
-  return (
-    <section className="px-2 md:px-0" data-section="testimonials">
-      <SectionHeader title={title} />
-      <ScrollRail className="flex gap-4 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-2 px-2 md:px-0 scroll-ps-2 md:scroll-ps-0">
-        {reviews.map((review: any) => {
-          const name = review.data?.customer_name || review.customer_name || "";
-          const text = review.data?.text?.[locale] || review.data?.text?.en || review.data?.text || review.text || "";
-          // No default rating — a fabricated five stars is worse than no stars.
-          const rating = Number(review.data?.rating ?? review.rating ?? 0);
-          const avatar = review.data?.avatar_url || review.avatar_url;
-          const product = review.data?.product_name || review.product_name || "";
-
-          return (
-            <figure
-              key={review.id}
-              className="flex-none snap-start w-[280px] md:w-[360px] flex flex-col bg-nl-linen border border-nl-cacao/10 px-6 pt-7 pb-6"
-            >
-              {rating > 0 && (
-                <div
-                  className="flex items-center gap-1 mb-4"
-                  role="img"
-                  aria-label={`${rating} out of 5`}
-                >
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Star
-                      key={i}
-                      aria-hidden="true"
-                      className={
-                        i < rating
-                          ? "h-3 w-3 fill-nl-amber text-nl-amber"
-                          : "h-3 w-3 text-nl-cacao/20"
-                      }
-                    />
-                  ))}
-                </div>
-              )}
-
-              <blockquote className="flex-1 font-serif text-[19px] md:text-[21px] leading-[1.45] text-nl-cacao line-clamp-5">
-                &ldquo;{text}&rdquo;
-              </blockquote>
-
-              {(name || product) && (
-                <figcaption className="mt-5 pt-3.5 border-t border-nl-cacao/10 flex items-center gap-3">
-                  {avatar ? (
-                    <Image
-                      src={avatar}
-                      alt=""
-                      width={36}
-                      height={36}
-                      className="w-9 h-9 shrink-0 object-cover"
-                    />
-                  ) : name ? (
-                    <span
-                      aria-hidden="true"
-                      className="w-9 h-9 shrink-0 flex items-center justify-center bg-nl-cacao/10 font-serif text-sm text-nl-cacao"
-                    >
-                      {name[0]}
-                    </span>
-                  ) : null}
-                  <span className="min-w-0">
-                    {name && (
-                      <span className="block text-[11px] uppercase tracking-[0.22em] text-nl-cacao truncate">
-                        {name}
-                      </span>
-                    )}
-                    {product && (
-                      <span className="block text-[11px] text-nl-russet truncate mt-1">
-                        {product}
-                      </span>
-                    )}
-                  </span>
-                </figcaption>
-              )}
-            </figure>
-          );
-        })}
-      </ScrollRail>
-    </section>
-  );
+	return (
+		<section data-section="testimonials" className="grid gap-5 md:gap-6">
+			<SectionHead title={title} />
+			<ScrollRail className={RAIL}>
+				{reviews.map((review) => {
+					const name = review.data?.customer_name || review.customer_name || "";
+					const text =
+						localized(review.data?.text, locale) ?? review.text ?? "";
+					// No default rating — a fabricated five stars is worse than no stars.
+					const rating = Math.max(
+						0,
+						Math.min(
+							5,
+							Math.round(Number(review.data?.rating ?? review.rating ?? 0)),
+						),
+					);
+					const avatar = review.data?.avatar_url || review.avatar_url;
+					const product =
+						review.data?.product_name || review.product_name || "";
+					return (
+						<figure
+							key={review.id}
+							className="m-0 flex-none snap-start w-[280px] md:w-[360px] flex flex-col gap-4 rounded-md bg-nl-pearl shadow-card p-5 md:p-6"
+						>
+							{rating > 0 && (
+								<span
+									className="flex items-center gap-0.5"
+									role="img"
+									aria-label={t("rating", { rating })}
+								>
+									{Array.from({ length: 5 }, (_, i) => (
+										<Star
+											// biome-ignore lint/suspicious/noArrayIndexKey: fixed five-star row
+											key={i}
+											aria-hidden="true"
+											strokeWidth={1.5}
+											className={
+												i < rating
+													? "h-3.5 w-3.5 fill-nl-cacao text-nl-cacao"
+													: "h-3.5 w-3.5 text-nl-cacao/25"
+											}
+										/>
+									))}
+								</span>
+							)}
+							<blockquote className="m-0 flex-1 text-[16px] md:text-[17px] leading-[1.55] text-nl-cacao line-clamp-6">
+								{text}
+							</blockquote>
+							{(name || product) && (
+								<figcaption className="flex items-center gap-3 pt-3 border-t border-dashed border-nl-cacao/15">
+									{avatar ? (
+										<Image
+											src={avatar}
+											alt=""
+											width={36}
+											height={36}
+											className="h-9 w-9 shrink-0 rounded-full object-cover"
+										/>
+									) : name ? (
+										<span
+											aria-hidden="true"
+											className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-nl-linen font-display text-sm font-semibold text-nl-cacao"
+										>
+											{name[0]}
+										</span>
+									) : null}
+									<span className="grid gap-0.5 min-w-0">
+										{name && (
+											<span className="text-[14px] font-medium text-nl-cacao truncate">
+												{name}
+											</span>
+										)}
+										{product && (
+											<span className="text-[13px] text-nl-russet truncate">
+												{product}
+											</span>
+										)}
+									</span>
+								</figcaption>
+							)}
+						</figure>
+					);
+				})}
+			</ScrollRail>
+		</section>
+	);
 }
 
-/* ─── Trending Looks Adapter (NEW) ───────────────────────────────────────── */
+/* ─── Inspiration mosaic (CMS type `trending_looks`) ─────────────────────── */
 
-async function TrendingLooksAdapter({ settings, data }: SectionProps) {
-  const looks = (data.blocks || data.items || []) as any[];
-  if (!looks.length) return null;
-  const locale = await getLocale();
-  const title = (settings.title as any)?.[locale] || (settings.title as any)?.en || "Trending looks";
-  return (
-    <section className="px-2 md:px-0" data-section="trending-looks">
-      <SectionHeader title={title} subtitle="Curated picks from our community" />
-      {/* Fixed row tracks + a 2x2 lead tile: a deterministic mosaic. The old
-          version mixed row-span with aspect-ratio, which misaligned the rows. */}
-      <div className="grid grid-cols-2 md:grid-cols-4 auto-rows-[136px] md:auto-rows-[192px] gap-3 md:gap-[14px] px-2 md:px-0">
-        {looks.slice(0, 8).map((look: any, i: number) => {
-          const imgUrl = look.data?.image_url || look.image_url;
-          const lookTitle = look.data?.title?.[locale] || look.data?.title?.en || look.data?.title || look.title || "";
-          const link = look.data?.link || look.link || "#";
-          const isLead = i === 0;
-          return (
-            <Link
-              key={look.id}
-              href={link}
-              className={`group relative block h-full overflow-hidden bg-nl-russet/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber ${
-                isLead ? "col-span-2 row-span-2" : ""
-              }`}
-            >
-              {imgUrl && (
-                <Image
-                  src={imgUrl}
-                  alt=""
-                  fill
-                  className="object-cover transition-transform duration-700 group-hover:scale-[1.04] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
-                  sizes={isLead ? "(max-width: 768px) 100vw, 50vw" : "(max-width: 768px) 50vw, 25vw"}
-                />
-              )}
-              <div
-                aria-hidden="true"
-                className="absolute inset-0 bg-gradient-to-t from-nl-espresso/70 via-nl-espresso/10 to-transparent"
-              />
-              {/* Caption is always visible — the old build revealed it on hover
-                  only, so touch users never saw which look they were tapping. */}
-              <div className="absolute inset-x-0 bottom-0 p-3 md:p-4 text-nl-linen">
-                <p
-                  className={`font-serif leading-[1.15] line-clamp-2 ${
-                    isLead ? "text-xl md:text-[28px] tracking-tight" : "text-[15px] md:text-lg"
-                  }`}
-                >
-                  {lookTitle}
-                </p>
-              </div>
-            </Link>
-          );
-        })}
-      </div>
-    </section>
-  );
+/**
+ * The CMS type keeps its legacy name; the storefront shows it as finished work
+ * made from the catalogue's materials (boxes, bindings, event decor).
+ */
+async function InspirationAdapter({ settings, data }: SectionProps) {
+	const tiles = (data.blocks || data.items || []) as AnyBlock[];
+	if (!tiles.length) return null;
+	const locale = await getLocale();
+	const title =
+		localized(settings.title, locale) ?? "Made with these materials";
+	const note = localized(settings.subtitle, locale);
+	return (
+		<section data-section="trending-looks" className="grid gap-5 md:gap-6">
+			<SectionHead title={title} />
+			{note && <SectionNote>{note}</SectionNote>}
+			{/* Fixed row tracks + a 2×2 lead tile: a deterministic mosaic. */}
+			<div className="grid grid-cols-2 md:grid-cols-4 auto-rows-[148px] md:auto-rows-[200px] gap-3 md:gap-4">
+				{tiles.slice(0, 7).map((tile, i) => {
+					const imgUrl = tile.data?.image_url || tile.image_url;
+					const tileTitle =
+						localized(tile.data?.title, locale) ?? tile.title ?? "";
+					const link = tile.data?.link || tile.link || `/${locale}/search`;
+					const isLead = i === 0;
+					return (
+						<Link
+							key={tile.id}
+							href={link}
+							className={cn(
+								"group relative block h-full overflow-hidden rounded-md bg-nl-cacao/10 shadow-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber",
+								isLead && "col-span-2 row-span-2",
+							)}
+						>
+							{imgUrl && (
+								<Image
+									src={imgUrl}
+									alt=""
+									fill
+									className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+									sizes={
+										isLead
+											? "(max-width: 768px) 100vw, 50vw"
+											: "(max-width: 768px) 50vw, 25vw"
+									}
+								/>
+							)}
+							<span
+								aria-hidden="true"
+								className="absolute inset-0 bg-gradient-to-t from-nl-espresso/75 via-nl-espresso/10 to-transparent"
+							/>
+							{/* Caption always visible: touch users must see what they're tapping. */}
+							<span
+								className={cn(
+									"absolute inset-x-0 bottom-0 p-3 md:p-4 font-display font-semibold leading-[1.15] tracking-[-0.01em] text-white line-clamp-2",
+									isLead
+										? "text-xl md:text-[26px]"
+										: "text-[15px] md:text-base",
+								)}
+							>
+								{tileTitle}
+							</span>
+						</Link>
+					);
+				})}
+			</div>
+		</section>
+	);
 }
-

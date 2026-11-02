@@ -13,6 +13,8 @@ interface Banner {
 	id: string;
 	title: string;
 	subtitle?: string;
+	/** Button text from the CMS block's `cta_text`. */
+	cta_label?: string;
 	image_url: string;
 	mobile_image_url?: string;
 	cta_url?: string;
@@ -202,9 +204,10 @@ export function HeroBanner({
 										objectPosition={objectPosition}
 									/>
 								)}
+								{/* Scrims over photography for legibility — the one allowed gradient. */}
 								<div
 									aria-hidden="true"
-									className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(15,18,24,0.82)_0%,rgba(15,18,24,0.5)_35%,rgba(15,18,24,0.05)_65%,transparent_100%)] rtl:bg-[linear-gradient(270deg,rgba(15,18,24,0.82)_0%,rgba(15,18,24,0.5)_35%,rgba(15,18,24,0.05)_65%,transparent_100%)]"
+									className="pointer-events-none absolute inset-0 bg-gradient-to-r rtl:bg-gradient-to-l from-nl-espresso/85 via-nl-espresso/45 via-40% to-transparent to-75%"
 								/>
 								<div
 									aria-hidden="true"
@@ -222,8 +225,11 @@ export function HeroBanner({
 										)}
 										{banner.cta_url && (
 											<span className="mt-7 md:mt-8 inline-flex items-center gap-2 h-12 px-5 rounded-md bg-nl-amber text-white text-[15px] font-medium shadow-lift transition-transform group-hover/slide:translate-x-0.5 rtl:group-hover/slide:-translate-x-0.5">
-												Shop now
-												<ArrowRight className="h-4 w-4 rtl:rotate-180" strokeWidth={2} />
+												{banner.cta_label ?? "Shop now"}
+												<ArrowRight
+													className="h-4 w-4 rtl:rotate-180"
+													strokeWidth={2}
+												/>
 											</span>
 										)}
 									</div>
@@ -234,7 +240,7 @@ export function HeroBanner({
 						return (
 							<div
 								key={banner.id}
-								className="flex-[0_0_100%] min-w-0 relative aspect-[16/9] md:aspect-[21/9] min-h-[360px] md:min-h-[440px] max-h-[620px]"
+								className="flex-[0_0_100%] min-w-0 relative aspect-[16/9] md:aspect-[21/9] min-h-[360px] md:min-h-[420px] max-h-[min(560px,64vh)]"
 							>
 								{banner.cta_url ? (
 									<Link
@@ -280,7 +286,10 @@ export function HeroBanner({
 						</div>
 
 						<div className="flex items-center gap-4 md:gap-5 pointer-events-auto">
-							<div className="font-mono text-xs tabular-nums">
+							<div
+								className="font-mono text-xs tabular-nums"
+								aria-hidden="true"
+							>
 								<span className="text-white">
 									{String(selectedIndex + 1).padStart(2, "0")}
 								</span>
@@ -298,12 +307,15 @@ export function HeroBanner({
 												: "Resume automatic slide rotation"
 										}
 										aria-pressed={!isPlaying}
-										className="w-10 h-10 rounded-md border border-white/25 bg-white/10 backdrop-blur-md text-white flex items-center justify-center hover:bg-white hover:text-nl-cacao transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
+										className="w-10 h-10 rounded-md border border-white/20 bg-nl-espresso/70 text-white flex items-center justify-center hover:bg-white hover:text-nl-cacao transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
 									>
 										{isPlaying ? (
 											<Pause className="h-3.5 w-3.5" strokeWidth={1.75} />
 										) : (
-											<Play className="h-3.5 w-3.5 rtl:-scale-x-100" strokeWidth={1.75} />
+											<Play
+												className="h-3.5 w-3.5 rtl:-scale-x-100"
+												strokeWidth={1.75}
+											/>
 										)}
 									</button>
 								)}
@@ -311,7 +323,7 @@ export function HeroBanner({
 									type="button"
 									onClick={() => emblaApi?.scrollPrev()}
 									aria-label="Previous slide"
-									className="w-10 h-10 rounded-md border border-white/25 bg-white/10 backdrop-blur-md text-white flex items-center justify-center hover:bg-white hover:text-nl-cacao transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
+									className="w-10 h-10 rounded-md border border-white/20 bg-nl-espresso/70 text-white flex items-center justify-center hover:bg-white hover:text-nl-cacao transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
 								>
 									<ArrowLeft
 										className="h-3.5 w-3.5 rtl:rotate-180"
@@ -322,7 +334,7 @@ export function HeroBanner({
 									type="button"
 									onClick={() => emblaApi?.scrollNext()}
 									aria-label="Next slide"
-									className="w-10 h-10 rounded-md border border-white/25 bg-white/10 backdrop-blur-md text-white flex items-center justify-center hover:bg-white hover:text-nl-cacao transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
+									className="w-10 h-10 rounded-md border border-white/20 bg-nl-espresso/70 text-white flex items-center justify-center hover:bg-white hover:text-nl-cacao transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
 								>
 									<ArrowRight
 										className="h-3.5 w-3.5 rtl:rotate-180"

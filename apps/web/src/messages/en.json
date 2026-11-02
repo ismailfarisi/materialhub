@@ -78,12 +78,75 @@
   "home": {
     "title": "MaterialHub — UAE Materials Marketplace",
     "description": "Shop packaging papers, boards, PU leather, hinges, adhesives, ribbons and decoration materials from trusted vendors across the UAE",
-    "featuredVendors": "Featured Vendors",
-    "recentProducts": "Recently Added",
-    "brands": "Top Brands",
+    "featuredVendors": "Featured suppliers",
+    "recentProducts": "Recently added",
+    "brands": "Top brands",
     "hurry": "{sold} of {total} sold",
     "endsIn": "Ends in",
-    "recentlyViewed": "Recently Viewed"
+    "recentlyViewed": "Recently viewed",
+    "shopByMaterial": "Shop by material",
+    "allCategories": "All categories",
+    "stocks": {
+      "paper": {
+        "name": "Papers & boards",
+        "contents": "Art, kraft and speciality papers, greyboard, corrugated"
+      },
+      "leather": {
+        "name": "Leather & fabrics",
+        "contents": "PU and bonded leather, book cloth, velvet"
+      },
+      "hardware": {
+        "name": "Hardware & fittings",
+        "contents": "Hinges, magnets, handles, rivets"
+      },
+      "finishing": {
+        "name": "Adhesives & finishing",
+        "contents": "Glues, tapes, foils, laminates, inks"
+      },
+      "packaging": {
+        "name": "Boxes & packaging",
+        "contents": "Rigid boxes, cartons, mailers, bags"
+      },
+      "trims": {
+        "name": "Ribbons & trims",
+        "contents": "Satin and grosgrain, cords, tags"
+      },
+      "craft": {
+        "name": "Decoration & craft",
+        "contents": "Sample packs, decorative papers, kits"
+      }
+    },
+    "lead": {
+      "title": "Packaging and craft materials, by the sheet, roll or carton",
+      "body": "Compare suppliers across the UAE on spec and unit price. Search for a material, or open a category below.",
+      "search": "Search materials",
+      "browse": "Browse categories"
+    },
+    "sectionsUnavailable": "Featured collections did not load. Browse by material or search instead.",
+    "viewAll": "View all",
+    "allSuppliers": "All suppliers",
+    "allBrands": "All brands",
+    "supplier": "Supplier",
+    "sponsored": "Sponsored",
+    "productCount": "{count, plural, one {# product} other {# products}}",
+    "followers": "{count} followers",
+    "orders": "{count} orders",
+    "rating": "Rated {rating} out of 5",
+    "shopAll": "Shop all",
+    "newArrivals": "New arrivals",
+    "fromPrice": "from",
+    "shopNow": "Shop now",
+    "slideStatus": "Slide {current} of {total}",
+    "collection": {
+      "breadcrumbHome": "Home",
+      "itemCount": "{count, plural, one {# product} other {# products}}",
+      "materialsIn": "Materials in this collection",
+      "emptyTitle": "Nothing in this collection right now",
+      "emptyBody": "Its products may be out of stock or between suppliers. Browse by material instead.",
+      "errorTitle": "This collection did not load",
+      "errorBody": "Something went wrong on our side. Try again, or browse by material.",
+      "retry": "Try again"
+    }
   },
   "category": {
     "filters": "Filters",
