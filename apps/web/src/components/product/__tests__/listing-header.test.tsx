@@ -1,3 +1,4 @@
+import { STOCKS } from "@/components/swatch";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ListingHeader } from "../listing-header";
@@ -16,57 +17,86 @@ vi.mock("next/link", () => ({
 }));
 
 describe("ListingHeader", () => {
-	it("renders the title with the amber-period motif", () => {
-		render(
-			<ListingHeader
-				breadcrumbItems={[{ name: "Fragrance" }]}
-				title="Fragrance"
-			/>,
+	it("renders a plain header without a stock", () => {
+		const { container } = render(
+			<ListingHeader breadcrumbItems={[{ name: "Search" }]} title="kraft paper" />,
 		);
-		const heading = screen.getByRole("heading", { level: 1 });
-		expect(heading).toHaveTextContent("Fragrance.");
-		expect(heading).toHaveClass("text-[clamp(2.5rem,6vw,5.25rem)]");
+		expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("kraft paper");
+		expect(container.querySelector("[data-stock]")).toBeNull();
 	});
 
-	it("renders subcategory pills, marking the active one", () => {
+	it("renders the category band in the category's stock colour", () => {
+		const { container } = render(
+			<ListingHeader
+				breadcrumbItems={[{ name: "Papers & Boards" }]}
+				title="Papers & Boards"
+				stock={STOCKS.paper}
+			/>,
+		);
+		const band = container.querySelector("[data-stock]") as HTMLElement;
+		expect(band.dataset.stock).toBe("paper");
+		expect(band.style.getPropertyValue("--stock")).toBe(STOCKS.paper.color);
+		expect(screen.getByRole("heading", { level: 1 })).toHaveClass("font-display", "font-expanded");
+	});
+
+	it("renders subcategory chips at rounded-sm, marking the active one", () => {
 		render(
 			<ListingHeader
-				breadcrumbItems={[{ name: "Fragrance" }]}
-				title="Fragrance"
+				breadcrumbItems={[{ name: "Papers & Boards" }]}
+				title="Papers & Boards"
+				stock={STOCKS.paper}
+				pillsLabel="Subcategories"
 				pills={[
-					{ name: "Oud", href: "/en/c/oud", active: true },
-					{ name: "Floral", href: "/en/c/floral" },
+					{ name: "Art Papers", href: "/en/c/art-papers", active: true },
+					{ name: "Kraft Papers", href: "/en/c/kraft-papers" },
 				]}
 			/>,
 		);
-		expect(screen.getByRole("link", { name: "Oud" })).toHaveClass(
-			"bg-nl-amber",
-		);
-		expect(screen.getByRole("link", { name: "Floral" })).not.toHaveClass(
-			"bg-nl-amber",
-		);
-		expect(screen.getByText("Browse").nextElementSibling).toHaveClass(
-			"scrollbar-nl",
-			"grid-rows-2",
-			"overflow-x-auto",
-		);
+		const active = screen.getByRole("link", { name: "Art Papers" });
+		expect(active).toHaveAttribute("aria-current", "page");
+		expect(active).toHaveClass("rounded-sm", "bg-white");
+		expect(screen.getByRole("link", { name: "Kraft Papers" })).not.toHaveAttribute("aria-current");
+		expect(screen.getByRole("navigation", { name: "Subcategories" })).toBeInTheDocument();
 	});
 
-	it("omits the pill row when there are no pills", () => {
+	it("omits the chip row when there are no subcategories", () => {
 		render(
-			<ListingHeader breadcrumbItems={[{ name: "Search" }]} title="oud" />,
+			<ListingHeader
+				breadcrumbItems={[{ name: "Hinges" }]}
+				title="Hinges"
+				stock={STOCKS.hardware}
+				pillsLabel="Subcategories"
+			/>,
 		);
-		expect(screen.queryByText("Browse")).not.toBeInTheDocument();
+		expect(screen.queryByRole("navigation", { name: "Subcategories" })).not.toBeInTheDocument();
+	});
+
+	it("renders live facts in mono", () => {
+		render(
+			<ListingHeader
+				breadcrumbItems={[{ name: "Papers & Boards" }]}
+				title="Papers & Boards"
+				stock={STOCKS.paper}
+				facts={[
+					{ label: "Products", value: "128" },
+					{ label: "From", value: "AED 4.80" },
+				]}
+			/>,
+		);
+		expect(screen.getByText("AED 4.80").closest("dd")).toHaveClass("font-mono");
+		expect(screen.getByText("Products")).toHaveClass("mill-label");
 	});
 
 	it("renders the intro when provided", () => {
 		render(
 			<ListingHeader
-				breadcrumbItems={[{ name: "Fragrance" }]}
-				title="Fragrance"
-				intro="312 results"
+				breadcrumbItems={[{ name: "Papers & Boards" }]}
+				title="Papers & Boards"
+				intro="Art, kraft and speciality papers by the sheet and ream."
 			/>,
 		);
-		expect(screen.getByText("312 results")).toBeInTheDocument();
+		expect(
+			screen.getByText("Art, kraft and speciality papers by the sheet and ream."),
+		).toBeInTheDocument();
 	});
 });

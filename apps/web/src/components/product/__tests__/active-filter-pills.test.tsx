@@ -3,43 +3,63 @@ import { describe, expect, it, vi } from "vitest";
 import { ActiveFilterPills } from "../active-filter-pills";
 
 vi.mock("next-intl", () => ({
-	useTranslations: () => (key: string) => key,
+	useTranslations:
+		() => (key: string, values?: Record<string, string>) =>
+			values?.label ? `${key}:${values.label}` : key,
 }));
 
 describe("ActiveFilterPills", () => {
 	it("renders nothing when there are no filters", () => {
 		const { container } = render(
-			<ActiveFilterPills
-				pills={[]}
-				onRemove={() => {}}
-				onClearAll={() => {}}
-			/>,
+			<ActiveFilterPills pills={[]} onRemove={() => {}} onClearAll={() => {}} />,
 		);
 		expect(container).toBeEmptyDOMElement();
 	});
 
-	it("renders one pill per filter and calls onRemove on click", () => {
+	it("renders one chip per filter and calls onRemove on click", () => {
 		const onRemove = vi.fn();
 		render(
 			<ActiveFilterPills
 				pills={[
-					{ group: "brand", value: "ouai", label: "Brand: Ouai" },
+					{ group: "brand", value: "gulf-board", label: "Brand: Gulf Board" },
 					{ group: "includeOutOfStock", value: "true", label: "Including out of stock" },
 				]}
 				onRemove={onRemove}
 				onClearAll={() => {}}
 			/>,
 		);
-		expect(screen.getByText("Brand: Ouai")).toBeInTheDocument();
-		fireEvent.click(screen.getByLabelText("Remove Brand: Ouai"));
-		expect(onRemove).toHaveBeenCalledWith({ group: "brand", value: "ouai" });
+		expect(screen.getByText("Brand: Gulf Board")).toBeInTheDocument();
+		fireEvent.click(screen.getByLabelText("removeFilter:Brand: Gulf Board"));
+		expect(onRemove).toHaveBeenCalledWith({ group: "brand", value: "gulf-board" });
+	});
+
+	it("shows field and value apart, with measured values in mono, at rounded-sm", () => {
+		render(
+			<ActiveFilterPills
+				pills={[
+					{
+						group: "gsm",
+						value: "350",
+						label: "GSM: 350 gsm",
+						field: "GSM",
+						display: "350 gsm",
+						mono: true,
+					},
+				]}
+				onRemove={() => {}}
+				onClearAll={() => {}}
+			/>,
+		);
+		expect(screen.getByText("GSM")).toBeInTheDocument();
+		expect(screen.getByText("350 gsm").closest(".font-mono")).not.toBeNull();
+		expect(screen.getByLabelText("removeFilter:GSM: 350 gsm")).toHaveClass("rounded-sm");
 	});
 
 	it("calls onClearAll when Clear all is clicked", () => {
 		const onClearAll = vi.fn();
 		render(
 			<ActiveFilterPills
-				pills={[{ group: "brand", value: "ouai", label: "Brand: Ouai" }]}
+				pills={[{ group: "brand", value: "gulf-board", label: "Brand: Gulf Board" }]}
 				onRemove={() => {}}
 				onClearAll={onClearAll}
 			/>,

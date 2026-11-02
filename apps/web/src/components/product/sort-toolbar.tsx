@@ -1,15 +1,31 @@
 "use client";
 
-import { ChevronDown, Grid3X3, List } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { ChevronDown } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useId } from "react";
 
+export const SORT_OPTIONS = [
+	{ value: "relevance", labelKey: "relevance" },
+	{ value: "price_asc", labelKey: "priceAsc" },
+	{ value: "price_desc", labelKey: "priceDesc" },
+	{ value: "newest", labelKey: "newest" },
+	{ value: "rating", labelKey: "rating" },
+] as const;
+
+/**
+ * Result count and sort, above the grid. The count is a fact, set in mono; the
+ * sort is a native select styled as a Swatch Book field. Sort lives in the
+ * filter sheet below `lg`, so only the count shows on small screens.
+ */
 export function SortToolbar({ totalResults }: { totalResults: number }) {
-	const t = useTranslations("category");
+	const t = useTranslations("browse");
+	const tCat = useTranslations("category");
+	const locale = useLocale();
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const currentSort = searchParams.get("sort") || "relevance";
-	const view = searchParams.get("view") || "grid";
+	const selectId = useId();
 
 	function setParam(key: string, value: string) {
 		const params = new URLSearchParams(searchParams.toString());
@@ -18,90 +34,41 @@ export function SortToolbar({ totalResults }: { totalResults: number }) {
 		router.replace(`?${params.toString()}`, { scroll: false });
 	}
 
-	const sortLabelKey =
-		currentSort === "price_asc"
-			? "priceAsc"
-			: currentSort === "price_desc"
-				? "priceDesc"
-				: currentSort === "newest"
-					? "newest"
-					: currentSort === "rating"
-						? "rating"
-						: "relevance";
+	const formatted = new Intl.NumberFormat(locale === "ar" ? "ar-AE" : "en-AE").format(
+		totalResults,
+	);
 
 	return (
-		<div className="flex flex-wrap items-center justify-between gap-3 border-b border-nl-cacao/10 py-3">
-			<div className="flex items-baseline gap-2">
-				<span className="font-serif text-[22px] leading-none text-nl-cacao">
-					{totalResults.toLocaleString()}
+		<div className="flex min-h-14 flex-wrap items-center justify-between gap-3 pb-3">
+			<p className="m-0 flex items-baseline gap-1.5 text-[14px] text-nl-russet" aria-live="polite">
+				<span className="font-mono text-[15px] font-medium tabular-nums text-nl-cacao">
+					{formatted}
 				</span>
-				<span className="text-[10px] uppercase tracking-[0.22em] text-nl-russet">
-					{t("results", { count: totalResults })
-						.replace(String(totalResults), "")
-						.replace(/,/g, "")
-						.trim() || "results"}
-				</span>
-			</div>
+				<span>{t("resultsLabel", { count: totalResults })}</span>
+			</p>
 
-			<div
-				data-testid="sort-controls"
-				className="hidden lg:flex items-center gap-4"
-			>
-				<div className="flex items-center gap-2">
-					<span className="text-[10px] uppercase tracking-[0.22em] text-nl-russet">
-						{t("sort")}
-					</span>
-					<label className="group relative inline-flex cursor-pointer items-center gap-2 border border-nl-cacao/20 px-3 py-2 transition-colors hover:border-nl-cacao/40">
-						<select
-							aria-label={t("sort")}
-							value={currentSort}
-							onChange={(e) => setParam("sort", e.target.value)}
-							className="font-serif text-[14px] italic text-nl-cacao bg-transparent outline-none appearance-none pe-5 cursor-pointer"
-						>
-							<option value="relevance">{t("relevance")}</option>
-							<option value="price_asc">{t("priceAsc")}</option>
-							<option value="price_desc">{t("priceDesc")}</option>
-							<option value="newest">{t("newest")}</option>
-							<option value="rating">{t("rating")}</option>
-						</select>
-						<ChevronDown
-							className="pointer-events-none absolute end-2 h-3.5 w-3.5 text-nl-cacao"
-							strokeWidth={1.25}
-							aria-hidden="true"
-						/>
-						<span className="sr-only">{t(sortLabelKey)}</span>
-					</label>
-				</div>
-
-				<span className="h-5 w-px bg-nl-cacao/15" />
-
-				<div className="flex">
-					<button
-						type="button"
-						aria-label="Grid view"
-						aria-pressed={view === "grid"}
-						onClick={() => setParam("view", "grid")}
-						className={`flex h-9 w-9 items-center justify-center border transition-colors ${
-							view === "grid"
-								? "border-nl-cacao bg-nl-cacao text-nl-linen"
-								: "border-nl-cacao/20 bg-transparent text-nl-cacao hover:border-nl-cacao/40"
-						}`}
+			<div data-testid="sort-controls" className="hidden items-center gap-2.5 lg:flex">
+				<label htmlFor={selectId} className="text-[13px] font-medium text-nl-russet">
+					{tCat("sort")}
+				</label>
+				<div className="relative">
+					<select
+						id={selectId}
+						value={currentSort}
+						onChange={(e) => setParam("sort", e.target.value)}
+						className="h-10 cursor-pointer appearance-none rounded-md border border-nl-cacao/15 bg-nl-pearl ps-3 pe-9 text-[14px] text-nl-cacao outline-none transition-colors hover:border-nl-cacao/35 focus-visible:border-nl-cacao focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
 					>
-						<Grid3X3 className="h-4 w-4" strokeWidth={1.25} />
-					</button>
-					<button
-						type="button"
-						aria-label="List view"
-						aria-pressed={view === "list"}
-						onClick={() => setParam("view", "list")}
-						className={`-ms-px flex h-9 w-9 items-center justify-center border transition-colors ${
-							view === "list"
-								? "border-nl-cacao bg-nl-cacao text-nl-linen"
-								: "border-nl-cacao/20 bg-transparent text-nl-cacao hover:border-nl-cacao/40"
-						}`}
-					>
-						<List className="h-4 w-4" strokeWidth={1.25} />
-					</button>
+						{SORT_OPTIONS.map((s) => (
+							<option key={s.value} value={s.value}>
+								{tCat(s.labelKey)}
+							</option>
+						))}
+					</select>
+					<ChevronDown
+						className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-nl-russet"
+						strokeWidth={1.75}
+						aria-hidden="true"
+					/>
 				</div>
 			</div>
 		</div>

@@ -3,18 +3,22 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {} }) }));
-// EmptySearchState calls BOTH useLocale and useTranslations; omitting the
-// latter threw "No 'useTranslations' export is defined on the next-intl mock".
-// Echoing the key is safe here: the only translated string is t("browse"),
-// which no assertion below depends on — "Recent"/"Clear all"/"Remove {query}"
-// are hardcoded literals in the component.
+// Keys are echoed, with the {query} value appended where one is passed, so the
+// assertions below can tell the remove buttons apart.
 vi.mock("next-intl", () => ({
 	useLocale: () => "en",
-	useTranslations: () => (key: string) => key,
+	useTranslations:
+		() => (key: string, values?: Record<string, string>) =>
+			values?.query ? `${key}:${values.query}` : key,
 }));
 vi.mock("@/lib/queries/recent-searches", () => ({
-	useRecentSearches: () => ({ data: [{ query: "dior" }, { query: "cerave" }] }),
+	useRecentSearches: () => ({
+		data: [{ query: "greyboard 2mm" }, { query: "pu leather" }],
+	}),
 	useClearRecentSearches: () => ({ mutate: () => {} }),
+}));
+vi.mock("@/lib/queries/search", () => ({
+	useTrendingSearches: () => ({ data: [{ query: "kraft mailer box", count: 4 }] }),
 }));
 
 import { EmptySearchState } from "../empty-search-state";
@@ -26,19 +30,25 @@ const wrap = (ui: React.ReactNode) => (
 describe("EmptySearchState", () => {
 	test("renders recent search chips", () => {
 		render(wrap(<EmptySearchState />));
-		expect(screen.getByText("dior")).toBeTruthy();
-		expect(screen.getByText("cerave")).toBeTruthy();
-		expect(screen.getByText("Recent")).toBeTruthy();
+		expect(screen.getByText("greyboard 2mm")).toBeTruthy();
+		expect(screen.getByText("pu leather")).toBeTruthy();
+		expect(screen.getByText("recent")).toBeTruthy();
 	});
 
-	test("renders Clear all button", () => {
+	test("renders the clear button", () => {
 		render(wrap(<EmptySearchState />));
-		expect(screen.getByText("Clear all")).toBeTruthy();
+		expect(screen.getByText("clearRecent")).toBeTruthy();
 	});
 
 	test("renders remove buttons for each chip", () => {
 		render(wrap(<EmptySearchState />));
-		expect(screen.getByLabelText("Remove dior")).toBeTruthy();
-		expect(screen.getByLabelText("Remove cerave")).toBeTruthy();
+		expect(screen.getByLabelText("removeRecent:greyboard 2mm")).toBeTruthy();
+		expect(screen.getByLabelText("removeRecent:pu leather")).toBeTruthy();
+	});
+
+	test("renders trending searches", () => {
+		render(wrap(<EmptySearchState />));
+		expect(screen.getByText("trending")).toBeTruthy();
+		expect(screen.getByText("kraft mailer box")).toBeTruthy();
 	});
 });

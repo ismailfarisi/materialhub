@@ -5,6 +5,7 @@ import { ListingHeader } from "@/components/product/listing-header";
 import { buildListingParams } from "@/components/product/listing-params";
 import { ListingResults } from "@/components/product/listing-results";
 import { ListingSeoContent } from "@/components/product/listing-seo-content";
+import { formatFils, stockFor } from "@/components/swatch";
 import { TTL, publicGet } from "@/lib/api-public";
 import { formatAedForLocale } from "@/lib/money";
 import { buildAlternates } from "@/lib/seo/alternates";
@@ -130,7 +131,9 @@ export default async function CategoryPage({ params, searchParams }: Props) {
 			revalidate: TTL.productListing,
 			tags: ["products", `category:${slug}`],
 			locale,
-		}).then((data) => data ?? { data: [], total: 0 }),
+					// null means the product service did not answer: say so, rather
+			// than presenting an outage as an empty category.
+		}).then((data) => data ?? { data: [], total: 0, facets: undefined, failed: true as const }),
 		getCategoryFacts(slug, locale),
 		publicGet<Record<string, string>>("/site-settings", {
 			params: { keys: "marketplace_return_window_days" },
@@ -141,6 +144,35 @@ export default async function CategoryPage({ params, searchParams }: Props) {
 	]);
 
 	const t = await getTranslations({ locale, namespace: "category" });
+	const tb = await getTranslations({ locale, namespace: "browse" });
+
+	// A subcategory wears its top-level category's stock: the first breadcrumb
+	// entry is the root of the tree. Matching the subcategory slug itself would
+	// misfile e.g. "paper-bags" under papers rather than packaging.
+	// biome-ignore lint/suspicious/noExplicitAny: untyped API response shape
+	const rootSlug: string = (category.breadcrumb?.[0] as any)?.slug ?? slug;
+	const stock = stockFor(rootSlug);
+
+	const headerFacts = [
+		...(facts.total > 0
+			? [
+					{
+						label: tb("factProducts"),
+						value: new Intl.NumberFormat(locale === "ar" ? "ar-AE" : "en-AE").format(
+							facts.total,
+						),
+					},
+				]
+			: []),
+		...(facts.minPriceFils !== null && facts.total > 0
+			? [
+					{
+						label: tb("factFrom"),
+						value: `AED ${formatFils(facts.minPriceFils, locale)}`,
+					},
+				]
+			: []),
+	];
 
 	// The trailing crumb is the page you are already on: rendering it as a link
 	// to itself adds a self-referencing BreadcrumbList item, which schema.org
@@ -199,11 +231,14 @@ export default async function CategoryPage({ params, searchParams }: Props) {
 	const faqJsonLd = buildFaqJsonLd(faq);
 
 	return (
-		<div className="mx-auto max-w-[1400px] py-4">
+		<div className="mx-auto max-w-[1400px] px-4 pb-4 md:px-8">
 			<ListingHeader
 				breadcrumbItems={breadcrumbItems}
 				title={category.name}
 				intro={category.description || undefined}
+				stock={stock}
+				facts={headerFacts}
+				pillsLabel={tb("subcategories")}
 				pills={(category.children ?? []).map(
 					// biome-ignore lint/suspicious/noExplicitAny: untyped API response shape
 					(child: any) => ({
@@ -214,18 +249,17 @@ export default async function CategoryPage({ params, searchParams }: Props) {
 			/>
 
 			{banners.length > 0 && (
-				<div className="mb-6">
+				<div className="mb-8">
 					<HeroBanner banners={banners} />
 				</div>
 			)}
-
 
 			<ListingResults
 				config={facetConfig}
 				products={productsRes.data || []}
 				total={productsRes.total || 0}
-				view={filters.view}
 				activeCount={activeCount}
+				isError={"failed" in productsRes}
 			/>
 
 			<ListingSeoContent

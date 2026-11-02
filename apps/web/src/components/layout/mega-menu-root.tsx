@@ -2,7 +2,7 @@
 
 import type { NavTab } from "@/lib/api/navigation";
 import { useEffect, useRef, useState } from "react";
-import { MegaMenuPanel } from "./mega-menu-panel";
+import { MegaMenuPanel, stockForTab } from "./mega-menu-panel";
 
 interface Props {
 	tabs: NavTab[];
@@ -100,7 +100,6 @@ export function MegaMenuRoot({ tabs }: Props) {
 	return (
 		<div
 			ref={panelRef}
-			role="menu"
 			onMouseEnter={() => {
 				if (closeTimer.current) clearTimeout(closeTimer.current);
 			}}
@@ -110,9 +109,17 @@ export function MegaMenuRoot({ tabs }: Props) {
 					CLOSE_DELAY_MS,
 				);
 			}}
-			className="absolute inset-x-0 top-full z-50 bg-nl-linen border-t border-nl-cacao/10 shadow-[0_24px_60px_rgba(26,18,8,0.12)] animate-fade-in-up"
+			className="absolute inset-x-0 top-full z-50 border-t border-nl-cacao/12 bg-nl-linen shadow-lift"
 		>
-			<div className="max-w-[1400px] mx-auto px-4 md:px-12">
+			{/* Stock strip: the open category's colour as the panel's top edge. */}
+			{openTab.kind === "category" && (
+				<div
+					aria-hidden="true"
+					className="h-1"
+					style={{ background: stockForTab(openTab).color }}
+				/>
+			)}
+			<div className="max-w-[1400px] mx-auto px-4 md:px-8">
 				<MegaMenuPanel tab={openTab} />
 			</div>
 		</div>
