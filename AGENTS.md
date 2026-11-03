@@ -9,33 +9,8 @@ Vendors (suppliers) run their listings, inventory, orders, shipments, coupons an
 
 ## Stack
 
-- **Runtime:** Bun 1.4 (package manager and runtime), Turborepo monorepo, TypeScript strict.
 - **Backend:** ElysiaJS services with a NestJS-style structure (modules, DI in `container.ts`, lifecycle hooks). PostgreSQL 16 + PostGIS via TypeORM (migrations), Redis, BullMQ, Typesense for search.
-- **Web:** Next.js 16 (React 19, Turbopack) App Router apps: `apps/web` (storefront), `apps/vendor-dashboard`, `apps/admin-panel`. Shared UI in `packages/ui`.
 - **Payments:** Stripe (PaymentIntents + Connect payouts), Tabby, Tamara, COD. The `payments`, `commissions`, `vendor_payouts` and `webhook_events` tables are the ledger.
-- **Cloud:** AWS (EC2 + docker compose, RDS, S3 + CloudFront, SES), Terraform in `terraform/`.
-- **Lint/test:** Biome, `bun test`.
-
-## Layout
-
-```
-backend/apps/
-  api-gateway           proxy + rate limit + Swagger at /api/docs
-  auth-service          JWT (15m access / 7d refresh), phone OTP, OAuth, 2FA, addresses, admin users
-  product-service       categories, brands, attributes, products, variants, inventory, collections,
-                        media presign, Typesense search, wishlist, recently viewed, bulk import/export
-  order-service         cart, checkout, orders, vendor sub-orders, shipments, returns, refunds, disputes,
-                        reviews, coupons, promotions, commissions, payouts, invoices, dashboards
-  vendor-service        vendor onboarding, KYC documents, members, bank accounts, warehouses, follows
-  cms-service           pages, banners, layouts and sections, section bids, header navigation,
-                        settings, support tickets, audit log
-  notification-service  email (SES), push (FCM), WhatsApp, in-app; BullMQ dispatch
-  integration-service   vendor integrations: signed outbound webhooks, mappings, sales-channel feeds
-backend/libs/           config, database (entities + migrations + seeds), dto, guards, plugins, utils,
-                        bulk-jobs, integration-events, integration-mapper
-apps/                   web, vendor-dashboard, admin-panel
-packages/ui             shared React components
-```
 
 ## Commands
 
@@ -49,8 +24,6 @@ bun run dev                                       # all services + apps (turbo),
 cd backend && bunx --bun @biomejs/biome@1.9.4 check .   # lint before push
 cd backend/apps/<service> && bun test             # unit tests; integration tests need a live DB
 ```
-
-Default local ports: gateway 3000, auth 3001, product 3002, order 3003, vendor 3004, notification 3005, cms 3006, integration 3008; web 4000, vendor dashboard 4001, admin panel 4002.
 
 ## Rules
 
