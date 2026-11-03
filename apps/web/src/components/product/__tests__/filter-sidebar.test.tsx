@@ -28,7 +28,7 @@ vi.mock("@materialhub/ui", async () => {
 });
 
 const facets = {
-	brands: [{ value: "ouai", label: "Ouai" }],
+	brands: [{ value: "gulf-board", label: "Gulf Board" }],
 	vendors: [],
 	attributes: [],
 	priceRange: { min: 0, max: 100000 },
@@ -38,18 +38,28 @@ describe("FilterSidebar (refactored)", () => {
 	it("commits brand toggle to the URL eagerly", () => {
 		replace.mockClear();
 		render(<FilterSidebar config={facets} />);
-		fireEvent.click(screen.getByLabelText("Ouai"));
+		fireEvent.click(screen.getByLabelText("Gulf Board"));
 		expect(replace).toHaveBeenCalledWith(
-			expect.stringContaining("brand=ouai"),
+			expect.stringContaining("brand=gulf-board"),
 			{ scroll: false },
 		);
 	});
 
-	it("Clear all resets to ?", () => {
-		replace.mockClear();
-		render(<FilterSidebar config={facets} />);
-		fireEvent.click(screen.getByText("clearAll"));
-		expect(replace).toHaveBeenCalledWith("?", { scroll: false });
+	it("hides Clear all until a filter is set, then resets to ?", () => {
+		const { unmount } = render(<FilterSidebar config={facets} />);
+		expect(screen.queryByText("clearAll")).not.toBeInTheDocument();
+		unmount();
+
+		// The rail mirrors the URL, so the filter has to be in it.
+		searchParams.set("brand", "gulf-board");
+		try {
+			render(<FilterSidebar config={facets} />);
+			replace.mockClear();
+			fireEvent.click(screen.getByText("clearAll"));
+			expect(replace).toHaveBeenCalledWith("?", { scroll: false });
+		} finally {
+			searchParams.delete("brand");
+		}
 	});
 
 	it("renders an aside with role=complementary and the filters label", () => {

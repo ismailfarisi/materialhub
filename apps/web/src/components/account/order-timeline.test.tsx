@@ -36,9 +36,9 @@ describe("OrderTimeline", () => {
     expect(completedCount()).toBe(1);
   });
 
-  it("marks every prior step complete when delivered", () => {
+  it("marks every step complete, delivered included, when delivered", () => {
     render(<OrderTimeline currentStatus="delivered" />);
-    expect(completedCount()).toBe(3);
+    expect(completedCount()).toBe(4);
   });
 
   describe("terminal statuses", () => {

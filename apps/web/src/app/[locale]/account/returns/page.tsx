@@ -1,176 +1,109 @@
 "use client";
 
-import { useState } from "react";
+import type { ReturnRow } from "@/components/account/types";
+import { EmptyState, ErrorState, ListSkeleton, PageHeader, Panel, StatusBadge } from "@/components/account/account-ui";
+import { returnTone, statusLabel } from "@/components/account/status";
+import { useReturns } from "@/lib/queries/orders";
+import { cn, formatDate, formatPrice } from "@/lib/utils";
+import { ChevronRight, PackageX } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
-import { useReturns } from "@/lib/queries/orders";
-import {
-  Eyebrow,
-  SerifTitle,
-  MAISON_SERIF,
-  MAISON_SANS,
-} from "@/components/checkout/maison-primitives";
+import { useState } from "react";
 
-const STATUS_OPTIONS = [
-  "",
-  "requested",
-  "approved",
-  "shipped_back",
-  "received",
-  "refunded",
-  "rejected",
-] as const;
-
-function formatDate(iso: string, locale: string) {
-  return new Date(iso).toLocaleDateString(locale, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function formatFils(fils: number | null | undefined) {
-  if (fils == null) return "—";
-  return `AED ${(fils / 100).toFixed(2)}`;
-}
+const STATUS_OPTIONS = ["", "requested", "approved", "shipped_back", "received", "refunded", "rejected"] as const;
 
 export default function ReturnsPage() {
-  const t = useTranslations("returns");
-  const tCommon = useTranslations("common");
-  const locale = useLocale();
-  const [status, setStatus] = useState<string>("");
-  const [page, setPage] = useState(1);
+	const t = useTranslations("returns");
+	const locale = useLocale();
+	const [status, setStatus] = useState<string>("");
+	const { data, isLoading, isError, refetch } = useReturns({ page: 1 });
+	// useReturns already unwraps response.data to the array; tolerate either
+	// a bare array or a paginated envelope just in case.
+	const items: ReturnRow[] = Array.isArray(data) ? data : (data?.data ?? data?.items ?? []);
+	const filtered = status ? items.filter((r) => r.status === status) : items;
+	const tStatus = (k: string) => t(`statuses.${k}`);
 
-  const { data, isLoading } = useReturns({ page });
-  // useReturns already unwraps response.data to the array; tolerate either
-  // a bare array or a paginated envelope just in case.
-  const items: any[] = Array.isArray(data) ? data : (data?.data ?? data?.items ?? []);
-  const filtered = status ? items.filter((r) => r.status === status) : items;
+	return (
+		<div>
+			<PageHeader title={t("title")} description={t("intro")} />
 
-  return (
-    <div>
-      <div className="mb-5">
-        <Eyebrow>RETURNS</Eyebrow>
-        <SerifTitle size={26} className="mt-1.5">
-          {t("title")}
-        </SerifTitle>
-      </div>
+			{items.length > 0 && (
+				<fieldset className="scrollbar-hide -mx-4 mb-4 flex min-w-0 gap-1.5 overflow-x-auto border-0 px-4 py-0 md:mx-0 md:flex-wrap md:px-0">
+					<legend className="sr-only">{t("statusFilter")}</legend>
+					{STATUS_OPTIONS.map((s) => {
+						const active = status === s;
+						return (
+							<button
+								key={s || "all"}
+								type="button"
+								aria-pressed={active}
+								onClick={() => setStatus(s)}
+								className={cn(
+									"h-9 shrink-0 rounded-md border px-3 text-[13px] transition-colors",
+									active
+										? "border-nl-cacao bg-nl-cacao font-medium text-white"
+										: "border-nl-cacao/15 bg-nl-pearl text-nl-cacao hover:border-nl-cacao/40",
+								)}
+							>
+								{s ? tStatus(s) : t("statuses.all")}
+							</button>
+						);
+					})}
+				</fieldset>
+			)}
 
-      <div className="mb-5">
-        <label
-          htmlFor="status-filter"
-          className="block mb-1.5 uppercase"
-          style={{
-            fontFamily: MAISON_SANS,
-            fontSize: 10,
-            letterSpacing: "0.18em",
-            color: "hsl(var(--nl-russet))",
-          }}
-        >
-          {t("statusFilter")}
-        </label>
-        <select
-          id="status-filter"
-          value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
-            setPage(1);
-          }}
-          className="px-2.5 py-2 text-sm"
-          style={{
-            border: "1px solid rgba(44,24,16,0.2)",
-            background: "transparent",
-            borderRadius: 0,
-            color: "hsl(var(--nl-cacao))",
-            fontFamily: MAISON_SANS,
-          }}
-        >
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s}>
-              {s ? t(`statuses.${s}`) : t("statuses.all")}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {isLoading ? (
-        <p
-          className="py-12 text-center"
-          style={{
-            fontFamily: MAISON_SERIF,
-            fontStyle: "italic",
-            fontSize: 16,
-            color: "hsl(var(--nl-russet))",
-          }}
-        >
-          {tCommon("loading")}
-        </p>
-      ) : filtered.length === 0 ? (
-        <p
-          className="py-12 text-center"
-          style={{
-            fontFamily: MAISON_SERIF,
-            fontStyle: "italic",
-            fontSize: 16,
-            color: "hsl(var(--nl-russet))",
-          }}
-        >
-          {t("empty")}
-        </p>
-      ) : (
-        <ul style={{ border: "1px solid rgba(44,24,16,0.10)" }}>
-          {filtered.map((ret: any, i: number) => (
-            <li
-              key={ret.id}
-              style={
-                i > 0
-                  ? { borderTop: "1px solid rgba(44,24,16,0.08)" }
-                  : undefined
-              }
-            >
-              <Link
-                href={`/${locale}/account/returns/${ret.id}`}
-                className="flex items-center justify-between gap-3 p-3.5 transition-colors hover:bg-[rgba(44,24,16,0.02)]"
-              >
-                <div className="min-w-0 flex-1">
-                  <div
-                    className="truncate"
-                    style={{
-                      fontFamily: MAISON_SANS,
-                      fontSize: 13,
-                      color: "hsl(var(--nl-cacao))",
-                    }}
-                  >
-                    {ret.return_number ?? ret.id.slice(0, 8)}
-                  </div>
-                  <div
-                    className="mt-0.5 uppercase"
-                    style={{
-                      fontFamily: MAISON_SANS,
-                      fontSize: 10,
-                      letterSpacing: "0.14em",
-                      color: "hsl(var(--nl-russet))",
-                    }}
-                  >
-                    {formatDate(ret.created_at, locale)} ·{" "}
-                    {t(`statuses.${ret.status}`)}
-                  </div>
-                </div>
-                <div
-                  className="shrink-0"
-                  style={{
-                    fontFamily: MAISON_SERIF,
-                    fontSize: 15,
-                    color: "hsl(var(--nl-cacao))",
-                  }}
-                >
-                  {formatFils(ret.refund_amount)}
-                </div>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
+			{isLoading ? (
+				<ListSkeleton rows={3} />
+			) : isError ? (
+				<ErrorState onRetry={() => refetch()} />
+			) : items.length === 0 ? (
+				<EmptyState
+					icon={PackageX}
+					title={t("empty")}
+					body={t("emptyBody")}
+					action={{ label: t("goToOrders"), href: `/${locale}/account/orders` }}
+				/>
+			) : filtered.length === 0 ? (
+				<EmptyState title={t("emptyFiltered")} action={{ label: t("statuses.all"), onClick: () => setStatus("") }} />
+			) : (
+				<Panel as="div">
+					<div className="hidden grid-cols-[minmax(0,1fr)_140px_150px_130px_16px] gap-4 border-b border-nl-cacao/10 px-5 py-3 md:grid">
+						<span className="mill-label text-nl-russet">{t("returnNumber")}</span>
+						<span className="mill-label text-nl-russet">{t("requestedOn")}</span>
+						<span className="mill-label text-nl-russet">{t("statusLabel")}</span>
+						<span className="mill-label text-end text-nl-russet">{t("refundAmount")}</span>
+						<span />
+					</div>
+					<ul className="m-0 list-none divide-y divide-nl-cacao/10 p-0">
+						{filtered.map((ret) => (
+							<li key={ret.id}>
+								<Link
+									href={`/${locale}/account/returns/${ret.id}`}
+									className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-4 py-3.5 transition-colors hover:bg-nl-cacao/[0.025] md:grid-cols-[minmax(0,1fr)_140px_150px_130px_16px] md:px-5"
+								>
+									<span className="truncate font-mono text-[14px] font-medium tabular-nums text-nl-cacao">
+										{ret.return_number ?? ret.id.slice(0, 8)}
+									</span>
+									<span className="order-3 font-mono text-[13px] tabular-nums text-nl-russet md:order-none">
+										{ret.created_at ? formatDate(ret.created_at, locale) : "—"}
+									</span>
+									<span className="order-2 justify-self-end md:order-none md:justify-self-start">
+										<StatusBadge tone={returnTone(ret.status)}>{statusLabel(tStatus, ret.status)}</StatusBadge>
+									</span>
+									<span className="order-4 justify-self-end font-mono text-[14px] tabular-nums text-nl-cacao md:order-none">
+										{ret.refund_amount != null ? formatPrice(ret.refund_amount, "AED", locale) : "—"}
+									</span>
+									<ChevronRight
+										className="hidden h-4 w-4 text-nl-russet transition-transform group-hover:translate-x-0.5 rtl:rotate-180 md:block"
+										strokeWidth={1.75}
+										aria-hidden="true"
+									/>
+								</Link>
+							</li>
+						))}
+					</ul>
+				</Panel>
+			)}
+		</div>
+	);
 }

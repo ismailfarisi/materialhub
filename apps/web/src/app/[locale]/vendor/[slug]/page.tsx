@@ -4,7 +4,9 @@ import { VendorStorefrontHero } from "@/components/vendor/vendor-storefront-hero
 import { apiServer } from "@/lib/api-server";
 import { buildAlternates } from "@/lib/seo/alternates";
 import type { Metadata } from "next";
-import { setRequestLocale } from "next-intl/server";
+import { buttonVariants } from "@/components/swatch";
+import { getTranslations, setRequestLocale } from "next-intl/server";
+import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 import { headers } from "next/headers";
 import { notFound, permanentRedirect } from "next/navigation";
@@ -61,8 +63,10 @@ export async function generateMetadata({
 	if (!vendor) return { title: "Vendor not found" };
 	const resolvedSlug = vendor.slug ?? slug;
 	return {
-		title: `${vendor.name} — MaterialHub`,
-		description: vendor.description ?? `Shop ${vendor.name} on MaterialHub`,
+		// The root layout's title template appends the site name.
+		title: vendor.name,
+		description:
+			vendor.description ?? `Materials from ${vendor.name}, a supplier on MaterialHub.`,
 		alternates: buildAlternates(locale, `/vendor/${resolvedSlug}`),
 		openGraph: {
 			title: vendor.name,
@@ -92,13 +96,36 @@ export default async function VendorStorefrontPage({
 	}
 
 	const layout = await fetchLayout(vendor.id, locale, preview_token);
+	const t = await getTranslations({ locale, namespace: "browse" });
+	const sections = layout.sections || [];
 
 	return (
 		<>
 			{preview_token && <PreviewBanner status="active" />}
-			<VendorStorefrontHero vendor={layout.vendor_context ?? vendor} />
-			<main className="pb-8 md:pb-12 space-y-10 md:space-y-20">
-				<LayoutRenderer sections={layout.sections || []} />
+			{/* The layout's vendor_context is the chrome the vendor configured
+			    (logo, banner); the profile carries the facts (since, rating). */}
+			<VendorStorefrontHero vendor={{ ...vendor, ...(layout.vendor_context ?? {}) }} />
+			<main className="pt-8 pb-8 md:pt-12 md:pb-12 space-y-10 md:space-y-20">
+				{sections.length > 0 ? (
+					<LayoutRenderer sections={sections} />
+				) : (
+					<div className="mx-auto max-w-[1400px] px-4 md:px-8">
+						<div className="grid justify-items-start gap-3 rounded-md border border-dashed border-nl-cacao/25 bg-nl-pearl/60 px-5 py-10 md:px-8 md:py-14">
+							<h2 className="m-0 font-display text-[19px] font-semibold tracking-[-0.01em] text-nl-cacao">
+								{t("storefrontEmptyTitle")}
+							</h2>
+							<p className="m-0 max-w-[56ch] text-[15px] text-nl-russet">
+								{t("storefrontEmptyHint", { name: vendor.name })}
+							</p>
+							<Link
+								href={`/${locale}/search?vendor=${encodeURIComponent(vendor.slug ?? slug)}`}
+								className={`${buttonVariants({ variant: "primary" })} mt-2`}
+							>
+								{t("seeSupplierListings")}
+							</Link>
+						</div>
+					</div>
+				)}
 			</main>
 		</>
 	);

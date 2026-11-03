@@ -1,20 +1,13 @@
 "use client";
 
-import { useRequireAuth } from "@/hooks/use-require-auth";
-import { useTranslations } from "next-intl";
 import { CheckoutPage as CheckoutPageContent } from "@/components/checkout/checkout-page";
+import { CheckoutSkeleton } from "@/components/checkout/checkout-skeleton";
+import { useRequireAuth } from "@/hooks/use-require-auth";
 
 export default function CheckoutPage() {
-  const tCommon = useTranslations("common");
-  const { isReady } = useRequireAuth();
+	const { isReady } = useRequireAuth();
 
-  if (!isReady) {
-    return (
-      <div className="container max-w-2xl py-20 text-center text-muted-foreground">
-        {tCommon("loading")}
-      </div>
-    );
-  }
+	if (!isReady) return <CheckoutSkeleton />;
 
-  return <CheckoutPageContent />;
+	return <CheckoutPageContent />;
 }

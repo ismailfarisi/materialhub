@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-02T14:40:00Z",
+  "title": "Design System: MaterialHub Swatch Book",
+  "extensions": {
+    "colorMeta": {
+      "board": { "role": "neutral", "displayName": "Board", "canonical": "hsl(60 4% 92%)" },
+      "stock": { "role": "neutral", "displayName": "Stock", "canonical": "hsl(0 0% 100%)" },
+      "binder-ink": { "role": "primary", "displayName": "Binder ink", "canonical": "hsl(222 18% 11%)" },
+      "pencil": { "role": "neutral", "displayName": "Pencil", "canonical": "hsl(220 8% 36%)" },
+      "cutter-orange": { "role": "accent", "displayName": "Cutter orange", "canonical": "hsl(16 90% 50%)" },
+      "status-success": { "role": "status", "displayName": "Success", "canonical": "hsl(142 64% 30%)" },
+      "status-warning": { "role": "status", "displayName": "Warning", "canonical": "hsl(36 92% 40%)" },
+      "status-error": { "role": "status", "displayName": "Error", "canonical": "hsl(0 72% 45%)" },
+      "binder-black": { "role": "neutral", "displayName": "Binder black", "canonical": "hsl(220 14% 9%)" },
+      "stock-paper": { "role": "category", "displayName": "Paper blue", "canonical": "hsl(213 70% 39%)" },
+      "stock-leather": { "role": "category", "displayName": "Oxblood", "canonical": "hsl(352 59% 30%)" },
+      "stock-hardware": { "role": "category", "displayName": "Brass", "canonical": "hsl(40 80% 30%)" },
+      "stock-finishing": { "role": "category", "displayName": "Laminate green", "canonical": "hsl(165 74% 25%)" },
+      "stock-packaging": { "role": "category", "displayName": "Kraft", "canonical": "hsl(24 50% 36%)" },
+      "stock-trims": { "role": "category", "displayName": "Grosgrain red", "canonical": "hsl(4 66% 44%)" },
+      "stock-craft": { "role": "category", "displayName": "Tissue violet", "canonical": "hsl(256 43% 48%)" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Hero and landing headlines only; Archivo at normal or expanded width." },
+      "label": { "displayName": "Mill label", "purpose": "Archivo condensed caps for kickers, spec keys, tab text. Never sentences." },
+      "spec": { "displayName": "Spec", "purpose": "Geist Mono for measured values and SKUs." }
+    },
+    "shadows": [
+      { "name": "card", "value": "0 1px 0 rgb(17 20 27 / 0.06), 0 1px 3px rgb(17 20 27 / 0.08)", "purpose": "Resting card on the board." },
+      { "name": "lift", "value": "0 2px 0 rgb(17 20 27 / 0.04), 0 18px 32px -14px rgb(17 20 27 / 0.28)", "purpose": "Card picked up on hover; menus and popovers." }
+    ],
+    "motion": [
+      { "name": "lift", "value": "200ms ease-out", "purpose": "Card hover lift (-2px)." },
+      { "name": "fan", "value": "500ms cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Fan deck spread; the one authored motion moment per page." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" }, { "name": "md", "value": "768px" }, { "name": "lg", "value": "1024px" }, { "name": "xl", "value": "1280px" }, { "name": "2xl", "value": "1400px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Signal Button",
+      "kind": "button",
+      "refersTo": "button-signal",
+      "description": "The one next step on a screen.",
+      "html": "<button class=\"ds-btn-signal\">Add to cart</button>",
+      "css": ".ds-btn-signal{background:hsl(16 90% 50%);color:#fff;height:44px;padding:0 16px;border:0;border-radius:6px;font:500 14px Geist,system-ui,sans-serif;box-shadow:inset 0 -2px 0 rgb(0 0 0/.12);transition:background .15s}.ds-btn-signal:hover{background:hsl(16 90% 45%)}.ds-btn-signal:focus-visible{outline:2px solid hsl(16 90% 50%);outline-offset:2px}"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Default strong action in binder ink.",
+      "html": "<button class=\"ds-btn-primary\">Request quote</button>",
+      "css": ".ds-btn-primary{background:hsl(222 18% 11%);color:#fff;height:44px;padding:0 16px;border:0;border-radius:6px;font:500 14px Geist,system-ui,sans-serif}.ds-btn-primary:hover{background:hsl(222 18% 20%)}.ds-btn-primary:focus-visible{outline:2px solid hsl(16 90% 50%);outline-offset:2px}"
+    },
+    {
+      "name": "Swatch Card",
+      "kind": "card",
+      "refersTo": "swatch-card",
+      "description": "Product or category card with a stock-colour tab and punched hole.",
+      "html": "<article class=\"ds-swatch\"><div class=\"ds-swatch-tab\"><span>Papers &amp; boards</span><i></i></div><div class=\"ds-swatch-img\"></div><div class=\"ds-swatch-body\"><small>Gulf Paper Supply</small><b>Art board, matte</b><span class=\"ds-spec\">350 gsm</span><p><em>AED</em> 4.80 <em>/ sheet</em></p></div></article>",
+      "css": ".ds-swatch{width:240px;background:#fff;border-radius:6px;overflow:hidden;box-shadow:0 1px 0 rgb(17 20 27/.06),0 1px 3px rgb(17 20 27/.08);transition:transform .2s,box-shadow .2s}.ds-swatch:hover{transform:translateY(-2px);box-shadow:0 18px 32px -14px rgb(17 20 27/.28)}.ds-swatch-tab{height:28px;background:hsl(213 70% 39%);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font:600 12px Archivo,sans-serif;font-stretch:72%;letter-spacing:.06em;text-transform:uppercase}.ds-swatch-tab i{width:10px;height:10px;border-radius:50%;background:hsl(60 4% 92%)}.ds-swatch-img{aspect-ratio:4/3;background:hsl(60 4% 92%)}.ds-swatch-body{padding:14px;display:grid;gap:6px;font:400 13px Geist,sans-serif;color:hsl(220 8% 36%)}.ds-swatch-body b{font:600 15.5px Archivo,sans-serif;color:hsl(222 18% 11%)}.ds-spec{justify-self:start;font:11.5px 'Geist Mono',monospace;border:1px solid rgb(23 26 33/.15);border-radius:2px;padding:4px 6px;color:hsl(222 18% 11%)}.ds-swatch-body p{margin:6px 0 0;padding-top:8px;border-top:1px dashed rgb(23 26 33/.15);font:600 18px Archivo,sans-serif;color:hsl(222 18% 11%)}.ds-swatch-body em{font:400 12.5px Geist,sans-serif;color:hsl(220 8% 36%);font-style:normal}"
+    },
+    {
+      "name": "Mill Label",
+      "kind": "custom",
+      "refersTo": "spec-chip",
+      "description": "Spec table: condensed caps keys, mono values.",
+      "html": "<dl class=\"ds-mill\"><dt>Grammage</dt><dd>1250 gsm</dd><dt>Thickness</dt><dd>2.0 mm</dd><dt>Sheet</dt><dd>70 × 100 cm</dd></dl>",
+      "css": ".ds-mill{display:grid;grid-template-columns:auto 1fr;border-top:2px solid hsl(222 18% 11%);margin:0;width:280px}.ds-mill dt,.ds-mill dd{padding:10px 0;border-bottom:1px solid rgb(23 26 33/.12);margin:0}.ds-mill dt{font:600 12px Archivo,sans-serif;font-stretch:72%;letter-spacing:.06em;text-transform:uppercase;color:hsl(220 8% 36%)}.ds-mill dd{font:13.5px 'Geist Mono',monospace;text-align:end;color:hsl(222 18% 11%)}"
+    },
+    {
+      "name": "Search Field",
+      "kind": "input",
+      "refersTo": "search-field",
+      "description": "Header search: white field with ink hairline.",
+      "html": "<label class=\"ds-search\"><input placeholder=\"Search 350gsm art board, PU leather…\"><kbd>⌘K</kbd></label>",
+      "css": ".ds-search{display:flex;align-items:center;gap:8px;width:420px;height:48px;padding:0 6px 0 16px;background:#fff;border:1px solid rgb(23 26 33/.15);border-radius:6px}.ds-search:focus-within{border-color:hsl(222 18% 11%)}.ds-search input{flex:1;border:0;outline:0;font:400 15px Geist,sans-serif;caret-color:hsl(16 90% 50%)}.ds-search kbd{font:11px 'Geist Mono',monospace;border:1px solid rgb(23 26 33/.15);border-radius:2px;padding:4px 8px;background:hsl(60 4% 92%)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Swatch Book",
+    "overview": "The page is the board a swatch book lies on; every product is a swatch card; every category is a stock colour; every spec is printed like a mill label. Persuade surfaces (home, category landings) let the world carry the page; Operate surfaces (listings, product, cart, checkout, account) take only type, palette, density and the swatch card.",
+    "keyCharacteristics": ["Board-grey ground, white cards, binder ink", "Seven category stocks used as whole fields", "Specs in mono, keys in condensed caps", "One cutter orange for the next action"],
+    "rules": [
+      { "name": "The Field Rule", "body": "A stock colour fills a shape or it is not used.", "section": "colors" },
+      { "name": "The One Orange Rule", "body": "At most one cutter-orange filled button per viewport.", "section": "colors" },
+      { "name": "Numbers line up", "body": "Prices, quantities and specs use tabular-nums.", "section": "typography" }
+    ],
+    "dos": ["Show specs and supplier on every product card", "Write prices with units", "Theme selection, caret, focus and scrollbars"],
+    "donts": ["No beauty-era patterns, serif display or cream grounds", "No pill buttons", "No decorative gradients, glass or glows", "No invented claims"]
+  }
+}

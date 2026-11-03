@@ -1,48 +1,73 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
-import { useLocale, useTranslations } from "next-intl";
+import { EmptyState, ErrorState, ListSkeleton, PageHeader, Panel, StatusBadge } from "@/components/account/account-ui";
+import { statusLabel, ticketTone } from "@/components/account/status";
+import { Button } from "@/components/swatch";
 import { useMyTickets } from "@/lib/queries/support";
-import { Eyebrow, SerifTitle } from "@/components/checkout/maison-primitives";
+import { formatDate } from "@/lib/utils";
+import { ChevronRight, LifeBuoy, Plus } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
+import Link from "next/link";
 
 export default function SupportListPage() {
-  const t = useTranslations("support");
-  const locale = useLocale();
-  const [page] = useState(1);
-  const { data, isLoading } = useMyTickets({ page });
-  const tickets = data?.data ?? [];
+	const t = useTranslations("support");
+	const locale = useLocale();
+	const { data, isLoading, isError, refetch } = useMyTickets({ page: 1 });
+	const tickets = data?.data ?? [];
+	const tStatus = (k: string) => t(`statuses.${k}`);
+	const newHref = `/${locale}/account/support/new`;
 
-  return (
-    <div>
-      <div className="flex items-center justify-between">
-        <div>
-          <Eyebrow>SUPPORT</Eyebrow>
-          <SerifTitle size={26}>{t("list.title")}</SerifTitle>
-        </div>
-        <Link href={`/${locale}/account/support/new`} className="rounded px-4 py-2"
-          style={{ background: "hsl(var(--nl-espresso))", color: "hsl(var(--nl-linen))" }}>
-          {t("list.new")}
-        </Link>
-      </div>
+	return (
+		<div>
+			<PageHeader
+				title={t("list.title")}
+				description={t("list.intro")}
+				action={
+					tickets.length > 0 ? (
+						<Button asChild>
+							<Link href={newHref}>
+								<Plus className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+								{t("list.new")}
+							</Link>
+						</Button>
+					) : null
+				}
+			/>
 
-      {isLoading ? (
-        <p className="mt-6">…</p>
-      ) : tickets.length === 0 ? (
-        <p className="mt-6">{t("list.empty")}</p>
-      ) : (
-        <ul className="mt-6 flex flex-col gap-3">
-          {tickets.map((ticket) => (
-            <li key={ticket.id}>
-              <Link href={`/${locale}/account/support/${ticket.id}`}
-                className="flex items-center justify-between rounded border p-4">
-                <span>{ticket.subject}</span>
-                <span style={{ fontSize: 13, opacity: 0.7 }}>{t(`statuses.${ticket.status}`)}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
+			{isLoading ? (
+				<ListSkeleton rows={3} />
+			) : isError ? (
+				<ErrorState onRetry={() => refetch()} />
+			) : tickets.length === 0 ? (
+				<EmptyState icon={LifeBuoy} title={t("list.empty")} body={t("list.emptyBody")} action={{ label: t("list.new"), href: newHref }} />
+			) : (
+				<Panel as="div">
+					<ul className="m-0 list-none divide-y divide-nl-cacao/10 p-0">
+						{tickets.map((ticket) => (
+							<li key={ticket.id}>
+								<Link
+									href={`/${locale}/account/support/${ticket.id}`}
+									className="group flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-nl-cacao/[0.025] md:px-5"
+								>
+									<span className="grid min-w-0 flex-1 gap-1">
+										<span className="truncate text-[14.5px] font-medium text-nl-cacao">{ticket.subject}</span>
+										<span className="font-mono text-[12.5px] tabular-nums text-nl-russet">
+											{ticket.ticket_number}
+											{ticket.created_at && ` · ${formatDate(ticket.created_at, locale)}`}
+										</span>
+									</span>
+									<StatusBadge tone={ticketTone(ticket.status)}>{statusLabel(tStatus, ticket.status)}</StatusBadge>
+									<ChevronRight
+										className="hidden h-4 w-4 shrink-0 text-nl-russet transition-transform group-hover:translate-x-0.5 rtl:rotate-180 sm:block"
+										strokeWidth={1.75}
+										aria-hidden="true"
+									/>
+								</Link>
+							</li>
+						))}
+					</ul>
+				</Panel>
+			)}
+		</div>
+	);
 }

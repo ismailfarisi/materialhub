@@ -1,339 +1,175 @@
 "use client";
 
+import { Button, PriceTag } from "@/components/swatch";
 import { useCart } from "@/lib/queries/cart";
-import { formatPrice } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { useAuthModalStore } from "@/stores/auth-modal";
 import { useAuthStore } from "@/stores/auth";
 import { useCartStore } from "@/stores/cart";
-import { ArrowRight, Check, X } from "lucide-react";
+import { ArrowRight, X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CartItem } from "./cart-item";
-import { getFreeShippingProgress } from "./cart-shipping-threshold";
-
-const SERIF_STACK = "var(--font-antic), var(--font-playfair), 'Antic Didone', Georgia, serif";
-const SANS_STACK =
-  "var(--font-inter-tight), var(--font-dm-sans), 'Inter Tight', system-ui, sans-serif";
+import { type CartLineItem, cartPieceCount, cartSubtotalFils, groupBySupplier, isLineUnavailable } from "./cart-lines";
+import { FreeShippingMeter } from "./free-shipping-meter";
+import { useDialogFocus } from "./use-dialog-focus";
 
 export function CartSlideOver() {
-  const t = useTranslations("cart");
-  const locale = useLocale();
-  const { isSlideOverOpen, closeSlideOver } = useCartStore();
-  const { data: cart } = useCart();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const openAuthModal = useAuthModalStore((s) => s.open);
+	const t = useTranslations("cart");
+	const locale = useLocale();
+	const { isSlideOverOpen, closeSlideOver } = useCartStore();
+	const { data: cart, isLoading } = useCart();
+	const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+	const openAuthModal = useAuthModalStore((s) => s.open);
+	const panelRef = useRef<HTMLElement>(null);
+	const [entered, setEntered] = useState(false);
 
-  useEffect(() => {
-    if (!isSlideOverOpen) return;
-    const original = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeSlideOver();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = original;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [isSlideOverOpen, closeSlideOver]);
+	useDialogFocus(isSlideOverOpen, panelRef, closeSlideOver);
 
-  if (!isSlideOverOpen) return null;
+	useEffect(() => {
+		if (!isSlideOverOpen) {
+			setEntered(false);
+			return;
+		}
+		const id = requestAnimationFrame(() => setEntered(true));
+		return () => cancelAnimationFrame(id);
+	}, [isSlideOverOpen]);
 
-  const items = cart?.items || [];
-  const pieceCount = items.reduce((sum: number, item: any) => sum + item.quantity, 0);
-  const subtotalFils = items.reduce(
-    (sum: number, item: any) => sum + item.current_price * item.quantity,
-    0,
-  );
-  const { progress, unlocked, remainingFils } = getFreeShippingProgress(subtotalFils);
-  const pieceLabel =
-    pieceCount === 1
-      ? t("yourEditOne", { count: pieceCount })
-      : t("yourEditOther", { count: pieceCount });
+	if (!isSlideOverOpen) return null;
 
-  return (
-    <>
-      <button
-        type="button"
-        tabIndex={-1}
-        aria-label={t("close")}
-        className="fixed inset-0 z-40 cursor-default"
-        style={{ background: "rgba(26, 18, 8, 0.55)" }}
-        onClick={closeSlideOver}
-      />
-      {/* biome-ignore lint/a11y/useSemanticElements: native <dialog> brings its own positioning/backdrop semantics that conflict with this slide-over layout */}
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("title")}
-        className="fixed inset-y-0 end-0 w-full max-w-[460px] z-50 flex flex-col"
-        style={{
-          background: "hsl(var(--nl-linen))",
-          color: "hsl(var(--nl-cacao))",
-          fontFamily: SANS_STACK,
-          boxShadow: "-24px 0 60px rgba(26,18,8,0.35)",
-        }}
-      >
-        <div className="px-8 pt-5 pb-4" style={{ borderBottom: "1px solid rgba(44,24,16,0.1)" }}>
-          <div className="flex items-start justify-between">
-            <div>
-              <div
-                className="flex items-center gap-2 uppercase"
-                style={{
-                  fontSize: 9.5,
-                  letterSpacing: "0.32em",
-                  color: "hsl(var(--nl-amber))",
-                }}
-              >
-                <Mark />
-                {pieceLabel}
-              </div>
-              <h2
-                className="mt-1.5"
-                style={{
-                  fontFamily: SERIF_STACK,
-                  fontSize: 26,
-                  lineHeight: 1.05,
-                  letterSpacing: "-0.01em",
-                  fontWeight: 400,
-                }}
-              >
-                {t("the")}{" "}
-                <span
-                  style={{
-                    fontStyle: "italic",
-                    color: "hsl(var(--nl-amber))",
-                  }}
-                >
-                  {t("bag")}
-                </span>
-              </h2>
-            </div>
-            <button
-              type="button"
-              onClick={closeSlideOver}
-              aria-label={t("close")}
-              className="grid place-items-center transition-colors hover:bg-black/5"
-              style={{
-                width: 32,
-                height: 32,
-                border: "1px solid rgba(44,24,16,0.12)",
-                color: "hsl(var(--nl-cacao))",
-              }}
-            >
-              <X className="h-4 w-4" strokeWidth={1.25} />
-            </button>
-          </div>
+	const items: CartLineItem[] = cart?.items ?? [];
+	const groups = groupBySupplier(items);
+	const subtotalFils = cartSubtotalFils(items);
+	const pieces = cartPieceCount(items);
+	const hasUnavailable = items.some(isLineUnavailable);
 
-          {items.length > 0 && (
-            <>
-              <div
-                className="mt-4 flex items-center gap-2.5"
-                style={{ fontSize: 11, color: "hsl(var(--nl-russet))" }}
-              >
-                {unlocked ? (
-                  <>
-                    <Check
-                      className="h-3.5 w-3.5"
-                      strokeWidth={1.5}
-                      style={{ color: "hsl(var(--nl-amber))" }}
-                    />
-                    <span>{t("shippingUnlocked")}</span>
-                  </>
-                ) : (
-                  <span>
-                    {t("shippingRemaining", {
-                      amount: formatPrice(remainingFils, "AED", locale),
-                    })}
-                  </span>
-                )}
-              </div>
-              <div className="mt-2" style={{ height: 2, background: "rgba(44,24,16,0.08)" }}>
-                <div
-                  style={{
-                    height: "100%",
-                    width: `${progress}%`,
-                    background: "hsl(var(--nl-amber))",
-                    transition: "width 320ms cubic-bezier(0.2,0.7,0.2,1)",
-                  }}
-                />
-              </div>
-            </>
-          )}
-        </div>
+	function signInToCheckout() {
+		openAuthModal("login", `/${locale}/checkout`);
+		closeSlideOver();
+	}
 
-        <div
-          className="flex-1 overflow-y-auto px-8"
-          style={{ scrollbarColor: "rgba(44,24,16,0.22) transparent" }}
-        >
-          {items.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center text-center py-16">
-              <Mark size={22} />
-              <p
-                className="mt-6 max-w-[260px]"
-                style={{
-                  fontFamily: SERIF_STACK,
-                  fontSize: 22,
-                  lineHeight: 1.25,
-                  fontStyle: "italic",
-                  color: "hsl(var(--nl-russet))",
-                }}
-              >
-                {t("empty")}
-              </p>
-              <p
-                className="mt-3 max-w-[280px]"
-                style={{
-                  fontSize: 12,
-                  lineHeight: 1.55,
-                  color: "hsl(var(--nl-russet))",
-                }}
-              >
-                {t("emptyDek")}
-              </p>
-              <Link
-                href={`/${locale}`}
-                onClick={closeSlideOver}
-                className="mt-7 inline-flex items-center gap-2 transition-opacity hover:opacity-70 uppercase"
-                style={{
-                  fontSize: 10.5,
-                  letterSpacing: "0.24em",
-                  color: "hsl(var(--nl-cacao))",
-                  paddingBottom: 4,
-                  borderBottom: "1px solid hsl(var(--nl-cacao))",
-                }}
-              >
-                {t("browseCta")}
-                <ArrowRight className="h-3 w-3" strokeWidth={1.25} />
-              </Link>
-            </div>
-          ) : (
-            items.map((item: any, i: number) => (
-              <CartItem
-                key={item.variant_id}
-                item={item}
-                isLast={i === items.length - 1}
-                onNavigate={closeSlideOver}
-              />
-            ))
-          )}
-        </div>
+	return (
+		<>
+			{/* biome-ignore lint/a11y/useKeyWithClickEvents: pointer-only backdrop; Escape closes via useDialogFocus */}
+			<div
+				aria-hidden="true"
+				onClick={closeSlideOver}
+				className={cn(
+					"fixed inset-0 z-40 bg-nl-espresso/50 transition-opacity duration-200 motion-reduce:transition-none",
+					entered ? "opacity-100" : "opacity-0",
+				)}
+			/>
+			{/* biome-ignore lint/a11y/useSemanticElements: native <dialog> top-layer/backdrop semantics conflict with this slide-over */}
+			<aside
+				role="dialog"
+				ref={panelRef}
+				aria-modal="true"
+				aria-labelledby="cart-slide-over-title"
+				className={cn(
+					"fixed inset-y-0 end-0 z-50 flex w-full max-w-[440px] flex-col bg-nl-pearl text-nl-cacao shadow-lift",
+					"transition-transform duration-200 ease-out motion-reduce:transition-none",
+					entered ? "translate-x-0" : "translate-x-full rtl:-translate-x-full",
+				)}
+			>
+				<header className="grid gap-4 border-b border-nl-cacao/10 px-5 pb-4 pt-4 sm:px-6">
+					<div className="flex items-center justify-between gap-3">
+						<div className="flex items-baseline gap-2.5">
+							<h2 id="cart-slide-over-title" className="m-0 font-display text-xl font-semibold tracking-[-0.02em]">
+								{t("pageTitle")}
+							</h2>
+							{items.length > 0 && (
+								<span className="text-[12.5px] tabular-nums text-nl-russet">
+									{t("itemsCount", { count: pieces })}
+								</span>
+							)}
+						</div>
+						<Button variant="ghost" size="icon" onClick={closeSlideOver} aria-label={t("close")} data-autofocus>
+							<X className="h-5 w-5" strokeWidth={1.75} />
+						</Button>
+					</div>
+					{items.length > 0 && <FreeShippingMeter subtotalFils={subtotalFils} />}
+				</header>
 
-        {items.length > 0 && (
-          <div
-            className="px-8 pt-4 pb-5"
-            style={{
-              borderTop: "1px solid rgba(44,24,16,0.1)",
-              background: "hsl(var(--nl-linen))",
-            }}
-          >
-            <div className="grid gap-1.5 text-[12px] mb-3">
-              <SummaryRow label={t("subtotal")} value={formatPrice(subtotalFils, "AED", locale)} />
-              <SummaryRow label={t("shipping")} value={unlocked ? t("complimentary") : "—"} muted />
-              <SummaryRow label={t("estimatedTaxes")} value={t("included")} muted />
-            </div>
-            <div
-              style={{
-                height: 1,
-                background: "rgba(44,24,16,0.1)",
-                marginBottom: 12,
-              }}
-            />
-            <div className="flex items-baseline justify-between mb-3.5">
-              <span
-                className="uppercase"
-                style={{
-                  fontSize: 10,
-                  letterSpacing: "0.24em",
-                  color: "hsl(var(--nl-russet))",
-                }}
-              >
-                {t("total")}
-              </span>
-              <span
-                style={{
-                  fontFamily: SERIF_STACK,
-                  fontSize: 24,
-                  letterSpacing: "-0.01em",
-                }}
-              >
-                {formatPrice(subtotalFils, "AED", locale)}
-              </span>
-            </div>
-            {isAuthenticated ? (
-              <Link
-                href={`/${locale}/checkout`}
-                onClick={closeSlideOver}
-                className="flex w-full items-center justify-center gap-3 uppercase transition-opacity hover:opacity-90"
-                style={{
-                  background: "hsl(var(--nl-amber))",
-                  color: "hsl(var(--nl-espresso))",
-                  padding: "17px 0",
-                  fontSize: 11,
-                  letterSpacing: "0.28em",
-                }}
-              >
-                {t("checkout")}
-                <ArrowRight className="h-3.5 w-3.5" strokeWidth={1.5} />
-              </Link>
-            ) : (
-              <button
-                type="button"
-                onClick={() => { openAuthModal("login", `/${locale}/checkout`); closeSlideOver(); }}
-                className="flex w-full items-center justify-center gap-3 uppercase transition-opacity hover:opacity-90 cursor-pointer"
-                style={{
-                  background: "hsl(var(--nl-amber))",
-                  color: "hsl(var(--nl-espresso))",
-                  padding: "17px 0",
-                  fontSize: 11,
-                  letterSpacing: "0.28em",
-                }}
-              >
-                {t("checkout")}
-                <ArrowRight className="h-3.5 w-3.5" strokeWidth={1.5} />
-              </button>
-            )}
-          </div>
-        )}
-      </aside>
-    </>
-  );
-}
+				<div className="flex-1 overflow-y-auto overscroll-contain px-5 sm:px-6">
+					{isLoading ? (
+						<div className="grid gap-4 py-5" aria-hidden="true">
+							{[0, 1].map((i) => (
+								<div key={i} className="grid grid-cols-[64px_1fr] gap-3 animate-pulse motion-reduce:animate-none">
+									<div className="aspect-square rounded-md bg-nl-cacao/[0.07]" />
+									<div className="grid content-start gap-2 pt-1">
+										<div className="h-4 w-3/4 rounded-sm bg-nl-cacao/[0.07]" />
+										<div className="h-3 w-1/3 rounded-sm bg-nl-cacao/[0.07]" />
+										<div className="h-8 w-28 rounded-md bg-nl-cacao/[0.07]" />
+									</div>
+								</div>
+							))}
+						</div>
+					) : items.length === 0 ? (
+						<div className="flex h-full flex-col items-start justify-center gap-3 py-16">
+							<h3 className="m-0 font-display text-lg font-semibold tracking-[-0.01em]">{t("emptyTitle")}</h3>
+							<p className="m-0 max-w-[34ch] text-[14px] leading-relaxed text-nl-russet">{t("emptyBody")}</p>
+							<Button asChild variant="outline" className="mt-2">
+								<Link href={`/${locale}`} onClick={closeSlideOver}>
+									{t("browseCta")}
+									<ArrowRight className="h-4 w-4 rtl:rotate-180" strokeWidth={1.75} aria-hidden="true" />
+								</Link>
+							</Button>
+						</div>
+					) : (
+						groups.map((group) => (
+							<section key={group.key} aria-label={t("vendorGroup", { vendor: group.vendorName })} className="border-b border-nl-cacao/10 last:border-b-0">
+								<p className="m-0 pt-4 text-[12.5px] text-nl-russet">
+									{t.rich("soldBy", {
+										vendor: group.vendorName,
+										b: (chunks) => <span className="font-medium text-nl-cacao">{chunks}</span>,
+									})}
+								</p>
+								<ul className="m-0 list-none divide-y divide-nl-cacao/10 p-0">
+									{group.items.map((item) => (
+										<li key={item.variant_id}>
+											<CartItem item={item} compact onNavigate={closeSlideOver} />
+										</li>
+									))}
+								</ul>
+							</section>
+						))
+					)}
+				</div>
 
-function SummaryRow({
-  label,
-  value,
-  muted,
-}: {
-  label: string;
-  value: string;
-  muted?: boolean;
-}) {
-  return (
-    <div
-      className="flex justify-between"
-      style={{
-        color: muted ? "hsl(var(--nl-russet))" : "hsl(var(--nl-cacao))",
-      }}
-    >
-      <span>{label}</span>
-      <span>{value}</span>
-    </div>
-  );
-}
-
-function Mark({ size = 11 }: { size?: number }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      style={{ width: size, height: size, color: "hsl(var(--nl-amber))" }}
-      aria-hidden="true"
-      focusable="false"
-    >
-      <title>MaterialHub UAE mark</title>
-      <path d="M 15 4 A 8 8 0 1 0 15 20 A 6 6 0 1 1 15 4 Z" fill="currentColor" />
-      <circle cx="20.5" cy="6" r="1.3" fill="currentColor" />
-    </svg>
-  );
+				{items.length > 0 && (
+					<footer className="grid gap-3 border-t border-nl-cacao/10 bg-nl-pearl px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 sm:px-6">
+						<div className="flex items-baseline justify-between gap-3">
+							<span className="text-[14px] font-medium">{t("subtotal")}</span>
+							<PriceTag amount={subtotalFils} locale={locale} size="md" />
+						</div>
+						<p className="m-0 -mt-1 text-[12.5px] text-nl-russet">{t("subtotalNote")}</p>
+						{hasUnavailable && (
+							<p role="alert" className="m-0 text-[13px] text-destructive">
+								{t("removeUnavailable")}
+							</p>
+						)}
+						{isAuthenticated ? (
+							<Button asChild variant="signal" size="lg" className="w-full">
+								<Link href={`/${locale}/checkout`} onClick={closeSlideOver}>
+									{t("checkoutCta")}
+									<ArrowRight className="h-4 w-4 rtl:rotate-180" strokeWidth={1.75} aria-hidden="true" />
+								</Link>
+							</Button>
+						) : (
+							<Button variant="signal" size="lg" className="w-full" onClick={signInToCheckout}>
+								{t("checkoutCta")}
+								<ArrowRight className="h-4 w-4 rtl:rotate-180" strokeWidth={1.75} aria-hidden="true" />
+							</Button>
+						)}
+						<Button asChild variant="ghost" size="sm" className="w-full">
+							<Link href={`/${locale}/cart`} onClick={closeSlideOver}>
+								{t("viewCart")}
+							</Link>
+						</Button>
+					</footer>
+				)}
+			</aside>
+		</>
+	);
 }

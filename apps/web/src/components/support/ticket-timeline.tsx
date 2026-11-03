@@ -1,30 +1,21 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { StepTrack } from "@/components/account/step-track";
 import type { TicketStatus } from "@/lib/queries/support";
-import { MAISON_SANS } from "@/components/checkout/maison-primitives";
+import { useTranslations } from "next-intl";
 
-const STATUSES: TicketStatus[] = ["open", "in_progress", "waiting_customer", "resolved", "closed"];
+// "Awaiting your reply" is a detour inside "In progress", not a milestone of
+// its own, so the track keeps four steps and the badge carries that state.
+const STEPS: TicketStatus[] = ["open", "in_progress", "resolved", "closed"];
+const STEP_OF: Record<TicketStatus, number> = {
+	open: 0,
+	in_progress: 1,
+	waiting_customer: 1,
+	resolved: 2,
+	closed: 4,
+};
 
 export function TicketTimeline({ currentStatus }: { currentStatus: TicketStatus }) {
-  const t = useTranslations("support.statuses");
-  const activeIdx = STATUSES.indexOf(currentStatus);
-  return (
-    <div style={{ display: "flex", gap: 8, fontFamily: MAISON_SANS, fontSize: 12 }}>
-      {STATUSES.map((s, i) => (
-        <span
-          key={s}
-          style={{
-            padding: "2px 8px",
-            borderRadius: 999,
-            background: i <= activeIdx ? "hsl(var(--nl-amber))" : "hsl(var(--nl-linen))",
-            color: "hsl(var(--nl-espresso))",
-            opacity: i <= activeIdx ? 1 : 0.5,
-          }}
-        >
-          {t(s)}
-        </span>
-      ))}
-    </div>
-  );
+	const t = useTranslations("support.statuses");
+	return <StepTrack current={STEP_OF[currentStatus] ?? 0} steps={STEPS.map((s) => ({ key: s, label: t(s) }))} />;
 }

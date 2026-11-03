@@ -1,17 +1,18 @@
 "use client";
 
+import { cn } from "@/lib/utils";
 import type { AttributeFilter, FilterValueOption } from "@materialhub/ui";
 import { Search, Star } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { FilterCheckRow, FilterGroupShell } from "./filter-group-shell";
-import type { FacetConfig, FilterDraft } from "./filter-state";
+import { type FacetConfig, type FilterDraft, isSpecAttribute } from "./filter-state";
 
 interface Props {
 	config: FacetConfig;
 	draft: FilterDraft;
 	setDraft: (next: FilterDraft) => void;
-	/** Reserved for parity with prior API — sidebar always renders the brand shell now. */
+	/** Reserved for parity with prior API — the rail and the sheet share one layout. */
 	layout?: "vertical" | "accordion";
 }
 
@@ -33,41 +34,75 @@ function toggleCsv(current: string | undefined, value: string): string | null {
 	return updated.length === 0 ? null : updated.join(",");
 }
 
-const BRAND_INITIAL_VISIBLE = 8;
+const LIST_INITIAL_VISIBLE = 8;
 
+/**
+ * The filter groups shared by the desktop rail and the mobile sheet, in the
+ * order a trade buyer narrows a listing: specification first (GSM, thickness,
+ * size, finish — values in mono), then price, supplier and brand, then the
+ * remaining attributes, availability and rating.
+ */
 export function FilterGroups({ config, draft, setDraft }: Props) {
-	const t = useTranslations("category");
+	const t = useTranslations("browse");
+	const withInput = config.attributes.filter((a) => a.filter_input_type);
+	const specs = withInput.filter(isSpecAttribute);
+	const others = withInput.filter((a) => !isSpecAttribute(a));
 
 	return (
 		<div>
-			<PriceGroup draft={draft} setDraft={setDraft} />
-
-			<RatingGroup draft={draft} setDraft={setDraft} />
-
-			<InStockGroup draft={draft} setDraft={setDraft} t={t} />
-
-			{config.brands.length > 0 && (
-				<BrandGroup brands={config.brands} draft={draft} setDraft={setDraft} />
+			{specs.length > 0 && (
+				<div className="pb-2">
+					<h3 className="mill-label m-0 pt-1 pb-2 text-nl-russet">
+						{t("specification")}
+					</h3>
+					{specs.map((attr) => (
+						<AttributeGroup
+							key={attr.key}
+							attr={attr}
+							draft={draft}
+							setDraft={setDraft}
+							spec
+						/>
+					))}
+				</div>
 			)}
 
+			<PriceGroup draft={draft} setDraft={setDraft} />
+
 			{config.vendors.length > 0 && (
-				<VendorGroup
-					vendors={config.vendors}
+				<ListGroup
+					title={t("supplier")}
+					paramKey="vendor"
+					options={config.vendors}
 					draft={draft}
 					setDraft={setDraft}
+					searchPlaceholder={t("findSupplier")}
 				/>
 			)}
 
-			{config.attributes.map((attr) =>
-				attr.filter_input_type ? (
-					<AttributeGroup
-						key={attr.key}
-						attr={attr}
-						draft={draft}
-						setDraft={setDraft}
-					/>
-				) : null,
+			{config.brands.length > 0 && (
+				<ListGroup
+					title={t("brand")}
+					paramKey="brand"
+					options={config.brands}
+					draft={draft}
+					setDraft={setDraft}
+					searchPlaceholder={t("findBrand")}
+				/>
 			)}
+
+			{others.map((attr) => (
+				<AttributeGroup
+					key={attr.key}
+					attr={attr}
+					draft={draft}
+					setDraft={setDraft}
+				/>
+			))}
+
+			<InStockGroup draft={draft} setDraft={setDraft} />
+
+			<RatingGroup draft={draft} setDraft={setDraft} />
 		</div>
 	);
 }
@@ -76,6 +111,60 @@ export function FilterGroups({ config, draft, setDraft }: Props) {
 // Native facet groups
 // ────────────────────────────────────────────────────────────────────────────
 
+const FIELD =
+	"h-10 w-full min-w-0 rounded-md border border-nl-cacao/15 bg-nl-pearl px-3 font-mono text-[13.5px] tabular-nums text-nl-cacao outline-none transition-colors placeholder:text-nl-russet/60 hover:border-nl-cacao/35 focus:border-nl-cacao [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
+
+function NumberField({
+	label,
+	value,
+	placeholder,
+	onChange,
+	onEnter,
+	prefix,
+}: {
+	label: string;
+	value: string;
+	placeholder?: string;
+	onChange: (next: string) => void;
+	onEnter?: () => void;
+	prefix?: string;
+}) {
+	const id = useId();
+	return (
+		<div className="grid min-w-0 flex-1 gap-1.5">
+			<label htmlFor={id} className="text-[12.5px] font-medium text-nl-russet">
+				{label}
+			</label>
+			<div className="relative">
+				{prefix && (
+					<span
+						aria-hidden="true"
+						className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-[12px] text-nl-russet"
+					>
+						{prefix}
+					</span>
+				)}
+				<input
+					id={id}
+					type="number"
+					inputMode="decimal"
+					min={0}
+					placeholder={placeholder}
+					value={value}
+					onChange={(e) => onChange(e.target.value)}
+					onKeyDown={(e) => {
+						if (e.key === "Enter" && onEnter) {
+							e.preventDefault();
+							onEnter();
+						}
+					}}
+					className={cn(FIELD, prefix && "ps-11")}
+				/>
+			</div>
+		</div>
+	);
+}
+
 function PriceGroup({
 	draft,
 	setDraft,
@@ -83,50 +172,24 @@ function PriceGroup({
 	draft: FilterDraft;
 	setDraft: (next: FilterDraft) => void;
 }) {
+	const t = useTranslations("browse");
 	return (
-		<FilterGroupShell title="Price (AED)">
+		<FilterGroupShell title={t("price")}>
 			<div className="flex gap-2">
-				<PriceBox
-					label="Min"
+				<NumberField
+					label={t("min")}
+					prefix="AED"
 					value={draft.minPrice ?? ""}
-					placeholder="Min"
 					onChange={(v) => setDraft(setKey(draft, "minPrice", v || null))}
 				/>
-				<PriceBox
-					label="Max"
+				<NumberField
+					label={t("max")}
+					prefix="AED"
 					value={draft.maxPrice ?? ""}
-					placeholder="Max"
 					onChange={(v) => setDraft(setKey(draft, "maxPrice", v || null))}
 				/>
 			</div>
 		</FilterGroupShell>
-	);
-}
-
-function PriceBox({
-	label,
-	value,
-	placeholder,
-	onChange,
-}: {
-	label: string;
-	value: string;
-	placeholder: string;
-	onChange: (next: string) => void;
-}) {
-	return (
-		<div className="flex-1 border border-nl-cacao/20 px-3 py-2">
-			<div className="text-[9px] uppercase tracking-[0.22em] text-nl-russet">
-				{label}
-			</div>
-			<input
-				type="number"
-				placeholder={placeholder}
-				value={value}
-				onChange={(e) => onChange(e.target.value)}
-				className="w-full bg-transparent font-serif text-[18px] text-nl-cacao outline-none placeholder:text-nl-russet/40"
-			/>
-		</div>
 	);
 }
 
@@ -137,49 +200,47 @@ function RatingGroup({
 	draft: FilterDraft;
 	setDraft: (next: FilterDraft) => void;
 }) {
+	const t = useTranslations("browse");
 	const current = draft.minRating ?? "";
 	return (
-		<FilterGroupShell title="Rating" defaultOpen={false}>
-			<div className="flex flex-col gap-2">
-				{[4, 3, 2, 1].map((r) => {
-					const active = current === String(r);
-					return (
-						<label
-							key={r}
-							className="flex cursor-pointer items-center gap-2 text-[13px] text-nl-cacao"
-						>
-							<input
-								type="radio"
-								name="filter-minRating"
-								aria-label={`${r}+ stars`}
-								checked={active}
-								onChange={() =>
-									setDraft(
-										setKey(draft, "minRating", active ? null : String(r)),
-									)
-								}
-								onClick={() =>
-									active && setDraft(setKey(draft, "minRating", null))
-								}
-								className="h-3.5 w-3.5 cursor-pointer accent-nl-cacao"
-							/>
-							<span className="flex items-center gap-[3px]">
-								{Array.from({ length: 5 }).map((_, i) => (
-									<Star
-										// biome-ignore lint/suspicious/noArrayIndexKey: fixed 5-star scale
-										key={i}
-										className="h-3 w-3"
-										strokeWidth={1.25}
-										fill={i < r ? "currentColor" : "transparent"}
-										color="var(--nl-amber, #B87333)"
-									/>
-								))}
-							</span>
-							<span className="text-[12px]">{r}.0 &amp; up</span>
-						</label>
-					);
-				})}
-			</div>
+		<FilterGroupShell title={t("rating")} defaultOpen={false}>
+			{[4, 3, 2].map((r) => {
+				const active = current === String(r);
+				return (
+					<label
+						key={r}
+						className="-mx-2 flex min-h-10 cursor-pointer items-center gap-3 rounded-sm px-2 text-[14px] text-nl-cacao hover:bg-nl-cacao/[0.04]"
+					>
+						<input
+							type="radio"
+							name="filter-minRating"
+							aria-label={t("ratingAtLeast", { rating: r })}
+							checked={active}
+							onChange={() =>
+								setDraft(setKey(draft, "minRating", active ? null : String(r)))
+							}
+							onClick={() => active && setDraft(setKey(draft, "minRating", null))}
+							className="h-4 w-4 cursor-pointer accent-nl-cacao"
+						/>
+						<span className="flex items-center gap-0.5" aria-hidden="true">
+							{Array.from({ length: 5 }).map((_, i) => (
+								<Star
+									// biome-ignore lint/suspicious/noArrayIndexKey: fixed 5-star scale
+									key={i}
+									className={cn(
+										"h-3.5 w-3.5",
+										i < r ? "fill-nl-cacao text-nl-cacao" : "text-nl-cacao/30",
+									)}
+									strokeWidth={1.5}
+								/>
+							))}
+						</span>
+						<span className="text-[13px] text-nl-russet">
+							{t("ratingAtLeast", { rating: r })}
+						</span>
+					</label>
+				);
+			})}
 		</FilterGroupShell>
 	);
 }
@@ -187,173 +248,144 @@ function RatingGroup({
 function InStockGroup({
 	draft,
 	setDraft,
-	t,
 }: {
 	draft: FilterDraft;
 	setDraft: (next: FilterDraft) => void;
-	t: (key: string) => string;
 }) {
+	const t = useTranslations("browse");
 	// Listings hide sold-out products by default, so this is an opt-IN to see
 	// them rather than a filter down to in-stock. Unchecked = the default.
 	const checked = draft.includeOutOfStock === "true";
 	return (
-		<div className="border-t border-nl-cacao/10 py-5">
+		<FilterGroupShell title={t("availability")}>
 			<FilterCheckRow
 				label={t("includeOutOfStock")}
 				ariaLabel="includeOutOfStock"
 				checked={checked}
 				onChange={() =>
-					setDraft(
-						setKey(draft, "includeOutOfStock", checked ? null : "true"),
-					)
+					setDraft(setKey(draft, "includeOutOfStock", checked ? null : "true"))
 				}
 			/>
-		</div>
+		</FilterGroupShell>
 	);
 }
 
-function BrandGroup({
-	brands,
+/** Brand and supplier: checkbox list with a find field once the list is long. */
+function ListGroup({
+	title,
+	paramKey,
+	options,
 	draft,
 	setDraft,
+	searchPlaceholder,
 }: {
-	brands: { value: string; label: string; count?: number }[];
+	title: string;
+	paramKey: "brand" | "vendor";
+	options: { value: string; label: string; count?: number }[];
 	draft: FilterDraft;
 	setDraft: (next: FilterDraft) => void;
+	searchPlaceholder: string;
 }) {
+	const t = useTranslations("browse");
 	const [query, setQuery] = useState("");
 	const [expanded, setExpanded] = useState(false);
 
-	const filtered = brands.filter((b) =>
-		b.label.toLowerCase().includes(query.toLowerCase()),
+	const filtered = options.filter((o) =>
+		o.label.toLowerCase().includes(query.toLowerCase()),
 	);
-	const overflow = !expanded && filtered.length > BRAND_INITIAL_VISIBLE;
-	const visible = overflow
-		? filtered.slice(0, BRAND_INITIAL_VISIBLE)
-		: filtered;
+	const overflow = !expanded && filtered.length > LIST_INITIAL_VISIBLE;
+	const visible = overflow ? filtered.slice(0, LIST_INITIAL_VISIBLE) : filtered;
 
 	return (
-		<FilterGroupShell title="Brand" count={brands.length}>
-			{brands.length > 6 && (
-				<div className="mb-2.5 flex items-center gap-2 border border-nl-cacao/20 px-2.5 py-2">
-					<Search className="h-3.5 w-3.5 text-nl-russet" strokeWidth={1.25} />
+		<FilterGroupShell title={title} count={options.length}>
+			{options.length > 6 && (
+				<div className="relative mb-1.5">
+					<Search
+						aria-hidden="true"
+						className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-nl-russet"
+						strokeWidth={1.75}
+					/>
 					<input
-						type="text"
-						placeholder="Find a brand"
+						type="search"
+						aria-label={searchPlaceholder}
+						placeholder={searchPlaceholder}
 						value={query}
 						onChange={(e) => setQuery(e.target.value)}
-						className="w-full bg-transparent text-[12px] text-nl-cacao outline-none placeholder:text-nl-russet/60"
+						className="h-10 w-full rounded-md border border-nl-cacao/15 bg-nl-pearl ps-9 pe-3 text-[13.5px] text-nl-cacao outline-none transition-colors placeholder:text-nl-russet/70 hover:border-nl-cacao/35 focus:border-nl-cacao"
 					/>
 				</div>
 			)}
-			<div className="scrollbar-nl flex max-h-[220px] flex-col gap-0.5 overflow-y-auto pe-1">
-				{visible.map((b) => {
-					const checked = draft.brand?.split(",").includes(b.value) ?? false;
+			<div className="scrollbar-nl -me-1 max-h-[320px] overflow-y-auto pe-1">
+				{visible.map((o) => {
+					const checked = draft[paramKey]?.split(",").includes(o.value) ?? false;
 					return (
 						<FilterCheckRow
-							key={b.value}
-							label={b.label}
-							count={b.count}
+							key={o.value}
+							label={o.label}
+							count={o.count}
 							checked={checked}
 							onChange={() =>
-								setDraft(
-									setKey(draft, "brand", toggleCsv(draft.brand, b.value)),
-								)
+								setDraft(setKey(draft, paramKey, toggleCsv(draft[paramKey], o.value)))
 							}
 						/>
 					);
 				})}
 				{filtered.length === 0 && (
-					<div className="py-2 text-[12px] text-nl-russet/70">
-						No brands match &ldquo;{query}&rdquo;
-					</div>
+					<p className="m-0 py-2 text-[13px] text-nl-russet">
+						{t("noMatch", { query })}
+					</p>
 				)}
 			</div>
 			{overflow && (
 				<button
 					type="button"
 					onClick={() => setExpanded(true)}
-					className="mt-2.5 inline-block border-b border-nl-cacao/20 pb-0.5 text-[10px] uppercase tracking-[0.22em] text-nl-russet hover:text-nl-cacao"
+					className="mt-1 h-9 rounded-sm text-[13px] font-medium text-nl-cacao underline decoration-nl-cacao/25 underline-offset-4 hover:decoration-nl-cacao focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
 				>
-					See all {filtered.length} →
+					{t("showAll", { count: filtered.length })}
 				</button>
 			)}
 		</FilterGroupShell>
 	);
 }
 
-function VendorGroup({
-	vendors,
-	draft,
-	setDraft,
-}: {
-	vendors: { value: string; label: string }[];
-	draft: FilterDraft;
-	setDraft: (next: FilterDraft) => void;
-}) {
-	return (
-		<FilterGroupShell title="Vendor" count={vendors.length} defaultOpen={false}>
-			<div className="scrollbar-nl flex max-h-[220px] flex-col gap-0.5 overflow-y-auto pe-1">
-				{vendors.map((v) => {
-					const checked = draft.vendor?.split(",").includes(v.value) ?? false;
-					return (
-						<FilterCheckRow
-							key={v.value}
-							label={v.label}
-							checked={checked}
-							onChange={() =>
-								setDraft(
-									setKey(draft, "vendor", toggleCsv(draft.vendor, v.value)),
-								)
-							}
-						/>
-					);
-				})}
-			</div>
-		</FilterGroupShell>
-	);
-}
-
 // ────────────────────────────────────────────────────────────────────────────
-// Dynamic attribute groups — renders inline so we control brand styling end-to-end
+// Dynamic attribute groups
 // ────────────────────────────────────────────────────────────────────────────
 
 function AttributeGroup({
 	attr,
 	draft,
 	setDraft,
+	spec = false,
 }: {
 	attr: AttributeFilter;
 	draft: FilterDraft;
 	setDraft: (next: FilterDraft) => void;
+	/** Spec groups open by default and set their values in mono. */
+	spec?: boolean;
 }) {
 	const paramValue = draft[attr.key] ?? null;
 	const onChange = (next: string | null) =>
 		setDraft(setKey(draft, attr.key, next));
+	const values = attr.values ?? [];
 
 	if (attr.filter_input_type === "toggle") {
 		const on = paramValue === "true";
 		return (
-			<div className="border-t border-nl-cacao/10 py-5">
-				<button
-					type="button"
-					aria-pressed={on}
-					onClick={() => onChange(on ? null : "true")}
-					className={`inline-flex items-center px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] transition-colors ${
-						on
-							? "border border-nl-cacao bg-nl-cacao text-nl-linen"
-							: "border border-nl-cacao/20 bg-transparent text-nl-cacao hover:border-nl-cacao/40"
-					}`}
-				>
-					{attr.name}
-				</button>
+			<div className="border-t border-nl-cacao/12 py-3">
+				<FilterCheckRow
+					label={attr.name}
+					checked={on}
+					onChange={() => onChange(on ? null : "true")}
+				/>
 			</div>
 		);
 	}
 
 	if (attr.filter_input_type === "range") {
 		return (
-			<FilterGroupShell title={attr.name} defaultOpen={false}>
+			<FilterGroupShell title={attr.name} defaultOpen={spec}>
 				<AttrRange attr={attr} paramValue={paramValue} onChange={onChange} />
 			</FilterGroupShell>
 		);
@@ -362,10 +394,12 @@ function AttributeGroup({
 	if (attr.filter_input_type === "color_swatch") {
 		const selected = new Set(paramValue?.split(",").filter(Boolean) ?? []);
 		return (
-			<FilterGroupShell title={attr.name}>
-				<div className="flex flex-wrap gap-2">
-					{(attr.values ?? []).map((v: FilterValueOption) => {
+			<FilterGroupShell title={attr.name} count={values.length} defaultOpen={spec}>
+				<div className="grid grid-cols-[repeat(auto-fill,minmax(2.25rem,1fr))] gap-2 py-1">
+					{values.map((v: FilterValueOption) => {
 						const isSelected = selected.has(v.value);
+						// Vendor-entered colour values: the only place a raw hex is
+						// allowed, because it describes the material, not the UI.
 						const bg = v.color_hex
 							? { backgroundColor: v.color_hex }
 							: v.swatch_image_url
@@ -373,13 +407,14 @@ function AttributeGroup({
 										backgroundImage: `url(${v.swatch_image_url})`,
 										backgroundSize: "cover",
 									}
-								: { backgroundColor: "#e5e7eb" };
+								: undefined;
 						return (
 							<button
 								key={v.value}
 								type="button"
 								aria-label={v.label}
 								aria-pressed={isSelected}
+								title={v.label}
 								onClick={() => {
 									const next = new Set(selected);
 									if (next.has(v.value)) next.delete(v.value);
@@ -387,13 +422,13 @@ function AttributeGroup({
 									const arr = [...next];
 									onChange(arr.length ? arr.join(",") : null);
 								}}
-								className={`h-7 w-7 rounded-full border-2 transition-transform ${
+								className={cn(
+									"aspect-square w-full rounded-sm bg-nl-linen ring-1 ring-inset ring-black/10 transition-shadow focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber",
 									isSelected
-										? "border-nl-cacao scale-110"
-										: "border-nl-cacao/15 hover:border-nl-cacao/40"
-								}`}
+										? "shadow-[0_0_0_2px_hsl(var(--nl-pearl)),0_0_0_4px_hsl(var(--nl-cacao))]"
+										: "hover:shadow-[0_0_0_2px_hsl(var(--nl-pearl)),0_0_0_3px_hsl(var(--nl-cacao)/0.35)]",
+								)}
 								style={bg}
-								title={v.label}
 							/>
 						);
 					})}
@@ -404,34 +439,22 @@ function AttributeGroup({
 
 	if (attr.filter_input_type === "radio") {
 		return (
-			<FilterGroupShell title={attr.name} defaultOpen={false}>
-				<div className="flex flex-col gap-0.5">
-					{(attr.values ?? []).map((v: FilterValueOption) => {
-						const checked = paramValue === v.value;
-						return (
-							<label
-								key={v.value}
-								className="flex cursor-pointer items-center gap-2.5 py-[5px] text-[13px] text-nl-cacao"
-							>
-								<input
-									type="radio"
-									name={`filter-${attr.key}`}
-									aria-label={v.label}
-									checked={checked}
-									onChange={() => onChange(checked ? null : v.value)}
-									onClick={() => checked && onChange(null)}
-									className="h-3.5 w-3.5 cursor-pointer accent-nl-cacao"
-								/>
-								<span className="flex-1">{v.label}</span>
-								{typeof v.count === "number" && (
-									<span className="text-[11px] text-nl-russet/70">
-										{v.count}
-									</span>
-								)}
-							</label>
-						);
-					})}
-				</div>
+			<FilterGroupShell title={attr.name} count={values.length} defaultOpen={spec}>
+				{values.map((v: FilterValueOption) => {
+					const checked = paramValue === v.value;
+					return (
+						<FilterCheckRow
+							key={v.value}
+							type="radio"
+							name={`filter-${attr.key}`}
+							label={v.label}
+							count={typeof v.count === "number" ? v.count : undefined}
+							checked={checked}
+							mono={spec}
+							onChange={() => onChange(checked ? null : v.value)}
+						/>
+					);
+				})}
 			</FilterGroupShell>
 		);
 	}
@@ -439,26 +462,24 @@ function AttributeGroup({
 	// Default: checkbox
 	const selected = new Set(paramValue?.split(",").filter(Boolean) ?? []);
 	return (
-		<FilterGroupShell title={attr.name} defaultOpen={false}>
-			<div className="scrollbar-nl flex max-h-[220px] flex-col gap-0.5 overflow-y-auto pe-1">
-				{(attr.values ?? []).map((v: FilterValueOption) => {
-					const checked = selected.has(v.value);
-					return (
-						<FilterCheckRow
-							key={v.value}
-							label={v.label}
-							count={typeof v.count === "number" ? v.count : undefined}
-							checked={checked}
-							onChange={() => {
-								const next = new Set(selected);
-								if (next.has(v.value)) next.delete(v.value);
-								else next.add(v.value);
-								const arr = [...next];
-								onChange(arr.length ? arr.join(",") : null);
-							}}
-						/>
-					);
-				})}
+		<FilterGroupShell title={attr.name} count={values.length} defaultOpen={spec}>
+			<div className="scrollbar-nl -me-1 max-h-[320px] overflow-y-auto pe-1">
+				{values.map((v: FilterValueOption) => (
+					<FilterCheckRow
+						key={v.value}
+						label={v.label}
+						count={typeof v.count === "number" ? v.count : undefined}
+						checked={selected.has(v.value)}
+						mono={spec}
+						onChange={() => {
+							const next = new Set(selected);
+							if (next.has(v.value)) next.delete(v.value);
+							else next.add(v.value);
+							const arr = [...next];
+							onChange(arr.length ? arr.join(",") : null);
+						}}
+					/>
+				))}
 			</div>
 		</FilterGroupShell>
 	);
@@ -473,6 +494,7 @@ function AttrRange({
 	paramValue: string | null;
 	onChange: (next: string | null) => void;
 }) {
+	const t = useTranslations("browse");
 	const [lo, hi] = (paramValue ?? "").split("-");
 	const [minStr, setMinStr] = useState(lo ?? "");
 	const [maxStr, setMaxStr] = useState(hi ?? "");
@@ -493,42 +515,34 @@ function AttrRange({
 		onChange(`${a}-${b}`);
 	}
 
+	const [curLo, curHi] = (paramValue ?? "").split("-");
+	const dirty = minStr !== (curLo ?? "") || maxStr !== (curHi ?? "");
+
 	return (
-		<div>
-			<div className="flex gap-2">
-				<div className="flex-1 border border-nl-cacao/20 px-3 py-2">
-					<div className="text-[9px] uppercase tracking-[0.22em] text-nl-russet">
-						Min
-					</div>
-					<input
-						type="number"
-						aria-label={`${attr.name} min`}
-						placeholder={attr.min?.toString() ?? "min"}
-						value={minStr}
-						onChange={(e) => setMinStr(e.target.value)}
-						className="w-full bg-transparent font-serif text-[16px] text-nl-cacao outline-none placeholder:text-nl-russet/40"
-					/>
-				</div>
-				<div className="flex-1 border border-nl-cacao/20 px-3 py-2">
-					<div className="text-[9px] uppercase tracking-[0.22em] text-nl-russet">
-						Max
-					</div>
-					<input
-						type="number"
-						aria-label={`${attr.name} max`}
-						placeholder={attr.max?.toString() ?? "max"}
-						value={maxStr}
-						onChange={(e) => setMaxStr(e.target.value)}
-						className="w-full bg-transparent font-serif text-[16px] text-nl-cacao outline-none placeholder:text-nl-russet/40"
-					/>
-				</div>
+		<div className="grid gap-2.5">
+			<div className="flex items-end gap-2">
+				<NumberField
+					label={t("min")}
+					placeholder={attr.min?.toString()}
+					value={minStr}
+					onChange={setMinStr}
+					onEnter={apply}
+				/>
+				<NumberField
+					label={t("max")}
+					placeholder={attr.max?.toString()}
+					value={maxStr}
+					onChange={setMaxStr}
+					onEnter={apply}
+				/>
 			</div>
 			<button
 				type="button"
 				onClick={apply}
-				className="mt-2.5 text-[10px] uppercase tracking-[0.22em] text-nl-russet hover:text-nl-cacao"
+				disabled={!dirty}
+				className="inline-flex h-9 items-center justify-center rounded-md border border-nl-cacao/25 bg-nl-pearl px-3 text-[13px] font-medium text-nl-cacao transition-colors hover:border-nl-cacao/60 disabled:opacity-45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
 			>
-				Apply
+				{t("apply")}
 			</button>
 		</div>
 	);

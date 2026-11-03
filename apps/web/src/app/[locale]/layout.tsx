@@ -10,40 +10,39 @@ import { PageViewFire } from "@/components/tracking/page-view-fire";
 import type { Metadata, Viewport } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages, setRequestLocale } from "next-intl/server";
-import {
-	Antic_Didone,
-	DM_Sans,
-	Inter_Tight,
-	Playfair_Display,
-} from "next/font/google";
+import { Archivo, Geist, Geist_Mono, Readex_Pro } from "next/font/google";
 import { notFound } from "next/navigation";
 import Script from "next/script";
 import { routing } from "../../../i18n/routing";
 import { SITE_URL } from "@/lib/seo/config";
 import "../globals.css";
 
-const playfair = Playfair_Display({
+// Swatch Book type system (see /DESIGN.md): Archivo for display and, at its
+// condensed width, mill-label caps; Geist for UI and body copy; Geist Mono
+// for spec values (GSM, mm, cm, SKUs).
+const display = Archivo({
 	subsets: ["latin"],
-	variable: "--font-playfair",
+	axes: ["wdth"],
+	variable: "--font-display",
 	display: "swap",
 });
 
-const dmSans = DM_Sans({
+const sans = Geist({
 	subsets: ["latin"],
-	variable: "--font-dm-sans",
+	variable: "--font-sans",
 	display: "swap",
 });
 
-const anticDidone = Antic_Didone({
+const mono = Geist_Mono({
 	subsets: ["latin"],
-	weight: "400",
-	variable: "--font-antic",
+	variable: "--font-mono",
 	display: "swap",
 });
 
-const interTight = Inter_Tight({
-	subsets: ["latin"],
-	variable: "--font-inter-tight",
+// Latin faces have no Arabic glyphs; the `ar` locale falls through to Readex.
+const arabic = Readex_Pro({
+	subsets: ["arabic"],
+	variable: "--font-arabic",
 	display: "swap",
 });
 
@@ -95,7 +94,7 @@ export default async function LocaleLayout({
 		<html
 			lang={locale}
 			dir={dir}
-			className={`${playfair.variable} ${dmSans.variable} ${anticDidone.variable} ${interTight.variable}`}
+			className={`${display.variable} ${sans.variable} ${mono.variable} ${arabic.variable}`}
 		>
 			<body className="min-h-screen flex flex-col font-sans">
 				<NextIntlClientProvider messages={messages} locale={locale}>

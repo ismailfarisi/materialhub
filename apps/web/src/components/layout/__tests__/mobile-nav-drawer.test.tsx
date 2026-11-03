@@ -17,9 +17,9 @@ const tabs: NavTab[] = [
   {
     id: "t1",
     kind: "category",
-    label: "Makeup",
-    href: "/c/makeup",
-    subcategories: [{ label: "Lipstick", href: "/c/lipstick" }],
+    label: "Papers & Boards",
+    href: "/c/papers-boards",
+    subcategories: [{ label: "Art Papers", href: "/c/art-papers" }],
     brand_list: { title: "Brands", see_all_href: "/brands", brands: [] },
     promo_tiles: [],
   },
@@ -33,10 +33,10 @@ describe("MobileNavDrawer", () => {
 
   it("renders tab labels when open and expands children on click", () => {
     renderDrawer({ open: true, onClose: () => {}, tabs });
-    expect(screen.getByText("Makeup")).toBeInTheDocument();
-    expect(screen.queryByText("Lipstick")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByText("Makeup"));
-    expect(screen.getByText("Lipstick")).toBeInTheDocument();
+    expect(screen.getByText("Papers & Boards")).toBeInTheDocument();
+    expect(screen.queryByText("Art Papers")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Papers & Boards"));
+    expect(screen.getByText("Art Papers")).toBeInTheDocument();
   });
 
   it("shows core quick links even when tabs are empty", () => {

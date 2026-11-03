@@ -214,9 +214,9 @@ describe("OrderDetailPage product links", () => {
               {
                 id: "i1",
                 product_id: "p1",
-                product_name: "Rose Serum",
-                product_image_url: "https://cdn.example/rose.jpg",
-                product_slug: "rose-serum",
+                product_name: "Art board, matte 350 gsm",
+                product_image_url: "https://cdn.example/art-board.jpg",
+                product_slug: "art-board-matte-350",
                 quantity: 1,
                 unit_price: 5_000,
               },
@@ -228,10 +228,10 @@ describe("OrderDetailPage product links", () => {
     };
 
     const { container } = render(wrap(<OrderDetailPage />));
-    const links = [...container.querySelectorAll('a[href="/en/product/rose-serum"]')];
+    const links = [...container.querySelectorAll('a[href="/en/product/art-board-matte-350"]')];
     // One on the thumbnail, one on the product name.
     expect(links).toHaveLength(2);
-    expect(container.textContent).toContain("Rose Serum");
+    expect(container.textContent).toContain("Art board, matte 350 gsm");
   });
 
   it("renders the name as plain text when the product is no longer shoppable", () => {
@@ -245,8 +245,8 @@ describe("OrderDetailPage product links", () => {
               {
                 id: "i1",
                 product_id: "p1",
-                product_name: "Discontinued Balm",
-                product_image_url: "https://cdn.example/balm.jpg",
+                product_name: "Kraft mailer box, E-flute",
+                product_image_url: "https://cdn.example/kraft-mailer.jpg",
                 product_slug: null,
                 quantity: 1,
                 unit_price: 5_000,
@@ -260,6 +260,6 @@ describe("OrderDetailPage product links", () => {
 
     const { container } = render(wrap(<OrderDetailPage />));
     expect(container.querySelectorAll('a[href*="/product/"]')).toHaveLength(0);
-    expect(container.textContent).toContain("Discontinued Balm");
+    expect(container.textContent).toContain("Kraft mailer box, E-flute");
   });
 });

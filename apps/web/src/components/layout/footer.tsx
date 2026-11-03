@@ -1,7 +1,16 @@
 import { getLocale, getTranslations } from "next-intl/server";
-import Image from "next/image";
 import Link from "next/link";
-import { Instagram, Linkedin, Youtube } from "lucide-react";
+import { STOCKS, STOCK_ORDER } from "@/components/swatch/stock";
+import { Logo } from "./logo";
+import {
+	BadgeCheck,
+	Instagram,
+	Layers,
+	Linkedin,
+	Truck,
+	Wallet,
+	Youtube,
+} from "lucide-react";
 import type { SVGProps } from "react";
 
 // Inline brand glyphs for marks lucide-react doesn't ship: the post-rebrand
@@ -95,7 +104,30 @@ const SOCIALS = [
 	},
 ];
 
-const PAYMENT_METHODS = ["Visa", "Mastercard", "Amex", "Apple Pay", "Tamara"];
+const PAYMENT_METHODS = ["Visa", "Mastercard", "Amex", "Apple Pay", "Tabby", "Tamara", "COD"];
+
+const VALUE_PROPS = [
+	{
+		Icon: BadgeCheck,
+		title: "Verified suppliers",
+		body: "Every vendor is KYC-checked before listing.",
+	},
+	{
+		Icon: Layers,
+		title: "Sheet to carton",
+		body: "Buy a sample pack or a full production run.",
+	},
+	{
+		Icon: Truck,
+		title: "UAE-wide delivery",
+		body: "Free shipping on orders over AED 150.",
+	},
+	{
+		Icon: Wallet,
+		title: "Flexible payment",
+		body: "Card, Tabby, Tamara or cash on delivery.",
+	},
+];
 
 export async function Footer() {
 	const t = await getTranslations("footer");
@@ -103,28 +135,45 @@ export async function Footer() {
 	const year = new Date().getFullYear();
 
 	return (
-		<footer className="bg-nl-espresso text-nl-pearl mt-auto">
-			<div className="max-w-[1400px] mx-auto px-4 md:px-12 pt-12 md:pt-16 pb-6 md:pb-8">
-				<div className="grid grid-cols-2 md:grid-cols-[1.6fr_1fr_1fr_1fr_1fr] gap-10 md:gap-12 mb-10 md:mb-12">
+		<footer className="bg-nl-espresso text-white/70 mt-auto">
+			{/* The book's edge: one band per category stock. */}
+			<div aria-hidden="true" className="flex h-1.5">
+				{STOCK_ORDER.map((k) => (
+					<span key={k} className="flex-1" style={{ background: STOCKS[k].color }} />
+				))}
+			</div>
+			<div className="max-w-[1400px] mx-auto px-4 md:px-8">
+				{/* Value strip — what makes buying materials here different */}
+				<ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-nl-pearl/10 border-b border-nl-pearl/10 -mx-4 md:mx-0 list-none p-0 m-0">
+					{VALUE_PROPS.map(({ Icon, title, body }) => (
+						<li
+							key={title}
+							className="bg-nl-espresso px-4 md:px-6 py-5 md:py-8 flex items-start gap-3.5"
+						>
+							<span className="h-9 w-9 shrink-0 rounded-md bg-nl-amber/15 text-nl-amber inline-flex items-center justify-center">
+								<Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
+							</span>
+							<span>
+								<span className="block text-sm font-medium text-nl-pearl">{title}</span>
+								<span className="block text-[13px] leading-snug mt-0.5">{body}</span>
+							</span>
+						</li>
+					))}
+				</ul>
+
+				<div className="grid grid-cols-2 md:grid-cols-[1.6fr_1fr_1fr_1fr_1fr] gap-10 md:gap-12 pt-12 md:pt-16 pb-10 md:pb-14">
 					<div className="col-span-2 md:col-span-1">
 						<Link
 							href={`/${locale}`}
-							className="inline-flex items-center mb-5"
+							className="inline-flex items-center mb-5 rounded-md"
 							aria-label="MaterialHub"
 						>
-							<Image
-								src="/materialhub-logo.png"
-								alt="MaterialHub"
-								width={216}
-								height={120}
-								className="h-16 w-auto"
-							/>
+							<Logo className="text-nl-pearl" />
 						</Link>
-						<p className="font-serif italic text-base md:text-lg leading-[1.5] text-nl-linen max-w-[320px] mb-6">
-							UAE&rsquo;s multi-vendor materials marketplace.
-							Trusted local and international vendors, one address.
+						<p className="font-display text-xl md:text-2xl font-semibold leading-[1.2] tracking-[-0.015em] text-white max-w-[340px] mb-6">
+							Papers, boards, leathers and fittings from UAE suppliers, in one place.
 						</p>
-						<div className="flex gap-2.5">
+						<div className="flex gap-2">
 							{SOCIALS.map(({ Icon, href, label }) => (
 								<a
 									key={label}
@@ -132,9 +181,9 @@ export async function Footer() {
 									target="_blank"
 									rel="noreferrer noopener"
 									aria-label={label}
-									className="w-9 h-9 border border-nl-pearl/25 flex items-center justify-center hover:border-nl-amber hover:text-nl-amber text-nl-pearl transition-colors"
+									className="w-10 h-10 rounded-md bg-white/[0.07] flex items-center justify-center hover:bg-nl-amber hover:text-white text-nl-pearl/80 transition-colors"
 								>
-									<Icon className="h-4 w-4" strokeWidth={1.25} />
+									<Icon className="h-4 w-4" strokeWidth={1.75} />
 								</a>
 							))}
 						</div>
@@ -142,15 +191,15 @@ export async function Footer() {
 
 					{COLUMNS.map((col) => (
 						<div key={col.headingKey}>
-							<h3 className="text-[10px] tracking-[0.22em] uppercase text-nl-amber mb-4 md:mb-5">
+							<h3 className="mill-label text-white/60 mb-4">
 								{t(col.headingKey)}
 							</h3>
-							<ul className="flex flex-col gap-2.5 text-sm leading-[1.5]">
+							<ul className="flex flex-col gap-3 text-sm leading-[1.4]">
 								{col.items.map((item) => (
 									<li key={item.label}>
 										<Link
 											href={`/${locale}${item.href}`}
-											className="text-nl-pearl hover:text-nl-amber transition-colors"
+											className="hover:text-nl-pearl transition-colors"
 										>
 											{item.label}
 										</Link>
@@ -161,14 +210,14 @@ export async function Footer() {
 					))}
 				</div>
 
-				<div className="pt-6 border-t border-nl-pearl/15 flex flex-col md:flex-row md:items-center md:justify-between gap-4 text-[10px] tracking-[0.18em] uppercase text-nl-pearl/70">
+				<div className="py-6 border-t border-nl-pearl/10 flex flex-col md:flex-row md:items-center md:justify-between gap-4 text-[13px]">
 					<span>{t("copyright", { year })}</span>
-					<div className="flex flex-wrap items-center gap-2 md:gap-3">
-						<span className="opacity-70 me-1">We accept</span>
+					<div className="flex flex-wrap items-center gap-1.5">
+						<span className="me-1.5">We accept</span>
 						{PAYMENT_METHODS.map((p) => (
 							<span
 								key={p}
-								className="px-2.5 py-1 border border-nl-pearl/20 text-[9px] text-nl-pearl"
+								className="h-7 px-2.5 inline-flex items-center rounded-md bg-nl-pearl/[0.06] text-[12px] font-medium text-nl-pearl/85"
 							>
 								{p}
 							</span>

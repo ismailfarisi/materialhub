@@ -30,15 +30,15 @@ vi.mock("@/lib/queries/search", () => ({
 				products: [
 					{
 						id: "p1",
-						slug: "dior-sauvage",
-						name: "Dior Sauvage EDP",
+						slug: "art-board-350",
+						name: "Art board, matte 350 gsm",
 						image_url: null,
 						price_min: 48000,
 						price_max: 48000,
 					},
 				],
-				categories: [{ id: "c1", name: "Fragrance", slug: "fragrance" }],
-				brands: [{ id: "b1", name: "Dior", slug: "dior" }],
+				categories: [{ id: "c1", name: "Papers & Boards", slug: "papers-boards" }],
+				brands: [{ id: "b1", name: "Gulf Board", slug: "gulf-board" }],
 				did_you_mean: null,
 			},
 		};
@@ -70,9 +70,9 @@ describe("SearchAutocomplete", () => {
 		render(wrap(<SearchAutocomplete />));
 		const input = screen.getByRole("textbox");
 		input.focus();
-		expect(await screen.findByText("Fragrance")).toBeTruthy();
-		expect(await screen.findByText("Dior")).toBeTruthy();
-		expect(await screen.findByText("Dior Sauvage EDP")).toBeTruthy();
+		expect(await screen.findByText("Papers & Boards")).toBeTruthy();
+		expect(await screen.findByText("Gulf Board")).toBeTruthy();
+		expect(await screen.findByText("Art board, matte 350 gsm")).toBeTruthy();
 	});
 });
 
@@ -89,16 +89,16 @@ describe("SearchAutocomplete URL sync", () => {
 
 	test("prefills from ?q= on the search results page", () => {
 		nav.pathname = "/en/search";
-		nav.params = new URLSearchParams("q=dior");
+		nav.params = new URLSearchParams("q=greyboard");
 
 		render(wrap(<SearchAutocomplete />));
 
-		expect(input().value).toBe("dior");
+		expect(input().value).toBe("greyboard");
 	});
 
 	test("clears the input when navigating back off the search page", () => {
 		nav.pathname = "/en/search";
-		nav.params = new URLSearchParams("q=dior");
+		nav.params = new URLSearchParams("q=greyboard");
 
 		const qc = new QueryClient({
 			defaultOptions: { queries: { retry: false } },
@@ -109,7 +109,7 @@ describe("SearchAutocomplete URL sync", () => {
 			</QueryClientProvider>
 		);
 		const { rerender } = render(ui());
-		expect(input().value).toBe("dior");
+		expect(input().value).toBe("greyboard");
 
 		// Browser Back to the page the search was launched from. The layout —
 		// and therefore this component instance — survives the navigation.
@@ -146,19 +146,19 @@ describe("SearchAutocomplete URL sync", () => {
 
 	test("does not fetch suggestions for a prefilled query nobody opened", () => {
 		nav.pathname = "/en/search";
-		nav.params = new URLSearchParams("q=dior");
+		nav.params = new URLSearchParams("q=greyboard");
 		suggest.calls.length = 0;
 
 		render(wrap(<SearchAutocomplete />));
 
-		expect(input().value).toBe("dior");
+		expect(input().value).toBe("greyboard");
 		// The dropdown was never opened, so no suggest request should go out.
 		expect(suggest.calls.filter((q) => q !== "")).toEqual([]);
 	});
 
 	test("keeps in-progress typing when only filter params change", () => {
 		nav.pathname = "/en/search";
-		nav.params = new URLSearchParams("q=dior");
+		nav.params = new URLSearchParams("q=greyboard");
 
 		const qc = new QueryClient({
 			defaultOptions: { queries: { retry: false } },
@@ -170,13 +170,13 @@ describe("SearchAutocomplete URL sync", () => {
 		);
 		const { rerender } = render(ui());
 
-		fireEvent.change(input(), { target: { value: "chanel" } });
+		fireEvent.change(input(), { target: { value: "kraft" } });
 
 		// Applying a facet on the results page rewrites the URL but leaves ?q=
 		// untouched; that must not clobber what the user is halfway through typing.
-		nav.params = new URLSearchParams("q=dior&brand=dior");
+		nav.params = new URLSearchParams("q=greyboard&brand=gulf-board");
 		rerender(ui());
 
-		expect(input().value).toBe("chanel");
+		expect(input().value).toBe("kraft");
 	});
 });

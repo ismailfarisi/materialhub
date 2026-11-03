@@ -23,6 +23,10 @@ vi.mock("@materialhub/ui", async () => {
 			open ? <div role="dialog">{children}</div> : null,
 		// biome-ignore lint/suspicious/noExplicitAny: test mock
 		SheetContent: ({ children }: any) => <div>{children}</div>,
+		// biome-ignore lint/suspicious/noExplicitAny: test mock
+		SheetTitle: ({ children }: any) => <h2>{children}</h2>,
+		// biome-ignore lint/suspicious/noExplicitAny: test mock
+		SheetClose: ({ children, ...props }: any) => <button type="button" {...props}>{children}</button>,
 		AttributeFilterSidebar: () => null,
 	};
 });
@@ -31,7 +35,7 @@ import { api } from "@/lib/api";
 import { FilterSheet } from "../filter-sheet";
 
 const facets = {
-	brands: [{ value: "ouai", label: "Ouai" }],
+	brands: [{ value: "gulf-board", label: "Gulf Board" }],
 	vendors: [],
 	attributes: [],
 	priceRange: { min: 0, max: 100000 },
@@ -64,24 +68,24 @@ describe("FilterSheet", () => {
 			wrapper,
 		});
 
-		fireEvent.click(screen.getByLabelText("Ouai"));
+		fireEvent.click(screen.getByLabelText("Gulf Board"));
 		expect(replace).not.toHaveBeenCalled();
 
 		fireEvent.click(await screen.findByRole("button", { name: /showResults/ }));
 		expect(replace).toHaveBeenCalledWith(
-			expect.stringContaining("brand=ouai"),
+			expect.stringContaining("brand=gulf-board"),
 			{ scroll: false },
 		);
 		expect(onOpenChange).toHaveBeenCalledWith(false);
 	});
 
-	it("Clear all resets the draft locally (does not commit)", () => {
+	it("Clear all empties the draft locally (does not commit)", () => {
 		render(<FilterSheet open onOpenChange={() => {}} config={facets} />, {
 			wrapper,
 		});
-		fireEvent.click(screen.getByLabelText("Ouai"));
+		fireEvent.click(screen.getByLabelText("Gulf Board"));
 		fireEvent.click(screen.getByText("clearAll"));
-		expect((screen.getByLabelText("Ouai") as HTMLInputElement).checked).toBe(
+		expect((screen.getByLabelText("Gulf Board") as HTMLInputElement).checked).toBe(
 			false,
 		);
 		expect(replace).not.toHaveBeenCalled();

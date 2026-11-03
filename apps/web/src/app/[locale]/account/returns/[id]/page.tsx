@@ -1,407 +1,212 @@
 "use client";
 
-import { useState } from "react";
-import Image from "next/image";
+import { type OrderItemRow, type ReturnItemRow, apiErrorMessage } from "@/components/account/types";
+import {
+	EmptyState,
+	ErrorState,
+	Field,
+	FieldError,
+	Input,
+	ListSkeleton,
+	PageHeader,
+	Panel,
+	PanelHead,
+	Skeleton,
+	StatusBadge,
+	ValueRow,
+} from "@/components/account/account-ui";
+import { OrderLine } from "@/components/account/order-parts";
+import { ReturnTimeline } from "@/components/account/return-timeline";
+import { returnTone, statusLabel } from "@/components/account/status";
+import { Button } from "@/components/swatch";
+import { useReturn, useUpdateReturnShipping } from "@/lib/queries/orders";
+import { formatPrice } from "@/lib/utils";
+import { PackageSearch, Truck } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
-import { useReturn, useUpdateReturnShipping } from "@/lib/queries/orders";
-import { ReturnTimeline } from "@/components/account/return-timeline";
-import { formatPrice } from "@/lib/utils";
-import {
-  Eyebrow,
-  SerifTitle,
-  MAISON_SERIF,
-  MAISON_SANS,
-} from "@/components/checkout/maison-primitives";
+import { useState } from "react";
 
-const PANEL = {
-  border: "1px solid rgba(44,24,16,0.10)",
-  background: "rgba(44,24,16,0.02)",
-} as const;
-
-function formatDate(iso: string, locale: string) {
-  return new Date(iso).toLocaleString(locale, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function formatFils(fils: number | null | undefined, locale: string) {
-  if (fils == null) return "—";
-  return formatPrice(fils, "AED", locale);
+function formatDateTime(iso: string, locale: string) {
+	return new Date(iso).toLocaleString(locale === "ar" ? "ar-AE" : "en-AE", {
+		year: "numeric",
+		month: "short",
+		day: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
+	});
 }
 
 export default function ReturnDetailPage() {
-  const t = useTranslations("returns");
-  const tCommon = useTranslations("common");
-  const locale = useLocale();
-  const { id } = useParams<{ id: string }>();
-  const { data: ret, isLoading } = useReturn(id);
-  const updateShipping = useUpdateReturnShipping();
+	const t = useTranslations("returns");
+	const tCommon = useTranslations("common");
+	const locale = useLocale();
+	const { id } = useParams<{ id: string }>();
+	const { data: ret, isLoading, isError, refetch } = useReturn(id);
+	const updateShipping = useUpdateReturnShipping();
 
-  const [carrier, setCarrier] = useState("");
-  const [tracking, setTracking] = useState("");
-  const [submitError, setSubmitError] = useState<string | null>(null);
+	const [carrier, setCarrier] = useState("");
+	const [tracking, setTracking] = useState("");
+	const [submitError, setSubmitError] = useState<string | null>(null);
 
-  if (isLoading) {
-    return (
-      <p
-        className="py-12 text-center"
-        style={{
-          fontFamily: MAISON_SERIF,
-          fontStyle: "italic",
-          fontSize: 16,
-          color: "hsl(var(--nl-russet))",
-        }}
-      >
-        {tCommon("loading")}
-      </p>
-    );
-  }
-  if (!ret) {
-    return (
-      <p
-        className="py-12 text-center"
-        style={{
-          fontFamily: MAISON_SERIF,
-          fontStyle: "italic",
-          fontSize: 16,
-          color: "hsl(var(--nl-russet))",
-        }}
-      >
-        {t("notFound")}
-      </p>
-    );
-  }
+	if (isLoading) {
+		return (
+			<div className="grid gap-6">
+				<Skeleton className="h-8 w-48" />
+				<ListSkeleton rows={2} />
+			</div>
+		);
+	}
+	if (isError) return <ErrorState onRetry={() => refetch()} />;
+	if (!ret) {
+		return (
+			<EmptyState
+				icon={PackageSearch}
+				title={t("notFound")}
+				action={{ label: t("title"), href: `/${locale}/account/returns` }}
+			/>
+		);
+	}
 
-  async function handleShipping(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitError(null);
-    if (!carrier.trim() || !tracking.trim()) return;
-    try {
-      await updateShipping.mutateAsync({
-        id,
-        carrier: carrier.trim(),
-        tracking_number: tracking.trim(),
-      });
-      setCarrier("");
-      setTracking("");
-    } catch (err: any) {
-      setSubmitError(
-        err?.response?.data?.message ?? err?.message ?? t("errors.submitFailed"),
-      );
-    }
-  }
+	async function handleShipping(e: React.FormEvent) {
+		e.preventDefault();
+		setSubmitError(null);
+		if (!carrier.trim() || !tracking.trim()) return;
+		try {
+			await updateShipping.mutateAsync({
+				id,
+				carrier: carrier.trim(),
+				tracking_number: tracking.trim(),
+			});
+			setCarrier("");
+			setTracking("");
+		} catch (err) {
+			setSubmitError(apiErrorMessage(err, t("errors.submitFailed")));
+		}
+	}
 
-  const items: any[] = ret.returnItems ?? ret.return_items ?? ret.items ?? [];
+	const items: ReturnItemRow[] = ret.returnItems ?? ret.return_items ?? ret.items ?? [];
+	const money = (v: number | null | undefined) => (v == null ? "—" : formatPrice(v, "AED", locale));
+	const tStatus = (k: string) => t(`statuses.${k}`);
+	const shippedBack =
+		(ret.status === "shipped_back" || ret.status === "received" || ret.status === "refunded") && ret.return_tracking_number;
 
-  const labelStyle = {
-    fontFamily: MAISON_SANS,
-    fontSize: 10,
-    letterSpacing: "0.16em",
-    color: "hsl(var(--nl-russet))",
-  } as const;
-  const valueStyle = {
-    fontFamily: MAISON_SANS,
-    fontSize: 13,
-    color: "hsl(var(--nl-cacao))",
-  } as const;
+	return (
+		<div>
+			<PageHeader
+				title={<span className="font-mono font-medium tabular-nums">{ret.return_number ?? ret.id.slice(0, 8)}</span>}
+				description={
+					<span className="inline-flex flex-wrap items-center gap-2">
+						{ret.created_at && <span className="font-mono tabular-nums">{formatDateTime(ret.created_at, locale)}</span>}
+						<StatusBadge tone={returnTone(ret.status)}>{statusLabel(tStatus, ret.status)}</StatusBadge>
+					</span>
+				}
+			/>
 
-  return (
-    <div className="space-y-6">
-      <div className="mb-5">
-        <Eyebrow>RETURN</Eyebrow>
-        <SerifTitle size={26} className="mt-1.5">
-          {ret.return_number ?? ret.id.slice(0, 8)}
-        </SerifTitle>
-        <p className="mt-1" style={labelStyle}>
-          {formatDate(ret.created_at, locale)}
-        </p>
-      </div>
+			<div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-6">
+				<div className="grid gap-4">
+					<Panel>
+						<PanelHead title={t("progress")} />
+						<div className="grid gap-3 px-4 py-4 md:px-5">
+							<ReturnTimeline currentStatus={ret.status} />
+							{ret.rejection_reason && (
+								<div className="grid gap-1 rounded-md bg-destructive/[0.05] p-3">
+									<span className="mill-label text-destructive">{t("rejectionReason")}</span>
+									<p className="m-0 text-sm text-nl-cacao">{ret.rejection_reason}</p>
+								</div>
+							)}
+						</div>
+					</Panel>
 
-      <div style={{ ...PANEL, padding: 16 }}>
-        <ReturnTimeline currentStatus={ret.status} />
-      </div>
+					{ret.status === "approved" && (
+						<Panel>
+						<form onSubmit={handleShipping} className="grid gap-4 p-4 md:p-5">
+							<div className="grid gap-1">
+								<h2 className="m-0 font-display text-[15.5px] font-semibold text-nl-cacao">{t("shippingTitle")}</h2>
+								<p className="m-0 text-sm text-nl-russet">{t("shippingHint")}</p>
+							</div>
+							<div className="grid gap-4 sm:grid-cols-2">
+								<Field label={t("carrier")}>
+									{(p) => (
+										<Input {...p} value={carrier} onChange={(e) => setCarrier(e.target.value)} required maxLength={100} autoComplete="off" />
+									)}
+								</Field>
+								<Field label={t("trackingNumber")}>
+									{(p) => (
+										<Input
+											{...p}
+											value={tracking}
+											onChange={(e) => setTracking(e.target.value)}
+											required
+											maxLength={100}
+											autoComplete="off"
+											className="font-mono"
+										/>
+									)}
+								</Field>
+							</div>
+							{submitError && <FieldError>{submitError}</FieldError>}
+							<div>
+								<Button
+									type="submit"
+									variant="signal"
+									disabled={updateShipping.isPending || !carrier.trim() || !tracking.trim()}
+								>
+									{updateShipping.isPending ? tCommon("loading") : t("submitShipping")}
+								</Button>
+							</div>
+						</form>
+						</Panel>
+					)}
 
-      <div className="space-y-2" style={{ ...PANEL, padding: 16 }}>
-        <div className="flex justify-between">
-          <span className="uppercase" style={labelStyle}>
-            {t("statusLabel")}
-          </span>
-          <span className="uppercase" style={{ ...valueStyle, letterSpacing: "0.16em", fontSize: 11 }}>
-            {t(`statuses.${ret.status}`)}
-          </span>
-        </div>
-        <div className="flex justify-between items-baseline">
-          <span className="uppercase" style={labelStyle}>
-            {t("refundAmount")}
-          </span>
-          <span style={{ fontFamily: MAISON_SERIF, fontSize: 15, color: "hsl(var(--nl-cacao))" }}>
-            {formatFils(ret.refund_amount, locale)}
-          </span>
-        </div>
-        {ret.refunded_at && (
-          <div className="flex justify-between">
-            <span className="uppercase" style={labelStyle}>
-              {t("refundedAt")}
-            </span>
-            <span style={valueStyle}>{formatDate(ret.refunded_at, locale)}</span>
-          </div>
-        )}
-        {ret.rejection_reason && (
-          <div
-            className="pt-2 mt-2"
-            style={{ borderTop: "1px solid rgba(44,24,16,0.10)" }}
-          >
-            <div className="uppercase" style={labelStyle}>
-              {t("rejectionReason")}
-            </div>
-            <div className="mt-1" style={valueStyle}>
-              {ret.rejection_reason}
-            </div>
-          </div>
-        )}
-      </div>
+					{items.length > 0 && (
+						<Panel>
+							<PanelHead title={t("items")} />
+							<ul className="m-0 list-none divide-y divide-nl-cacao/10 px-4 py-4 md:px-5">
+								{items.map((it) => {
+									const product: Partial<OrderItemRow> = it.orderItem ?? it.order_item ?? {};
+									const unit = product.unit_price;
+									const line =
+										it.refund_amount ?? product.line_total ?? (unit != null && it.quantity != null ? unit * it.quantity : null);
+									return (
+										<OrderLine
+											key={it.id}
+											item={{
+												...product,
+												id: it.id,
+												product_name: product.product_name ?? product.name ?? it.product_name ?? t("items"),
+												quantity: it.quantity,
+												line_total: line,
+												refunded_quantity: 0,
+											}}
+										/>
+									);
+								})}
+							</ul>
+						</Panel>
+					)}
+				</div>
 
-      {items.length > 0 && (
-        <div style={{ border: "1px solid rgba(44,24,16,0.10)" }}>
-          <div
-            className="p-3.5 uppercase"
-            style={{
-              borderBottom: "1px solid rgba(44,24,16,0.10)",
-              fontFamily: MAISON_SANS,
-              fontSize: 10,
-              letterSpacing: "0.18em",
-              color: "hsl(var(--nl-russet))",
-            }}
-          >
-            {t("items")}
-          </div>
-          <ul>
-            {items.map((it: any, idx: number) => {
-              const product = it.orderItem ?? it.order_item ?? {};
-              const image = product.product_image_url;
-              const name =
-                product.product_name ?? product.name ?? it.product_name ?? t("items");
-              const variant = product.variant_name;
-              const unitPrice = product.unit_price;
-              const lineTotal = product.line_total;
-              const fallbackLineTotal =
-                unitPrice != null && it.quantity != null ? unitPrice * it.quantity : null;
-              return (
-                <li
-                  key={it.id}
-                  className="p-3.5 flex items-center gap-3"
-                  style={
-                    idx > 0
-                      ? { borderTop: "1px solid rgba(44,24,16,0.08)" }
-                      : undefined
-                  }
-                >
-                  <div
-                    className="relative h-16 w-16 shrink-0 overflow-hidden"
-                    style={{ background: "rgba(44,24,16,0.04)" }}
-                  >
-                    {image && (
-                      <Image
-                        src={image}
-                        alt={name}
-                        fill
-                        sizes="64px"
-                        className="object-cover"
-                      />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p
-                      className="break-words"
-                      style={{
-                        fontFamily: MAISON_SANS,
-                        fontSize: 13,
-                        color: "hsl(var(--nl-cacao))",
-                      }}
-                    >
-                      {name}
-                    </p>
-                    {variant && (
-                      <p
-                        className="break-words"
-                        style={{
-                          fontFamily: MAISON_SANS,
-                          fontSize: 11,
-                          color: "hsl(var(--nl-russet))",
-                        }}
-                      >
-                        {variant}
-                      </p>
-                    )}
-                    <p
-                      style={{
-                        fontFamily: MAISON_SANS,
-                        fontSize: 11,
-                        color: "hsl(var(--nl-russet))",
-                      }}
-                    >
-                      {tCommon("qty")}: {it.quantity}
-                      {unitPrice != null ? ` × ${formatFils(unitPrice, locale)}` : ""}
-                    </p>
-                  </div>
-                  <div className="text-end shrink-0">
-                    <p
-                      className="whitespace-nowrap"
-                      style={{
-                        fontFamily: MAISON_SERIF,
-                        fontSize: 14,
-                        color: "hsl(var(--nl-cacao))",
-                      }}
-                    >
-                      {formatFils(it.refund_amount ?? lineTotal ?? fallbackLineTotal, locale)}
-                    </p>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
-
-      {ret.status === "approved" && (
-        <form
-          onSubmit={handleShipping}
-          className="space-y-3"
-          style={{ ...PANEL, padding: 16 }}
-        >
-          <Eyebrow>{t("shippingTitle")}</Eyebrow>
-          <p
-            style={{
-              fontFamily: MAISON_SERIF,
-              fontStyle: "italic",
-              fontSize: 12,
-              color: "hsl(var(--nl-russet))",
-            }}
-          >
-            {t("shippingHint")}
-          </p>
-          <div>
-            <label
-              htmlFor="carrier"
-              className="block mb-1.5 uppercase"
-              style={{
-                fontFamily: MAISON_SANS,
-                fontSize: 10,
-                letterSpacing: "0.18em",
-                color: "hsl(var(--nl-russet))",
-              }}
-            >
-              {t("carrier")} *
-            </label>
-            <input
-              id="carrier"
-              type="text"
-              value={carrier}
-              onChange={(e) => setCarrier(e.target.value)}
-              required
-              maxLength={100}
-              className="w-full px-2.5 py-2 text-sm"
-              style={{
-                border: "1px solid rgba(44,24,16,0.2)",
-                background: "rgba(255,255,255,0.55)",
-                borderRadius: 0,
-                color: "hsl(var(--nl-cacao))",
-                fontFamily: MAISON_SANS,
-              }}
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="tracking"
-              className="block mb-1.5 uppercase"
-              style={{
-                fontFamily: MAISON_SANS,
-                fontSize: 10,
-                letterSpacing: "0.18em",
-                color: "hsl(var(--nl-russet))",
-              }}
-            >
-              {t("trackingNumber")} *
-            </label>
-            <input
-              id="tracking"
-              type="text"
-              value={tracking}
-              onChange={(e) => setTracking(e.target.value)}
-              required
-              maxLength={100}
-              className="w-full px-2.5 py-2 text-sm"
-              style={{
-                border: "1px solid rgba(44,24,16,0.2)",
-                background: "rgba(255,255,255,0.55)",
-                borderRadius: 0,
-                color: "hsl(var(--nl-cacao))",
-                fontFamily: MAISON_SANS,
-              }}
-            />
-          </div>
-          {submitError && (
-            <p
-              style={{
-                fontFamily: MAISON_SANS,
-                fontSize: 12,
-                color: "hsl(0,55%,42%)",
-              }}
-            >
-              {submitError}
-            </p>
-          )}
-          <button
-            type="submit"
-            disabled={updateShipping.isPending || !carrier.trim() || !tracking.trim()}
-            className="disabled:opacity-50"
-            style={{
-              background: "hsl(var(--nl-amber))",
-              color: "hsl(var(--nl-espresso))",
-              fontFamily: MAISON_SANS,
-              fontSize: 11,
-              letterSpacing: "0.22em",
-              textTransform: "uppercase",
-              padding: "13px 30px",
-              border: "none",
-              borderRadius: 0,
-            }}
-          >
-            {updateShipping.isPending ? tCommon("loading") : t("submitShipping")}
-          </button>
-        </form>
-      )}
-
-      {(ret.status === "shipped_back" || ret.status === "received" || ret.status === "refunded") &&
-        ret.return_tracking_number && (
-          <div className="space-y-1.5" style={{ ...PANEL, padding: 16 }}>
-            <div
-              className="uppercase"
-              style={{
-                fontFamily: MAISON_SANS,
-                fontSize: 10,
-                letterSpacing: "0.18em",
-                color: "hsl(var(--nl-russet))",
-              }}
-            >
-              {t("shippingRecorded")}
-            </div>
-            <div
-              style={{
-                fontFamily: MAISON_SANS,
-                fontSize: 13,
-                color: "hsl(var(--nl-cacao))",
-              }}
-            >
-              {ret.return_shipping_carrier} — {ret.return_tracking_number}
-            </div>
-          </div>
-        )}
-    </div>
-  );
+				<div className="grid gap-4 lg:sticky lg:top-24">
+					<Panel>
+						<PanelHead title={t("refund")} />
+						<div className="px-4 py-3 md:px-5">
+							<ValueRow label={t("refundAmount")} value={money(ret.refund_amount)} strong />
+							{ret.refunded_at && <ValueRow label={t("refundedAt")} value={formatDateTime(ret.refunded_at, locale)} />}
+						</div>
+					</Panel>
+					{shippedBack && (
+						<Panel>
+							<PanelHead title={t("shippingRecorded")} />
+							<p className="m-0 flex items-center gap-2 px-4 py-4 text-sm md:px-5">
+								<Truck className="h-4 w-4 shrink-0 text-nl-russet" strokeWidth={1.75} aria-hidden="true" />
+								<span className="break-all font-mono tabular-nums text-nl-cacao">
+									{ret.return_shipping_carrier} · {ret.return_tracking_number}
+								</span>
+							</p>
+						</Panel>
+					)}
+				</div>
+			</div>
+		</div>
+	);
 }

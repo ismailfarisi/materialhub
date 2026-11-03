@@ -33,6 +33,12 @@ cd backend/apps/<service> && bun test             # unit tests; integration test
 - Seed data, copy, emails and test fixtures are MaterialHub-branded and about materials, packaging or craft; do not introduce other brand names or beauty-era copy.
 - Removed on purpose (do not resurrect): reels and creators, bookings and staff scheduling, beauty quiz, gift boxes and gift cards, flash deals, affiliates, referrals.
 
+## Design
+
+- Design system: **Swatch Book**. `DESIGN.md` (tokens and rules, normative) and `PRODUCT.md` (users and product truth) at the repo root; components in `apps/web/src/components/swatch`; live specimen at `/en/design-system`.
+- UI work follows the Impeccable skill in `.claude/skills/impeccable` (markdown only; the binary launcher is not vendored, so use its "Launcher unavailable" path: read PRODUCT.md and DESIGN.md directly, and read `reference/craft-floor.md` before UI edits).
+- Storefront redesign plan, page groups and file ownership: `docs/design/storefront-redesign.md`.
+
 ## Roadmap (B2B features to add)
 
 1. Trade pricing: minimum order quantity, quantity-break price tiers and unit-of-measure (sheet, roll, pack, carton) on variants.

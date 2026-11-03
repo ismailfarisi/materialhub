@@ -7,13 +7,13 @@ import { useLocale, useTranslations } from "next-intl";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { EmptySearchState } from "./empty-search-state";
-import { SearchAutocompleteResults } from "./search-autocomplete-results";
+import { SEARCH_PANEL, SearchAutocompleteResults } from "./search-autocomplete-results";
 
 /** `/en/search`, `/ar/search` — locale prefix is always present, but tolerate its absence. */
 const SEARCH_PATH = /^\/(?:[a-z]{2}\/)?search\/?$/;
 
 const INPUT_CLASS =
-	"w-full bg-transparent border-0 outline-none text-sm text-nl-cacao placeholder:text-nl-russet/60 font-sans";
+	"w-full h-10 bg-transparent border-0 outline-none text-[15px] text-nl-cacao placeholder:text-nl-russet font-sans [&::-webkit-search-cancel-button]:appearance-none";
 
 /**
  * Prerender stand-in for the Suspense boundary in `header.tsx`.
@@ -39,6 +39,7 @@ export function SearchAutocompleteFallback() {
 
 export function SearchAutocomplete() {
 	const t = useTranslations("common");
+	const tb = useTranslations("browse");
 	const locale = useLocale();
 	const router = useRouter();
 	const pathname = usePathname();
@@ -142,6 +143,8 @@ export function SearchAutocomplete() {
 				<input
 					ref={inputRef}
 					type="text"
+					aria-label={t("search")}
+					enterKeyHint="search"
 					value={query}
 					onChange={(e) => setQuery(e.target.value)}
 					onFocus={() => setIsOpen(true)}
@@ -163,23 +166,35 @@ export function SearchAutocomplete() {
 								setIsOpen(false);
 							}}
 						/>
-					) : debouncedQuery.trim().length >= 2 && data?.did_you_mean ? (
-						<div className="bg-background border border-border/60 rounded-2xl shadow-xl shadow-black/5 p-4 text-center text-sm">
-							No results for &ldquo;{query}&rdquo;.<br />
-							Did you mean{" "}
-							<button
-								type="button"
-								className="text-primary hover:underline"
-								onMouseDown={() => {
-									const suggestion = data?.did_you_mean ?? "";
-									router.push(
-										`/${locale}/search?q=${encodeURIComponent(suggestion)}`,
-									);
-									setIsOpen(false);
-								}}
-							>
-								&ldquo;{data.did_you_mean}&rdquo;
-							</button>?
+					) : debouncedQuery.trim().length >= 2 && data ? (
+						<div className={`${SEARCH_PANEL} grid gap-1 p-4 text-[14px]`} aria-live="polite">
+							<p className="m-0 font-medium text-nl-cacao">
+								{tb("noResultsTitle", { query: debouncedQuery.trim() })}
+							</p>
+							{data.did_you_mean ? (
+								<p className="m-0 text-nl-russet">
+									{tb.rich("didYouMean", {
+										suggestion: data.did_you_mean,
+										link: (chunks) => (
+											<button
+												type="button"
+												className="font-medium text-nl-cacao underline decoration-nl-cacao/30 underline-offset-4 hover:decoration-nl-cacao"
+												onMouseDown={() => {
+													const suggestion = data?.did_you_mean ?? "";
+													router.push(
+														`/${locale}/search?q=${encodeURIComponent(suggestion)}`,
+													);
+													setIsOpen(false);
+												}}
+											>
+												{chunks}
+											</button>
+										),
+									})}
+								</p>
+							) : (
+								<p className="m-0 text-nl-russet">{tb("noResultsShortHint")}</p>
+							)}
 						</div>
 					) : debouncedQuery.trim().length < 2 ? (
 						<EmptySearchState onSelect={() => setIsOpen(false)} />

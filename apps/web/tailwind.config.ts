@@ -13,8 +13,12 @@ const config: Config = {
     },
     extend: {
       fontFamily: {
-        serif: ["var(--font-playfair)", "Playfair Display", "Georgia", "serif"],
-        sans: ["var(--font-dm-sans)", "DM Sans", "system-ui", "sans-serif"],
+        // `serif` is kept as an alias of the display face so existing
+        // `font-serif` headings pick up the new type without a sweep.
+        display: ["var(--font-display)", "var(--font-arabic)", "Archivo", "system-ui", "sans-serif"],
+        serif: ["var(--font-display)", "var(--font-arabic)", "Archivo", "system-ui", "sans-serif"],
+        sans: ["var(--font-sans)", "var(--font-arabic)", "Geist", "system-ui", "sans-serif"],
+        mono: ["var(--font-mono)", "Geist Mono", "ui-monospace", "monospace"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -57,6 +61,30 @@ const config: Config = {
         },
         copper: "hsl(var(--copper))",
         gold: "hsl(var(--gold))",
+        ink: "hsl(var(--nl-cacao))",
+        slate: "hsl(var(--nl-russet))",
+        paper: "hsl(var(--nl-linen))",
+        kraft: {
+          DEFAULT: "hsl(var(--nl-amber))",
+          text: "hsl(var(--nl-amber-text))",
+        },
+        carbon: "hsl(var(--nl-espresso))",
+        board: "hsl(var(--nl-linen))",
+        status: {
+          success: "hsl(var(--status-success))",
+          warning: "hsl(var(--status-warning))",
+          error: "hsl(var(--status-error))",
+          info: "hsl(var(--status-info))",
+        },
+        stock: {
+          paper: "hsl(var(--stock-paper))",
+          leather: "hsl(var(--stock-leather))",
+          hardware: "hsl(var(--stock-hardware))",
+          finishing: "hsl(var(--stock-finishing))",
+          packaging: "hsl(var(--stock-packaging))",
+          trims: "hsl(var(--stock-trims))",
+          craft: "hsl(var(--stock-craft))",
+        },
         nl: {
           linen: "hsl(var(--nl-linen))",
           pearl: "hsl(var(--nl-pearl))",
@@ -70,6 +98,12 @@ const config: Config = {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        xl: "calc(var(--radius) + 4px)",
+        "2xl": "calc(var(--radius) + 8px)",
+      },
+      boxShadow: {
+        card: "var(--shadow-card)",
+        lift: "var(--shadow-lift)",
       },
     },
   },

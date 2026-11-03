@@ -1,88 +1,112 @@
-import type { Metadata } from "next";
+import { CategoryStocks } from "@/components/content/category-stocks";
 import {
 	StaticPageLayout,
 	StaticSection,
+	contentsFrom,
 } from "@/components/layout/static-page-layout";
+import type { Metadata } from "next";
+import { getLocale } from "next-intl/server";
+import Link from "next/link";
 
 export const metadata: Metadata = {
-	title: "About MaterialHub — UAE's Materials Marketplace",
+	title: "About MaterialHub: the UAE materials marketplace",
 	description:
-		"MaterialHub is a multi-vendor materials marketplace built for the Gulf, bringing trusted packaging, board, leather, hardware and craft suppliers into one UAE address.",
+		"MaterialHub is a multi-vendor marketplace where UAE buyers source papers, boards, leather, hardware, adhesives, packaging and trims from verified suppliers in one catalogue.",
 };
 
-export default function AboutPage() {
+const HEADINGS = [
+	"Why MaterialHub exists",
+	"The seven categories",
+	"How buying works",
+	"Who we build for",
+	"Where we are",
+];
+
+export default async function AboutPage() {
+	const locale = await getLocale();
+	const [why, categories, buying, who, where] = HEADINGS;
 	return (
 		<StaticPageLayout
-			eyebrow="Our story"
-			title="A marketplace of materials, built for the Gulf."
-			intro="MaterialHub gathers the papers, boards, leathers, hardware and finishing materials that makers and manufacturers rely on — from packaging mills to small craft suppliers — and brings them into one trusted address."
+			contentLang="en"
+			eyebrow="About"
+			title="One catalogue for the whole materials chain."
+			intro="MaterialHub brings the papers, boards, leathers, fittings, adhesives, packaging and trims that UAE workshops and makers rely on into one marketplace, sold by the suppliers who stock them."
+			label={[
+				{ label: "Based in", value: "Dubai, UAE" },
+				{ label: "Categories", value: "7" },
+				{ label: "Languages", value: "English · العربية" },
+				{ label: "Prices in", value: "AED" },
+			]}
+			contents={contentsFrom(HEADINGS)}
 		>
-			<StaticSection heading="Why we exist">
+			<StaticSection heading={why}>
 				<p>
-					Sourcing materials in the UAE is fragmented. A packaging board
-					comes from one mill, the PU leather from another, the hinges and
-					adhesives from a third. Buying it should feel effortless — one
-					cart, one delivery, one customer service line, in the language
-					you actually speak.
+					Sourcing materials in the UAE is fragmented. The greyboard for a
+					rigid box comes from one supplier, the book cloth from another, the
+					magnets and hot-melt glue from a third. Each has its own price
+					list, its own minimums and its own way of taking an order.
 				</p>
 				<p>
-					MaterialHub exists so businesses and makers don&rsquo;t have to
-					choose between a global supplier and a regional one. We work directly with vendors
-					to surface only authentic stock, ship from inside the country,
-					and price in fils, not guesses.
+					MaterialHub puts those suppliers in one catalogue. Every listing
+					names its supplier, its specs and the unit it sells by, so you can
+					compare like for like, order in one checkout and track each
+					supplier&rsquo;s shipment from your account.
 				</p>
 			</StaticSection>
 
-			<StaticSection heading="What we promise">
-				<ul className="list-disc ps-5 space-y-2">
+			<StaticSection heading={categories}>
+				<p>
+					The catalogue follows the way the trade already sorts material.
+					Each category has its own stock colour across the store, like the
+					tabs in a swatch book.
+				</p>
+				<CategoryStocks locale={locale} columns="two" className="mt-6 max-w-[760px]" />
+			</StaticSection>
+
+			<StaticSection heading={buying}>
+				<ul>
 					<li>
-						<strong className="text-nl-cacao">Authentic only.</strong>{" "}
-						Every vendor is vetted; counterfeit listings are removed and
-						the seller is offboarded.
+						<strong>Specs first.</strong> Grammage, thickness, sheet size,
+						roll width and finish sit on the listing, not in the small print.
 					</li>
 					<li>
-						<strong className="text-nl-cacao">Same-day in the city.</strong>{" "}
-						Hyperlocal delivery across Dubai, Abu Dhabi and Sharjah for
-						in-stock items ordered before 4pm.
+						<strong>Suppliers you can see.</strong> Every product shows who
+						sells it, with a storefront for each supplier.
 					</li>
 					<li>
-						<strong className="text-nl-cacao">Five languages.</strong>{" "}
-						The whole storefront — search, checkout, support — works in
-						Arabic, English, Hindi, Urdu and Malayalam.
+						<strong>Pay the way that suits you.</strong> Card, Tabby and
+						Tamara instalments, or cash on delivery.
 					</li>
 					<li>
-						<strong className="text-nl-cacao">Flexible payment.</strong>{" "}
-						Card, Apple Pay, and Buy Now Pay Later via Tamara
-						on eligible carts.
+						<strong>Delivery across the UAE.</strong> Standard shipping is
+						free on orders over AED 150. See{" "}
+						<Link href={`/${locale}/shipping`}>shipping</Link> for the
+						options.
 					</li>
 				</ul>
 			</StaticSection>
 
-			<StaticSection heading="By the numbers">
-				<div className="grid grid-cols-2 md:grid-cols-4 gap-6 not-prose">
-					{[
-						{ n: "Curated", l: "vendor network" },
-						{ n: "7", l: "categories" },
-						{ n: "5", l: "languages" },
-						{ n: "3", l: "emirates served same-day" },
-					].map((stat) => (
-						<div key={stat.l}>
-							<div className="font-serif text-3xl md:text-4xl text-nl-amber">
-								{stat.n}
-							</div>
-							<div className="text-[11px] tracking-[0.18em] uppercase text-nl-russet/80 mt-2">
-								{stat.l}
-							</div>
-						</div>
-					))}
-				</div>
+			<StaticSection heading={who}>
+				<p>
+					Trade buyers come first: packaging, print-finishing, rigid-box,
+					bookbinding and leather-goods workshops, and the procurement teams
+					at manufacturers who buy for them. Craft and decoration shoppers
+					are welcome too, for sample packs, decorative papers, party decor,
+					craft kits and stationery.
+				</p>
+				<p>
+					Suppliers sell on MaterialHub without running their own
+					storefront. If you stock materials, read{" "}
+					<Link href={`/${locale}/sell`}>how to sell with us</Link>.
+				</p>
 			</StaticSection>
 
-			<StaticSection heading="Where we are">
+			<StaticSection heading={where}>
 				<p>
-					MaterialHub is headquartered in Dubai, with fulfilment partners in
-					Abu Dhabi and Sharjah. The team is a mix of operators, engineers
-					and merchandisers from across the Gulf, South Asia and Europe.
+					MaterialHub is based in Dubai and serves buyers across the United
+					Arab Emirates. Questions go to{" "}
+					<Link href={`/${locale}/contact`}>customer care</Link>, in Arabic
+					or English.
 				</p>
 			</StaticSection>
 		</StaticPageLayout>

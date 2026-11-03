@@ -1,43 +1,44 @@
-export default function HomeLoading() {
-  return (
-    <div className="animate-pulse">
-      <div className="border-b">
-        <div className="flex gap-2 overflow-hidden px-4 md:max-w-[1400px] md:mx-auto md:px-8 py-3">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="h-7 w-20 shrink-0 rounded-full bg-muted" />
-          ))}
-        </div>
-      </div>
+import { getTranslations } from "next-intl/server";
 
-      <div className="pb-8 md:pb-12 space-y-12 md:space-y-16">
-        <div className="px-4 md:max-w-[1400px] md:mx-auto md:px-8 pt-4">
-          <div className="aspect-[16/7] w-full rounded-2xl bg-muted" />
-        </div>
-
-        {Array.from({ length: 2 }).map((_, s) => (
-          <div key={s} className="px-4 md:max-w-[1400px] md:mx-auto md:px-8 space-y-4">
-            <div className="h-7 w-56 rounded bg-muted" />
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="space-y-2">
-                  <div className="aspect-square rounded-xl bg-muted" />
-                  <div className="h-4 w-3/4 rounded bg-muted" />
-                  <div className="h-3 w-1/2 rounded bg-muted" />
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-
-        <div className="px-4 md:max-w-[1400px] md:mx-auto md:px-8 space-y-4">
-          <div className="h-6 w-40 rounded bg-muted" />
-          <div className="flex gap-3 overflow-hidden">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="aspect-square w-32 shrink-0 rounded-xl bg-muted" />
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+/**
+ * Root loading state: a quiet Swatch Book skeleton. A board-coloured band for
+ * the hero, then a row of blank swatch cards with grey tabs. No shimmer; the
+ * blocks breathe slowly and stay still with reduced motion.
+ */
+export default async function Loading() {
+	const t = await getTranslations("content.loading");
+	return (
+		<div
+			aria-busy="true"
+			className="max-w-[1400px] mx-auto px-4 md:px-8 py-6 md:py-10 grid gap-10 md:gap-16 motion-safe:animate-[pulse_2.4s_ease-in-out_infinite]"
+		>
+			<output className="sr-only">{t("label")}</output>
+			<div className="aspect-[4/3] md:aspect-[16/6] w-full rounded-md bg-nl-cacao/[0.06]" />
+			<div className="grid gap-5">
+				<div className="grid gap-2.5">
+					<div className="h-3 w-24 rounded-sm bg-nl-cacao/[0.08]" />
+					<div className="h-7 w-64 max-w-full rounded-sm bg-nl-cacao/[0.08]" />
+				</div>
+				<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+					{["a", "b", "c", "d"].map((k, i) => (
+						<div
+							key={k}
+							className={`rounded-md bg-nl-pearl shadow-card overflow-hidden ${i > 1 ? "hidden md:block" : ""} ${i > 2 ? "md:hidden lg:block" : ""}`}
+						>
+							<div className="h-7 bg-nl-cacao/[0.08]" />
+							<div className="aspect-square bg-nl-linen/70 m-3 rounded-sm" />
+							<div className="px-3 pb-4 grid gap-2">
+								<div className="h-4 w-4/5 rounded-sm bg-nl-cacao/[0.08]" />
+								<div className="h-3 w-1/2 rounded-sm bg-nl-cacao/[0.06]" />
+								<div className="flex gap-1.5 pt-1">
+									<div className="h-5 w-14 rounded-sm bg-nl-cacao/[0.06]" />
+									<div className="h-5 w-12 rounded-sm bg-nl-cacao/[0.06]" />
+								</div>
+							</div>
+						</div>
+					))}
+				</div>
+			</div>
+		</div>
+	);
 }

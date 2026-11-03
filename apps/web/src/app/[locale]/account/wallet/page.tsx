@@ -1,272 +1,110 @@
 "use client";
 
-import { useTranslations, useLocale } from "next-intl";
+import type { WalletTxRow } from "@/components/account/types";
+import { EmptyState, ErrorState, PageHeader, Panel, PanelHead, Skeleton } from "@/components/account/account-ui";
+import { statusLabel } from "@/components/account/status";
 import { useWallet, useWalletTransactions } from "@/lib/queries/account";
-import { formatPrice, formatDate } from "@/lib/utils";
-import {
-  Eyebrow,
-  SerifTitle,
-  MAISON_SERIF,
-} from "@/components/checkout/maison-primitives";
-
-const BOX = {
-  border: "1px solid rgba(44,24,16,0.10)",
-  background: "rgba(44,24,16,0.02)",
-} as const;
+import { cn, formatDate, formatPrice } from "@/lib/utils";
+import { Wallet } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
 
 export default function WalletPage() {
-  const t = useTranslations("account");
-  const tCommon = useTranslations("common");
-  const tType = useTranslations("account.walletTxType");
-  const locale = useLocale();
-  const { data: wallet, isLoading: walletLoading } = useWallet();
-  const { data: transactions, isLoading: txLoading } = useWalletTransactions();
+	const t = useTranslations("account");
+	const tCommon = useTranslations("common");
+	const tType = useTranslations("account.walletTxType");
+	const locale = useLocale();
+	const wallet = useWallet();
+	const txs = useWalletTransactions();
+	const txList: WalletTxRow[] = txs.data || [];
 
-  if (walletLoading)
-    return (
-      <div>
-        <div className="mb-5">
-          <Eyebrow>WALLET</Eyebrow>
-          <SerifTitle size={26} className="mt-1.5">
-            {t("wallet")}
-          </SerifTitle>
-        </div>
-        <div className="p-5 md:p-6 mb-5 md:mb-6 text-center" style={BOX}>
-          <div
-            className="h-3.5 w-24 mx-auto animate-pulse"
-            style={{ background: "rgba(44,24,16,0.07)" }}
-          />
-          <div
-            className="h-8 w-40 mx-auto mt-2 animate-pulse"
-            style={{ background: "rgba(44,24,16,0.07)" }}
-          />
-        </div>
-        <div
-          className="h-5 w-32 mb-3 animate-pulse"
-          style={{ background: "rgba(44,24,16,0.07)" }}
-        />
-        <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div
-              key={i}
-              className="p-3 flex items-center justify-between gap-3"
-              style={BOX}
-            >
-              <div className="space-y-2">
-                <div
-                  className="h-3.5 w-24 animate-pulse"
-                  style={{ background: "rgba(44,24,16,0.07)" }}
-                />
-                <div
-                  className="h-3 w-32 animate-pulse"
-                  style={{ background: "rgba(44,24,16,0.07)" }}
-                />
-              </div>
-              <div
-                className="h-3.5 w-16 animate-pulse"
-                style={{ background: "rgba(44,24,16,0.07)" }}
-              />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+	const amount = (v: number) => (
+		<span className={cn("font-mono tabular-nums", v > 0 ? "text-green-800" : "text-nl-cacao")}>
+			{v > 0 ? "+" : v < 0 ? "−" : ""}
+			{formatPrice(Math.abs(v), "AED", locale)}
+		</span>
+	);
 
-  const translateType = (type: string) => {
-    try {
-      return tType(type?.toLowerCase() as any);
-    } catch {
-      return type?.replace(/_/g, " ") || "";
-    }
-  };
+	return (
+		<div>
+			<PageHeader title={t("wallet")} description={t("walletIntro")} />
 
-  const txList = transactions || [];
+			<div className="grid gap-4">
+				<Panel className="grid gap-2 p-5 md:p-6">
+					<span className="mill-label text-nl-russet">{t("walletBalance")}</span>
+					{wallet.isLoading ? (
+						<Skeleton className="h-9 w-44" />
+					) : wallet.isError ? (
+						<ErrorState onRetry={() => wallet.refetch()} />
+					) : (
+						<p className="m-0 font-display text-[clamp(28px,4vw,36px)] font-semibold leading-none tracking-[-0.02em] tabular-nums text-nl-cacao">
+							{formatPrice(wallet.data?.balance || 0, "AED", locale)}
+						</p>
+					)}
+				</Panel>
 
-  return (
-    <div>
-      <div className="mb-5">
-        <Eyebrow>WALLET</Eyebrow>
-        <SerifTitle size={26} className="mt-1.5">
-          {t("wallet")}
-        </SerifTitle>
-      </div>
-
-      <div className="p-5 md:p-6 mb-5 md:mb-6 text-center" style={BOX}>
-        <Eyebrow amber={false}>{t("walletBalance")}</Eyebrow>
-        <p
-          className="mt-2 break-words"
-          style={{
-            fontFamily: MAISON_SERIF,
-            fontSize: 34,
-            lineHeight: 1.1,
-            color: "hsl(var(--nl-cacao))",
-          }}
-        >
-          {formatPrice(wallet?.balance || 0, "AED", locale)}
-        </p>
-      </div>
-
-      <div className="mb-3">
-        <Eyebrow amber={false}>{t("transactions")}</Eyebrow>
-      </div>
-      {txLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div
-              key={i}
-              className="p-3 flex items-center justify-between gap-3"
-              style={BOX}
-            >
-              <div className="space-y-2">
-                <div
-                  className="h-3.5 w-24 animate-pulse"
-                  style={{ background: "rgba(44,24,16,0.07)" }}
-                />
-                <div
-                  className="h-3 w-32 animate-pulse"
-                  style={{ background: "rgba(44,24,16,0.07)" }}
-                />
-              </div>
-              <div
-                className="h-3.5 w-16 animate-pulse"
-                style={{ background: "rgba(44,24,16,0.07)" }}
-              />
-            </div>
-          ))}
-        </div>
-      ) : txList.length === 0 ? (
-        <div
-          className="py-12 text-center"
-          style={{
-            fontFamily: MAISON_SERIF,
-            fontStyle: "italic",
-            fontSize: 16,
-            color: "hsl(var(--nl-russet))",
-          }}
-        >
-          {tCommon("noResults")}
-        </div>
-      ) : (
-        <>
-          {/* Mobile: card list */}
-          <div className="md:hidden space-y-2">
-            {txList.map((tx: any) => (
-              <div key={tx.id} className="p-3" style={BOX}>
-                <div className="flex items-center justify-between gap-2">
-                  <span
-                    style={{
-                      fontFamily: MAISON_SERIF,
-                      fontSize: 14,
-                      color: "hsl(var(--nl-cacao))",
-                    }}
-                  >
-                    {translateType(tx.type)}
-                  </span>
-                  <span
-                    className="whitespace-nowrap"
-                    style={{
-                      fontFamily: MAISON_SERIF,
-                      fontSize: 14,
-                      color:
-                        tx.amount > 0
-                          ? "hsl(140 30% 32%)"
-                          : "hsl(var(--nl-russet))",
-                    }}
-                  >
-                    {tx.amount > 0 ? "+" : ""}
-                    {formatPrice(Math.abs(tx.amount), "AED", locale)}
-                  </span>
-                </div>
-                {tx.description && (
-                  <p
-                    className="text-xs mt-1 break-words"
-                    style={{ color: "hsl(var(--nl-russet))" }}
-                  >
-                    {tx.description}
-                  </p>
-                )}
-                <p
-                  className="text-xs mt-1"
-                  style={{ color: "hsl(var(--nl-russet))" }}
-                >
-                  {formatDate(tx.created_at, locale)}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          {/* Desktop: table */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr
-                  className="uppercase"
-                  style={{
-                    fontSize: 10,
-                    letterSpacing: "0.18em",
-                    color: "hsl(var(--nl-russet))",
-                    borderBottom: "1px solid rgba(44,24,16,0.10)",
-                  }}
-                >
-                  <th className="text-start py-2 font-normal">
-                    {tCommon("date")}
-                  </th>
-                  <th className="text-start py-2 font-normal">
-                    {tCommon("type")}
-                  </th>
-                  <th className="text-start py-2 font-normal">
-                    {tCommon("description")}
-                  </th>
-                  <th className="text-end py-2 font-normal">
-                    {tCommon("amount")}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {txList.map((tx: any) => (
-                  <tr
-                    key={tx.id}
-                    style={{ borderBottom: "1px solid rgba(44,24,16,0.08)" }}
-                  >
-                    <td
-                      className="py-2 whitespace-nowrap"
-                      style={{ color: "hsl(var(--nl-cacao))" }}
-                    >
-                      {formatDate(tx.created_at, locale)}
-                    </td>
-                    <td
-                      className="py-2"
-                      style={{ color: "hsl(var(--nl-cacao))" }}
-                    >
-                      {translateType(tx.type)}
-                    </td>
-                    <td
-                      className="py-2"
-                      style={{ color: "hsl(var(--nl-russet))" }}
-                    >
-                      {tx.description}
-                    </td>
-                    <td
-                      className="py-2 text-end whitespace-nowrap"
-                      style={{
-                        fontFamily: MAISON_SERIF,
-                        fontSize: 14,
-                        color:
-                          tx.amount > 0
-                            ? "hsl(140 30% 32%)"
-                            : "hsl(var(--nl-russet))",
-                      }}
-                    >
-                      {tx.amount > 0 ? "+" : ""}
-                      {formatPrice(Math.abs(tx.amount), "AED", locale)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-    </div>
-  );
+				<Panel>
+					<PanelHead title={t("transactions")} />
+					{txs.isLoading ? (
+						<div className="grid gap-4 p-4 md:p-5" aria-label={tCommon("loading")}>
+							{Array.from({ length: 4 }, (_, i) => (
+								// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+								<div key={i} className="flex items-center justify-between gap-4">
+									<div className="grid gap-2">
+										<Skeleton className="h-3.5 w-28" />
+										<Skeleton className="h-3 w-40" />
+									</div>
+									<Skeleton className="h-4 w-20" />
+								</div>
+							))}
+						</div>
+					) : txs.isError ? (
+						<div className="p-4 md:p-5">
+							<ErrorState onRetry={() => txs.refetch()} />
+						</div>
+					) : txList.length === 0 ? (
+						<div className="p-4 md:p-5">
+							<EmptyState icon={Wallet} title={t("walletEmptyTitle")} body={t("walletEmptyBody")} className="border-0 py-8" />
+						</div>
+					) : (
+						<>
+							{/* Mobile: stacked rows */}
+							<ul className="m-0 list-none divide-y divide-nl-cacao/10 p-0 md:hidden">
+								{txList.map((tx) => (
+									<li key={tx.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-0.5 px-4 py-3">
+										<span className="text-sm font-medium text-nl-cacao">{statusLabel(tType, tx.type)}</span>
+										<span className="row-span-2 self-center text-[14px]">{amount(tx.amount)}</span>
+										<span className="font-mono text-[12.5px] tabular-nums text-nl-russet">{formatDate(tx.created_at, locale)}</span>
+										{tx.description && <span className="col-span-2 break-words text-[13px] text-nl-russet">{tx.description}</span>}
+									</li>
+								))}
+							</ul>
+							{/* Desktop: table */}
+							<div className="hidden md:block">
+								<table className="w-full border-collapse text-sm">
+									<thead>
+										<tr className="border-b border-nl-cacao/10">
+											<th scope="col" className="mill-label px-5 py-3 text-start font-semibold text-nl-russet">{tCommon("date")}</th>
+											<th scope="col" className="mill-label px-5 py-3 text-start font-semibold text-nl-russet">{tCommon("type")}</th>
+											<th scope="col" className="mill-label px-5 py-3 text-start font-semibold text-nl-russet">{tCommon("description")}</th>
+											<th scope="col" className="mill-label px-5 py-3 text-end font-semibold text-nl-russet">{tCommon("amount")}</th>
+										</tr>
+									</thead>
+									<tbody className="divide-y divide-nl-cacao/10">
+										{txList.map((tx) => (
+											<tr key={tx.id}>
+												<td className="whitespace-nowrap px-5 py-3 font-mono text-[13px] tabular-nums text-nl-russet">{formatDate(tx.created_at, locale)}</td>
+												<td className="px-5 py-3 text-nl-cacao">{statusLabel(tType, tx.type)}</td>
+												<td className="px-5 py-3 text-nl-russet">{tx.description || "—"}</td>
+												<td className="whitespace-nowrap px-5 py-3 text-end text-[14px]">{amount(tx.amount)}</td>
+											</tr>
+										))}
+									</tbody>
+								</table>
+							</div>
+						</>
+					)}
+				</Panel>
+			</div>
+		</div>
+	);
 }

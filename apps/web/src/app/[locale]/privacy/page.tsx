@@ -2,22 +2,32 @@ import type { Metadata } from "next";
 import {
 	StaticPageLayout,
 	StaticSection,
+	contentsFrom,
 } from "@/components/layout/static-page-layout";
 
 export const metadata: Metadata = {
-	title: "Privacy Policy — MaterialHub",
+	title: "Privacy policy | MaterialHub",
 	description:
 		"How MaterialHub collects, uses, stores and protects your personal data, in line with UAE Federal Decree-Law No. 45 of 2021.",
 };
 
 const LAST_UPDATED = "25 May 2026";
 
+const HEADINGS = ["1. Who we are", "2. What we collect", "3. Why we use it", "4. Sharing", "5. International transfers", "6. How long we keep it", "7. Your rights", "8. Cookies", "9. Children", "10. Changes"];
+
 export default function PrivacyPage() {
 	return (
 		<StaticPageLayout
+			contentLang="en"
 			eyebrow="Legal"
-			title="Privacy Policy"
-			intro={`How we collect, use and protect your data — written in plain language. Last updated ${LAST_UPDATED}.`}
+			title="Privacy policy"
+			intro="How MaterialHub collects, uses and protects your personal data, in plain language."
+			label={[
+				{ label: "Updated", value: LAST_UPDATED },
+				{ label: "Operator", value: "MaterialHub FZ-LLC" },
+				{ label: "Governing law", value: "UAE" },
+			]}
+			contents={contentsFrom(HEADINGS)}
 		>
 			<StaticSection heading="1. Who we are">
 				<p>
@@ -30,30 +40,30 @@ export default function PrivacyPage() {
 			</StaticSection>
 
 			<StaticSection heading="2. What we collect">
-				<ul className="list-disc ps-5 space-y-2">
+				<ul>
 					<li>
-						<strong className="text-nl-cacao">Account data</strong> —
+						<strong>Account data</strong> —
 						name, email, mobile number, password hash, language and
 						currency preferences.
 					</li>
 					<li>
-						<strong className="text-nl-cacao">Order data</strong> —
+						<strong>Order data</strong> —
 						items purchased, prices, shipping address, billing
 						address, delivery instructions.
 					</li>
 					<li>
-						<strong className="text-nl-cacao">Payment data</strong> —
+						<strong>Payment data</strong> —
 						card brand and last four digits only; full card details
 						are processed by our PCI-compliant payment providers and
 						never stored on our servers.
 					</li>
 					<li>
-						<strong className="text-nl-cacao">Usage data</strong> —
+						<strong>Usage data</strong> —
 						pages viewed, search terms, device and browser, IP
 						address, approximate location.
 					</li>
 					<li>
-						<strong className="text-nl-cacao">Communications</strong>{" "}
+						<strong>Communications</strong>{" "}
 						— messages with customer care, reviews you publish,
 						questions you post on product pages.
 					</li>
@@ -61,11 +71,11 @@ export default function PrivacyPage() {
 			</StaticSection>
 
 			<StaticSection heading="3. Why we use it">
-				<ul className="list-disc ps-5 space-y-2">
+				<ul>
 					<li>To process orders, payments, shipping and returns.</li>
 					<li>
-						To run your account: login, wishlists, saved searches,
-						loyalty.
+						To run your account: login, addresses, wishlists and saved
+						searches.
 					</li>
 					<li>
 						To personalise the storefront — recommendations, recently
@@ -87,9 +97,9 @@ export default function PrivacyPage() {
 				<p>
 					We share personal data only where necessary, with categories
 					of recipients including: vendors (for orders they fulfil),
-					payment processors (Stripe, Checkout.com, Tamara),
-					logistics providers, cloud infrastructure (AWS in UAE / EU
-					regions), analytics and crash reporting tools, and
+					payment providers (Stripe, Tabby, Tamara),
+					logistics providers, cloud infrastructure (Amazon Web
+					Services), analytics and crash reporting tools, and
 					authorities where required by law.
 				</p>
 				<p>
@@ -100,8 +110,9 @@ export default function PrivacyPage() {
 
 			<StaticSection heading="5. International transfers">
 				<p>
-					Personal data is processed in the UAE and the European Union.
-					Transfers outside the UAE rely on adequacy decisions or
+					Some personal data is processed outside the UAE by our cloud
+					infrastructure and payment providers. Transfers outside the UAE
+					rely on adequacy decisions or
 					standard contractual clauses as recognised under UAE Federal
 					Decree-Law No. 45 of 2021 on the Protection of Personal
 					Data.
@@ -123,10 +134,7 @@ export default function PrivacyPage() {
 					You have the right to access, correct, delete, restrict or
 					port your personal data, and to withdraw consent at any time.
 					Email{" "}
-					<a
-						href="mailto:info@materialhubuae.com"
-						className="text-nl-amber hover:underline"
-					>
+					<a href="mailto:info@materialhubuae.com">
 						info@materialhubuae.com
 					</a>{" "}
 					with your request — we respond within 30 days.
@@ -151,10 +159,7 @@ export default function PrivacyPage() {
 					MaterialHub is intended for users aged 18 and over. We do not
 					knowingly collect data from children. If you believe a minor
 					has created an account, email{" "}
-					<a
-						href="mailto:info@materialhubuae.com"
-						className="text-nl-amber hover:underline"
-					>
+					<a href="mailto:info@materialhubuae.com">
 						info@materialhubuae.com
 					</a>{" "}
 					and we will remove it.

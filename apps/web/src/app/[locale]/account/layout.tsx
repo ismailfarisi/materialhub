@@ -1,182 +1,169 @@
 "use client";
 
-import {
-  Eyebrow,
-  MAISON_SANS,
-  MAISON_SERIF,
-  SerifTitle,
-} from "@/components/checkout/maison-primitives";
+import { Skeleton } from "@/components/account/account-ui";
 import { useRequireAuth } from "@/hooks/use-require-auth";
+import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth";
 import {
-  ArrowLeft,
-  ChevronRight,
-  Heart,
-  LifeBuoy,
-  type LucideIcon,
-  MapPin,
-  Package,
-  PackageX,
-  Search,
-  Settings,
-  Wallet,
+	Heart,
+	LayoutGrid,
+	LifeBuoy,
+	type LucideIcon,
+	MapPin,
+	Package,
+	PackageX,
+	Search,
+	Settings,
+	Wallet,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef } from "react";
 
 interface NavItem {
-  key: string;
-  icon: LucideIcon;
-  href: string;
-  /** Message key to use for the label, if different from `key`. */
-  labelKey?: string;
+	key: string;
+	icon: LucideIcon;
+	href: string;
+	/** Only the exact path is active (the overview). */
+	exact?: boolean;
 }
 
+// Order history first: trade buyers come back to re-order the same SKUs.
 const navItems: NavItem[] = [
-  { key: "orders", icon: Package, href: "/account/orders" },
-  { key: "returns", icon: PackageX, href: "/account/returns" },
-  { key: "wishlist", icon: Heart, href: "/account/wishlist" },
-  { key: "savedSearches", icon: Search, href: "/account/saved-searches" },
-  { key: "addresses", icon: MapPin, href: "/account/addresses" },
-  { key: "wallet", icon: Wallet, href: "/account/wallet" },
-  { key: "support", icon: LifeBuoy, href: "/account/support" },
-  { key: "settings", icon: Settings, href: "/account/settings" },
+	{ key: "overview", icon: LayoutGrid, href: "/account", exact: true },
+	{ key: "orders", icon: Package, href: "/account/orders" },
+	{ key: "returns", icon: PackageX, href: "/account/returns" },
+	{ key: "wishlist", icon: Heart, href: "/account/wishlist" },
+	{ key: "savedSearches", icon: Search, href: "/account/saved-searches" },
+	{ key: "addresses", icon: MapPin, href: "/account/addresses" },
+	{ key: "wallet", icon: Wallet, href: "/account/wallet" },
+	{ key: "support", icon: LifeBuoy, href: "/account/support" },
+	{ key: "settings", icon: Settings, href: "/account/settings" },
 ];
 
-export default function AccountLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const t = useTranslations("account");
-  const tCommon = useTranslations("common");
-  const locale = useLocale();
-  const pathname = usePathname();
-  const { user } = useAuthStore();
-  const { isReady } = useRequireAuth();
+export default function AccountLayout({ children }: { children: React.ReactNode }) {
+	const t = useTranslations("account");
+	const locale = useLocale();
+	const pathname = usePathname();
+	const { user } = useAuthStore();
+	const { isReady } = useRequireAuth();
+	const tabsRef = useRef<HTMLDivElement>(null);
 
-  const visibleNavItems = navItems;
+	const isActive = (item: NavItem) => {
+		const full = `/${locale}${item.href}`;
+		return item.exact ? pathname === full : pathname.startsWith(full);
+	};
 
-  // Exact match: only the menu landing page, not any subpage under it.
-  const isIndex = pathname === `/${locale}/account`;
-  const activeItem = visibleNavItems.find(({ href }) => pathname.startsWith(`/${locale}${href}`));
+	// Keep the active tab in view on the mobile scroller.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: re-run on navigation
+	useEffect(() => {
+		const el = tabsRef.current?.querySelector<HTMLElement>("[aria-current='page']");
+		el?.scrollIntoView({ block: "nearest", inline: "center" });
+	}, [pathname, isReady]);
 
-  if (!isReady) {
-    return (
-      <div
-        className="min-h-[60vh] flex items-center justify-center bg-background"
-        style={{
-          fontFamily: MAISON_SERIF,
-          fontStyle: "italic",
-          fontSize: 16,
-          color: "hsl(var(--nl-russet))",
-        }}
-      >
-        {tCommon("loading")}
-      </div>
-    );
-  }
+	const name = [user?.first_name, user?.last_name].filter(Boolean).join(" ");
+	const initial = (user?.first_name?.charAt(0) ?? user?.email?.charAt(0) ?? "M").toUpperCase();
 
-  return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-10">
-        {/* Profile header — mobile: menu landing only, desktop: always */}
-        <div className={`${isIndex ? "flex" : "hidden md:flex"} items-center gap-4 mb-6 md:mb-8`}>
-          <div
-            className="h-14 w-14 rounded-full overflow-hidden shrink-0 flex items-center justify-center"
-            style={{
-              border: "1px solid rgba(184,115,51,0.5)",
-              background: "rgba(184,115,51,0.08)",
-            }}
-          >
-            <span
-              style={{
-                fontFamily: MAISON_SERIF,
-                fontSize: 22,
-                color: "hsl(var(--nl-amber))",
-              }}
-            >
-              {(user?.first_name?.charAt(0) ?? user?.email?.charAt(0) ?? "U").toUpperCase()}
-            </span>
-          </div>
-          <div className="min-w-0 flex-1">
-            <Eyebrow>Account</Eyebrow>
-            <SerifTitle size={24} className="mt-1.5 truncate">
-              {user?.first_name} {user?.last_name}
-            </SerifTitle>
-            <p
-              className="truncate"
-              style={{
-                fontFamily: MAISON_SANS,
-                fontSize: 12,
-                color: "hsl(var(--nl-russet))",
-              }}
-            >
-              {user?.email}
-            </p>
-          </div>
-        </div>
+	return (
+		<div className="min-h-[70vh] bg-nl-linen">
+			<div className="mx-auto max-w-[1400px] px-4 pb-16 pt-5 md:px-8 lg:grid lg:grid-cols-[248px_minmax(0,1fr)] lg:gap-10 lg:pt-10 xl:gap-14">
+				{/* Desktop side nav */}
+				<aside className="hidden lg:block">
+					<div className="sticky top-24 grid gap-5">
+						{isReady ? (
+							<div className="flex items-center gap-3">
+								<span
+									aria-hidden="true"
+									className="grid h-11 w-11 shrink-0 place-items-center rounded-md bg-nl-cacao font-display text-[17px] font-semibold text-white"
+								>
+									{initial}
+								</span>
+								<div className="min-w-0">
+									<p className="m-0 truncate font-display text-[15.5px] font-semibold leading-tight text-nl-cacao">
+										{name || t("yourAccount")}
+									</p>
+									{user?.email && <p className="m-0 truncate text-[13px] text-nl-russet">{user.email}</p>}
+								</div>
+							</div>
+						) : (
+							<div className="flex items-center gap-3">
+								<Skeleton className="h-11 w-11 rounded-md" />
+								<div className="grid flex-1 gap-2">
+									<Skeleton className="h-4 w-28" />
+									<Skeleton className="h-3 w-36" />
+								</div>
+							</div>
+						)}
+						<nav aria-label={t("navLabel")}>
+							<ul className="m-0 grid list-none gap-0.5 p-0">
+								{navItems.map((item) => {
+									const active = isActive(item);
+									const Icon = item.icon;
+									return (
+										<li key={item.key}>
+											<Link
+												href={`/${locale}${item.href}`}
+												aria-current={active ? "page" : undefined}
+												className={cn(
+													"flex h-10 items-center gap-3 rounded-md px-3 text-sm transition-colors",
+													active
+														? "bg-nl-pearl font-medium text-nl-cacao shadow-card"
+														: "text-nl-russet hover:bg-nl-cacao/[0.05] hover:text-nl-cacao",
+												)}
+											>
+												<Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+												<span className="truncate">{t(item.key)}</span>
+											</Link>
+										</li>
+									);
+								})}
+							</ul>
+						</nav>
+					</div>
+				</aside>
 
-        <div className="flex flex-col md:flex-row gap-5 md:gap-10">
-          <nav
-            className={`${isIndex ? "flex" : "hidden"} flex-col md:flex md:flex-col gap-0 md:gap-0.5 md:w-52 shrink-0`}
-            aria-label="Account navigation"
-          >
-            {visibleNavItems.map(({ key, labelKey, icon: Icon, href }) => {
-              const fullHref = `/${locale}${href}`;
-              const isActive = pathname.startsWith(fullHref);
-              return (
-                <Link
-                  key={key}
-                  href={fullHref}
-                  className={`flex items-center justify-between md:justify-start gap-3 py-3.5 md:py-2.5 px-0 md:px-3 border-b border-nl-cacao/10 md:border-b-0 md:border-l uppercase transition-colors ${
-                    isActive
-                      ? "text-nl-amber md:border-nl-amber"
-                      : "text-nl-cacao md:text-nl-russet md:border-transparent hover:text-nl-cacao"
-                  }`}
-                  style={{
-                    fontFamily: MAISON_SANS,
-                    fontSize: 10.5,
-                    letterSpacing: "0.18em",
-                  }}
-                >
-                  <span className="flex items-center gap-3 min-w-0">
-                    <Icon className="h-4 w-4 shrink-0" strokeWidth={1.25} />
-                    <span className="leading-tight line-clamp-1">{t(labelKey ?? key)}</span>
-                  </span>
-                  <ChevronRight
-                    className="h-4 w-4 shrink-0 opacity-40 md:hidden"
-                    strokeWidth={1.25}
-                  />
-                </Link>
-              );
-            })}
-          </nav>
-          <div className={`flex-1 min-w-0 ${isIndex ? "hidden md:block" : ""}`}>
-            {!isIndex && (
-              <Link
-                href={`/${locale}/account`}
-                className="md:hidden flex items-center gap-2 mb-4 text-nl-cacao"
-                style={{
-                  fontFamily: MAISON_SANS,
-                  fontSize: 11,
-                  letterSpacing: "0.1em",
-                }}
-              >
-                <ArrowLeft className="h-4 w-4" strokeWidth={1.5} />
-                <span className="uppercase">{tCommon("back")}</span>
-                {activeItem && (
-                  <span className="opacity-50 normal-case">
-                    · {t(activeItem.labelKey ?? activeItem.key)}
-                  </span>
-                )}
-              </Link>
-            )}
-            {children}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+				<div className="min-w-0">
+					{/* Mobile / tablet: horizontal tabs */}
+					<nav aria-label={t("navLabel")} className="-mx-4 mb-6 border-b border-nl-cacao/12 md:-mx-8 lg:hidden">
+						<div ref={tabsRef} className="scrollbar-hide flex gap-1 overflow-x-auto px-4 md:px-8">
+							{navItems.map((item) => {
+								const active = isActive(item);
+								return (
+									<Link
+										key={item.key}
+										href={`/${locale}${item.href}`}
+										aria-current={active ? "page" : undefined}
+										className={cn(
+											"relative flex h-11 shrink-0 items-center whitespace-nowrap px-3 text-sm transition-colors",
+											"after:absolute after:inset-x-3 after:-bottom-px after:h-0.5 after:rounded-[1px]",
+											active
+												? "font-medium text-nl-cacao after:bg-nl-amber"
+												: "text-nl-russet after:bg-transparent hover:text-nl-cacao",
+										)}
+									>
+										{t(item.key)}
+									</Link>
+								);
+							})}
+						</div>
+					</nav>
+
+					{isReady ? children : <ShellSkeleton />}
+				</div>
+			</div>
+		</div>
+	);
+}
+
+function ShellSkeleton() {
+	return (
+		<div className="grid gap-6" aria-hidden="true">
+			<Skeleton className="h-8 w-48" />
+			<div className="grid gap-3">
+				<Skeleton className="h-28 w-full rounded-md" />
+				<Skeleton className="h-28 w-full rounded-md" />
+			</div>
+		</div>
+	);
 }

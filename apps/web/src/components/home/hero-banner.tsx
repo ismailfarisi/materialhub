@@ -13,6 +13,8 @@ interface Banner {
 	id: string;
 	title: string;
 	subtitle?: string;
+	/** Button text from the CMS block's `cta_text`. */
+	cta_label?: string;
 	image_url: string;
 	mobile_image_url?: string;
 	cta_url?: string;
@@ -202,24 +204,33 @@ export function HeroBanner({
 										objectPosition={objectPosition}
 									/>
 								)}
+								{/* Scrims over photography for legibility — the one allowed gradient. */}
 								<div
 									aria-hidden="true"
-									className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(26,18,8,0.85)_0%,rgba(26,18,8,0.55)_30%,rgba(26,18,8,0.05)_60%,transparent_100%)]"
+									className="pointer-events-none absolute inset-0 bg-gradient-to-r rtl:bg-gradient-to-l from-nl-espresso/85 via-nl-espresso/45 via-40% to-transparent to-75%"
 								/>
 								<div
 									aria-hidden="true"
-									className="pointer-events-none absolute inset-x-0 bottom-0 h-[140px] bg-gradient-to-t from-nl-espresso/55 to-transparent"
+									className="pointer-events-none absolute inset-x-0 bottom-0 h-[140px] bg-gradient-to-t from-nl-espresso/60 to-transparent"
 								/>
-								<div className="absolute inset-0 max-w-[1400px] mx-auto px-6 md:px-16 flex flex-col justify-center text-nl-linen">
-									<div className="max-w-[720px] pb-16 md:pb-20">
-										<span className="block w-7 h-px bg-nl-amber mb-4 md:mb-5" />
-										<h2 className="font-serif text-[clamp(36px,6.5vw,92px)] leading-[0.98] tracking-[-0.02em] text-nl-linen m-0">
+								<div className="absolute inset-0 max-w-[1400px] mx-auto px-6 md:px-8 flex flex-col justify-center text-white">
+									<div className="max-w-[680px] pb-16 md:pb-20">
+										<h2 className="font-display font-bold [font-stretch:112%] text-[clamp(34px,5.4vw,76px)] leading-[1] tracking-[-0.03em] text-white m-0">
 											{banner.title}
 										</h2>
 										{banner.subtitle && (
-											<p className="mt-4 md:mt-5 text-sm md:text-base leading-[1.6] text-nl-linen/90 max-w-[480px]">
+											<p className="mt-4 md:mt-5 text-[15px] md:text-lg leading-[1.55] text-white/80 max-w-[500px]">
 												{banner.subtitle}
 											</p>
+										)}
+										{banner.cta_url && (
+											<span className="mt-7 md:mt-8 inline-flex items-center gap-2 h-12 px-5 rounded-md bg-nl-amber text-white text-[15px] font-medium shadow-lift transition-transform group-hover/slide:translate-x-0.5 rtl:group-hover/slide:-translate-x-0.5">
+												{banner.cta_label ?? "Shop now"}
+												<ArrowRight
+													className="h-4 w-4 rtl:rotate-180"
+													strokeWidth={2}
+												/>
+											</span>
 										)}
 									</div>
 								</div>
@@ -229,13 +240,13 @@ export function HeroBanner({
 						return (
 							<div
 								key={banner.id}
-								className="flex-[0_0_100%] min-w-0 relative aspect-[16/9] md:aspect-[21/9] min-h-[360px] md:min-h-[440px] max-h-[620px]"
+								className="flex-[0_0_100%] min-w-0 relative aspect-[16/9] md:aspect-[21/9] min-h-[360px] md:min-h-[420px] max-h-[min(560px,64vh)]"
 							>
 								{banner.cta_url ? (
 									<Link
 										href={banner.cta_url}
 										aria-label={banner.title}
-										className="absolute inset-0 block"
+										className="group/slide absolute inset-0 block"
 									>
 										{slideInner}
 									</Link>
@@ -250,7 +261,7 @@ export function HeroBanner({
 
 			{showControls && (
 				<div className="absolute left-0 right-0 bottom-0 z-10 pointer-events-none">
-					<div className="max-w-[1400px] mx-auto px-6 md:px-12 pb-5 md:pb-7 flex items-center justify-between text-nl-linen/90">
+					<div className="max-w-[1400px] mx-auto px-6 md:px-8 pb-5 md:pb-7 flex items-center justify-between text-white/90">
 						{/* The visible rule stays 2px; the button around it carries the
 						    24px+ hit area WCAG 2.5.8 asks for. */}
 						<div className="flex items-center pointer-events-auto">
@@ -264,10 +275,10 @@ export function HeroBanner({
 									className="group/dot flex items-center px-1 py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
 								>
 									<span
-										className={`block h-0.5 transition-[width,background-color] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-reduce:transition-none ${
+										className={`block h-1.5 rounded-[1px] transition-[width,background-color] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-reduce:transition-none ${
 											selectedIndex === i
-												? "w-8 bg-nl-amber"
-												: "w-[18px] bg-nl-pearl/35 group-hover/dot:bg-nl-pearl/60"
+												? "w-8 bg-white"
+												: "w-4 bg-white/35 group-hover/dot:bg-white/60"
 										}`}
 									/>
 								</button>
@@ -275,8 +286,11 @@ export function HeroBanner({
 						</div>
 
 						<div className="flex items-center gap-4 md:gap-5 pointer-events-auto">
-							<div className="text-[10px] tracking-[0.3em] uppercase">
-								<span className="text-nl-amber">
+							<div
+								className="font-mono text-xs tabular-nums"
+								aria-hidden="true"
+							>
+								<span className="text-white">
 									{String(selectedIndex + 1).padStart(2, "0")}
 								</span>
 								<span className="mx-2 opacity-50">/</span>
@@ -293,12 +307,15 @@ export function HeroBanner({
 												: "Resume automatic slide rotation"
 										}
 										aria-pressed={!isPlaying}
-										className="w-10 h-10 border border-nl-pearl/35 bg-nl-espresso/35 backdrop-blur-md text-nl-linen flex items-center justify-center hover:border-nl-amber hover:text-nl-amber transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
+										className="w-10 h-10 rounded-md border border-white/20 bg-nl-espresso/70 text-white flex items-center justify-center hover:bg-white hover:text-nl-cacao transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
 									>
 										{isPlaying ? (
-											<Pause className="h-3.5 w-3.5" strokeWidth={1.25} />
+											<Pause className="h-3.5 w-3.5" strokeWidth={1.75} />
 										) : (
-											<Play className="h-3.5 w-3.5 rtl:-scale-x-100" strokeWidth={1.25} />
+											<Play
+												className="h-3.5 w-3.5 rtl:-scale-x-100"
+												strokeWidth={1.75}
+											/>
 										)}
 									</button>
 								)}
@@ -306,22 +323,22 @@ export function HeroBanner({
 									type="button"
 									onClick={() => emblaApi?.scrollPrev()}
 									aria-label="Previous slide"
-									className="w-10 h-10 border border-nl-pearl/35 bg-nl-espresso/35 backdrop-blur-md text-nl-linen flex items-center justify-center hover:border-nl-amber hover:text-nl-amber transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
+									className="w-10 h-10 rounded-md border border-white/20 bg-nl-espresso/70 text-white flex items-center justify-center hover:bg-white hover:text-nl-cacao transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
 								>
 									<ArrowLeft
 										className="h-3.5 w-3.5 rtl:rotate-180"
-										strokeWidth={1.25}
+										strokeWidth={1.75}
 									/>
 								</button>
 								<button
 									type="button"
 									onClick={() => emblaApi?.scrollNext()}
 									aria-label="Next slide"
-									className="w-10 h-10 border border-nl-pearl/35 bg-nl-espresso/35 backdrop-blur-md text-nl-linen flex items-center justify-center hover:border-nl-amber hover:text-nl-amber transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
+									className="w-10 h-10 rounded-md border border-white/20 bg-nl-espresso/70 text-white flex items-center justify-center hover:bg-white hover:text-nl-cacao transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
 								>
 									<ArrowRight
 										className="h-3.5 w-3.5 rtl:rotate-180"
-										strokeWidth={1.25}
+										strokeWidth={1.75}
 									/>
 								</button>
 							</div>

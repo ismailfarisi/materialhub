@@ -2,28 +2,41 @@ import type { Metadata } from "next";
 import {
 	StaticPageLayout,
 	StaticSection,
+	contentsFrom,
 } from "@/components/layout/static-page-layout";
+import { getLocale } from "next-intl/server";
+import Link from "next/link";
 
 export const metadata: Metadata = {
-	title: "Terms of Service — MaterialHub",
+	title: "Terms of service | MaterialHub",
 	description:
 		"The terms that govern your use of MaterialHub — orders, payments, vendor responsibilities, intellectual property and dispute resolution.",
 };
 
 const LAST_UPDATED = "25 May 2026";
 
-export default function TermsPage() {
+const HEADINGS = ["1. Who you contract with", "2. Eligibility", "3. Orders & pricing", "4. Payment", "5. Shipping, returns and refunds", "6. Vendor responsibilities", "7. User-generated content", "8. Intellectual property", "9. Account suspension", "10. Liability", "11. Governing law", "12. Changes", "13. Contact"];
+
+export default async function TermsPage() {
+	const locale = await getLocale();
 	return (
 		<StaticPageLayout
+			contentLang="en"
 			eyebrow="Legal"
-			title="Terms of Service"
-			intro={`The rules that govern your use of MaterialHub. Please read them — opening an account means you accept these terms. Last updated ${LAST_UPDATED}.`}
+			title="Terms of service"
+			intro="The rules for using MaterialHub. Opening an account means you accept these terms, so please read them."
+			label={[
+				{ label: "Updated", value: LAST_UPDATED },
+				{ label: "Operator", value: "MaterialHub FZ-LLC" },
+				{ label: "Governing law", value: "UAE" },
+			]}
+			contents={contentsFrom(HEADINGS)}
 		>
 			<StaticSection heading="1. Who you contract with">
 				<p>
 					MaterialHub is operated by MaterialHub FZ-LLC, registered in Dubai,
 					United Arab Emirates. When you buy a product, your sales
-					contract is with the <em>vendor</em> listed on the product
+					contract is with the <strong>vendor</strong> listed on the product
 					page; MaterialHub acts as the marketplace, collects payment, and
 					provides customer support and dispute resolution.
 				</p>
@@ -54,9 +67,10 @@ export default function TermsPage() {
 
 			<StaticSection heading="4. Payment">
 				<p>
-					Payment is taken at order placement via card, Apple Pay, or
-					eligible BNPL (Tamara). BNPL eligibility depends on
-					your cart total and the provider&rsquo;s own approval. We do
+					Payment is taken when you place an order, by card, by
+					instalments with Tabby or Tamara, or in cash on delivery where
+					offered. Instalment eligibility is decided by Tabby or Tamara.
+					Cash-on-delivery orders are paid to the courier on delivery. We do
 					not store full card details.
 				</p>
 			</StaticSection>
@@ -64,13 +78,13 @@ export default function TermsPage() {
 			<StaticSection heading="5. Shipping, returns and refunds">
 				<p>
 					Shipping timelines, charges and zones are described on the{" "}
-					<a href="shipping" className="text-nl-amber hover:underline">
+					<Link href={`/${locale}/shipping`}>
 						Shipping
-					</a>{" "}
+					</Link>{" "}
 					page. Returns and refund eligibility are described on the{" "}
-					<a href="returns" className="text-nl-amber hover:underline">
+					<Link href={`/${locale}/returns`}>
 						Returns
-					</a>{" "}
+					</Link>{" "}
 					page. Both pages form part of these terms.
 				</p>
 			</StaticSection>
@@ -149,10 +163,7 @@ export default function TermsPage() {
 			<StaticSection heading="13. Contact">
 				<p>
 					Questions on these terms:{" "}
-					<a
-						href="mailto:info@materialhubuae.com"
-						className="text-nl-amber hover:underline"
-					>
+					<a href="mailto:info@materialhubuae.com">
 						info@materialhubuae.com
 					</a>
 					.

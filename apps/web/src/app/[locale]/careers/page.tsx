@@ -1,112 +1,98 @@
-import type { Metadata } from "next";
 import {
 	StaticPageLayout,
 	StaticSection,
+	contentsFrom,
 } from "@/components/layout/static-page-layout";
+import type { Metadata } from "next";
 
 export const metadata: Metadata = {
 	title: "Careers at MaterialHub",
 	description:
-		"Build the materials marketplace of the Gulf. Open roles, what we look for, and how we hire at MaterialHub.",
+		"Help build the UAE’s materials marketplace. How we work, what we value and how to get in touch about a role at MaterialHub.",
 };
+
+const HEADINGS = ["How we work", "What we value", "Open roles", "How we hire"];
 
 const VALUES = [
 	{
-		t: "Customers first, always",
-		d: "Every decision starts with the shopper opening the box. Speed, accuracy and care beat clever-for-its-own-sake.",
+		t: "The buyer’s spec comes first.",
+		d: "A workshop needs the right board at the right thickness, delivered. Accuracy beats cleverness.",
 	},
 	{
-		t: "Region-native, global standard",
-		d: "We build for the UAE — Arabic-first, AED-first, hyperlocal — at a quality bar that travels.",
+		t: "Suppliers are partners.",
+		d: "Listings, payouts and tools are built so suppliers can sell by the sheet, roll or carton without friction.",
 	},
 	{
-		t: "Vendors as partners",
-		d: "Our brands grow, we grow. Tools, payouts and listings are designed around vendor success, not friction.",
+		t: "Built for the UAE.",
+		d: "Arabic and English, priced in AED, and usable on a phone on a workshop floor.",
 	},
 	{
-		t: "Operate, don't theorise",
-		d: "Small, accountable teams. Ship daily. Numbers on the wall. Theatre off the calendar.",
+		t: "Small teams, owned outcomes.",
+		d: "People own a problem from start to finish and ship in small steps.",
 	},
 ];
 
 export default function CareersPage() {
+	const [how, values, roles, hire] = HEADINGS;
 	return (
 		<StaticPageLayout
-			eyebrow="Careers"
-			title="Build the materials marketplace of the Gulf."
-			intro="We're growing the team that powers MaterialHub — from product and engineering in Dubai to merchandising and supplier partnerships across the UAE."
+			contentLang="en"
+			eyebrow="Company"
+			title="Build the UAE’s materials marketplace."
+			intro="We’re a small team in Dubai working on product, engineering, category merchandising and supplier partnerships."
+			contents={contentsFrom(HEADINGS)}
 		>
-			<StaticSection heading="How we work">
+			<StaticSection heading={how}>
 				<p>
-					Small, full-stack teams own outcomes end-to-end. Most engineering
-					ships to production daily behind feature flags. Merchandising and
-					operations are paired tightly with engineering so changes to the
-					storefront, the warehouse and the vendor portal move together.
+					Small teams own outcomes from start to finish. Merchandising and
+					supplier partnerships work alongside engineering, so changes to the
+					storefront, the vendor dashboard and the catalogue move together.
 				</p>
 			</StaticSection>
 
-			<StaticSection heading="What we value">
-				<div className="grid md:grid-cols-2 gap-6 not-prose">
+			<StaticSection heading={values}>
+				<dl className="not-prose m-0 grid max-w-[76ch] border-t-2 border-nl-cacao">
 					{VALUES.map((v) => (
 						<div
 							key={v.t}
-							className="border border-nl-cacao/10 p-5 bg-white/40"
+							className="grid gap-1 md:grid-cols-[minmax(0,15rem)_1fr] md:gap-8 py-4 border-b border-nl-cacao/12"
 						>
-							<h3 className="font-serif text-lg text-nl-cacao mb-2">
-								{v.t}
-							</h3>
-							<p className="text-[14px] text-nl-russet leading-[1.6]">
-								{v.d}
-							</p>
+							<dt className="font-semibold text-nl-cacao">{v.t}</dt>
+							<dd className="m-0 text-nl-cacao/85">{v.d}</dd>
 						</div>
 					))}
-				</div>
+				</dl>
 			</StaticSection>
 
-			<StaticSection heading="Open roles">
+			<StaticSection heading={roles}>
 				<p>
-					We aren&rsquo;t actively hiring through a public board right now,
-					but we always make room for exceptional product engineers,
-					full-stack engineers, category merchandisers and supplier
-					partnership leads based in the UAE.
+					There are no open roles listed right now. We&rsquo;re always glad to
+					hear from engineers, category merchandisers who know paper, board,
+					leather or packaging, and supplier partnership leads based in the UAE.
 				</p>
 				<p>
-					Send a short note and what you&rsquo;ve shipped to{" "}
-					<a
-						href="mailto:info@materialhubuae.com"
-						className="text-nl-amber hover:underline"
-					>
-						info@materialhubuae.com
-					</a>
-					. Mention the team you&rsquo;d join and a project you&rsquo;re
-					proud of — a link beats a CV.
+					Send a short note and links to work you&rsquo;ve done to{" "}
+					<a href="mailto:info@materialhubuae.com">info@materialhubuae.com</a>.
+					Tell us which team you&rsquo;d join and why.
 				</p>
 			</StaticSection>
 
-			<StaticSection heading="How we hire">
-				<ol className="list-decimal ps-5 space-y-2">
+			<StaticSection heading={hire}>
+				<ol>
 					<li>
-						<strong className="text-nl-cacao">Intro call (30 min).</strong>{" "}
-						Why MaterialHub, what you&rsquo;re looking for, what we&rsquo;re
-						hiring for.
+						<strong>Intro call.</strong> Why MaterialHub, what you&rsquo;re
+						looking for and what we need.
 					</li>
 					<li>
-						<strong className="text-nl-cacao">
-							Craft conversation (60 min).
-						</strong>{" "}
-						A structured, real problem from your discipline — no
-						leetcode, no panel theatre.
+						<strong>Working conversation.</strong> A real problem from your
+						discipline, talked through together.
 					</li>
 					<li>
-						<strong className="text-nl-cacao">
-							Working session (half day).
-						</strong>{" "}
-						You spend time with the team you&rsquo;d join, on a real
-						current question. Paid for non-permanent candidates.
+						<strong>Time with the team.</strong> Meet the people you&rsquo;d
+						work with, on a current question.
 					</li>
 					<li>
-						<strong className="text-nl-cacao">Offer.</strong> Within a
-						week of the working session.
+						<strong>Decision.</strong> We tell you either way.
 					</li>
 				</ol>
 			</StaticSection>

@@ -1,188 +1,215 @@
-import type { Metadata } from "next";
+import { type FaqItem, FaqAccordion } from "@/components/content/faq-accordion";
 import {
 	StaticPageLayout,
 	StaticSection,
+	contentsFrom,
 } from "@/components/layout/static-page-layout";
+import type { Metadata } from "next";
+import { getLocale } from "next-intl/server";
+import Link from "next/link";
 
 export const metadata: Metadata = {
-	title: "Frequently Asked Questions — MaterialHub",
+	title: "Frequently asked questions | MaterialHub",
 	description:
-		"Answers to the most common MaterialHub questions: orders, shipping, returns, payments, vendors and account.",
+		"Answers to common MaterialHub questions: ordering materials, delivery, returns, payment, accounts and selling on the marketplace.",
 };
 
-const FAQ_GROUPS: Array<{
-	heading: string;
-	items: Array<{ q: string; a: React.ReactNode }>;
-}> = [
-	{
-		heading: "Orders & shipping",
-		items: [
-			{
-				q: "When will my order arrive?",
-				a: (
-					<>
-						In-stock items ordered before 4pm GST are delivered same-day
-						in Dubai, Abu Dhabi and Sharjah. Other emirates and remote
-						addresses ship in 1–3 working days. See{" "}
-						<a href="shipping" className="text-nl-amber hover:underline">
-							Shipping Info
-						</a>{" "}
-						for the full breakdown.
-					</>
-				),
-			},
-			{
-				q: "How much is shipping?",
-				a: (
-					<>
-						Standard shipping is free on orders of AED 150 or more.
-						Below that, a flat AED 15 applies. Same-day in-city
-						delivery is AED 29 regardless of cart value.
-					</>
-				),
-			},
-			{
-				q: "Can I track my order?",
-				a: (
-					<>
-						Yes — every shipment has a tracking link in your order
-						confirmation email and under{" "}
-						<a
-							href="account/orders"
-							className="text-nl-amber hover:underline"
-						>
-							My orders
-						</a>
-						.
-					</>
-				),
-			},
-		],
-	},
-	{
-		heading: "Returns & refunds",
-		items: [
-			{
-				q: "What is your returns policy?",
-				a: (
-					<>
-						You have <strong>7 days</strong> from delivery to request
-						a return on unopened, unused items. Hygiene-sealed and
-						personalised products are not eligible. Full details on the{" "}
-						<a href="returns" className="text-nl-amber hover:underline">
-							Returns
-						</a>{" "}
-						page.
-					</>
-				),
-			},
-			{
-				q: "When will I get my refund?",
-				a: (
-					<>
-						Once the return is received and inspected, refunds go back
-						to the original payment method within 5–10 working days.
-						Wallet credit refunds are instant.
-					</>
-				),
-			},
-		],
-	},
-	{
-		heading: "Payments",
-		items: [
-			{
-				q: "Which payment methods do you accept?",
-				a: (
-					<>
-						Visa, Mastercard, Amex, Apple Pay and Buy Now Pay Later via
-						Tamara (subject to cart-total eligibility). Cash on
-						delivery is not currently supported.
-					</>
-				),
-			},
-			{
-				q: "Are my card details safe?",
-				a: (
-					<>
-						Card details are processed by PCI-DSS Level 1 payment
-						providers (Stripe, Checkout.com) and never stored on
-						MaterialHub&rsquo;s servers.
-					</>
-				),
-			},
-			{
-				q: "What currency am I charged in?",
-				a: (
-					<>
-						All prices are in AED at checkout. You can change the
-						display currency in the top bar, but the charge is always
-						processed in AED.
-					</>
-				),
-			},
-		],
-	},
-	{
-		heading: "Account & vendors",
-		items: [
-			{
-				q: "Do I need an account to buy?",
-				a: (
-					<>
-						You can browse as a guest, but checkout requires an account
-						so we can email order updates and let you re-order, track
-						and return.
-					</>
-				),
-			},
-			{
-				q: "How do I become a vendor on MaterialHub?",
-				a: (
-					<>
-						Vendor onboarding lives on{" "}
-						<a
-							href="https://sellers.materialhubuae.com"
-							className="text-nl-amber hover:underline"
-						>
-							sellers.materialhubuae.com
-						</a>
-						. Submit a short application and our merchandising team
-						will reach out within three business days.
-					</>
-				),
-			},
-		],
-	},
-];
+function groups(locale: string): Array<{ heading: string; items: FaqItem[] }> {
+	const href = (p: string) => `/${locale}/${p}`;
+	return [
+		{
+			heading: "Ordering",
+			items: [
+				{
+					q: "Who am I buying from?",
+					a: (
+						<p>
+							Each listing is sold by the supplier named on it. MaterialHub
+							runs the marketplace, takes payment and handles customer care.
+							If your cart has items from several suppliers, you pay once and
+							each supplier ships its part.
+						</p>
+					),
+				},
+				{
+					q: "How do I find a material by spec?",
+					a: (
+						<p>
+							Search by material or by spec, for example &ldquo;greyboard 2
+							mm&rdquo; or &ldquo;kraft paper 120 gsm&rdquo;, then filter the
+							results. Specs such as grammage, thickness and sheet size are
+							shown on each listing.
+						</p>
+					),
+				},
+				{
+					q: "Do I need an account to order?",
+					a: (
+						<p>
+							You can browse without one. Checkout needs an account so we can
+							send order updates and you can track, reorder and return from{" "}
+							<Link href={href("account/orders")}>My orders</Link>.
+						</p>
+					),
+				},
+				{
+					q: "Can I order samples, get quantity pricing or request a quote?",
+					a: (
+						<p>
+							Sample ordering, quantity-break pricing and requests for
+							quotation are on the way and not available yet. For a large run
+							today, <Link href={href("contact")}>contact us</Link> with the
+							spec and quantity.
+						</p>
+					),
+				},
+			],
+		},
+		{
+			heading: "Delivery",
+			items: [
+				{
+					q: "Where do you deliver?",
+					a: (
+						<p>
+							To addresses in the United Arab Emirates. Delivery options and
+							times depend on the supplier and are shown at checkout before you
+							pay.
+						</p>
+					),
+				},
+				{
+					q: "How much is shipping?",
+					a: (
+						<p>
+							Standard shipping is free on orders over AED 150. Below that, and
+							for faster options, the price for each supplier&rsquo;s shipment
+							is shown at checkout. More on the{" "}
+							<Link href={href("shipping")}>shipping page</Link>.
+						</p>
+					),
+				},
+				{
+					q: "Can I track my order?",
+					a: (
+						<p>
+							Yes. Each shipment has its own tracking under{" "}
+							<Link href={href("account/orders")}>My orders</Link>.
+						</p>
+					),
+				},
+			],
+		},
+		{
+			heading: "Returns and refunds",
+			items: [
+				{
+					q: "What can I return?",
+					a: (
+						<p>
+							You can request a return within 7 days of delivery. Unopened
+							material in its original packaging qualifies, as does anything
+							that arrived damaged, faulty or wrong. Cut-to-size, made-to-order
+							and opened material does not. See{" "}
+							<Link href={href("returns")}>returns</Link>.
+						</p>
+					),
+				},
+				{
+					q: "When will I get my refund?",
+					a: (
+						<p>
+							Once the supplier receives and checks the return, the refund goes
+							back to your original payment method. How long it takes to show
+							depends on your bank or payment provider.
+						</p>
+					),
+				},
+			],
+		},
+		{
+			heading: "Payment",
+			items: [
+				{
+					q: "Which payment methods do you accept?",
+					a: (
+						<p>
+							Card payments through Stripe, instalments with Tabby or Tamara,
+							and cash on delivery. Cash on delivery is available with standard
+							delivery and pickup. Instalment eligibility is decided by Tabby
+							or Tamara at checkout.
+						</p>
+					),
+				},
+				{
+					q: "Are my card details stored?",
+					a: (
+						<p>
+							No. Card details go straight to the payment provider. MaterialHub
+							never stores your card number.
+						</p>
+					),
+				},
+				{
+					q: "Which currency am I charged in?",
+					a: <p>All prices are in UAE dirhams (AED), and you are charged in AED.</p>,
+				},
+			],
+		},
+		{
+			heading: "Selling on MaterialHub",
+			items: [
+				{
+					q: "How do I become a supplier?",
+					a: (
+						<p>
+							Apply from the <Link href={href("sell")}>Sell on MaterialHub</Link>{" "}
+							page. The team reviews your business details and documents
+							before your account goes live.
+						</p>
+					),
+				},
+				{
+					q: "How are suppliers paid?",
+					a: (
+						<p>
+							Sales are paid out to the supplier&rsquo;s bank account on a set
+							schedule, minus the platform commission agreed in the vendor
+							agreement.
+						</p>
+					),
+				},
+			],
+		},
+	];
+}
 
-export default function FaqPage() {
+export default async function FaqPage() {
+	const locale = await getLocale();
+	const data = groups(locale);
 	return (
 		<StaticPageLayout
+			contentLang="en"
 			eyebrow="Help"
-			title="Frequently asked questions."
-			intro="Most answers live here. If yours doesn't, customer care is one click away on the Contact page."
+			title="Frequently asked questions"
+			intro={
+				<>
+					Ordering, delivery, returns, payment and selling. If your question
+					isn&rsquo;t here,{" "}
+					<Link
+						href={`/${locale}/contact`}
+						className="text-nl-cacao underline decoration-nl-cacao/30 underline-offset-[0.2em] hover:decoration-nl-amber"
+					>
+						send us a message
+					</Link>
+					.
+				</>
+			}
+			contents={contentsFrom(data.map((g) => g.heading))}
 		>
-			{FAQ_GROUPS.map((group) => (
+			{data.map((group) => (
 				<StaticSection key={group.heading} heading={group.heading}>
-					<div className="not-prose divide-y divide-nl-cacao/10 border-y border-nl-cacao/10">
-						{group.items.map((item) => (
-							<details key={item.q} className="group py-4">
-								<summary className="cursor-pointer list-none flex items-center justify-between gap-4 text-nl-cacao font-medium text-[15px] md:text-base">
-									<span>{item.q}</span>
-									<span
-										aria-hidden
-										className="text-nl-amber transition-transform group-open:rotate-45 text-2xl leading-none"
-									>
-										+
-									</span>
-								</summary>
-								<div className="mt-3 text-nl-russet text-[14px] md:text-[15px] leading-[1.7]">
-									{item.a}
-								</div>
-							</details>
-						))}
-					</div>
+					<FaqAccordion items={group.items} />
 				</StaticSection>
 			))}
 		</StaticPageLayout>

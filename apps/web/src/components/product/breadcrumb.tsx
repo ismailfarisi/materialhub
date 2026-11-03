@@ -1,6 +1,8 @@
 "use client";
 
+import { type Stock, StockChip } from "@/components/swatch";
 import { buildBreadcrumbJsonLd } from "@/lib/breadcrumb-jsonld";
+import { ChevronRight } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 
@@ -15,18 +17,17 @@ interface BreadcrumbItem {
 	href?: string;
 }
 
-const crumb = "text-[10px] uppercase tracking-[0.22em]";
-
-export function Breadcrumb({ items }: { items: BreadcrumbItem[] }) {
+/**
+ * Sentence-case breadcrumb with chevrons that mirror in RTL. The last item is
+ * the current page when it has no link. When `stock` is given, the first category
+ * crumb carries its stock chip.
+ */
+export function Breadcrumb({ items, stock }: { items: BreadcrumbItem[]; stock?: Stock | null }) {
 	const locale = useLocale();
 	const t = useTranslations("common");
 
 	const itemHref = (item: BreadcrumbItem): string | undefined =>
-		item.href
-			? `/${locale}${item.href}`
-			: item.slug
-				? `/${locale}/c/${item.slug}`
-				: undefined;
+		item.href ? `/${locale}${item.href}` : item.slug ? `/${locale}/c/${item.slug}` : undefined;
 
 	// Locale-less path for the JSON-LD; the helper adds the origin and locale.
 	const itemPath = (item: BreadcrumbItem): string | undefined =>
@@ -38,41 +39,44 @@ export function Breadcrumb({ items }: { items: BreadcrumbItem[] }) {
 		t("home"),
 	);
 
+	const link = "text-nl-russet underline decoration-transparent underline-offset-4 transition-colors hover:text-nl-cacao hover:decoration-nl-cacao/30";
+
 	return (
 		<>
-			<nav className="flex items-center gap-2.5 py-3 overflow-hidden whitespace-nowrap">
-				<Link
-					href={`/${locale}`}
-					className={`${crumb} text-nl-russet transition-colors hover:text-nl-cacao`}
-				>
-					{t("home")}
-				</Link>
-				{items.map((item) => {
-					const href = itemHref(item);
-					return (
-						<span
-							key={item.href ?? item.slug ?? item.name}
-							className="flex items-center gap-2.5 min-w-0"
-						>
-							<span className="text-nl-russet/40" aria-hidden="true">
-								·
-							</span>
-							{href ? (
-								<Link
-									href={href}
-									className={`${crumb} text-nl-russet transition-colors hover:text-nl-cacao`}
-								>
-									{item.name}
-								</Link>
-							) : (
-								<span className={`${crumb} text-nl-cacao truncate`}>{item.name}</span>
-							)}
-						</span>
-					);
-				})}
+			<nav aria-label="Breadcrumb" className="min-w-0 py-3">
+				<ol className="m-0 flex min-w-0 list-none items-center gap-1.5 overflow-hidden whitespace-nowrap p-0 text-[13px]">
+					<li className="shrink-0">
+						<Link href={`/${locale}`} className={link}>
+							{t("home")}
+						</Link>
+					</li>
+					{items.map((item, i) => {
+						const href = itemHref(item);
+						const last = i === items.length - 1;
+						return (
+							<li
+								key={item.href ?? item.slug ?? item.name}
+								className={last ? "flex min-w-0 items-center gap-1.5" : "flex shrink-0 items-center gap-1.5"}
+							>
+								<ChevronRight className="h-3.5 w-3.5 shrink-0 text-nl-russet/60 rtl:rotate-180" strokeWidth={1.75} aria-hidden="true" />
+								{i === 0 && stock && <StockChip stock={stock} />}
+								{href ? (
+									<Link href={href} className={link}>
+										{item.name}
+									</Link>
+								) : (
+									<span aria-current={last ? "page" : undefined} className="truncate text-nl-cacao">
+										{item.name}
+									</span>
+								)}
+							</li>
+						);
+					})}
+				</ol>
 			</nav>
 			<script
 				type="application/ld+json"
+				// biome-ignore lint/security/noDangerouslySetInnerHtml: schema.org JSON-LD payload
 				dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
 			/>
 		</>

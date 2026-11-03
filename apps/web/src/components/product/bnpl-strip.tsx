@@ -1,53 +1,45 @@
 "use client";
 
+import { formatFils } from "@/components/swatch";
 import { useBnplThresholds } from "@/lib/queries/bnpl";
-import { formatPrice } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useLocale, useTranslations } from "next-intl";
 
 interface BnplStripProps {
-  total_fils: number;
-  currency?: string;
-  className?: string;
+	total_fils: number;
+	className?: string;
 }
 
-export function BnplStrip({ total_fils, currency = "AED", className = "mb-14" }: BnplStripProps) {
-  const { data: thresholdsData } = useBnplThresholds();
+const INSTALLMENTS = 4;
 
-  // Fallback to a default Tamara threshold if API is offline or database has no records
-  const thresholds = thresholdsData && thresholdsData.length > 0
-    ? thresholdsData
-    : [
-        {
-          provider: "tamara" as const,
-          min_amount_fils: 0, // 0 AED minimum fallback for testing
-          max_amount_fils: 10000000, // 100k AED maximum
-          plans: [{ installments: 4, interval_days: 30 }],
-          surcharge_fils: 0,
-        }
-      ];
+/** Tamara instalment line under the buy button, shown only inside Tamara's limits. */
+export function BnplStrip({ total_fils, className }: BnplStripProps) {
+	const t = useTranslations("pdp");
+	const locale = useLocale();
+	const { data: thresholdsData } = useBnplThresholds();
 
-  // Only Tamara is supported.
-  const isEligible = (t: { min_amount_fils: number; max_amount_fils: number }) =>
-    total_fils >= t.min_amount_fils && total_fils <= t.max_amount_fils;
-  const provider = thresholds.find((t) => t.provider === "tamara" && isEligible(t));
-  if (!provider) return null;
+	// Fallback to a default Tamara threshold if the API is offline or has no records.
+	const thresholds =
+		thresholdsData && thresholdsData.length > 0
+			? thresholdsData
+			: [{ provider: "tamara" as const, min_amount_fils: 0, max_amount_fils: 10000000 }];
 
-  const installments = 4;
-  const perInstallment = Math.round(total_fils / installments);
-  const isTamara = true;
+	const eligible = thresholds.find(
+		(th) => th.provider === "tamara" && total_fils >= th.min_amount_fils && total_fils <= th.max_amount_fils,
+	);
+	if (!eligible || total_fils <= 0) return null;
 
-  return (
-    <div className={`border border-nl-cacao/20 px-4 py-3.5 flex items-center justify-between gap-4 ${className}`}>
-      <div className="text-sm text-nl-cacao">
-        Or split in <span className="font-semibold">{installments} payments</span> of{" "}
-        <span className="font-semibold">{formatPrice(perInstallment, currency)}</span> — no late
-        fees, no interest.
-      </div>
-      <img
-        src="/tamara-logo.png"
-        alt="Tamara"
-        className="h-7 w-auto object-contain"
-        aria-label="Tamara installment plan"
-      />
-    </div>
-  );
+	const per = Math.round(total_fils / INSTALLMENTS);
+
+	return (
+		<div className={cn("flex items-center justify-between gap-4 rounded-md border border-nl-cacao/12 bg-nl-pearl px-4 py-3", className)}>
+			<p className="m-0 text-[13px] leading-snug text-nl-cacao">
+				{t.rich("bnpl", {
+					amount: `AED ${formatFils(per, locale)}`,
+					b: (chunks) => <span className="font-mono font-medium tabular-nums">{chunks}</span>,
+				})}
+			</p>
+			<img src="/tamara-logo.png" alt="Tamara" className="h-6 w-auto shrink-0 object-contain" />
+		</div>
+	);
 }

@@ -1,8 +1,10 @@
 import { computeActiveFilters } from "@/components/product/filter-state";
-import { ListingHeader } from "@/components/product/listing-header";
+import { Breadcrumb } from "@/components/product/breadcrumb";
 import { buildBrandListingParams } from "@/components/product/listing-params";
 import { ListingResults } from "@/components/product/listing-results";
 import { ListingSeoContent } from "@/components/product/listing-seo-content";
+import { formatFils, stockFor } from "@/components/swatch";
+import { SupplierHeader } from "@/components/vendor/supplier-header";
 import { TTL, publicGet } from "@/lib/api-public";
 import { formatAedForLocale } from "@/lib/money";
 import { buildAlternates } from "@/lib/seo/alternates";
@@ -110,7 +112,9 @@ export default async function BrandPage({ params, searchParams }: Props) {
 			revalidate: TTL.productListing,
 			tags: ["products", `brand:${slug}`],
 			locale,
-		}).then((data) => data ?? { data: [], total: 0 }),
+					// null means the product service did not answer: say so, rather
+			// than presenting an outage as an empty category.
+		}).then((data) => data ?? { data: [], total: 0, facets: undefined, failed: true as const }),
 		getBrandFacts(slug, locale),
 		publicGet<Record<string, string>>("/site-settings", {
 			params: { keys: "marketplace_return_window_days" },
@@ -174,23 +178,60 @@ export default async function BrandPage({ params, searchParams }: Props) {
 	});
 	const faqJsonLd = buildFaqJsonLd(faq);
 
+	const tb = await getTranslations({ locale, namespace: "browse" });
+	const nf = new Intl.NumberFormat(locale === "ar" ? "ar-AE" : "en-AE");
+
+	// A brand has no category of its own; it wears the stock of the category
+	// most of its listed products sit in (as its product cards do). No products,
+	// no stock — the header then drops the tab rather than guess.
+	const categoryCounts = new Map<string, number>();
+	for (const p of productsRes.data ?? []) {
+		if (p?.category_name) {
+			categoryCounts.set(p.category_name, (categoryCounts.get(p.category_name) ?? 0) + 1);
+		}
+	}
+	const mainCategory = [...categoryCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+	const stock = mainCategory ? stockFor(mainCategory) : null;
+
+	const supplierCount = productsRes.facets?.vendors?.length ?? 0;
+	const headerFacts = [
+		...(facts.total > 0 ? [{ label: tb("factProducts"), value: nf.format(facts.total) }] : []),
+		...(facts.minPriceFils !== null && facts.total > 0
+			? [{ label: tb("factFrom"), value: `AED ${formatFils(facts.minPriceFils, locale)}` }]
+			: []),
+		// Facets follow the active filters, so the supplier count is only a fact
+		// about the brand when nothing is filtered.
+		...(activeCount === 0 && supplierCount > 0
+			? [{ label: tb("factSuppliers"), value: nf.format(supplierCount) }]
+			: []),
+	];
+
 	return (
-		<div className="mx-auto max-w-[1400px] py-4">
-			<ListingHeader
-				breadcrumbItems={[
-					{ name: "Brands", href: "/brands" },
-					{ name: brand.name },
-				]}
-				title={brand.name}
-				intro={brand.description || undefined}
-			/>
+		<div className="mx-auto max-w-[1400px] px-4 pb-4 md:px-8">
+			<div className="pt-2 pb-6 md:pb-8">
+				<Breadcrumb
+					items={[
+						{ name: tb("brandsCrumb"), href: "/brands" },
+						{ name: brand.name },
+					]}
+				/>
+				<SupplierHeader
+					className="mt-1"
+					name={brand.name}
+					logoUrl={brand.logo_url}
+					description={brand.description}
+					stock={stock}
+					tabLabel={mainCategory}
+					facts={headerFacts}
+				/>
+			</div>
 
 			<ListingResults
 				config={facetConfig}
 				products={productsRes.data || []}
 				total={productsRes.total || 0}
-				view={filters.view}
 				activeCount={activeCount}
+				isError={"failed" in productsRes}
 			/>
 
 			<ListingSeoContent
