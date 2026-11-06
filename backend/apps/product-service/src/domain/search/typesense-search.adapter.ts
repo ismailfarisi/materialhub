@@ -151,6 +151,14 @@ export class TypesenseSearchAdapter implements SearchService {
         slugs.length > 1 ? `vendor_slug:=[${slugs.join(",")}]` : `vendor_slug:=${slugs[0]}`,
       );
     }
+    if (filters.deliveryVendorIds) {
+      // An empty list means no supplier qualifies: match nothing.
+      const ids = filters.deliveryVendorIds.length ? filters.deliveryVendorIds : ["__none__"];
+      filterParts.push(`vendor_id:=[${ids.join(",")}]`);
+      if (filters.deliveryExcludeProductIds?.length) {
+        filterParts.push(`id:!=[${filters.deliveryExcludeProductIds.join(",")}]`);
+      }
+    }
     if (filters.minPrice != null) filterParts.push(`price_min:>= ${filters.minPrice}`);
     if (filters.maxPrice != null) filterParts.push(`price_max:<= ${filters.maxPrice}`);
     // Rating filter: URL param arrives as a string ("4"); coerce so the Typesense

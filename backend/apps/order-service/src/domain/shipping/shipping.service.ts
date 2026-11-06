@@ -7,6 +7,10 @@ import type {
 import { HttpError, NotFoundError } from "@materialhub/plugins";
 // shipping.service.ts
 import { In, type Repository } from "typeorm";
+import {
+  normaliseDeliverySettings,
+  validateDeliverySettings,
+} from "./estimate/delivery-estimate.service.ts";
 
 // Must match inventory.service.ts / product.service.ts in product-service.
 const WAREHOUSE_FULFILLMENT_PERMISSION = "fulfillment_origin";
@@ -156,7 +160,8 @@ export class ShippingService {
   async updateWarehouse(id: string, data: Partial<Warehouse>): Promise<Warehouse> {
     const wh = await this.getWarehouse(id);
     const { is_default: _d, vendor_id: _v, id: _id, ...mutable } = data as any;
-    Object.assign(wh, mutable);
+    validateDeliverySettings(mutable);
+    Object.assign(wh, normaliseDeliverySettings(mutable));
     return this.warehouseRepo.save(wh);
   }
 

@@ -137,6 +137,12 @@ export const shippingRoutes = new Elysia({ prefix: "/shipping" })
         contact_phone: t.Optional(t.String()),
         contact_email: t.Optional(t.String()),
         is_active: t.Optional(t.Boolean()),
+        // Delivery promise settings (workstream 5)
+        dispatch_cutoff_time: t.Optional(t.String({ pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$" })),
+        handling_days: t.Optional(t.Integer({ minimum: 0, maximum: 60 })),
+        working_days: t.Optional(t.Array(t.Integer({ minimum: 0, maximum: 6 }), { minItems: 1 })),
+        same_day_emirates: t.Optional(t.Array(t.String({ maxLength: 50 }))),
+        next_day_emirates: t.Optional(t.Array(t.String({ maxLength: 50 }))),
       }),
     },
   )

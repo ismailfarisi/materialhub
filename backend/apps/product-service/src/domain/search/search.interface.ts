@@ -24,6 +24,9 @@ export interface ProductFilters {
   skus?: string[];
   attributes?: AttributeFilterInput[];
   inStock?: boolean;
+  /** Same-day / next-day filter, resolved by resolveDeliveryFilter (workstream 5). */
+  deliveryVendorIds?: string[];
+  deliveryExcludeProductIds?: string[];
   cursor?: string;
   limit?: number;
   locale?: string;
