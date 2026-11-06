@@ -200,6 +200,37 @@ describe("jwtAuth", () => {
     expect(res.status).toBe(200);
   });
 
+  test("allows the delivery estimate routes without token (product page, cart, checkout)", async () => {
+    const app = new Elysia()
+      .use(jwtAuth)
+      .get("/shipping/delivery-estimate", () => ({ data: null }))
+      .post("/shipping/delivery-estimate/batch", () => ({ data: [] }))
+      .post("/shipping/delivery-estimate", () => ({ data: null }))
+      .get("/shipping/warehouses", () => ({ data: [] }));
+
+    expect(
+      (await app.handle(new Request("http://localhost/shipping/delivery-estimate"))).status,
+    ).toBe(200);
+    expect(
+      (
+        await app.handle(
+          new Request("http://localhost/shipping/delivery-estimate/batch", { method: "POST" }),
+        )
+      ).status,
+    ).toBe(200);
+    // Only the read and the batch are public; the admin warehouse list is not.
+    expect(
+      (
+        await app.handle(
+          new Request("http://localhost/shipping/delivery-estimate", { method: "POST" }),
+        )
+      ).status,
+    ).toBe(401);
+    expect((await app.handle(new Request("http://localhost/shipping/warehouses"))).status).toBe(
+      401,
+    );
+  });
+
   test("still requires auth for non-public /checkout subpaths and /products/:id/foo", async () => {
     const app = new Elysia()
       .use(jwtAuth)

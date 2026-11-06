@@ -8,6 +8,11 @@ import { checkoutRoutes } from "./routes/checkout.routes.ts";
 import { commissionRoutes } from "./routes/commission.routes.ts";
 import { couponRoutes } from "./routes/coupon.routes.ts";
 import { dashboardRoutes } from "./routes/dashboard.routes.ts";
+import {
+  deliveryEstimateRoutes,
+  publicHolidayAdminRoutes,
+  vendorWarehouseDeliveryRoutes,
+} from "./routes/delivery-estimate.routes.ts";
 import { disputeRoutes } from "./routes/dispute.routes.ts";
 import { internalOrderRoutes } from "./routes/internal-order.routes.ts";
 import { internalShipmentsRoutes } from "./routes/internal-shipments.routes.ts";
@@ -37,7 +42,9 @@ export const app = new Elysia()
   .use(internalShipmentsRoutes)
   .use(checkoutRoutes)
   .use(webhookRoutes)
+  .use(deliveryEstimateRoutes)
   .use(shippingRoutes)
+  .use(vendorWarehouseDeliveryRoutes)
   .use(vendorWarehouseRoutes)
   .use(commissionRoutes)
   .use(adminPayoutRoutes)
@@ -53,6 +60,7 @@ export const app = new Elysia()
   .use(cartAbandonmentRoutes)
   .use(paymentMethodAdminRoutes)
   .use(shippingRateAdminRoutes)
+  .use(publicHolidayAdminRoutes)
   .use(shippingContributionAdminRoutes)
   .use(shippingProviderAdminRoutes)
   .use(vendorShippingIntegrationsRoutes)

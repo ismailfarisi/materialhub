@@ -1,6 +1,7 @@
 "use client";
 
 import { PlasticBanFilter } from "@/components/eco";
+import { DeliveryFilterGroup } from "@/components/delivery/delivery-filter-group";
 import { cn } from "@/lib/utils";
 import type { AttributeFilter, FilterValueOption } from "@materialhub/ui";
 import { Search, Star } from "lucide-react";
@@ -105,6 +106,8 @@ export function FilterGroups({ config, draft, setDraft }: Props) {
 			))}
 
 			<InStockGroup draft={draft} setDraft={setDraft} />
+
+			<DeliveryFilterGroup draft={draft} setDraft={setDraft} />
 
 			<RatingGroup draft={draft} setDraft={setDraft} />
 		</div>

@@ -56,6 +56,7 @@ const serviceRoutes: ServiceRoute[] = [
   { prefix: "/admin/payout-adjustments", target: order },
   { prefix: "/admin/payment-methods", target: order },
   { prefix: "/admin/shipping-rates", target: order },
+  { prefix: "/admin/public-holidays", target: order },
   { prefix: "/admin/shipping-contribution-tiers", target: order },
   { prefix: "/admin/shipping-providers", target: order },
   // Admin shipment sub-routes (PATCH status, GET history, GET events) live in

@@ -21,6 +21,7 @@ import {
 	SquaresFour,
 	Storefront,
 	Tag,
+	Timer,
 	Truck,
 	Users,
 	Wallet,
@@ -106,6 +107,11 @@ const settingsGroup = {
 			label: "Store Settings",
 			href: "/settings",
 			icon: <Gear size={20} />,
+		},
+		{
+			label: "Delivery Promise",
+			href: "/settings/delivery",
+			icon: <Timer size={20} />,
 		},
 		{
 			label: "Shipping Integrations",

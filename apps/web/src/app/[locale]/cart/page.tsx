@@ -10,6 +10,7 @@ import {
 } from "@/components/cart/cart-lines";
 import { CartSkeleton } from "@/components/cart/cart-skeleton";
 import { CartSummary } from "@/components/cart/cart-summary";
+import { DeliveryPromise } from "@/components/delivery/delivery-promise";
 import { Button, FanDeck, PriceTag } from "@/components/swatch";
 import { useCart } from "@/lib/queries/cart";
 import { AlertCircle, ArrowRight, Search } from "lucide-react";
@@ -128,6 +129,7 @@ export default function CartPage() {
 									<PriceTag amount={group.subtotalFils} locale={locale} size="sm" />
 								</span>
 							</header>
+							<DeliveryPromise variant="inline" vendorId={group.items[0]?.vendor_id} productIds={group.items.map((i) => i.product_id)} className="border-b border-nl-cacao/10 px-4 py-2.5 sm:px-6" />
 							<ul className="m-0 list-none divide-y divide-nl-cacao/10 px-4 sm:px-6">
 								{group.items.map((item) => (
 									<li key={item.variant_id}>

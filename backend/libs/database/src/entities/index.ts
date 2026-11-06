@@ -47,6 +47,7 @@ export type { ProductVideoStatus, ProductVideoAssetType } from "./product-video.
 export { ProductVariant } from "./product-variant.entity.ts";
 export { ProductGroup } from "./product-group.entity.ts";
 export { ProductGroupMember } from "./product-group-member.entity.ts";
+export { PublicHoliday } from "./public-holiday.entity.ts";
 export { Warehouse } from "./warehouse.entity.ts";
 export { WarehouseVendorPermission } from "./warehouse-vendor-permission.entity.ts";
 export { Inventory } from "./inventory.entity.ts";

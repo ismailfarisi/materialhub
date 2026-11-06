@@ -18,6 +18,7 @@ import { generateSlug } from "@materialhub/utils";
 import { type EntityManager, In, IsNull, Not, type Repository } from "typeorm";
 import { categoryDescendantPredicate } from "../category/category-descendant.sql.ts";
 import { toPublicEcoDeclaration } from "../eco/eco-declaration.service.ts";
+import { parseDeliverySpeed, resolveDeliveryFilter } from "../search/delivery-filter.ts";
 import { enqueueSearchSync } from "../search/search-sync.job.ts";
 import type { SearchService } from "../search/search.interface.ts";
 import type { TrendingSearchService } from "../search/trending.service.ts";
@@ -686,6 +687,16 @@ export class ProductService {
         if (parsed.length) {
           filters.attributes = parsed;
         }
+      }
+    }
+    // ?delivery=same_day|next_day&emirate=Dubai — suppliers whose default
+    // warehouse serves that emirate at that speed. Ignored without an emirate.
+    const deliverySpeed = parseDeliverySpeed(filters.delivery);
+    if (deliverySpeed) {
+      const delivery = await resolveDeliveryFilter(deliverySpeed, filters.emirate);
+      if (delivery) {
+        filters.deliveryVendorIds = delivery.vendorIds;
+        filters.deliveryExcludeProductIds = delivery.excludeProductIds;
       }
     }
     const result: any = await this.searchService.searchProducts(filters);

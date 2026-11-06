@@ -155,6 +155,11 @@ export class Product {
   @Column({ type: "smallint", nullable: true })
   minimum_age!: number | null;
 
+  // Made-to-order items: replaces the warehouse's handling days in the
+  // delivery estimate when set (workstream 5).
+  @Column({ type: "smallint", nullable: true })
+  handling_days_override!: number | null;
+
   @Column({ type: "boolean", default: true })
   track_inventory!: boolean;
 

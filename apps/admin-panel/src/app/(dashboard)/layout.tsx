@@ -11,6 +11,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import {
 	AlertTriangle,
+	CalendarDays,
 	ClipboardList,
 	Coins,
 	CreditCard,
@@ -221,6 +222,11 @@ const navItems = [
 				icon: <Plug size={20} />,
 			},
 			{
+				label: "Public Holidays",
+				href: "/settings/public-holidays",
+				icon: <CalendarDays size={20} />,
+			},
+			{
 				label: "AI Image Enhance",
 				href: "/settings/ai",
 				icon: <Sparkles size={20} />,
@@ -244,6 +250,7 @@ const SEGMENT_LABEL_OVERRIDES: Record<string, string> = {
 	"shipping-rates": "Shipping Rates",
 	"shipping-contribution-tiers": "Shipping Contribution Tiers",
 	"shipping-providers": "Shipping Providers",
+	"public-holidays": "Public Holidays",
 	"payment-methods": "Payment Methods",
 	"cart-abandonment": "Cart Abandonment",
 	"audit-log": "Audit Log",

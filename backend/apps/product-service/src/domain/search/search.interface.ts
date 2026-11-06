@@ -26,6 +26,9 @@ export interface ProductFilters {
   inStock?: boolean;
   /** Eco catalogue: only products whose plastic-ban ready declaration admin approved. */
   plasticBanReady?: boolean;
+  /** Same-day / next-day filter, resolved by resolveDeliveryFilter (workstream 5). */
+  deliveryVendorIds?: string[];
+  deliveryExcludeProductIds?: string[];
   cursor?: string;
   limit?: number;
   locale?: string;

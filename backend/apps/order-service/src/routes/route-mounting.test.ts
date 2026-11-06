@@ -38,3 +38,22 @@ describe("admin payout route mounting", () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe("delivery promise route mounting", () => {
+  // Public estimate routes sit under the gateway's /shipping prefix; vendor
+  // settings under /vendor/warehouses; admin holidays under /admin/public-holidays.
+  it("serves the vendor warehouse delivery settings behind auth", async () => {
+    const res = await app.handle(new Request("http://localhost/vendor/warehouses/delivery"));
+    expect(res.status).toBe(401);
+  });
+
+  it("serves the admin public-holiday list behind auth", async () => {
+    const res = await app.handle(new Request("http://localhost/admin/public-holidays"));
+    expect(res.status).toBe(401);
+  });
+
+  it("mounts the public estimate route", async () => {
+    const res = await app.handle(new Request("http://localhost/shipping/delivery-estimate"));
+    expect(res.status).not.toBe(404);
+  });
+});

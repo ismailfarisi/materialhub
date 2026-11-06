@@ -56,6 +56,13 @@ export class PostgresSearchAdapter implements SearchService {
       qb.andWhere("p.vendor_id = :vendorId", { vendorId: filters.vendorId });
     }
 
+    if (filters.deliveryVendorIds) {
+      if (filters.deliveryVendorIds.length === 0) qb.andWhere("1 = 0");
+      else qb.andWhere("p.vendor_id IN (:...dvIds)", { dvIds: filters.deliveryVendorIds });
+      if (filters.deliveryExcludeProductIds?.length) {
+        qb.andWhere("p.id NOT IN (:...dxIds)", { dxIds: filters.deliveryExcludeProductIds });
+      }
+    }
     // Price range
     if (filters.minPrice !== undefined) {
       qb.andWhere("p.price >= :minPrice", { minPrice: filters.minPrice });
@@ -165,6 +172,13 @@ export class PostgresSearchAdapter implements SearchService {
     if (filters.vendorId) {
       const vIds = Array.isArray(filters.vendorId) ? filters.vendorId : [filters.vendorId];
       qb.andWhere("p.vendor_id IN (:...vIds)", { vIds });
+    }
+    if (filters.deliveryVendorIds) {
+      if (filters.deliveryVendorIds.length === 0) qb.andWhere("1 = 0");
+      else qb.andWhere("p.vendor_id IN (:...dvIds)", { dvIds: filters.deliveryVendorIds });
+      if (filters.deliveryExcludeProductIds?.length) {
+        qb.andWhere("p.id NOT IN (:...dxIds)", { dxIds: filters.deliveryExcludeProductIds });
+      }
     }
     if (filters.minPrice !== undefined)
       qb.andWhere("p.price >= :minPrice", { minPrice: filters.minPrice });

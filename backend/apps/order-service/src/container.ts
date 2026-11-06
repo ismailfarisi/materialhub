@@ -28,6 +28,7 @@ import {
   Product,
   ProductCollectionMember,
   ProductVariant,
+  PublicHoliday,
   Return,
   ReturnItem,
   Review,
@@ -162,6 +163,8 @@ import { ShipmentTrackingController } from "./domain/shipment/shipment-tracking.
 import { ShipmentTrackingService } from "./domain/shipment/shipment-tracking.service.ts";
 import { ShippingProviderRegistry } from "./domain/shipment/shipping-provider-adapter.ts";
 import { upsertProvidersFromRegistry } from "./domain/shipment/upsert-providers-from-registry.ts";
+import { DeliveryEstimateService } from "./domain/shipping/estimate/delivery-estimate.service.ts";
+import { PublicHolidayService } from "./domain/shipping/estimate/public-holiday.service.ts";
 import { ShippingController } from "./domain/shipping/shipping.controller.ts";
 import { ShippingService } from "./domain/shipping/shipping.service.ts";
 
@@ -263,6 +266,16 @@ const shippingService = new ShippingService(
   warehouseVendorPermissionRepo,
 );
 const shippingController = new ShippingController(shippingService);
+const deliveryEstimateService = new DeliveryEstimateService(
+  warehouseRepo,
+  productRepo,
+  shippingRateRepo,
+  AppDataSource.getRepository(PublicHoliday),
+);
+const publicHolidayService = new PublicHolidayService(
+  AppDataSource.getRepository(PublicHoliday),
+  () => deliveryEstimateService.invalidateHolidays(),
+);
 
 const taxService = new TaxService(taxRateRepo);
 const couponService = new CouponService(
@@ -624,6 +637,9 @@ const _invoiceWorker = createInvoiceWorker(invoiceService);
 export const container = new Elysia({ name: "order-service-container" })
   .decorate("cartController", cartController)
   .decorate("shippingController", shippingController)
+  .decorate("deliveryEstimateService", deliveryEstimateService)
+  .decorate("publicHolidayService", publicHolidayService)
+  .decorate("warehouseRepo", warehouseRepo)
   .decorate("checkoutController", checkoutController)
   .decorate("orderController", orderController)
   .decorate("vendorOrderController", vendorOrderController)

@@ -1,6 +1,7 @@
 "use client";
 
 import type { CartLineItem } from "@/components/cart/cart-lines";
+import { CheckoutDeliveryPromise } from "@/components/delivery/delivery-promise";
 import { filsToAed } from "@/lib/money";
 import type { QuoteShippingMethod, ShippingGroup } from "@/lib/queries/checkout-quote";
 import { useCheckoutStore } from "@/stores/checkout";
@@ -131,6 +132,7 @@ export function ShippingSection({ items = [] }: { items?: CartLineItem[] }) {
 									))}
 								</div>
 							)}
+							{group.items.map((g) => <CheckoutDeliveryPromise key={g.vendor_id} vendorId={g.vendor_id} method={selected?.id} supplierName={vendorNames.size > 1 ? vendorNames.get(g.vendor_id) : null} productIds={items.filter((i) => i.vendor_id === g.vendor_id).map((i) => i.product_id)} className="ps-1" />)}
 						</div>
 					);
 				})}
