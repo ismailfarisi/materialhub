@@ -26,7 +26,7 @@ RUN mkdir /out \
 FROM oven/bun:1.4 AS deps
 WORKDIR /app
 COPY --from=manifests /out/ ./
-RUN bun install --production
+RUN bun install --production --frozen-lockfile
 COPY backend/tsconfig.json ./
 COPY backend/libs ./libs
 COPY backend/apps ./apps

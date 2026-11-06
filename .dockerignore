@@ -1,4 +1,4 @@
-# Root build context: backend/apps/*/Dockerfile and deploy/frontend/next-app.Dockerfile.
+# Root build context: backend/apps/api/Dockerfile and deploy/frontend/next-app.Dockerfile.
 **/node_modules
 **/.next
 **/.turbo
