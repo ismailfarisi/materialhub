@@ -40,7 +40,7 @@ jobs:
       - name: Typecheck
         run: >-
           bunx turbo run typecheck
-          --filter='@materialhub/api-gateway'
+          --filter='@materialhub/api'
           --filter='@materialhub/auth-service'
           --filter='@materialhub/product-service'
           --filter='@materialhub/order-service'
@@ -55,14 +55,7 @@ jobs:
       - name: Test
         run: bash backend/scripts/test-ci.sh
 
+      # The backend is one process: only @materialhub/api has a build (it
+      # bundles every module). The modules are typechecked and tested above.
       - name: Build
-        run: >-
-          bunx turbo run build
-          --filter='@materialhub/api-gateway'
-          --filter='@materialhub/auth-service'
-          --filter='@materialhub/product-service'
-          --filter='@materialhub/order-service'
-          --filter='@materialhub/vendor-service'
-          --filter='@materialhub/notification-service'
-          --filter='@materialhub/cms-service'
-          --filter='@materialhub/integration-service'
+        run: bunx turbo run build --filter='@materialhub/api'

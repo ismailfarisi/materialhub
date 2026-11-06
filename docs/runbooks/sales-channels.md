@@ -130,7 +130,7 @@ Expected response:
 { "statusCode": 200, "data": { "has_credentials": true }, "timestamp": "…" }
 ```
 
-> **Gateway proxy note.** The api-gateway proxy table in `backend/apps/api-gateway/src/proxy.ts` routes `/admin/sales-channels` to the integration-service. All react-query hooks from the admin dashboard go through the gateway as expected.
+> **Gateway proxy note.** The API's proxy table in `backend/apps/api/src/proxy.ts` routes `/admin/sales-channels` to the integration-service. All react-query hooks from the admin dashboard go through the gateway as expected.
 
 ---
 

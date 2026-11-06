@@ -1,11 +1,17 @@
-name: Build Service
+name: Build API Image
+
+# Builds and pushes the backend image. The backend is one process
+# (backend/apps/api: the gateway plus every module), so there is one image.
+#
+# It is pushed to the existing materialhub-api-gateway ECR repository: the
+# repositories are managed in terraform/shared/ecr.tf (var.services), and
+# reusing this one means the monolith needs no `terraform apply`. The former
+# per-service repositories (materialhub-auth-service, ...) are left in place
+# and no longer receive pushes.
 
 on:
   workflow_call:
     inputs:
-      service:
-        required: true
-        type: string
       environment:
         required: true
         type: string
@@ -17,12 +23,13 @@ on:
 env:
   AWS_REGION: ap-south-1
   ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com
+  ECR_REPOSITORY: materialhub-api-gateway
 
 jobs:
   build-and-push:
-    name: Build ${{ inputs.service }}
+    name: Build api
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     permissions:
       id-token: write
       contents: read
@@ -43,8 +50,8 @@ jobs:
       - name: Build and push Docker image
         run: |
           docker build \
-            -f backend/apps/${{ inputs.service }}/Dockerfile \
-            -t $ECR_REGISTRY/materialhub-${{ inputs.service }}:${{ inputs.image-tag }} \
-            -t $ECR_REGISTRY/materialhub-${{ inputs.service }}:${{ inputs.environment }} \
+            -f backend/apps/api/Dockerfile \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:${{ inputs.image-tag }} \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:${{ inputs.environment }} \
             .
-          docker push $ECR_REGISTRY/materialhub-${{ inputs.service }} --all-tags
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY --all-tags

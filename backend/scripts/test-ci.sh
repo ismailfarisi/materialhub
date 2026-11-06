@@ -12,12 +12,13 @@
 # `test:integration` step). Run them locally with `bun test` (full suite) when
 # your docker stack is up.
 #
-# Runs from the repo root (where the workflows invoke it). Each service runs in
-# its own bun process to preserve per-service isolation.
+# Runs from the repo root (where the workflows invoke it). The backend runs as
+# one process (backend/apps/api), but each module directory keeps its own unit
+# tests, run here per module as before.
 set -uo pipefail
 
 APPS=(
-  api-gateway
+  api
   auth-service
   product-service
   order-service
@@ -74,7 +75,7 @@ echo "────────────────────────�
 echo "UNIT TESTS ONLY. ${excluded_total} integration test file(s) were NOT run."
 echo "A pass here does NOT cover DB-backed flows (order money movement,"
 echo "state-machine transitions, carrier/webhook paths). Run those against a"
-echo "live stack: docker compose up, then \`bun test\` from backend/apps/<svc>"
+echo "live stack: docker compose up, then \`bun test\` from backend/apps/<module>"
 echo "──────────────────────────────────────────────────────────────────"
 
 exit $fail

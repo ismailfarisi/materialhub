@@ -8,7 +8,7 @@
     "dev:web": "turbo run dev --filter=@materialhub/web",
     "dev:vendor": "turbo run dev --filter=@materialhub/vendor-dashboard",
     "dev:admin": "turbo run dev --filter=@materialhub/admin-panel",
-    "dev:backend": "turbo run dev --filter=@materialhub/api-gateway --filter=@materialhub/auth-service --filter=@materialhub/product-service --filter=@materialhub/order-service --filter=@materialhub/vendor-service --filter=@materialhub/notification-service --filter=@materialhub/cms-service"
+    "dev:backend": "turbo run dev --filter=@materialhub/api"
   },
   "workspaces": [
     "apps/*",

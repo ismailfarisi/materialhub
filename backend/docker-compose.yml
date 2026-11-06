@@ -81,13 +81,15 @@ services:
         echo "local-s3 bucket $$BUCKET ready"
 
 
-  # --- Services (dev mode — mount source, use bun --watch) ---
-  api-gateway:
+  # --- Backend (dev mode: mount source, bun --watch) ---
+  # One process serves the whole API (gateway + every module) on :3000; see
+  # apps/api/src/index.ts. `bun run dev:local` runs it on the host instead.
+  api:
     build:
-      context: .
-      dockerfile: apps/api-gateway/Dockerfile
+      context: ..
+      dockerfile: backend/apps/api/Dockerfile
       target: deps
-    command: bun run --watch apps/api-gateway/src/index.ts
+    command: bun run --watch apps/api/src/index.ts
     ports:
       - "3000:3000"
     volumes:
@@ -97,161 +99,19 @@ services:
       - NODE_ENV=development
       - REDIS_HOST=redis
       - DB_HOST=postgres
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  auth-service:
-    build:
-      context: .
-      dockerfile: apps/auth-service/Dockerfile
-      target: deps
-    command: bun run --watch apps/auth-service/src/index.ts
-    ports:
-      - "3001:3001"
-    volumes:
-      - .:/app
-      - /app/node_modules
-    environment:
-      - NODE_ENV=development
-      - REDIS_HOST=redis
-      - DB_HOST=postgres
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  product-service:
-    build:
-      context: .
-      dockerfile: apps/product-service/Dockerfile
-      target: deps
-    command: bun run --watch apps/product-service/src/index.ts
-    ports:
-      - "3002:3002"
-    volumes:
-      - .:/app
-      - /app/node_modules
-    environment:
-      - NODE_ENV=development
-      - REDIS_HOST=redis
-      - DB_HOST=postgres
       - TYPESENSE_HOST=typesense
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:'+(process.env.GATEWAY_PORT||3000)+'/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
       typesense:
-        condition: service_healthy
-
-  order-service:
-    build:
-      context: .
-      dockerfile: apps/order-service/Dockerfile
-      target: deps
-    command: bun run --watch apps/order-service/src/index.ts
-    ports:
-      - "3003:3003"
-    volumes:
-      - .:/app
-      - /app/node_modules
-    environment:
-      - NODE_ENV=development
-      - REDIS_HOST=redis
-      - DB_HOST=postgres
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  vendor-service:
-    build:
-      context: .
-      dockerfile: apps/vendor-service/Dockerfile
-      target: deps
-    command: bun run --watch apps/vendor-service/src/index.ts
-    ports:
-      - "3004:3004"
-    volumes:
-      - .:/app
-      - /app/node_modules
-    environment:
-      - NODE_ENV=development
-      - REDIS_HOST=redis
-      - DB_HOST=postgres
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  notification-service:
-    build:
-      context: .
-      dockerfile: apps/notification-service/Dockerfile
-      target: deps
-    command: bun run --watch apps/notification-service/src/index.ts
-    ports:
-      - "3005:3005"
-    volumes:
-      - .:/app
-      - /app/node_modules
-    environment:
-      - NODE_ENV=development
-      - REDIS_HOST=redis
-      - DB_HOST=postgres
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  cms-service:
-    build:
-      context: .
-      dockerfile: apps/cms-service/Dockerfile
-      target: deps
-    command: bun run --watch apps/cms-service/src/index.ts
-    ports:
-      - "3006:3006"
-    volumes:
-      - .:/app
-      - /app/node_modules
-    environment:
-      - NODE_ENV=development
-      - REDIS_HOST=redis
-      - DB_HOST=postgres
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  integration-service:
-    build:
-      context: .
-      dockerfile: apps/integration-service/Dockerfile
-      target: deps
-    command: bun run --watch apps/integration-service/src/index.ts
-    ports:
-      - "3008:3008"
-    volumes:
-      - .:/app
-      - /app/node_modules
-    environment:
-      - NODE_ENV=development
-      - REDIS_HOST=redis
-      - DB_HOST=postgres
-      - INTEGRATION_PORT=3008
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
 
 volumes:

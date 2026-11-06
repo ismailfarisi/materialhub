@@ -41,8 +41,19 @@ services:
       timeout: 5s
       retries: 5
 
-  # --- Services (production — use built images) ---
-  api-gateway:
+  # --- Backend (production: built image) ---
+  # One process serves the whole API (gateway + every module); see
+  # apps/api/src/index.ts. The image is still pushed to the
+  # materialhub-api-gateway ECR repository (terraform/shared/ecr.tf), so no new
+  # repository is needed.
+  #
+  # Environment: the union of what the former api-gateway, auth, product,
+  # order, vendor, notification, cms and integration services received. Not
+  # carried over: PORT (each service got its own; nothing reads it, the API
+  # listens on GATEWAY_PORT) and the module addressing vars
+  # (AUTH_HOST/..._HOST, INTEGRATION_PORT), since modules are now called
+  # in-process and their defaults only need to be distinct.
+  api:
     image: ${ECR_REGISTRY}/materialhub-api-gateway:${IMAGE_TAG:-latest}
     ports:
       - "3000:3000"
@@ -50,65 +61,29 @@ services:
       - NODE_ENV=production
       - REDIS_HOST=redis
       - DB_HOST=postgres
-      - PORT=${GATEWAY_PORT}
+      - GATEWAY_PORT=3000
+      # Auth + internal
       - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
       - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET}
-      - AUTH_HOST=${AUTH_HOST}
-      - PRODUCT_HOST=${PRODUCT_HOST}
-      - ORDER_HOST=${ORDER_HOST}
-      - VENDOR_HOST=${VENDOR_HOST}
-      - NOTIFICATION_HOST=${NOTIFICATION_HOST}
-      - CMS_HOST=${CMS_HOST}
-      - INTEGRATION_HOST=${INTEGRATION_HOST}
-      - INTEGRATION_PORT=${INTEGRATION_PORT}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
-
-  auth-service:
-    image: ${ECR_REGISTRY}/materialhub-auth-service:${IMAGE_TAG:-latest}
-    ports:
-      - "3001:3001"
-    environment:
-      - NODE_ENV=production
-      - REDIS_HOST=redis
-      - DB_HOST=postgres
-      - PORT=${AUTH_PORT}
-      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
-      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
       - TWO_FA_ENCRYPTION_KEY=${TWO_FA_ENCRYPTION_KEY}
+      # Phone OTP (SMS_OTP_PROVIDER=twilio or whatsapp)
       - SMS_OTP_PROVIDER=${SMS_OTP_PROVIDER}
       - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
       - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
       - TWILIO_VERIFY_SERVICE_SID=${TWILIO_VERIFY_SERVICE_SID}
-      # Required for SMS_OTP_PROVIDER=whatsapp. This file enumerates env
-      # explicitly (no env_file, unlike docker-compose.netcup.yml), so an
-      # omitted var is silently empty in prod while staging works fine.
+      # WhatsApp Cloud API: OTP (auth) and messages + webhook (notification).
+      # Without these the notification module falls back to
+      # StubWhatsAppDispatcher (messages "sent" to stdout only) and the webhook
+      # 403s every request, so Meta's subscription handshake never completes.
       - WHATSAPP_ACCESS_TOKEN=${WHATSAPP_ACCESS_TOKEN}
       - WHATSAPP_PHONE_NUMBER_ID=${WHATSAPP_PHONE_NUMBER_ID}
       - WHATSAPP_API_BASE_URL=${WHATSAPP_API_BASE_URL}
+      - WHATSAPP_APP_SECRET=${WHATSAPP_APP_SECRET}
+      - WHATSAPP_WEBHOOK_VERIFY_TOKEN=${WHATSAPP_WEBHOOK_VERIFY_TOKEN}
       - WHATSAPP_TEMPLATE_LANGUAGE=${WHATSAPP_TEMPLATE_LANGUAGE}
       - WHATSAPP_OTP_TEMPLATE_NAME=${WHATSAPP_OTP_TEMPLATE_NAME}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
-
-  product-service:
-    image: ${ECR_REGISTRY}/materialhub-product-service:${IMAGE_TAG:-latest}
-    ports:
-      - "3002:3002"
-    environment:
-      - NODE_ENV=production
-      - REDIS_HOST=redis
-      - DB_HOST=postgres
-      - PORT=${PRODUCT_PORT}
+      # Search + catalogue caches
       - TYPESENSE_HOST=${TYPESENSE_HOST}
       - TYPESENSE_PORT=${TYPESENSE_PORT}
       - TYPESENSE_PROTOCOL=${TYPESENSE_PROTOCOL}
@@ -117,126 +92,41 @@ services:
       - CATEGORY_TREE_CACHE_TTL=${CATEGORY_TREE_CACHE_TTL}
       - PRODUCT_DETAIL_CACHE_TTL=${PRODUCT_DETAIL_CACHE_TTL}
       - PRODUCT_LIST_CACHE_TTL=${PRODUCT_LIST_CACHE_TTL}
+      # Payments. VENDOR_ENCRYPTION_KEY (AES-256-GCM) encrypts
+      # vendor_bank_accounts rows (vendor module) and decrypts them for the
+      # audited bank-detail reveal (admin-payout.controller.ts revealBank).
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_CONNECT_WEBHOOK_SECRET=${STRIPE_CONNECT_WEBHOOK_SECRET}
+      - VENDOR_ENCRYPTION_KEY=${VENDOR_ENCRYPTION_KEY}
+      # AWS: SES email, S3 media, CloudFront
+      - AWS_REGION=${AWS_REGION}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - S3_MEDIA_BUCKET=${S3_MEDIA_BUCKET}
+      - CLOUDFRONT_DOMAIN=${CLOUDFRONT_DOMAIN}
+      # Sales-channel feeds + integration credentials
+      - INTEGRATION_FEED_BUCKET=${INTEGRATION_FEED_BUCKET}
+      - INTEGRATION_FEED_BASE_URL=${INTEGRATION_FEED_BASE_URL}
+      - WEB_BASE_URL=${WEB_BASE_URL}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+    networks:
+      default:
+        # The Caddyfile mounted below is not in this repo and may still proxy
+        # to the former gateway's hostname.
+        aliases:
+          - api-gateway
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:'+(process.env.GATEWAY_PORT||3000)+'/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
       typesense:
-        condition: service_healthy
-    restart: unless-stopped
-
-  order-service:
-    image: ${ECR_REGISTRY}/materialhub-order-service:${IMAGE_TAG:-latest}
-    ports:
-      - "3003:3003"
-    environment:
-      - NODE_ENV=production
-      - REDIS_HOST=redis
-      - DB_HOST=postgres
-      - PORT=${ORDER_PORT}
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
-      - STRIPE_CONNECT_WEBHOOK_SECRET=${STRIPE_CONNECT_WEBHOOK_SECRET}
-      # Must match vendor-service's key byte-for-byte (AES-256-GCM): the
-      # audited bank-detail reveal (admin-payout.controller.ts revealBank)
-      # decrypts vendor_bank_accounts rows that vendor-service encrypted with
-      # this same key. A missing/mismatched key here is a deploy-time failure,
-      # not something tests catch.
-      - VENDOR_ENCRYPTION_KEY=${VENDOR_ENCRYPTION_KEY}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
-
-  vendor-service:
-    image: ${ECR_REGISTRY}/materialhub-vendor-service:${IMAGE_TAG:-latest}
-    ports:
-      - "3004:3004"
-    environment:
-      - NODE_ENV=production
-      - REDIS_HOST=redis
-      - DB_HOST=postgres
-      - PORT=${VENDOR_PORT}
-      - VENDOR_ENCRYPTION_KEY=${VENDOR_ENCRYPTION_KEY}
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
-
-  notification-service:
-    image: ${ECR_REGISTRY}/materialhub-notification-service:${IMAGE_TAG:-latest}
-    ports:
-      - "3005:3005"
-    environment:
-      - NODE_ENV=production
-      - REDIS_HOST=redis
-      - DB_HOST=postgres
-      - PORT=${NOTIFICATION_PORT}
-      - AWS_REGION=${AWS_REGION}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      # Without these the container falls back to StubWhatsAppDispatcher
-      # (messages "sent" to stdout only) and the webhook 403s every request,
-      # so Meta's subscription handshake can never complete.
-      - WHATSAPP_ACCESS_TOKEN=${WHATSAPP_ACCESS_TOKEN}
-      - WHATSAPP_PHONE_NUMBER_ID=${WHATSAPP_PHONE_NUMBER_ID}
-      - WHATSAPP_API_BASE_URL=${WHATSAPP_API_BASE_URL}
-      - WHATSAPP_APP_SECRET=${WHATSAPP_APP_SECRET}
-      - WHATSAPP_WEBHOOK_VERIFY_TOKEN=${WHATSAPP_WEBHOOK_VERIFY_TOKEN}
-      - WHATSAPP_TEMPLATE_LANGUAGE=${WHATSAPP_TEMPLATE_LANGUAGE}
-      - WHATSAPP_OTP_TEMPLATE_NAME=${WHATSAPP_OTP_TEMPLATE_NAME}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
-
-  cms-service:
-    image: ${ECR_REGISTRY}/materialhub-cms-service:${IMAGE_TAG:-latest}
-    ports:
-      - "3006:3006"
-    environment:
-      - NODE_ENV=production
-      - REDIS_HOST=redis
-      - DB_HOST=postgres
-      - PORT=${CMS_PORT}
-      - AWS_REGION=${AWS_REGION}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - S3_MEDIA_BUCKET=${S3_MEDIA_BUCKET}
-      - CLOUDFRONT_DOMAIN=${CLOUDFRONT_DOMAIN}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
-
-  integration-service:
-    image: ${ECR_REGISTRY}/materialhub-integration-service:${IMAGE_TAG:-latest}
-    mem_limit: 1g
-    ports:
-      - "3008:3008"
-    environment:
-      - NODE_ENV=production
-      - REDIS_HOST=redis
-      - DB_HOST=postgres
-      - PORT=${INTEGRATION_PORT}
-      - INTEGRATION_PORT=${INTEGRATION_PORT}
-      - INTEGRATION_FEED_BUCKET=${INTEGRATION_FEED_BUCKET}
-      - INTEGRATION_FEED_BASE_URL=${INTEGRATION_FEED_BASE_URL}
-      - WEB_BASE_URL=${WEB_BASE_URL}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     restart: unless-stopped
 
@@ -293,7 +183,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["bun", "run", "migrate"]
+    # The image has no root `migrate` script; run the entrypoint by path.
+    command: ["bun", "run", "libs/database/src/run-migrations.ts"]
 
 volumes:
   pgdata:

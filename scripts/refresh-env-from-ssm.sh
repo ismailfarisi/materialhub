@@ -74,12 +74,11 @@ path_to_env() {
     "${PREFIX}/twilio/account-sid")            echo "TWILIO_ACCOUNT_SID" ;;
     "${PREFIX}/twilio/auth-token")             echo "TWILIO_AUTH_TOKEN" ;;
     "${PREFIX}/twilio/verify-service-sid")     echo "TWILIO_VERIFY_SERVICE_SID" ;;
-    # Public gateway base URL. Backs the newsletter unsubscribe link and the
-    # absolute .ics calendar-feed URL booking-service hands to vendors. Also
+    # Public API base URL. Backs the newsletter unsubscribe link. Also
     # seeded into /opt/materialhub/.env by terraform user-data at first boot;
     # mapping it here makes CI the source of truth on every deploy.
     "${PREFIX}/urls/public-api-url")          echo "PUBLIC_API_URL" ;;
-    # Storefront apex/www hostnames. Backs api-gateway's prod CORS allowlist
+    # Storefront apex/www hostnames. Backs the API's prod CORS allowlist
     # and libs/config/src/index.ts's Tamara merchant-redirect allowlist —
     # both already hardcode the same values as their own in-code fallback, so
     # this SSM mapping keeps CI as the source of truth on every deploy
@@ -87,6 +86,12 @@ path_to_env() {
     # the code default.
     "${PREFIX}/urls/web-url")                 echo "WEB_URL" ;;
     "${PREFIX}/urls/web-www-url")              echo "WEB_WWW_URL" ;;
+    # integration/host, /port and /service-url are left over from when the
+    # integration service was its own container. The backend now runs as one
+    # process and calls its modules in-process, so these values are unused
+    # (config.serviceUrl.integration only needs to be a distinct origin). Kept
+    # mapped so the params, still declared in terraform/production/ssm.tf,
+    # don't log "unknown SSM path" on every deploy.
     "${PREFIX}/integration/host")             echo "INTEGRATION_HOST" ;;
     "${PREFIX}/integration/port")             echo "INTEGRATION_PORT" ;;
     "${PREFIX}/integration/service-url")      echo "INTEGRATION_SERVICE_URL" ;;
