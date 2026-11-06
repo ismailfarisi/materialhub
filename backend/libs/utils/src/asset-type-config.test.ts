@@ -101,3 +101,20 @@ describe("creator_portfolio_video asset type", () => {
     expect(() => buildAssetKey("creator_portfolio_video", "clip.mp4")).toThrow(/requires userId/);
   });
 });
+
+describe("quote_attachment asset type", () => {
+  it("is a private, unprocessed type for PDFs and images", () => {
+    expect(isAssetType("quote_attachment")).toBe(true);
+    const cfg = ASSET_TYPE_CONFIG.quote_attachment;
+    expect(cfg.bucketKind).toBe("private");
+    expect(cfg.process).toBe("none");
+    expect(cfg.allowedContentTypes).toContain("application/pdf");
+    expect(cfg.requiresVendorId).toBe(false);
+  });
+
+  it("builds keys under private/quotes/", () => {
+    const key = buildAssetKey("quote_attachment", "dieline v2.pdf");
+    expect(key.startsWith("private/quotes/")).toBe(true);
+    expect(key.endsWith("/dieline_v2.pdf")).toBe(true);
+  });
+});

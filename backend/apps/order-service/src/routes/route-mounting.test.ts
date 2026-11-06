@@ -57,3 +57,13 @@ describe("delivery promise route mounting", () => {
     expect(res.status).not.toBe(404);
   });
 });
+
+describe("RFQ route mounting", () => {
+  // The gateway forwards /buyer, /vendor/quotes and /admin/quotes verbatim.
+  for (const path of ["/buyer/quotes", "/vendor/quotes", "/admin/quotes"]) {
+    it(`serves GET ${path} at the service root`, async () => {
+      const res = await app.handle(new Request(`http://localhost${path}`));
+      expect(res.status).toBe(401);
+    });
+  }
+});

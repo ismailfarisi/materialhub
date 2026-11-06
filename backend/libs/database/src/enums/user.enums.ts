@@ -47,6 +47,11 @@ export enum NotificationType {
   // dispatch pipeline (the rich SES email from OrderEmailService stays
   // separate and unconditional).
   vendor_new_order = "vendor_new_order",
+  // Request for quotation (RFQ)
+  quote_request_received = "quote_request_received",
+  quote_response_received = "quote_response_received",
+  quote_message_received = "quote_message_received",
+  quote_accepted = "quote_accepted",
 }
 
 export enum NotificationChannel {

@@ -56,6 +56,7 @@ const navItems = [
 				href: "/disputes",
 				icon: <AlertTriangle size={20} />,
 			},
+			{ label: "Quotes", href: "/quotes", icon: <FileText size={20} /> },
 			{
 				label: "Cart Abandonment",
 				href: "/cart-abandonment",

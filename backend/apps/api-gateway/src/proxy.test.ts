@@ -2,6 +2,19 @@ import { describe, expect, test } from "bun:test";
 import { resolveUpstream } from "./proxy.ts";
 
 describe("resolveUpstream", () => {
+  test("routes RFQ prefixes to the order service", () => {
+    for (const path of [
+      "/buyer/quotes",
+      "/buyer/quotes/abc/suppliers/x/accept",
+      "/vendor/quotes/abc",
+      "/admin/quotes",
+    ]) {
+      const result = resolveUpstream(path);
+      expect(result?.target).toContain("3003");
+      expect(result?.upstreamPath).toBe(path);
+    }
+  });
+
   test("resolves /auth to auth service", () => {
     const result = resolveUpstream("/auth");
     expect(result).not.toBeNull();

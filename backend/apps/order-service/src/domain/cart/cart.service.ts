@@ -1,7 +1,14 @@
-import type { Cart, CartItem, Inventory, Product, ProductVariant } from "@materialhub/database";
+import type {
+  Cart,
+  CartItem,
+  Inventory,
+  Product,
+  ProductVariant,
+  QuoteResponse,
+} from "@materialhub/database";
 import { BadRequestError, NotFoundError } from "@materialhub/plugins";
 // cart.service.ts
-import { IsNull, type Repository } from "typeorm";
+import { type EntityManager, IsNull, type Repository } from "typeorm";
 import type { CartRedisService } from "./cart-redis.service.ts";
 import { computeCartTotals } from "./cart-totals.ts";
 import { type CartPricingSource, noTradePricing } from "./pricing/cart-pricing.service.ts";
@@ -17,6 +24,20 @@ export interface CartRuleViolation {
   suggested_quantity: number;
 }
 
+/** A cart line created by accepting a supplier's quote (RFQ). */
+export interface QuotedLineInput {
+  productId: string;
+  variantId: string | null;
+  vendorId: string;
+  quantity: number;
+  /** The accepted quote_responses.id. */
+  quoteId: string;
+  /** Per-unit price the quote locked in, in fils. */
+  quotedUnitPrice: number;
+  /** The listing's own price, kept as original_unit_price for reference. */
+  listPrice: number;
+}
+
 export class CartService {
   constructor(
     private cartRepo: Repository<Cart>,
@@ -27,6 +48,8 @@ export class CartService {
     private redisCart: CartRedisService,
     /** Trade pricing (tiers, sample shipping). Optional so older call sites keep working. */
     readonly pricing: CartPricingSource = noTradePricing,
+    /** RFQ: reads a quoted line's MOQ. Optional so older wiring keeps working. */
+    private quoteResponseRepo?: Repository<QuoteResponse>,
   ) {}
 
   /**
@@ -122,18 +145,26 @@ export class CartService {
       } as any,
     });
 
-    // Base → tier by quantity (single resolver shared with the checkout quote).
+    // quote > tier > base (single resolver shared with the checkout quote).
+    // A line that came from an accepted quote keeps its quoted price when the
+    // buyer adds the same item again, and is held to the quote's minimum.
+    const isQuoted = Boolean(item?.quote_id);
     const unitPrice = resolveLinePrice({
       basePrice: terms.basePrice,
       tiers: terms.tiers,
       quantity: data.quantity,
+      quotedUnitPrice: isQuoted ? item?.quoted_unit_price : null,
     }).unitPrice;
+    if (isQuoted && item?.quote_id) await this.assertQuoteMinimum(item.quote_id, data.quantity);
+    // Quoted lines keep the listing price for reference; trade lines record
+    // the resolved price (tier or base), as before.
+    const listPrice = isQuoted ? terms.basePrice : unitPrice;
 
     if (item) {
       item.quantity = data.quantity;
       item.unit_price = unitPrice;
       item.line_total = unitPrice * data.quantity;
-      item.original_unit_price = unitPrice;
+      item.original_unit_price = listPrice;
     } else {
       item = this.cartItemRepo.create({
         cart_id: cart.id,
@@ -142,7 +173,7 @@ export class CartService {
         vendor_id: product.vendor_id,
         quantity: data.quantity,
         unit_price: unitPrice,
-        original_unit_price: unitPrice,
+        original_unit_price: listPrice,
         line_total: unitPrice * data.quantity,
       });
     }
@@ -155,7 +186,7 @@ export class CartService {
       quantity: data.quantity,
       unitPrice,
       vendorId: product.vendor_id,
-      originalUnitPrice: unitPrice,
+      originalUnitPrice: listPrice,
     });
 
     await this.recalcCartTotals(cart.id);
@@ -185,7 +216,10 @@ export class CartService {
       await this.cartItemRepo.softRemove(item);
       await this.redisCart.removeItem(this.ownerId(userId, guestSessionId), fieldKey);
     } else {
-      if (item.product) {
+      if (item.quote_id) {
+        // Quoted line: the quote's own minimum applies and the price stays locked.
+        await this.assertQuoteMinimum(item.quote_id, quantity);
+      } else if (item.product) {
         const terms = tradeTermsFor(
           item.product,
           item.variant,
@@ -287,6 +321,11 @@ export class CartService {
     const ruleViolations: CartRuleViolation[] = [];
     for (const item of items) {
       if (!item.product) continue;
+      if (item.quote_id && item.quoted_unit_price != null) {
+        // Quoted line: the live price is the accepted quote; trade rules don't apply.
+        if (item.quoted_unit_price !== item.unit_price) staleItems.push(item.id);
+        continue;
+      }
       const trade: CartLineTrade = lineTradeView(
         tradeTermsFor(item.product, item.variant, tierRows),
         item.quantity,
@@ -323,6 +362,88 @@ export class CartService {
       staleItems,
       ruleViolations,
     };
+  }
+
+  // ── RFQ: quoted lines ────────────────────────────────────────────────
+
+  /** A quoted price only holds at or above the quote's minimum order. */
+  private async assertQuoteMinimum(quoteId: string, quantity: number): Promise<void> {
+    if (!this.quoteResponseRepo) return;
+    const quote = await this.quoteResponseRepo.findOne({ where: { id: quoteId } });
+    if (quote && quantity < quote.moq) {
+      throw new BadRequestError(`The quoted price needs at least ${quote.moq} units`);
+    }
+  }
+
+  /**
+   * Add (or replace) the cart line for an accepted quote. Runs on the caller's
+   * transaction so accepting a quote and filling the cart commit together.
+   * Call syncQuotedLine after the transaction commits to refresh Redis.
+   */
+  async upsertQuotedLine(
+    manager: EntityManager,
+    userId: string,
+    line: QuotedLineInput,
+  ): Promise<CartItem> {
+    const cartRepo = manager.getRepository<Cart>("Cart");
+    const itemRepo = manager.getRepository<CartItem>("CartItem");
+    let cart = await cartRepo.findOne({ where: { user_id: userId } as any });
+    if (!cart) {
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
+      cart = await cartRepo.save({
+        user_id: userId,
+        guest_session_id: null,
+        subtotal: 0,
+        item_count: 0,
+        expires_at: expiresAt,
+      } as any);
+    }
+    // IsNull(), not null: TypeORM drops a bare null condition.
+    const where: any = {
+      cart_id: cart!.id,
+      product_id: line.productId,
+      variant_id: line.variantId ?? IsNull(),
+    };
+    const existing = await itemRepo.findOne({ where, withDeleted: true });
+    const { unitPrice } = resolveLinePrice({
+      basePrice: line.listPrice,
+      tiers: [],
+      quantity: line.quantity,
+      quotedUnitPrice: line.quotedUnitPrice,
+    });
+    const values = {
+      cart_id: cart!.id,
+      product_id: line.productId,
+      variant_id: line.variantId,
+      vendor_id: line.vendorId,
+      quantity: line.quantity,
+      unit_price: unitPrice,
+      original_unit_price: line.listPrice,
+      line_total: unitPrice * line.quantity,
+      quote_id: line.quoteId,
+      quoted_unit_price: line.quotedUnitPrice,
+      deleted_at: null,
+    };
+    const saved = existing
+      ? await itemRepo.save({ ...existing, ...values } as any)
+      : await itemRepo.save(itemRepo.create(values as any));
+    const items = await itemRepo.find({ where: { cart_id: cart!.id } });
+    const { subtotal, itemCount } = computeCartTotals(items);
+    await cartRepo.save({ id: cart!.id, subtotal, item_count: itemCount } as any);
+    return saved as CartItem;
+  }
+
+  /** Mirror a quoted line into the Redis cart after its transaction commits. */
+  async syncQuotedLine(userId: string, item: CartItem): Promise<void> {
+    await this.redisCart.setItem(userId, {
+      productId: item.product_id,
+      variantId: item.variant_id,
+      quantity: item.quantity,
+      unitPrice: item.unit_price,
+      vendorId: item.vendor_id,
+      originalUnitPrice: item.original_unit_price,
+    });
   }
 
   private async recalcCartTotals(cartId: string): Promise<void> {

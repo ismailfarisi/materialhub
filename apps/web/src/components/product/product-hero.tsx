@@ -5,6 +5,7 @@ import { DeliveryPromise } from "@/components/delivery/delivery-promise";
 import { BnplStrip } from "@/components/product/bnpl-strip";
 import { type ColorGroupMember, GroupSwatches } from "@/components/product/group-swatches";
 import { MediaGallery } from "@/components/product/media-gallery";
+import { RequestQuoteLink } from "@/components/rfq/request-quote-link";
 import { SellerBlock, type SellerBlockData } from "@/components/product/seller-block";
 import { StickyBottomBar } from "@/components/product/sticky-bottom-bar";
 import { EcoComplianceBlock, withoutEcoAttributes } from "@/components/eco";
@@ -326,6 +327,8 @@ export function ProductHero({
 
 						{!outOfStock && <BnplStrip total_fils={price * quantity} />}
 						{!outOfStock && <DeliveryPromise vendorId={product.vendor_id ?? vendor?.id} productIds={[product.id]} />}
+
+						<RequestQuoteLink productId={product.id} variantId={selected?.id} quantity={quantity} categorySlug={categoryPath.at(-1)?.slug} />
 
 						<ul className="m-0 flex list-none flex-wrap gap-x-6 gap-y-2 p-0 text-[13px] text-nl-russet">
 							<li className="inline-flex items-center gap-2">

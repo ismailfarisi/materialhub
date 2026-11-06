@@ -56,7 +56,8 @@ export class CartMergeService {
             where: { id: existing.id },
             relations: ["product", "variant"],
           });
-          if (merged?.product) {
+          // A line from an accepted quote keeps its quoted price (quote > tier > base).
+          if (merged?.product && !existing.quote_id) {
             const terms = tradeTermsFor(
               merged.product,
               merged.variant,

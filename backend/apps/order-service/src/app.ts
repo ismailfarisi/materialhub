@@ -20,6 +20,7 @@ import { internalVendorOrdersRoutes } from "./routes/internal-vendor-orders.rout
 import { orderRoutes } from "./routes/order.routes.ts";
 import { paymentMethodAdminRoutes } from "./routes/payment-method-admin.routes.ts";
 import { promotionsRoutes } from "./routes/promotions.routes.ts";
+import { quoteRequestRoutes } from "./routes/quote-request.routes.ts";
 import { returnRoutes } from "./routes/return.routes.ts";
 import { reviewRoutes } from "./routes/review.routes.ts";
 import { shipmentTrackingRoutes } from "./routes/shipment-tracking.routes.ts";
@@ -64,4 +65,5 @@ export const app = new Elysia()
   .use(shippingContributionAdminRoutes)
   .use(shippingProviderAdminRoutes)
   .use(vendorShippingIntegrationsRoutes)
-  .use(shippingWebhookRoutes);
+  .use(shippingWebhookRoutes)
+  .use(quoteRequestRoutes);

@@ -41,6 +41,10 @@ const BASE_ABSENT_ROW_CHANNEL_DEFAULTS: Record<NotificationChannel, boolean> = {
 // path is silently dead on arrival.
 const POST_SEED_DEFAULT_IN_APP_TYPES: ReadonlySet<NotificationType> = new Set([
   NotificationType.vendor_new_order,
+  NotificationType.quote_request_received,
+  NotificationType.quote_response_received,
+  NotificationType.quote_message_received,
+  NotificationType.quote_accepted,
 ]);
 
 /** Default for an absent {type, channel} preference row. */

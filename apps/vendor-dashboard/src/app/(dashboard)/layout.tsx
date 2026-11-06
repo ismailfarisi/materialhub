@@ -14,6 +14,7 @@ import {
 	ArrowCounterClockwise,
 	FileText,
 	Gavel,
+	Receipt,
 	Gear,
 	Package,
 	Plug,
@@ -41,6 +42,7 @@ const ordersGroup = {
 	icon: <ShoppingCart size={20} />,
 	children: [
 		{ label: "Orders", href: "/orders", icon: <ShoppingCart size={20} /> },
+		{ label: "Quotes", href: "/quotes", icon: <Receipt size={20} /> },
 		{
 			label: "Returns",
 			href: "/returns",
