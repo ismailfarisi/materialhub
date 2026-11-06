@@ -228,9 +228,6 @@ export function DeliveryPromiseView({
 				strokeWidth={1.75}
 				aria-hidden="true"
 			/>
-			{supplierName && (
-				<span className="font-normal text-nl-russet">{supplierName} ·</span>
-			)}
 			<span className={cn(inline && "font-medium")}>{headline}</span>
 			{badge && (
 				<span className="mill-label inline-flex h-5 items-center rounded-sm border border-nl-cacao/25 px-1.5 text-[10.5px] text-nl-cacao">
@@ -261,6 +258,11 @@ export function DeliveryPromiseView({
 	if (inline) {
 		return (
 			<div className={cn(shell, className)}>
+				{supplierName && (
+					<span className="basis-full text-[12.5px] text-nl-russet">
+						{supplierName}
+					</span>
+				)}
 				{headlineEl}
 				{countdown}
 				<span className="inline-flex items-center gap-1">
@@ -316,7 +318,7 @@ function EmiratePicker({
 				id={id}
 				value={value}
 				onChange={(e) => onChange(e.target.value)}
-				className="h-8 cursor-pointer appearance-none rounded-sm border-0 bg-transparent py-0 pe-5 ps-0 text-[13px] font-medium text-nl-cacao underline decoration-nl-cacao/30 underline-offset-4 hover:decoration-nl-cacao focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
+				className="h-8 cursor-pointer appearance-none [field-sizing:content] rounded-sm border-0 bg-transparent py-0 pe-5 ps-0 text-[13px] font-medium text-nl-cacao underline decoration-nl-cacao/30 underline-offset-4 hover:decoration-nl-cacao focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nl-amber"
 			>
 				{UAE_EMIRATES.map((e) => (
 					<option key={e.value} value={e.value}>
