@@ -6,7 +6,6 @@ import {
   Product,
   ProductAttributeValue,
   ProductCategory,
-  ProductGroup,
   ProductGroupMember,
   ProductImage,
   ProductTranslation,
@@ -24,6 +23,21 @@ import type { TrendingSearchService } from "../search/trending.service.ts";
 import { parseAttributeParams } from "./filter-param-parser.ts";
 
 const WAREHOUSE_FULFILLMENT_PERMISSION = "fulfillment_origin";
+
+/**
+ * Hand each variant its own price tiers and leave only the product-level ones
+ * (for a product without variants) on the product. Tiers arrive sorted by
+ * quantity; inactive variants keep theirs for the vendor views.
+ */
+export function attachPriceTiers(product: any): void {
+  const all: any[] = Array.isArray(product.price_tiers) ? product.price_tiers : [];
+  const sorted = [...all].sort((a, b) => a.min_quantity - b.min_quantity);
+  const strip = (t: any) => ({ min_quantity: t.min_quantity, unit_price: t.unit_price });
+  for (const v of product.variants ?? []) {
+    v.price_tiers = v.is_sample ? [] : sorted.filter((t) => t.variant_id === v.id).map(strip);
+  }
+  product.price_tiers = sorted.filter((t) => t.variant_id == null).map(strip);
+}
 
 type ProductTranslationInput = {
   locale?: string;
@@ -69,6 +83,7 @@ export class ProductService {
     "brand",
     "vendor",
     "variants",
+    "price_tiers",
     "inventoryRecords",
     "images",
     "attributeValues",
@@ -518,6 +533,7 @@ export class ProductService {
       relations: [
         "images",
         "variants",
+        "price_tiers",
         "vendor",
         "brand",
         "productCategories",
@@ -528,6 +544,7 @@ export class ProductService {
       ],
     });
     if (!product) throw new HttpError(404, "Product not found", "PRODUCT_NOT_FOUND");
+    attachPriceTiers(product);
 
     // Compute stock from inventory
     const totalAvailable = ((product as any).inventoryRecords || []).reduce(
@@ -547,6 +564,7 @@ export class ProductService {
       relations: [
         "images",
         "variants",
+        "price_tiers",
         "vendor",
         "brand",
         "productCategories",
@@ -557,6 +575,7 @@ export class ProductService {
       ],
     });
     if (!product) throw new HttpError(404, "Product not found", "PRODUCT_NOT_FOUND");
+    attachPriceTiers(product);
 
     return product;
   }
@@ -568,6 +587,7 @@ export class ProductService {
       relations: [
         "images",
         "variants",
+        "price_tiers",
         "vendor",
         "brand",
         "productCategories",
@@ -579,6 +599,7 @@ export class ProductService {
       ],
     });
     if (!product) throw new HttpError(404, "Product not found", "PRODUCT_NOT_FOUND");
+    attachPriceTiers(product);
 
     return product;
   }

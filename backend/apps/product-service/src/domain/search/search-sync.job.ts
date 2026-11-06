@@ -42,6 +42,7 @@ const PRODUCT_RELATIONS = [
   "brand",
   "vendor",
   "variants",
+  "price_tiers",
   "inventoryRecords",
   "images",
   "attributeValues",

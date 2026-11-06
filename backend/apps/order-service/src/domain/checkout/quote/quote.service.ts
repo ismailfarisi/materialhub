@@ -7,6 +7,7 @@ import type {
 import type { CheckoutQuoteResponse } from "@materialhub/dto";
 import type { Repository } from "typeorm";
 import type { CartService } from "../../cart/cart.service.ts";
+import { sampleShippingRule } from "../../cart/pricing/sample-shipping.ts";
 import { type CouponResult, type CouponService, toCouponLines } from "../coupon.service.ts";
 import type { TaxService } from "../tax.service.ts";
 import { type CartHashItem, computeCartHash } from "./cart-hash.ts";
@@ -57,8 +58,18 @@ export class QuoteService {
     const { userId, addressId } = req;
 
     // ── 1. Load cart ──
-    const { cart, items } = await this.cartService.getCart(userId, null);
+    const { cart, items, ruleViolations } = await this.cartService.getCart(userId, null);
     const allItems = items.flatMap((g: any) => g.items) as any[];
+    // Suppliers shipping only samples pay the admin-set sample rate at most.
+    const sampleShipping = allItems.some((it: any) => it.variant?.is_sample)
+      ? sampleShippingRule(
+          allItems.map((it: any) => ({
+            vendor_id: it.vendor_id,
+            is_sample: it.variant?.is_sample,
+          })),
+          await this.cartService.pricing.sampleShippingFils(),
+        )
+      : undefined;
 
     const cartHash = computeCartHash(
       allItems.map<CartHashItem>((it) => ({
@@ -151,6 +162,7 @@ export class QuoteService {
           zoneId,
           vendorHolidays: onHoliday,
           subtotalFils,
+          sampleShipping,
         })
       : [];
 
@@ -246,6 +258,7 @@ export class QuoteService {
         zoneId,
         vendorHolidays: onHoliday,
         subtotalFils,
+        sampleShipping,
       });
 
       // free_shipping coupons waive the covered delivery groups' shipping —
@@ -261,6 +274,7 @@ export class QuoteService {
           zoneId,
           vendorHolidays: onHoliday,
           subtotalFils,
+          sampleShipping,
         });
         shippingFils = Math.max(0, shippingFils - waived);
       }
@@ -269,6 +283,18 @@ export class QuoteService {
     const surchargeFils = paymentMethods.find((p) => p.id === defaultPayment)?.surcharge_fils ?? 0;
     // VAT is already in subtotalFils (extracted above for display only).
     const grandTotalFils = Math.max(0, subtotalFils + shippingFils + surchargeFils - discountFils);
+
+    // Trade terms: a line below its minimum order, off its increment or over
+    // its sample cap blocks checkout until the buyer adjusts it.
+    if (ruleViolations && ruleViolations.length > 0) {
+      blockingError = {
+        code: "trade_quantity_rules",
+        severity: "error",
+        i18n_key: "checkout.error.trade_quantity_rules",
+        params: {},
+        affected_item_ids: ruleViolations.map((v) => v.item_id),
+      };
+    }
 
     if (!paymentMethods.some((p) => p.available)) {
       blockingError = {

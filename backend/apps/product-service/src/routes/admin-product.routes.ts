@@ -3,6 +3,7 @@ import { jwtAuth, requireRole } from "@materialhub/guards";
 import { auditPlugin } from "@materialhub/plugins";
 import { Elysia, t } from "elysia";
 import { container } from "../container.ts";
+import { SampleInput, TradePricingInput, VariantTradeTermsInput } from "./product-input.schemas.ts";
 
 const ProductAttributeInput = t.Object({
   attribute_id: t.String({ format: "uuid" }),
@@ -593,6 +594,32 @@ export const adminProductRoutes = new Elysia({ prefix: "/admin/products" })
     },
   )
 
+  // ─── Trade pricing & samples ───────────────────────────────────────
+  .get(
+    "/:id/trade-pricing",
+    async ({ params, tradePricingService }: any) => {
+      const data = await tradePricingService.get(params.id, null);
+      return { statusCode: 200, data, timestamp: new Date().toISOString() };
+    },
+    { params: t.Object({ id: t.String({ format: "uuid" }) }) },
+  )
+  .put(
+    "/:id/trade-pricing",
+    async ({ params, body, tradePricingService }: any) => {
+      const data = await tradePricingService.set(params.id, null, body);
+      return { statusCode: 200, data, timestamp: new Date().toISOString() };
+    },
+    { params: t.Object({ id: t.String({ format: "uuid" }) }), body: TradePricingInput },
+  )
+  .put(
+    "/:id/sample",
+    async ({ params, body, tradePricingService }: any) => {
+      const data = await tradePricingService.setSample(params.id, null, body);
+      return { statusCode: 200, data, timestamp: new Date().toISOString() };
+    },
+    { params: t.Object({ id: t.String({ format: "uuid" }) }), body: SampleInput },
+  )
+
   // ─── Variants ──────────────────────────────────────────────────────
   .post(
     "/:id/variants",
@@ -623,6 +650,7 @@ export const adminProductRoutes = new Elysia({ prefix: "/admin/products" })
               sku: t.Optional(t.String()),
               barcode: t.Optional(t.Nullable(t.String())),
               quantity_on_hand: t.Optional(t.Number({ minimum: 0 })),
+              ...VariantTradeTermsInput,
             }),
             { minItems: 1 },
           ),
@@ -660,6 +688,7 @@ export const adminProductRoutes = new Elysia({ prefix: "/admin/products" })
         ),
         sort_order: t.Optional(t.Number({ minimum: 0 })),
         is_active: t.Optional(t.Boolean()),
+        ...VariantTradeTermsInput,
       }),
     },
   )

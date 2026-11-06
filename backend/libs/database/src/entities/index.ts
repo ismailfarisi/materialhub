@@ -45,6 +45,7 @@ export { ProductImage } from "./product-image.entity.ts";
 export { ProductVideo } from "./product-video.entity.ts";
 export type { ProductVideoStatus, ProductVideoAssetType } from "./product-video.entity.ts";
 export { ProductVariant } from "./product-variant.entity.ts";
+export { VariantPriceTier } from "./variant-price-tier.entity.ts";
 export { ProductGroup } from "./product-group.entity.ts";
 export { ProductGroupMember } from "./product-group-member.entity.ts";
 export { Warehouse } from "./warehouse.entity.ts";

@@ -64,8 +64,14 @@ export class ProductController {
   async generateVariants(productId: string, vendorId: string, data: any) {
     return this.createVariants(productId, vendorId, data);
   }
-  async updateVariant(productId: string, variantId: string, data: any) {
-    return this.variantService.update(productId, variantId, data);
+  /** `vendorId` null = admin; otherwise the product must belong to that vendor. */
+  async updateVariant(
+    productId: string,
+    variantId: string,
+    data: any,
+    vendorId: string | null = null,
+  ) {
+    return this.variantService.update(productId, variantId, data, vendorId);
   }
   private async createVariants(productId: string, vendorId: string | null, data: any) {
     if (data.variants?.length) {
@@ -77,8 +83,8 @@ export class ProductController {
     }));
     return this.variantService.generateVariants(productId, vendorId, mapped);
   }
-  async removeVariant(productId: string, variantId: string) {
-    return this.variantService.remove(productId, variantId);
+  async removeVariant(productId: string, variantId: string, vendorId: string | null = null) {
+    return this.variantService.remove(productId, variantId, vendorId);
   }
 
   // Relations

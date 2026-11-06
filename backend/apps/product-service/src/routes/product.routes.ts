@@ -7,6 +7,9 @@ import { container } from "../container.ts";
 import {
   ProductCreateInventoryInput,
   ProductSeoInput,
+  SampleInput,
+  TradePricingInput,
+  VariantTradeTermsInput,
   VendorStatusInput,
 } from "./product-input.schemas.ts";
 
@@ -605,6 +608,7 @@ export const productRoutes = new Elysia({ prefix: "/products" })
                   sku: t.Optional(t.String()),
                   barcode: t.Optional(t.Nullable(t.String())),
                   quantity_on_hand: t.Optional(t.Number({ minimum: 0 })),
+                  ...VariantTradeTermsInput,
                 }),
                 { minItems: 1 },
               ),
@@ -615,8 +619,13 @@ export const productRoutes = new Elysia({ prefix: "/products" })
 
       .patch(
         "/:id/variants/:variantId",
-        async ({ params, body, productController }) => {
-          const data = await productController.updateVariant(params.id, params.variantId, body);
+        async ({ params, body, member, productController }: any) => {
+          const data = await productController.updateVariant(
+            params.id,
+            params.variantId,
+            body,
+            member.vid,
+          );
           return { statusCode: 200, data, timestamp: new Date().toISOString() };
         },
         {
@@ -642,14 +651,15 @@ export const productRoutes = new Elysia({ prefix: "/products" })
             ),
             sort_order: t.Optional(t.Number({ minimum: 0 })),
             is_active: t.Optional(t.Boolean()),
+            ...VariantTradeTermsInput,
           }),
         },
       )
 
       .delete(
         "/:id/variants/:variantId",
-        async ({ params, productController }) => {
-          await productController.removeVariant(params.id, params.variantId);
+        async ({ params, member, productController }: any) => {
+          await productController.removeVariant(params.id, params.variantId, member.vid);
           return {
             statusCode: 200,
             message: "Variant deleted",
@@ -662,6 +672,32 @@ export const productRoutes = new Elysia({ prefix: "/products" })
             variantId: t.String({ format: "uuid" }),
           }),
         },
+      )
+
+      // ─── Trade pricing & samples ────────────────────────────────────────
+      .get(
+        "/:id/trade-pricing",
+        async ({ params, member, tradePricingService }: any) => {
+          const data = await tradePricingService.get(params.id, member.vid);
+          return { statusCode: 200, data, timestamp: new Date().toISOString() };
+        },
+        { params: t.Object({ id: t.String({ format: "uuid" }) }) },
+      )
+      .put(
+        "/:id/trade-pricing",
+        async ({ params, body, member, tradePricingService }: any) => {
+          const data = await tradePricingService.set(params.id, member.vid, body);
+          return { statusCode: 200, data, timestamp: new Date().toISOString() };
+        },
+        { params: t.Object({ id: t.String({ format: "uuid" }) }), body: TradePricingInput },
+      )
+      .put(
+        "/:id/sample",
+        async ({ params, body, member, tradePricingService }: any) => {
+          const data = await tradePricingService.setSample(params.id, member.vid, body);
+          return { statusCode: 200, data, timestamp: new Date().toISOString() };
+        },
+        { params: t.Object({ id: t.String({ format: "uuid" }) }), body: SampleInput },
       )
 
       // ─── Relations ──────────────────────────────────────────────────────

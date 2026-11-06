@@ -51,6 +51,7 @@ import { ProductVariantService } from "./domain/product/product-variant.service.
 import { ProductController } from "./domain/product/product.controller.ts";
 import { ProductService } from "./domain/product/product.service.ts";
 import { SuggestService } from "./domain/product/suggest.service.ts";
+import { TradePricingService } from "./domain/trade/trade-pricing.service.ts";
 
 import { InventoryReservationService } from "./domain/inventory/inventory-reservation.service.ts";
 import { InventoryController } from "./domain/inventory/inventory.controller.ts";
@@ -247,6 +248,10 @@ const productService = new ProductService(searchService, trendingSearchService);
 const productAiSettings = new ProductAiSettingsRepository();
 const productAiEnhance = new ProductAiEnhanceService(productAiSettings);
 const productVariantService = new ProductVariantService(attributeService, inventoryService);
+// Trade pricing: unit, minimum order, increments, tiers and the sample variant.
+const tradePricingService = new TradePricingService(inventoryService, (productId) =>
+  productVariantService.syncProductAfterVariantChange(productId),
+);
 const productRelationService = new ProductRelationService();
 const productQuestionService = new ProductQuestionService();
 const productBundleService = new ProductBundleService();
@@ -348,6 +353,7 @@ export const container = new Elysia({ name: "product-service-container" })
   .decorate("brandSpotlightService", brandSpotlightService)
   .decorate("attributeController", attributeController)
   .decorate("productController", productController)
+  .decorate("tradePricingService", tradePricingService)
   .decorate("inventoryController", inventoryController)
   .decorate("suggestService", suggestService)
   .decorate("searchReindexQueue", searchReindexQueue)
