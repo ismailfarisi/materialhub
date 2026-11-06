@@ -91,6 +91,10 @@ export function isPublicRoute(path: string, method: string): boolean {
   // BNPL provider thresholds power the PDP installment strip — published
   // numbers Tabby/Tamara show on their own marketing pages.
   if (isRead && path === "/checkout/bnpl-thresholds") return true;
+  // Delivery promise (product page, cart, checkout) — read-only estimates
+  // for guests too. The batch form is a POST that changes nothing.
+  if (isRead && path === "/shipping/delivery-estimate") return true;
+  if (method === "POST" && path === "/shipping/delivery-estimate/batch") return true;
   if (path.startsWith("/vendors/") && path.endsWith("/profile")) return true;
   if (path.startsWith("/vendors/by-slug/")) return true;
   // Section-type registry is public metadata (read-only)
