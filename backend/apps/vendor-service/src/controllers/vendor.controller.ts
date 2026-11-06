@@ -1,4 +1,5 @@
 import { config } from "@materialhub/config";
+import { serviceFetch } from "@materialhub/utils/src/service-fetch.ts";
 import type { VendorBankAccountService } from "../services/vendor-bank-account.service.ts";
 import type { VendorDocumentService } from "../services/vendor-document.service.ts";
 import type { VendorSettingsService } from "../services/vendor-settings.service.ts";
@@ -243,7 +244,7 @@ export class VendorController {
 
   // Fire-and-forget notification
   private notifyVendor(userId: string, type: string, data: Record<string, any>) {
-    fetch(`${config.internal.notificationServiceUrl}/notifications/send`, {
+    serviceFetch(`${config.internal.notificationServiceUrl}/notifications/send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

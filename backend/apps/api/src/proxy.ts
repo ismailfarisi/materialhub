@@ -1,17 +1,21 @@
 import { config } from "@materialhub/config";
+import { serviceFetch } from "@materialhub/utils/src/service-fetch.ts";
 
 interface ServiceRoute {
   prefix: string;
   target: string;
 }
 
-const auth = `http://${config.serviceHost.auth}:${config.port.auth}`;
-const product = `http://${config.serviceHost.product}:${config.port.product}`;
-const order = `http://${config.serviceHost.order}:${config.port.order}`;
-const vendor = `http://${config.serviceHost.vendor}:${config.port.vendor}`;
-const notification = `http://${config.serviceHost.notification}:${config.port.notification}`;
-const cms = `http://${config.serviceHost.cms}:${config.port.cms}`;
-const integration = `http://${config.serviceHost.integration}:${config.port.integration}`;
+// Module origins. In the monolith each one is served in-process (see
+// ../index.ts and serviceFetch), so "proxying" is a direct call into that
+// module's Elysia app; no network hop and no extra port.
+const auth = config.serviceUrl.auth;
+const product = config.serviceUrl.product;
+const order = config.serviceUrl.order;
+const vendor = config.serviceUrl.vendor;
+const notification = config.serviceUrl.notification;
+const cms = config.serviceUrl.cms;
+const integration = config.serviceUrl.integration;
 
 const serviceRoutes: ServiceRoute[] = [
   // Auth service — admin routes must come before generic prefixes
@@ -148,7 +152,7 @@ export function resolveUpstream(path: string): { target: string; upstreamPath: s
 }
 
 /**
- * Forward an HTTP request to the upstream service.
+ * Forward an HTTP request to the module that owns it.
  */
 export async function proxyRequest(
   request: Request,
@@ -175,6 +179,6 @@ export async function proxyRequest(
     (init as any).duplex = "half";
   }
 
-  const response = await fetch(upstreamUrl, init);
+  const response = await serviceFetch(upstreamUrl, init);
   return response;
 }

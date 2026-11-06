@@ -1,4 +1,11 @@
 export { generateSlug } from "./slug.ts";
+export {
+  clearInProcessServices,
+  inProcessOrigins,
+  registerInProcessService,
+  serviceFetch,
+  type ServiceHandler,
+} from "./service-fetch.ts";
 export { MediaService, type ProcessedImages } from "./media.service.ts";
 export {
   ASSET_TYPE_CONFIG,

@@ -1,4 +1,5 @@
 import { config } from "@materialhub/config";
+import { serviceFetch } from "@materialhub/utils/src/service-fetch.ts";
 import { Queue, Worker } from "bullmq";
 
 const QUEUE_NAME = "low-stock-alerts";
@@ -20,7 +21,7 @@ export class LowStockAlertJob {
       async (job) => {
         const { vendorUserId, productName, currentStock } = job.data;
         // Fire notification to vendor
-        await fetch(`${config.internal.notificationServiceUrl}/notifications/send`, {
+        await serviceFetch(`${config.internal.notificationServiceUrl}/notifications/send`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

@@ -128,18 +128,26 @@
         "vitest": "^2.1.0",
       },
     },
-    "backend/apps/api-gateway": {
-      "name": "@materialhub/api-gateway",
+    "backend/apps/api": {
+      "name": "@materialhub/api",
       "version": "0.1.0",
       "dependencies": {
         "@elysiajs/bearer": "^1.2.0",
         "@elysiajs/cors": "^1.2.0",
         "@elysiajs/jwt": "^1.2.0",
         "@elysiajs/swagger": "^1.2.0",
+        "@materialhub/auth-service": "workspace:*",
+        "@materialhub/cms-service": "workspace:*",
         "@materialhub/config": "workspace:*",
+        "@materialhub/database": "workspace:*",
         "@materialhub/guards": "workspace:*",
+        "@materialhub/integration-service": "workspace:*",
+        "@materialhub/notification-service": "workspace:*",
+        "@materialhub/order-service": "workspace:*",
         "@materialhub/plugins": "workspace:*",
+        "@materialhub/product-service": "workspace:*",
         "@materialhub/utils": "workspace:*",
+        "@materialhub/vendor-service": "workspace:*",
         "elysia": "^1.2.0",
       },
       "devDependencies": {
@@ -859,7 +867,7 @@
 
     "@materialhub/admin-panel": ["@materialhub/admin-panel@workspace:apps/admin-panel"],
 
-    "@materialhub/api-gateway": ["@materialhub/api-gateway@workspace:backend/apps/api-gateway"],
+    "@materialhub/api": ["@materialhub/api@workspace:backend/apps/api"],
 
     "@materialhub/auth-service": ["@materialhub/auth-service@workspace:backend/apps/auth-service"],
 

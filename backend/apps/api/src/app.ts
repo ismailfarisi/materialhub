@@ -3,6 +3,7 @@ import { swagger } from "@elysiajs/swagger";
 import { config } from "@materialhub/config";
 import { jwtAuth } from "@materialhub/guards";
 import { errorHandler, rateLimiter, requestLogger } from "@materialhub/plugins";
+import { serviceFetch } from "@materialhub/utils/src/service-fetch.ts";
 import { Elysia } from "elysia";
 import { proxyRequest, resolveUpstream } from "./proxy.ts";
 
@@ -90,9 +91,7 @@ export const app = new Elysia()
     await Promise.all(
       services.map(async (service) => {
         try {
-          const host = config.serviceHost[service];
-          const port = config.port[service];
-          const res = await fetch(`http://${host}:${port}/${pathMap[service]}/health`, {
+          const res = await serviceFetch(`${config.serviceUrl[service]}/${pathMap[service]}/health`, {
             signal: AbortSignal.timeout(2000),
           });
           checks[service] = res.ok ? "up" : "down";

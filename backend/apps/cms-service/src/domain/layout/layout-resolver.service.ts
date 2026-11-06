@@ -9,6 +9,7 @@ import {
   Vendor,
 } from "@materialhub/database";
 import { HttpError } from "@materialhub/plugins";
+import { serviceFetch } from "@materialhub/utils/src/service-fetch.ts";
 import { In, IsNull } from "typeorm";
 
 interface ResolvedSection {
@@ -275,19 +276,19 @@ export class LayoutResolverService {
       params.set(vendorScopeParam, contextVendorId);
     }
 
-    const productHost = config.serviceHost.product;
-    const vendorHost = config.serviceHost.vendor;
+    const productBase = config.serviceUrl.product;
+    const vendorBase = config.serviceUrl.vendor;
     const collectionSlug =
       typeof safeQuery.collection_slug === "string" ? safeQuery.collection_slug.trim() : "";
     const serviceMap: Record<string, string> = {
-      products: `http://${productHost}:${config.port.product}/products`,
-      categories: `http://${productHost}:${config.port.product}/categories/tree`,
-      vendors: `http://${vendorHost}:${config.port.vendor}/vendors`,
-      brands: `http://${productHost}:${config.port.product}/brands`,
-      brand_spotlight: `http://${productHost}:${config.port.product}/brands/spotlight`,
+      products: `${productBase}/products`,
+      categories: `${productBase}/categories/tree`,
+      vendors: `${vendorBase}/vendors`,
+      brands: `${productBase}/brands`,
+      brand_spotlight: `${productBase}/brands/spotlight`,
       ...(collectionSlug
         ? {
-            collection: `http://${productHost}:${config.port.product}/collections/${encodeURIComponent(collectionSlug)}`,
+            collection: `${productBase}/collections/${encodeURIComponent(collectionSlug)}`,
           }
         : {}),
     };
@@ -296,7 +297,7 @@ export class LayoutResolverService {
     if (!baseUrl) return [];
 
     try {
-      const res = await fetch(`${baseUrl}?${params.toString()}`);
+      const res = await serviceFetch(`${baseUrl}?${params.toString()}`);
       if (!res.ok) return [];
       const json = (await res.json()) as any;
       if (type === "collection") {
@@ -383,11 +384,10 @@ export class LayoutResolverService {
     );
     if (!productIds.length) return [];
 
-    const productHost = config.serviceHost.product;
-    const url = `http://${productHost}:${config.port.product}/products?ids=${productIds.join(",")}&limit=${productIds.length}`;
+    const url = `${config.serviceUrl.product}/products?ids=${productIds.join(",")}&limit=${productIds.length}`;
     let products: any[] = [];
     try {
-      const res = await fetch(url);
+      const res = await serviceFetch(url);
       if (!res.ok) return [];
       const json = (await res.json()) as any;
       products = json.data?.data ?? json.data ?? [];
