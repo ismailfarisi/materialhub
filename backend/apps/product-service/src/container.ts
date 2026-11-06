@@ -52,6 +52,9 @@ import { ProductController } from "./domain/product/product.controller.ts";
 import { ProductService } from "./domain/product/product.service.ts";
 import { SuggestService } from "./domain/product/suggest.service.ts";
 
+import { EcoDeclarationService } from "./domain/eco/eco-declaration.service.ts";
+import { TypeormEcoDeclarationStore } from "./domain/eco/eco-declaration.store.ts";
+
 import { InventoryReservationService } from "./domain/inventory/inventory-reservation.service.ts";
 import { InventoryController } from "./domain/inventory/inventory.controller.ts";
 import { InventoryService } from "./domain/inventory/inventory.service.ts";
@@ -253,6 +256,12 @@ const productBundleService = new ProductBundleService();
 const productGroupService = new ProductGroupService({
   reindexProduct: (productId: string) => productService.reindexProduct(productId),
 });
+// ─── Eco catalogue: plastic-ban ready declarations ────────────────────
+const ecoDeclarationService = new EcoDeclarationService({
+  store: new TypeormEcoDeclarationStore(),
+  reindex: (productId: string) => productService.reindexProduct(productId),
+  signedUrl: (key: string) => mediaService.getEcoCertificateSignedUrl(key),
+});
 const productController = new ProductController(
   productService,
   productVariantService,
@@ -359,6 +368,7 @@ export const container = new Elysia({ name: "product-service-container" })
   .decorate("inventoryService", inventoryService)
   .decorate("productRepo", productRepo)
   .decorate("productService", productService)
+  .decorate("ecoDeclarationService", ecoDeclarationService)
   .decorate("productAiSettings", productAiSettings)
   .decorate("productAiEnhance", productAiEnhance)
   .decorate("trendingService", trendingSearchService)

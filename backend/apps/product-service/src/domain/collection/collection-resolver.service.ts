@@ -22,6 +22,7 @@ export function rulesToFilters(
     minPrice: c.price_min,
     maxPrice: c.price_max,
     inStock: c.in_stock,
+    plasticBanReady: c.plastic_ban_ready === true ? true : undefined,
     sortBy,
   };
 }

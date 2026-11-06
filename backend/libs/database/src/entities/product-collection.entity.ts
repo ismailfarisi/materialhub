@@ -20,6 +20,8 @@ export interface CollectionRules {
     price_min?: number;
     price_max?: number;
     in_stock?: boolean;
+    /** Eco catalogue: only products with an admin-approved plastic-ban ready declaration. */
+    plastic_ban_ready?: boolean;
   };
 }
 

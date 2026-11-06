@@ -1151,5 +1151,78 @@
     "viewing": "Viewing",
     "scrollBack": "Scroll back",
     "scrollForward": "Scroll forward"
+  },
+  "eco": {
+    "badge": "Plastic-ban ready",
+    "badgeTitle": "The supplier declared this product plastic-ban ready and MaterialHub reviewed the declaration. Not a legal certification.",
+    "badgeSr": ": declared by the supplier, reviewed by MaterialHub",
+    "complianceTitle": "Packaging compliance",
+    "declarationRow": "Plastic-ban declaration",
+    "declarationApproved": "Declared by supplier, reviewed by MaterialHub",
+    "declarationNone": "Not declared",
+    "micronsValue": "{value} µm",
+    "noteApproved": "The supplier declared that this product is not a single-use plastic item covered by the UAE ban, and MaterialHub reviewed the declaration for this listing. This is not a legal certification by MaterialHub; check the rules that apply to your use.",
+    "noteApprovedWithCertificate": "The supplier declared that this product is not a single-use plastic item covered by the UAE ban and supplied a certificate, and MaterialHub reviewed both for this listing. This is not a legal certification by MaterialHub; check the rules that apply to your use.",
+    "noteNotDeclared": "These details come from the supplier. The supplier has not made a plastic-ban declaration that MaterialHub has reviewed.",
+    "thinBagNote": "Thinner than {microns} microns. Single-use bags under {microns} microns, of any material, are covered by the UAE ban.",
+    "filterGroup": "Plastic ban",
+    "filterLabel": "Plastic-ban ready",
+    "filterHint": "Declared by the supplier and reviewed by MaterialHub.",
+    "landingTitle": "Packaging for the UAE single-use plastics ban",
+    "landingBody": "Paper bags, paper cups and lids, moulded-fibre containers and wooden cutlery from suppliers who declared each product plastic-ban ready. MaterialHub reviewed every declaration before the product appeared here.",
+    "landingDisclaimer": "A reviewed declaration is not a legal certification by MaterialHub. Check the compliance details on each product, and the rules that apply to your business.",
+    "landingCoveredTitle": "Covered by the ban",
+    "landingSince": "Federal ban in force since 1 January 2026.",
+    "covered": {
+      "cups": "Single-use cups",
+      "lids": "Lids",
+      "cutlery": "Cutlery",
+      "plates": "Plates",
+      "straws": "Straws",
+      "stirrers": "Stirrers",
+      "foam": "Foam food containers",
+      "bags": "Single-use bags under 50 microns, any material"
+    },
+    "attributes": {
+      "material-composition": "Material",
+      "recyclable": "Recyclable",
+      "compostable": "Compostable",
+      "plastic-free": "Plastic-free",
+      "forest-certification": "Forest certification",
+      "bag-thickness-microns": "Bag thickness"
+    },
+    "values": {
+      "material-composition": {
+        "virgin-paper-fibre": "Virgin paper fibre",
+        "recycled-paper-fibre": "Recycled paper fibre",
+        "kraft-paper": "Kraft paper",
+        "paperboard": "Paperboard",
+        "moulded-fibre-bagasse": "Moulded fibre (bagasse)",
+        "moulded-fibre-wood-pulp": "Moulded fibre (wood pulp)",
+        "wood": "Wood",
+        "bamboo": "Bamboo",
+        "water-based-coating": "Water-based coating",
+        "pla-lining": "PLA lining (plant-based plastic)",
+        "pe-lining": "PE lining (plastic)"
+      },
+      "recyclable": {
+        "yes": "Yes",
+        "no": "No"
+      },
+      "compostable": {
+        "home": "Home compostable",
+        "industrial": "Industrial compostable",
+        "not-compostable": "Not compostable"
+      },
+      "plastic-free": {
+        "yes": "Yes",
+        "no": "No"
+      },
+      "forest-certification": {
+        "fsc": "FSC",
+        "pefc": "PEFC",
+        "not-certified": "Not certified"
+      }
+    }
   }
 }

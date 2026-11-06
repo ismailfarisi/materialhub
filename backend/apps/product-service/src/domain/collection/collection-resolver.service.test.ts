@@ -85,3 +85,24 @@ describe("CollectionResolver.resolve", () => {
     expect(out.hasMore).toBe(false);
   });
 });
+
+describe("rulesToFilters — eco catalogue", () => {
+  it("maps plastic_ban_ready onto the search filter", () => {
+    const f = rulesToFilters(
+      { v: 1, match: "all", conditions: { plastic_ban_ready: true } },
+      "newest" as any,
+    );
+    expect(f.plasticBanReady).toBe(true);
+  });
+  it("leaves the filter off when the condition is absent or false", () => {
+    expect(
+      rulesToFilters({ v: 1, match: "all", conditions: {} }, "newest" as any).plasticBanReady,
+    ).toBe(undefined);
+    expect(
+      rulesToFilters(
+        { v: 1, match: "all", conditions: { plastic_ban_ready: false } },
+        "newest" as any,
+      ).plasticBanReady,
+    ).toBe(undefined);
+  });
+});

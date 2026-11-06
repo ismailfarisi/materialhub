@@ -1,5 +1,6 @@
 "use client";
 
+import { PlasticBanFilter } from "@/components/eco";
 import { cn } from "@/lib/utils";
 import type { AttributeFilter, FilterValueOption } from "@materialhub/ui";
 import { Search, Star } from "lucide-react";
@@ -50,6 +51,9 @@ export function FilterGroups({ config, draft, setDraft }: Props) {
 
 	return (
 		<div>
+			{/* Eco catalogue: plastic-ban ready (approved declarations) */}
+			<PlasticBanFilter count={config.plasticBanReady} draft={draft} setDraft={setDraft} />
+
 			{specs.length > 0 && (
 				<div className="pb-2">
 					<h3 className="mill-label m-0 pt-1 pb-2 text-nl-russet">

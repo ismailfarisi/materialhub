@@ -1,3 +1,4 @@
+import { EcoCollectionIntro } from "@/components/eco";
 import { CollectionNotice } from "@/components/home/collection-empty";
 import { CollectionHeader } from "@/components/home/collection-header";
 import { ListingSeoContent } from "@/components/product/listing-seo-content";
@@ -210,6 +211,9 @@ export default async function CollectionPage({ params, searchParams }: Props) {
 					items={products}
 					complete={total > 0 && total <= products.length}
 				/>
+
+				{/* Eco catalogue: landing copy for the plastic-ban ready collection only */}
+				<EcoCollectionIntro slug={slug} />
 
 				{/* No filter sidebar: a collection is a curated set (pins, rules and
 			    exclusions resolved server-side) and the endpoint returns no facets,

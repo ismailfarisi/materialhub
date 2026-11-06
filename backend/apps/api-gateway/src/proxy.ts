@@ -26,6 +26,7 @@ const serviceRoutes: ServiceRoute[] = [
   { prefix: "/admin/collections", target: product },
   { prefix: "/attributes", target: product },
   { prefix: "/admin/products", target: product },
+  { prefix: "/admin/eco-declarations", target: product },
   { prefix: "/products", target: product },
   { prefix: "/categories", target: product },
   { prefix: "/collections", target: product },

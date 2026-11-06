@@ -12,6 +12,8 @@ import { categoryAdminRoutes } from "./routes/category-admin.routes.ts";
 import { categoryRoutes } from "./routes/category.routes.ts";
 import { collectionAdminRoutes } from "./routes/collection-admin.routes.ts";
 import { collectionRoutes } from "./routes/collection.routes.ts";
+import { ecoDeclarationAdminRoutes } from "./routes/eco-declaration-admin.routes.ts";
+import { ecoDeclarationRoutes } from "./routes/eco-declaration.routes.ts";
 import { internalInventoryRoutes } from "./routes/internal-inventory.routes.ts";
 import { internalProductsRoutes } from "./routes/internal-products.routes.ts";
 import { inventoryRoutes } from "./routes/inventory.routes.ts";
@@ -42,6 +44,8 @@ export const app = new Elysia()
   .use(searchAdminRoutes)
   .use(adminProductRoutes)
   .use(collectionRoutes)
+  .use(ecoDeclarationRoutes)
+  .use(ecoDeclarationAdminRoutes)
   .use(productRoutes)
   .use(productGroupRoutes)
   .use(inventoryRoutes)

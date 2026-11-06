@@ -53,6 +53,7 @@ export { Inventory } from "./inventory.entity.ts";
 export { InventoryMovement } from "./inventory-movement.entity.ts";
 export { InventoryReservation } from "./inventory-reservation.entity.ts";
 export { ProductAttributeValue } from "./product-attribute-value.entity.ts";
+export { ProductEcoDeclaration } from "./product-eco-declaration.entity.ts";
 export { Wishlist } from "./wishlist.entity.ts";
 export { Cart } from "./cart.entity.ts";
 export { CartItem } from "./cart-item.entity.ts";

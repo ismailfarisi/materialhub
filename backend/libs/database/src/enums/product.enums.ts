@@ -65,3 +65,15 @@ export enum BrandStatus {
   approved = "approved",
   rejected = "rejected",
 }
+
+/**
+ * Review state of a vendor's "plastic-ban ready" declaration on a product
+ * (eco catalogue). Only `approved` declarations surface on the storefront and
+ * in the `plastic_ban_ready` search facet.
+ */
+export enum EcoDeclarationStatus {
+  pending = "pending",
+  approved = "approved",
+  rejected = "rejected",
+  withdrawn = "withdrawn",
+}

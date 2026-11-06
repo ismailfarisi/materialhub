@@ -47,6 +47,7 @@ const PRODUCT_RELATIONS = [
   "attributeValues",
   "attributeValues.attribute",
   "attributeValues.attributeValue",
+  "ecoDeclaration",
 ];
 
 export interface SearchSyncDeps {

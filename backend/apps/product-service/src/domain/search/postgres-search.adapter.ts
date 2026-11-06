@@ -75,6 +75,13 @@ export class PostgresSearchAdapter implements SearchService {
       qb.andWhere("p.tags && :tags", { tags: filters.tags });
     }
 
+    // Eco catalogue: admin-approved plastic-ban ready declarations only.
+    if (filters.plasticBanReady === true) {
+      qb.andWhere(
+        "EXISTS (SELECT 1 FROM product_eco_declarations ped WHERE ped.product_id = p.id AND ped.status = 'approved')",
+      );
+    }
+
     // Attribute filtering — only the value-based kinds (checkbox, radio) are
     // supported by this fallback adapter. range / toggle require typed columns
     // that live only in the Typesense schema.

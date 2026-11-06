@@ -6,6 +6,7 @@ import { type ColorGroupMember, GroupSwatches } from "@/components/product/group
 import { MediaGallery } from "@/components/product/media-gallery";
 import { SellerBlock, type SellerBlockData } from "@/components/product/seller-block";
 import { StickyBottomBar } from "@/components/product/sticky-bottom-bar";
+import { EcoComplianceBlock, withoutEcoAttributes } from "@/components/eco";
 import { VariantSelector } from "@/components/product/variant-selector";
 import { Button, MillLabel, PriceTag, StockChip, formatFils, stockFor } from "@/components/swatch";
 import { useScrollPast } from "@/hooks/use-scroll-past";
@@ -110,7 +111,8 @@ export function ProductHero({
 
 	// ---- Spec table --------------------------------------------------------
 	const specs = useMemo(() => {
-		const rows = buildSpecs(product, selected, {
+		// Compliance attributes print in their own block (EcoComplianceBlock) below.
+		const rows = buildSpecs(withoutEcoAttributes(product), selected, {
 			dimensions: t("dimensions"),
 			weight: t("weight"),
 			origin: t("origin"),
@@ -242,6 +244,9 @@ export function ProductHero({
 								<MillLabel specs={specs} />
 							</section>
 						)}
+
+						{/* Eco catalogue: packaging compliance, under the spec table */}
+						<EcoComplianceBlock product={product} />
 
 						{axes.length > 0 && (
 							<VariantSelector axes={axes} variants={variants} selected={selected} onSelect={(v) => setVariantId(v.id)} />

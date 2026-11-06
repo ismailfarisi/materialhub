@@ -20,6 +20,7 @@ const KNOWN_FIELDS = new Set(["brand", "vendor", "price", "rating", "availabilit
  */
 export function ActiveFilterPills({ pills, onRemove, onClearAll }: Props) {
 	const t = useTranslations("browse");
+	const tEco = useTranslations("eco");
 
 	if (pills.length === 0) return null;
 
@@ -57,7 +58,11 @@ export function ActiveFilterPills({ pills, onRemove, onClearAll }: Props) {
 							</span>
 						) : (
 							<span className="truncate">
-								{p.field === "availability" ? t("includingOutOfStock") : p.label}
+								{p.field === "availability"
+									? t("includingOutOfStock")
+									: p.group === "plastic_ban_ready"
+										? tEco("filterLabel")
+										: p.label}
 							</span>
 						)}
 						<X

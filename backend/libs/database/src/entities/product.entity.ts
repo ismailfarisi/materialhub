@@ -7,6 +7,7 @@ import {
   JoinColumn,
   ManyToOne,
   OneToMany,
+  OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from "typeorm";
@@ -17,6 +18,7 @@ import type { Inventory } from "./inventory.entity.ts";
 import type { OrderItem } from "./order-item.entity.ts";
 import type { ProductAttributeValue } from "./product-attribute-value.entity.ts";
 import type { ProductCategory } from "./product-category.entity.ts";
+import type { ProductEcoDeclaration } from "./product-eco-declaration.entity.ts";
 import type { ProductImage } from "./product-image.entity.ts";
 import type { ProductTranslation } from "./product-translation.entity.ts";
 import type { ProductVariant } from "./product-variant.entity.ts";
@@ -224,4 +226,8 @@ export class Product {
 
   @OneToMany("Inventory", "product")
   inventoryRecords!: Inventory[];
+
+  /** Eco catalogue: the vendor's "plastic-ban ready" declaration, if any. */
+  @OneToOne("ProductEcoDeclaration", "product")
+  ecoDeclaration!: ProductEcoDeclaration | null;
 }

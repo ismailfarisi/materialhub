@@ -24,6 +24,8 @@ export interface ProductFilters {
   skus?: string[];
   attributes?: AttributeFilterInput[];
   inStock?: boolean;
+  /** Eco catalogue: only products whose plastic-ban ready declaration admin approved. */
+  plasticBanReady?: boolean;
   cursor?: string;
   limit?: number;
   locale?: string;
@@ -41,6 +43,8 @@ export interface SearchFacets {
   priceRanges?: FacetCount[];
   attributes?: FacetCount[];
   vendors?: FacetCount[];
+  /** Raw Typesense bucket: `[{ value: "true", count }]`. */
+  plastic_ban_ready?: FacetCount[];
 }
 
 export interface SearchResult<T> {
