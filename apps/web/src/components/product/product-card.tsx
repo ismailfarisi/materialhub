@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 import { useCartStore } from "@/stores/cart";
 import { usePreferencesStore } from "@/stores/preferences";
 import { PriceTag, SwatchCard, stockFor } from "@/components/swatch";
+import { type Unit, UNITS, cardFromPrice } from "@/components/trade/trade-terms";
+import { useTradeLabels } from "@/components/trade/use-trade-labels";
 import { Heart, Plus, Star } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import Image from "next/image";
@@ -32,6 +34,12 @@ interface Product {
 	group_swatches?: string[];
 	group_from_price?: number;
 	group_listing_mode?: string;
+	/** Trade pricing from the search index. */
+	tier_price_min?: number;
+	unit_of_measure?: string;
+	min_order_quantity?: number;
+	has_trade_rules?: boolean;
+	has_sample?: boolean;
 }
 
 interface ProductCardProps {
@@ -56,6 +64,7 @@ export function ProductCard({
 	showQuickAdd = true,
 }: ProductCardProps) {
 	const t = useTranslations("common");
+	const tTrade = useTranslations("trade");
 	const locale = useLocale();
 	const router = useRouter();
 	const { currency } = usePreferencesStore();
@@ -88,11 +97,21 @@ export function ProductCard({
 	const displayBasePrice = hasGroupFrom
 		? (product.group_from_price as number)
 		: product.price_min;
+	// Trade pricing: "from" the lowest tier, priced per unit, with the minimum.
+	const { unitName, count } = useTradeLabels();
+	const tradeUnit: Unit | null = (UNITS as readonly string[]).includes(product.unit_of_measure ?? "")
+		? (product.unit_of_measure as Unit)
+		: null;
+	const tierFrom = hasGroupFrom ? null : cardFromPrice(product);
+	const fromTier = tierFrom?.fromTier ?? false;
+	const priceAmount = fromTier && tierFrom ? tierFrom.amount : displayBasePrice;
+	const minOrder = (product.min_order_quantity ?? 1) > 1 ? (product.min_order_quantity as number) : null;
+	const needsPage = hasPriceRange || product.has_trade_rules === true;
 
 	function handleAdd(e: React.MouseEvent) {
 		e.preventDefault();
 		e.stopPropagation();
-		if (hasPriceRange) {
+		if (needsPage) {
 			router.push(href);
 			return;
 		}
@@ -209,15 +228,22 @@ export function ProductCard({
 					</div>
 				)}
 
+				{minOrder && (
+					<p className="m-0 text-[12px] tabular-nums text-nl-russet">
+						{tTrade("minQty", { quantity: count(tradeUnit, minOrder) })}
+					</p>
+				)}
+
 				<div className="mt-auto pt-2 flex items-end justify-between gap-2 border-t border-dashed border-nl-cacao/15">
 					<PriceTag
-						amount={displayBasePrice}
+						amount={priceAmount}
 						locale={locale}
 						currency={currency}
-						from={hasGroupFrom}
+						from={hasGroupFrom || fromTier}
 						fromLabel={t("from")}
-						max={!hasGroupFrom && hasPriceRange ? product.price_max : null}
-						compareAt={!hasGroupFrom && hasStrike ? compareAt : null}
+						unit={tradeUnit ? unitName(tradeUnit) : null}
+						max={!hasGroupFrom && !fromTier && hasPriceRange ? product.price_max : null}
+						compareAt={!hasGroupFrom && !fromTier && hasStrike ? compareAt : null}
 						className="pt-1 min-w-0"
 					/>
 					{showQuickAdd && (
@@ -225,7 +251,7 @@ export function ProductCard({
 							type="button"
 							onClick={handleAdd}
 							disabled={addToCart.isPending || outOfStock}
-							aria-label={hasPriceRange ? "Select options" : t("addToCart")}
+							aria-label={hasPriceRange ? "Select options" : needsPage ? tTrade("chooseQuantity") : t("addToCart")}
 							className="relative z-[2] shrink-0 h-9 w-9 rounded-md bg-nl-cacao text-white inline-flex items-center justify-center hover:bg-nl-amber transition-colors disabled:opacity-40"
 						>
 							<Plus className="h-4 w-4" strokeWidth={2} />

@@ -7,6 +7,10 @@ import { MediaGallery } from "@/components/product/media-gallery";
 import { SellerBlock, type SellerBlockData } from "@/components/product/seller-block";
 import { StickyBottomBar } from "@/components/product/sticky-bottom-bar";
 import { VariantSelector } from "@/components/product/variant-selector";
+import { QuantityBreaks } from "@/components/trade/quantity-breaks";
+import { SampleAction } from "@/components/trade/sample-action";
+import { TradeQuantityNote } from "@/components/trade/trade-quantity-note";
+import { useTradeQuantity } from "@/components/trade/use-trade-quantity";
 import { Button, MillLabel, PriceTag, StockChip, formatFils, stockFor } from "@/components/swatch";
 import { useScrollPast } from "@/hooks/use-scroll-past";
 import { useToggleWishlist, useWishlist } from "@/lib/queries/account";
@@ -16,7 +20,7 @@ import { useCartStore } from "@/stores/cart";
 import { Heart, Minus, Plus, RotateCcw, Star, Truck } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
 	type CategoryCrumb,
 	type PdpVariant,
@@ -92,21 +96,20 @@ export function ProductHero({
 	const selected: PdpVariant | undefined = variants.find((v) => v.id === variantId);
 
 	// ---- Stock -------------------------------------------------------------
-	const productOutOfStock = product.in_stock === false || (product.quantity_available ?? 1) <= 0;
-	const outOfStock = productOutOfStock || (selected != null && selected.available <= 0);
-	const available: number = selected ? selected.available : Number(product.quantity_available ?? Number.POSITIVE_INFINITY);
-	const maxQty = Number.isFinite(available) && available > 0 ? available : 999;
-
-	const [quantity, setQuantity] = useState(1);
-	useEffect(() => {
-		setQuantity((q) => Math.min(Math.max(1, q), maxQty));
-	}, [maxQty]);
+	// Trade pricing (unit, minimum order, increments, tiers, sample): quantity
+	// moves along valid steps and the price follows the tier it reaches.
+	const trade = useTradeQuantity(product, selected);
+	const productOutOfStock = trade.productOutOfStock;
+	const outOfStock = productOutOfStock || (selected != null && selected.available <= 0) || trade.belowMinimum;
+	const available: number = trade.available;
+	const maxQty = trade.maxQty;
+	const { quantity, setQuantity } = trade;
 
 	// ---- Price -------------------------------------------------------------
-	const price: number = selected?.price ?? (Number(product.price) || 0);
+	const price: number = trade.unitPrice;
 	const compareAtRaw = selected ? selected.compareAt : product.compare_at_price;
 	const compareAt = compareAtRaw != null && Number(compareAtRaw) > price ? Number(compareAtRaw) : null;
-	const unit = resolveUnit(product, selected);
+	const unit = trade.unitLabel ?? resolveUnit(product, selected);
 
 	// ---- Spec table --------------------------------------------------------
 	const specs = useMemo(() => {
@@ -155,9 +158,11 @@ export function ProductHero({
 
 	const stockNote = productOutOfStock
 		? t("productOutOfStock")
-		: outOfStock
-			? t("optionOutOfStock")
-			: null;
+		: trade.belowMinimum
+			? trade.belowMinimumNote
+			: outOfStock
+				? t("optionOutOfStock")
+				: null;
 
 	return (
 		<div className="text-nl-cacao">
@@ -255,10 +260,20 @@ export function ProductHero({
 							/>
 						)}
 
+						<QuantityBreaks terms={trade.terms} quantity={quantity} max={maxQty} onSelect={setQuantity} />
+
 						{/* Quantity + add */}
 						<div ref={ctaRef} className="grid gap-3">
 							<div className="flex items-stretch gap-2">
-								<QuantityStepper value={quantity} max={maxQty} onChange={setQuantity} disabled={outOfStock} />
+								<QuantityStepper
+									value={quantity}
+									min={trade.terms.minOrderQuantity}
+									max={maxQty}
+									onChange={setQuantity}
+									onStep={trade.step}
+									onCommit={trade.commit}
+									disabled={outOfStock}
+								/>
 								{outOfStock ? (
 									<Button variant="outline" size="lg" disabled aria-disabled className="flex-1">
 										{t("outOfStock")}
@@ -273,7 +288,7 @@ export function ProductHero({
 									>
 										{addToCart.isPending ? t("adding") : t("addToCart")}
 										{!addToCart.isPending && quantity > 1 && (
-											<span className="font-mono text-[13px] tabular-nums text-white/85">
+											<span className="hidden font-mono text-[13px] tabular-nums text-white/85 sm:inline">
 												· AED {formatFils(price * quantity, locale)}
 											</span>
 										)}
@@ -291,12 +306,16 @@ export function ProductHero({
 									<Heart className={cn("h-[18px] w-[18px]", isWishlisted && "fill-nl-cacao")} strokeWidth={1.75} aria-hidden="true" />
 								</Button>
 							</div>
+							{!outOfStock && (
+								<TradeQuantityNote terms={trade.terms} quantity={quantity} max={maxQty} onSelect={setQuantity} />
+							)}
 							{stockNote && <p className="m-0 text-[13px] text-nl-russet">{stockNote}</p>}
 							{addToCart.isError && (
 								<p role="alert" className="m-0 text-[13px] text-destructive">
-									{t("addFailed")}
+									{trade.errorMessage(addToCart.error) ?? t("addFailed")}
 								</p>
 							)}
+							{trade.sample && <SampleAction productId={product.id} sample={trade.sample} />}
 						</div>
 
 						{!outOfStock && <BnplStrip total_fils={price * quantity} />}
@@ -352,16 +371,34 @@ function StockStatus({ outOfStock, available }: { outOfStock: boolean; available
 
 function QuantityStepper({
 	value,
+	min = 1,
 	max,
 	onChange,
+	onStep,
+	onCommit,
 	disabled,
 }: {
 	value: number;
+	min?: number;
 	max: number;
 	onChange: (n: number) => void;
+	/** Next valid quantity up or down (trade increments); defaults to ±1. */
+	onStep?: (dir: 1 | -1) => void;
+	/** Snap a typed quantity to a valid one on blur. */
+	onCommit?: (typed: number) => void;
 	disabled?: boolean;
 }) {
 	const t = useTranslations("pdp");
+	// Typed text is kept as a draft until blur, so typing "100" isn't snapped at "1".
+	const [draft, setDraft] = useState<string | null>(null);
+	const commit = () => {
+		if (draft == null) return;
+		const n = Number.parseInt(draft, 10);
+		setDraft(null);
+		if (!Number.isFinite(n)) return;
+		if (onCommit) onCommit(n);
+		else onChange(Math.min(Math.max(min, n), max));
+	};
 	const step = "flex h-full w-10 items-center justify-center text-nl-cacao transition-colors hover:bg-nl-cacao/[0.06] disabled:opacity-35 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-nl-amber";
 	return (
 		<div
@@ -370,24 +407,37 @@ function QuantityStepper({
 				disabled && "opacity-45",
 			)}
 		>
-			<button type="button" className={step} onClick={() => onChange(Math.max(1, value - 1))} disabled={disabled || value <= 1} aria-label={t("decrease")}>
+			<button
+				type="button"
+				className={step}
+				onClick={() => (onStep ? onStep(-1) : onChange(Math.max(min, value - 1)))}
+				disabled={disabled || value <= min}
+				aria-label={t("decrease")}
+			>
 				<Minus className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
 			</button>
 			<input
 				type="number"
 				inputMode="numeric"
-				min={1}
+				min={min}
 				max={max}
-				value={value}
+				value={draft ?? value}
 				disabled={disabled}
 				aria-label={t("quantity")}
-				onChange={(e) => {
-					const n = Number.parseInt(e.target.value, 10);
-					if (Number.isFinite(n)) onChange(Math.min(Math.max(1, n), max));
+				onChange={(e) => setDraft(e.target.value)}
+				onBlur={commit}
+				onKeyDown={(e) => {
+					if (e.key === "Enter") commit();
 				}}
-				className="h-full w-11 border-0 bg-transparent p-0 text-center font-mono text-[14px] tabular-nums text-nl-cacao [appearance:textfield] focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+				className="h-full w-12 border-0 bg-transparent p-0 text-center font-mono text-[14px] tabular-nums text-nl-cacao [appearance:textfield] focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
 			/>
-			<button type="button" className={step} onClick={() => onChange(Math.min(max, value + 1))} disabled={disabled || value >= max} aria-label={t("increase")}>
+			<button
+				type="button"
+				className={step}
+				onClick={() => (onStep ? onStep(1) : onChange(Math.min(max, value + 1)))}
+				disabled={disabled || value >= max}
+				aria-label={t("increase")}
+			>
 				<Plus className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
 			</button>
 		</div>

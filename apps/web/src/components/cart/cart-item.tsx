@@ -1,6 +1,9 @@
 "use client";
 
 import { MillLabel, PriceTag, formatFils } from "@/components/swatch";
+import { CartLineTradeNotes, cartStepBounds, cartStepQuantity } from "@/components/trade/cart-line-trade";
+import { tradeErrorOf } from "@/components/trade/trade-terms";
+import { useTradeLabels } from "@/components/trade/use-trade-labels";
 import { useRemoveCartItem, useUpdateCartItem } from "@/lib/queries/cart";
 import { cn } from "@/lib/utils";
 import { AlertCircle, Info, Trash2 } from "lucide-react";
@@ -42,10 +45,20 @@ export function CartItem({
 	const specs = lineSpecs(item);
 	const productHref = item.product_slug ? `/${locale}/product/${item.product_slug}` : null;
 	const pending = updateItem.isPending || removeItem.isPending;
-	const updateError = errorMessage(updateItem.error) ?? (updateItem.isError ? t("updateFailed") : null);
+	const { unitName, violation } = useTradeLabels();
+	const tradeError = tradeErrorOf(updateItem.error);
+	const updateError =
+		(tradeError
+			? violation(tradeError.code, { unit: (item.trade?.unit ?? null) as Parameters<typeof violation>[1]["unit"], ...tradeError })
+			: null) ??
+		errorMessage(updateItem.error) ??
+		(updateItem.isError ? t("updateFailed") : null);
 	const removeError = removeItem.isError ? t("removeFailed") : null;
 	const priceChanged =
 		item.is_stale && item.added_price != null && item.added_price !== item.current_price;
+	const trade = item.trade ?? null;
+	const lineUnit = trade?.unit ? unitName(trade.unit as Parameters<typeof unitName>[0]) : t("perUnit");
+	const bounds = cartStepBounds(trade);
 
 	const thumbClass = compact ? "w-16" : "w-[72px] sm:w-[88px]";
 	const thumb = <LineThumb src={item.image_url} size={compact ? 64 : 88} dimmed={unavailable} className={thumbClass} />;
@@ -83,7 +96,7 @@ export function CartItem({
 							)}
 						</h3>
 						<div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[13px] text-nl-russet">
-							<PriceTag amount={item.current_price} locale={locale} unit={t("perUnit")} size="sm" />
+							<PriceTag amount={item.current_price} locale={locale} unit={lineUnit} size="sm" />
 							{item.sku && <span dir="ltr" className="font-mono text-[11.5px] text-nl-russet/90 truncate">{item.sku}</span>}
 						</div>
 					</div>
@@ -96,6 +109,15 @@ export function CartItem({
 				</div>
 
 				{specs.length > 0 && <MillLabel specs={specs} variant="inline" className="[&_li]:[direction:ltr] [&_li]:[unicode-bidi:isolate]" />}
+
+				{trade && (
+					<CartLineTradeNotes
+						trade={trade}
+						quantity={item.quantity}
+						pending={pending}
+						onSetQuantity={(quantity) => updateItem.mutate({ variantId: item.variant_id, quantity })}
+					/>
+				)}
 
 				{unavailable && (
 					<p className="m-0 flex items-start gap-1.5 text-[13px] text-destructive">
@@ -126,8 +148,14 @@ export function CartItem({
 							value={item.quantity}
 							size={compact ? "sm" : "md"}
 							pending={pending}
-							max={unavailable ? item.quantity : undefined}
-							onChange={(quantity) => updateItem.mutate({ variantId: item.variant_id, quantity })}
+							min={bounds.min}
+							max={unavailable ? item.quantity : bounds.max}
+							onChange={(quantity) =>
+								updateItem.mutate({
+									variantId: item.variant_id,
+									quantity: cartStepQuantity(trade, item.quantity, quantity),
+								})
+							}
 							label={t("qtyFor", { product: item.product_title })}
 							decreaseLabel={t("decrease")}
 							increaseLabel={t("increase")}
