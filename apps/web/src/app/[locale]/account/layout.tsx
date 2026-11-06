@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth";
 import {
 	FileText,
+	Building2,
 	Heart,
 	LayoutGrid,
 	LifeBuoy,
@@ -40,6 +41,7 @@ const navItems: NavItem[] = [
 	{ key: "returns", icon: PackageX, href: "/account/returns" },
 	{ key: "wishlist", icon: Heart, href: "/account/wishlist" },
 	{ key: "savedSearches", icon: Search, href: "/account/saved-searches" },
+	{ key: "business", icon: Building2, href: "/account/business" },
 	{ key: "addresses", icon: MapPin, href: "/account/addresses" },
 	{ key: "wallet", icon: Wallet, href: "/account/wallet" },
 	{ key: "support", icon: LifeBuoy, href: "/account/support" },
@@ -49,7 +51,10 @@ const navItems: NavItem[] = [
 export default function AccountLayout({ children }: { children: React.ReactNode }) {
 	const t = useTranslations("account");
 	const tRfq = useTranslations("rfq");
-	const label = (item: NavItem) => (item.rfqLabel ? tRfq("nav") : t(item.key));
+	// The Business entry's label lives in the `business` namespace (workstream 3).
+	const tBusiness = useTranslations("business");
+	const label = (item: NavItem) =>
+		item.rfqLabel ? tRfq("nav") : item.key === "business" ? tBusiness("nav") : t(item.key);
 	const locale = useLocale();
 	const pathname = usePathname();
 	const { user } = useAuthStore();

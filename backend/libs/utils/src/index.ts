@@ -60,3 +60,33 @@ export function paginate(page = 1, perPage = 20) {
 export function calculateVat(amount: number, rate = 5): number {
   return Math.round(amount * (rate / 100));
 }
+
+export {
+  checkTrn,
+  isValidTrn,
+  normalizeTrn,
+  peppolIdFromTrn,
+  tinFromTrn,
+  TRN_LENGTH,
+  TIN_LENGTH,
+  UAE_PEPPOL_SCHEME,
+} from "./trn.ts";
+export type { TrnCheck } from "./trn.ts";
+
+export {
+  availableCreditFils,
+  checkNetTermsEligibility,
+  daysOverdue,
+  isNetTerms,
+  NET_TERMS_DAYS,
+  netTermsDueDate,
+  OVERDUE_NET_TERMS_SQL,
+  receivableStatus,
+} from "./net-terms.ts";
+export type {
+  NetTerms,
+  NetTermsBlockReason,
+  NetTermsEligibility,
+  NetTermsEligibilityInput,
+  ReceivableStatus,
+} from "./net-terms.ts";

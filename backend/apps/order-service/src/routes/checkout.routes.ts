@@ -249,6 +249,21 @@ export const checkoutRoutes = new Elysia({ prefix: "/checkout" })
     },
   )
   .post(
+    "/net-terms",
+    // biome-ignore lint/suspicious/noExplicitAny: same untyped context as the sibling payment routes
+    async ({ user, body, checkoutController }: any) => {
+      // Pay on invoice (net 30/60) for approved business accounts. Idempotent.
+      const result = await checkoutController.createPaymentIntent(
+        body.order_id,
+        user.id,
+        undefined,
+        "net_terms",
+      );
+      return { statusCode: 200, data: result, timestamp: new Date().toISOString() };
+    },
+    { body: t.Object({ order_id: t.String({ format: "uuid" }) }) },
+  )
+  .post(
     "/cod",
     async ({ user, body, checkoutController }: any) => {
       const result = await checkoutController.createPaymentIntent(

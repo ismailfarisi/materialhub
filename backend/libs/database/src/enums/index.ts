@@ -11,3 +11,4 @@ export * from "./product.enums.ts";
 export * from "./user.enums.ts";
 export * from "./vendor.enums.ts";
 export * from "./quote.enums.ts";
+export * from "./business.enums.ts";

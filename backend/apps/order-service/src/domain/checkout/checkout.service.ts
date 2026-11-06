@@ -2,6 +2,9 @@
 import type { PaymentMethodThreshold, ShippingRate, UserAddress } from "@materialhub/database";
 import { BadRequestError, HttpError } from "@materialhub/plugins";
 import type { Repository } from "typeorm";
+import { businessBillingSnapshot } from "../business/business-context.ts";
+import type { NetTermsService } from "../business/net-terms.service.ts";
+import type { OrderApprovalService } from "../business/order-approval.service.ts";
 import type { CartService } from "../cart/cart.service.ts";
 import { sampleShippingRule } from "../cart/pricing/sample-shipping.ts";
 import type { ShippingService } from "../shipping/shipping.service.ts";
@@ -29,6 +32,9 @@ export class CheckoutService {
     private thresholdRepo: Repository<PaymentMethodThreshold>,
     private shippingRateRepo: Repository<ShippingRate>,
     private userAddressRepo: Repository<UserAddress>,
+    // Business accounts (workstream 3): approval gate, buyer TRN snapshot and
+    // the net_terms payment method. Optional so retail-only tests skip it.
+    private business?: { netTerms: NetTermsService; approvals: OrderApprovalService } | null,
   ) {}
 
   async initiateCheckout(data: {
@@ -262,25 +268,57 @@ export class CheckoutService {
       surchargeTotal = codRow.surcharge_fils ?? 0;
     }
 
+    // 5c. Business buyers. The billing snapshot (legal name, TRN, address) is
+    // always taken from the business account, never from the client, so the
+    // tax invoices carry the verified details. A buyer above the approval
+    // limit needs an approval for exactly this cart; net terms are re-checked
+    // here and again (under a row lock) when the order is confirmed.
+    const goodsTotal =
+      Number((cart as { subtotal?: number }).subtotal ?? 0) - (coupon?.discount ?? 0);
+    const businessCtx = this.business ? await this.business.netTerms.context(data.userId) : null;
+    if (data.paymentMethod === "net_terms") {
+      if (!this.business) throw new BadRequestError("Pay on invoice is not available");
+      this.business.netTerms.assertEligible(businessCtx, goodsTotal + shippingTotal);
+    }
+    const approvalId = this.business
+      ? await this.business.approvals.reserveForCheckout(
+          businessCtx,
+          data.userId,
+          allItems,
+          goodsTotal,
+        )
+      : null;
+    const billingAddress = businessCtx ? businessBillingSnapshot(businessCtx) : data.billingAddress;
+
     // 6. Create order
-    const { order } = await this.orderCreationService.createOrder({
-      userId: data.userId,
-      cartItems: allItems,
-      shippingAddress: data.shippingAddress,
-      billingAddress: data.billingAddress,
-      taxTotal,
-      shippingTotal,
-      surchargeTotal,
-      discountTotal: coupon?.discount ?? 0,
-      couponId: coupon?.couponId ?? null,
-      couponCode: coupon?.code ?? null,
-      couponDiscount: coupon?.discount ?? 0,
-      channel: data.channel,
-      shippingMethod: data.shippingMethod,
-      customerNotes: data.customerNotes,
-      ipAddress: data.ipAddress,
-      userAgent: data.userAgent,
-    });
+    let created: Awaited<ReturnType<OrderCreationService["createOrder"]>>;
+    try {
+      created = await this.orderCreationService.createOrder({
+        userId: data.userId,
+        cartItems: allItems,
+        shippingAddress: data.shippingAddress,
+        billingAddress,
+        businessAccountId: businessCtx?.businessAccountId ?? null,
+        buyerTrn: businessCtx?.trn ?? null,
+        taxTotal,
+        shippingTotal,
+        surchargeTotal,
+        discountTotal: coupon?.discount ?? 0,
+        couponId: coupon?.couponId ?? null,
+        couponCode: coupon?.code ?? null,
+        couponDiscount: coupon?.discount ?? 0,
+        channel: data.channel,
+        shippingMethod: data.shippingMethod,
+        customerNotes: data.customerNotes,
+        ipAddress: data.ipAddress,
+        userAgent: data.userAgent,
+      });
+    } catch (err) {
+      if (approvalId) await this.business?.approvals.release(approvalId);
+      throw err;
+    }
+    const { order } = created;
+    if (approvalId) await this.business?.approvals.attachOrder(approvalId, order.id);
 
     // Return the order's own persisted totals so the response breakdown always
     // reconciles with grandTotal.
@@ -367,6 +405,13 @@ export class CheckoutService {
         // providers emit this from markOrderPaid after capture instead.
         await this.orderConfirmationService.emitOrderPlaced(orderId, userId);
         return result;
+      }
+      case "net_terms": {
+        // Pay on invoice: confirms the order with payment due in 30/60 days.
+        // Idempotent (see NetTermsService.confirmOrder); `amount` is ignored,
+        // the order's own grand_total is what goes on terms.
+        if (!this.business) throw new BadRequestError("Pay on invoice is not available");
+        return this.business.netTerms.confirmOrder(orderId, userId);
       }
       case "tabby":
         if (amount === undefined) {

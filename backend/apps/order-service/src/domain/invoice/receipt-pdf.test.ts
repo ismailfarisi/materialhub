@@ -6,14 +6,16 @@ const vm: ReceiptViewModel = {
   reference: "NL-10234",
   dateLabel: "27 Jul 2026",
   address: { name: "Aisha Khan", lines: ["12 Marina Walk", "Dubai, AE"], phone: "+971500000000" },
+  buyer: { legalName: "Gulf Rigid Box Workshop LLC", trn: "100234567800003" },
   vendorGroups: [
     {
       vendorName: "Vendor A",
+      vendorTrn: "100987654300003",
       vendorOrderNumber: "NL-10234-V1",
       items: [
         {
-          name: "Rose Serum",
-          variant: "30ml",
+          name: "Greyboard 2.0 mm",
+          variant: "70×100 cm",
           qtyUnitLabel: "2 × AED 90.00",
           lineTotal: "AED 180.00",
         },

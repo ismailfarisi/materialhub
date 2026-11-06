@@ -3,6 +3,7 @@ import type { MediaService } from "@materialhub/utils";
 import type { Repository } from "typeorm";
 import { renderReceiptPdf } from "./receipt-pdf.ts";
 import { buildReceiptViewModel } from "./receipt-view-model.ts";
+import type { TaxInvoiceService } from "./tax-invoice/tax-invoice.service.ts";
 
 export function receiptKey(orderId: string): string {
   return `private/receipts/${orderId}.pdf`;
@@ -14,6 +15,9 @@ export class InvoiceService {
   constructor(
     private orderRepo: Repository<Order>,
     private mediaService: Pick<MediaService, "uploadBuffer" | "getReceiptSignedUrl">,
+    // VAT tax invoices (one per vendor sub-order + platform charges). Created
+    // by the same job, before the receipt; failures never block the receipt.
+    private taxInvoiceService?: Pick<TaxInvoiceService, "generateForOrder"> | null,
   ) {}
 
   private async loadOrder(orderId: string): Promise<Order | null> {
@@ -34,6 +38,13 @@ export class InvoiceService {
   ): Promise<{ key: string } | { skipped: true } | { failed: true }> {
     const order = await this.loadOrder(orderId);
     if (!order) return { failed: true };
+    if (this.taxInvoiceService) {
+      try {
+        await this.taxInvoiceService.generateForOrder(orderId);
+      } catch (err) {
+        console.error("[invoice] tax invoice generation failed", { orderId, error: String(err) });
+      }
+    }
     return this.generateFor(order);
   }
 

@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import type { CheckoutQuoteBusiness } from "@/lib/business/types";
 import { useAuthStore } from "@/stores/auth";
 
 // ── API types ──────────────────────────────────────────────────────────────
 
 export interface CheckoutQuotePaymentMethod {
-  id: "card" | "cod" | "tabby" | "tamara";
+  id: "card" | "cod" | "tabby" | "tamara" | "net_terms";
   available: boolean;
   surcharge_fils: number;
   surcharge_type: "fixed" | "percentage_bps";
@@ -61,6 +62,8 @@ export interface CheckoutQuote {
   shipping: { groups: ShippingGroup[] } | null;
   compatibility: Record<string, string[]>;
   notices: Array<{ key: string; params?: Record<string, unknown> }>;
+  /** Present when the buyer belongs to a business account (workstream 3). */
+  business?: CheckoutQuoteBusiness | null;
   blocking_error?: {
     code: string;
     i18n_key: string;

@@ -2,6 +2,11 @@ import { errorHandler, requestLogger } from "@materialhub/plugins";
 import { Elysia } from "elysia";
 import { adminPayoutAdjustmentRoutes } from "./routes/admin-payout-adjustment.routes.ts";
 import { adminPayoutRoutes } from "./routes/admin-payout.routes.ts";
+import {
+  adminReceivableRoutes,
+  orderApprovalRoutes,
+  taxInvoiceRoutes,
+} from "./routes/business.routes.ts";
 import { cartAbandonmentRoutes } from "./routes/cart-abandonment.routes.ts";
 import { cartRoutes } from "./routes/cart.routes.ts";
 import { checkoutRoutes } from "./routes/checkout.routes.ts";
@@ -41,7 +46,10 @@ export const app = new Elysia()
   .use(internalOrderRoutes)
   .use(internalVendorOrdersRoutes)
   .use(internalShipmentsRoutes)
+  .use(orderApprovalRoutes)
   .use(checkoutRoutes)
+  .use(taxInvoiceRoutes)
+  .use(adminReceivableRoutes)
   .use(webhookRoutes)
   .use(deliveryEstimateRoutes)
   .use(shippingRoutes)

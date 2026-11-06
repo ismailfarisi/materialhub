@@ -90,6 +90,29 @@ const Totals = Type.Object({
 });
 
 // ── Top-level response ──
+// ── Business buyer (workstream 3) ──
+const BusinessQuote = Type.Object({
+  legal_name: Type.String(),
+  trn: Type.Union([Type.String(), Type.Null()]),
+  billing_address: Type.Record(Type.String(), Type.Unknown()),
+  role: Type.Union([Type.Literal("admin"), Type.Literal("approver"), Type.Literal("buyer")]),
+  verification_status: Type.String(),
+  approval_threshold_fils: Type.Union([Type.Integer(), Type.Null()]),
+  // Net terms period whenever the business has a credit account, else null.
+  terms: Type.Union([Type.Literal("net_30"), Type.Literal("net_60"), Type.Null()]),
+  approval_required: Type.Boolean(),
+  approval: Type.Union([Type.Object({ id: Type.String(), status: Type.String() }), Type.Null()]),
+  net_terms: Type.Union([
+    Type.Object({
+      terms: Type.Union([Type.Literal("net_30"), Type.Literal("net_60")]),
+      status: Type.String(),
+      credit_limit_fils: Type.Integer(),
+      available_fils: Type.Integer(),
+    }),
+    Type.Null(),
+  ]),
+});
+
 export const CheckoutQuoteResponse = Type.Object({
   schema_version: Type.Literal(1),
   quote_token: Type.String(),
@@ -108,6 +131,8 @@ export const CheckoutQuoteResponse = Type.Object({
   compatibility: Type.Record(Type.String(), Type.Array(Type.String())),
   notices: Type.Array(Envelope),
   blocking_error: Type.Optional(Envelope),
+  // Business account of the buyer (workstream 3). Absent for retail buyers.
+  business: Type.Optional(BusinessQuote),
 });
 export type CheckoutQuoteResponse = Static<typeof CheckoutQuoteResponse>;
 

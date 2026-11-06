@@ -43,6 +43,8 @@ import {
 	useVendorMembers,
 } from "@/lib/queries/vendor-members";
 import { AdjustmentsPanel } from "@/components/payouts/AdjustmentsPanel";
+import { VendorTrnPanel } from "@/components/vendors/vendor-trn-panel";
+import { validateTrnInput } from "@/lib/business.helpers";
 import { s3UploadClient } from "@/lib/s3-upload-client";
 import { useAuthStore } from "@/stores/auth";
 import {
@@ -271,6 +273,7 @@ export default function VendorDetailPage() {
 				website_url: vendor.website_url ?? "",
 				trade_license_number: vendor.trade_license_number ?? "",
 				vat_number: vendor.vat_number ?? "",
+				trn: vendor.trn ?? "",
 				vat_registered: vendor.vat_registered ?? false,
 				meta_title: vendor.meta_title ?? "",
 				meta_description: vendor.meta_description ?? "",
@@ -351,8 +354,19 @@ export default function VendorDetailPage() {
 	}
 
 	function handleSaveProfile() {
+		const trnCheck = validateTrnInput(String(editFields.trn ?? ""));
+		if (!trnCheck.ok) return;
+		// Send `trn` only when it changed: a change clears trn_verified_at.
+		const { trn: _trn, ...rest } = editFields;
+		const trnChanged = trnCheck.value !== (vendor?.trn ?? null);
 		updateVendor(
-			{ id, ...editFields, logo_url: logoUrl, banner_url: bannerUrl },
+			{
+				id,
+				...rest,
+				...(trnChanged ? { trn: trnCheck.value } : {}),
+				logo_url: logoUrl,
+				banner_url: bannerUrl,
+			},
 			{
 				onSuccess: () => {
 					setEditing(false);
@@ -768,6 +782,7 @@ export default function VendorDetailPage() {
 		);
 	}
 
+	const trnInputCheck = validateTrnInput(String(editFields.trn ?? ""));
 	const showApprove =
 		vendor.status === "pending" || vendor.status === "under_review";
 	const showSuspend = vendor.status === "approved";
@@ -895,7 +910,7 @@ export default function VendorDetailPage() {
 									<Button
 										size="sm"
 										onClick={handleSaveProfile}
-										disabled={updating}
+										disabled={updating || !trnInputCheck.ok}
 										className="gap-1.5"
 									>
 										<Save size={14} /> {updating ? "Saving..." : "Save"}
@@ -1084,6 +1099,37 @@ export default function VendorDetailPage() {
 													}
 												/>
 											</div>
+											<div>
+												<label
+													htmlFor="vendor-trn"
+													className="block text-xs text-taupe mb-0.5"
+												>
+													TRN (15 digits)
+												</label>
+												<Input
+													id="vendor-trn"
+													inputMode="numeric"
+													className="font-mono tabular-nums"
+													placeholder="100234567800003"
+													value={editFields.trn}
+													aria-invalid={!trnInputCheck.ok}
+													aria-describedby="vendor-trn-hint"
+													onChange={(e) =>
+														setEditFields({
+															...editFields,
+															trn: e.target.value,
+														})
+													}
+												/>
+												<p
+													id="vendor-trn-hint"
+													className={`mt-0.5 text-xs ${trnInputCheck.ok ? "text-taupe" : "text-russet"}`}
+												>
+													{trnInputCheck.ok
+														? "Changing it clears the TRN verification."
+														: trnInputCheck.error}
+												</p>
+											</div>
 											<div className="col-span-full">
 												<label className="block text-xs text-taupe mb-0.5">
 													Description
@@ -1206,6 +1252,7 @@ export default function VendorDetailPage() {
 							</div>
 						</CardContent>
 					</Card>
+					<VendorTrnPanel vendor={vendor} />
 				</TabsContent>
 
 				{/* Commission & Settings Tab */}

@@ -1,5 +1,6 @@
 // API payment vocabulary (spec §2.0.1 — NOT the DB PaymentMethod enum).
-export const API_PAYMENT_METHODS = ["card", "cod", "tabby", "tamara"] as const;
+// net_terms: "Pay on invoice" for approved business accounts (workstream 3).
+export const API_PAYMENT_METHODS = ["card", "cod", "tabby", "tamara", "net_terms"] as const;
 export type ApiPaymentMethod = (typeof API_PAYMENT_METHODS)[number];
 
 // API shipping method vocabulary (matches shipping_rates.method).
@@ -13,6 +14,7 @@ export const DEFAULT_COMPATIBILITY: Record<ApiPaymentMethod, readonly ApiShippin
   cod: ["standard", "pickup"],
   tabby: ["standard", "express", "same_day", "pickup"],
   tamara: ["standard", "express", "same_day", "pickup"],
+  net_terms: ["standard", "express", "same_day", "pickup"],
 };
 
 // Quote token + ETag windows.

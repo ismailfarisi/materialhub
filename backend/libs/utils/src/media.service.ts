@@ -541,6 +541,16 @@ export class MediaService {
     return { url, expiresAt: new Date(Date.now() + 300 * 1000) };
   }
 
+  /** Short-lived download URL for a business trade-licence document. */
+  async getBusinessDocSignedUrl(key: string): Promise<{ url: string; expiresAt: Date }> {
+    if (!key.startsWith("private/business/")) {
+      throw new Error("Key is not under private/business/ prefix");
+    }
+    const command = new GetObjectCommand({ Bucket: this.bucket, Key: key });
+    const url = await getSignedUrl(getS3Client(), command, { expiresIn: 300 });
+    return { url, expiresAt: new Date(Date.now() + 300 * 1000) };
+  }
+
   async getReceiptSignedUrl(key: string): Promise<{ url: string; expiresAt: Date }> {
     if (!key.startsWith("private/receipts/")) {
       throw new Error("Key is not under private/receipts/ prefix");

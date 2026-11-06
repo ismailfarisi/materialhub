@@ -2,6 +2,7 @@ import { config } from "@materialhub/config";
 import type { VendorBankAccountService } from "../services/vendor-bank-account.service.ts";
 import type { VendorDocumentService } from "../services/vendor-document.service.ts";
 import type { VendorSettingsService } from "../services/vendor-settings.service.ts";
+import { withTrnStatus } from "../services/vendor.service.ts";
 import type { VendorService } from "../services/vendor.service.ts";
 
 export class VendorController {
@@ -93,11 +94,20 @@ export class VendorController {
   }
 
   async listForAdmin(status?: string, page?: number, limit?: number, search?: string) {
-    return this.vendorService.listForAdmin(status, page, limit, search);
+    const result = await this.vendorService.listForAdmin(status, page, limit, search);
+    return { ...result, data: (result.data ?? []).map((v) => withTrnStatus(v)) };
   }
 
   async getById(vendorId: string) {
-    return this.vendorService.findById(vendorId);
+    return withTrnStatus(await this.vendorService.findById(vendorId));
+  }
+
+  async updateTrn(vendorId: string, trn: string | null) {
+    return this.vendorService.updateTrn(vendorId, trn);
+  }
+
+  async setTrnVerified(vendorId: string, adminId: string, verified: boolean) {
+    return this.vendorService.setTrnVerified(vendorId, adminId, verified);
   }
 
   // Bank accounts

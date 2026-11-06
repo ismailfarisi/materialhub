@@ -26,8 +26,8 @@ const baseOrder = {
       vendor: { business_name: "Vendor A" },
       items: [
         {
-          product_name: "Rose Serum",
-          variant_name: "30ml",
+          product_name: "Greyboard 2.0 mm",
+          variant_name: "70×100 cm",
           quantity: 2,
           unit_price: 9000,
           line_total: 18000,
@@ -72,5 +72,38 @@ describe("buildReceiptViewModel", () => {
   test("shows Free when shipping is zero", () => {
     const vm = buildReceiptViewModel({ ...baseOrder, shipping_total: 0 });
     expect(vm.totals.shipping).toBe("Free");
+  });
+
+  test("business orders carry the buyer legal name and TRN; vendors their TRN", () => {
+    const vm = buildReceiptViewModel({
+      ...baseOrder,
+      billing_address: {
+        type: "business",
+        legal_name: "Gulf Rigid Box Workshop LLC",
+        trn: "100234567800003",
+      },
+      vendorOrders: [
+        {
+          ...baseOrder.vendorOrders[0],
+          vendor: { business_name: "Emirates Board & Paper Trading", trn: "100987654300003" },
+        },
+      ],
+    });
+    expect(vm.buyer).toEqual({ legalName: "Gulf Rigid Box Workshop LLC", trn: "100234567800003" });
+    expect(vm.vendorGroups[0]?.vendorTrn).toBe("100987654300003");
+  });
+
+  test("retail orders have no buyer block; a valid legacy vat_number counts as TRN", () => {
+    const vm = buildReceiptViewModel({
+      ...baseOrder,
+      vendorOrders: [
+        {
+          ...baseOrder.vendorOrders[0],
+          vendor: { business_name: "A", vat_number: "100 9876 5430 0003" },
+        },
+      ],
+    });
+    expect(vm.buyer).toBeNull();
+    expect(vm.vendorGroups[0]?.vendorTrn).toBe("100987654300003");
   });
 });

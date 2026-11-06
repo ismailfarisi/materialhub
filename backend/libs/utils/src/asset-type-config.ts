@@ -12,7 +12,8 @@ export type MediaAssetType =
   | "category_banner"
   | "user_avatar"
   | "creator_portfolio_video"
-  | "quote_attachment";
+  | "quote_attachment"
+  | "business_licence";
 
 export interface AssetTypeConfig {
   bucketKind: "public" | "private";
@@ -145,6 +146,17 @@ export const ASSET_TYPE_CONFIG: Record<MediaAssetType, AssetTypeConfig> = {
     maxBytes: 2 * 1024 * 1024,
     maxDimension: 512,
     process: "single_webp",
+    requiresVendorId: false,
+    requiresUserId: true,
+  },
+  // Trade licence for a business account (workstream 3). Private: only the
+  // uploader's account and platform admins (via a short signed URL) read it.
+  business_licence: {
+    bucketKind: "private",
+    keyPrefix: "private/business/{userId}/",
+    allowedContentTypes: ["image/jpeg", "image/png", "application/pdf"],
+    maxBytes: 10 * 1024 * 1024,
+    process: "none",
     requiresVendorId: false,
     requiresUserId: true,
   },
