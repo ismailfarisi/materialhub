@@ -113,7 +113,7 @@ export default function QuoteRequestDetailPage() {
 				}
 			/>
 
-			<div className="grid min-w-0 gap-4">
+			<div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
 				{(justAccepted || actionError) && (
 					<div
 						className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-nl-pearl p-4 shadow-card"
@@ -246,7 +246,7 @@ function RequestSummary({ request }: { request: QuoteRequestDetail }) {
 	return (
 		<Panel>
 			<PanelHead title={t("summary")} />
-			<div className="grid gap-5 p-4 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-8 md:p-5">
+			<div className="grid grid-cols-[minmax(0,1fr)] gap-5 p-4 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-8 md:p-5">
 				<div className="grid content-start gap-3">
 					<dl className="m-0 grid border-t-2 border-nl-cacao">
 						{rows.map((r) => (

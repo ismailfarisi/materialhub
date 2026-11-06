@@ -1,6 +1,5 @@
 "use client";
 
-import { labelClass } from "@/components/account/account-ui";
 import { MAX_QUOTE_SUPPLIERS, type SupplierOption } from "@/lib/queries/rfq";
 import { cn } from "@/lib/utils";
 import { Check, Lock } from "lucide-react";
@@ -44,9 +43,8 @@ export function SupplierPicker({
 			aria-describedby={`${id}-hint`}
 		>
 			<div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-				<legend className={cn(labelClass, "float-start p-0")}>
-					{t("suppliersLabel")}
-				</legend>
+				{/* The panel heading already reads "Suppliers"; keep the legend for screen readers. */}
+				<legend className="sr-only">{t("suppliersLabel")}</legend>
 				<span
 					className="font-mono text-[12.5px] tabular-nums text-nl-russet"
 					aria-live="polite"
@@ -60,7 +58,7 @@ export function SupplierPicker({
 					: t("suppliersHint", { max })}
 			</p>
 
-			<ul className="m-0 grid list-none gap-1.5 p-0 sm:grid-cols-2">
+			<ul className="m-0 grid list-none gap-1.5 p-0">
 				{locked && (
 					<li>
 						<div className="flex min-h-12 items-center gap-3 rounded-md border border-nl-cacao bg-nl-pearl px-3.5 py-2.5">
