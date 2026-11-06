@@ -79,14 +79,18 @@ export function PaymentSection({ onExpressCheckoutConfirm }: PaymentSectionProps
 									onSelect={() => method.available && setPaymentMethod(method.id as PaymentMethod)}
 								>
 									<span className="flex items-center gap-3">
-										{method.id === "net_terms" ? <NetTermsOptionText method={method} /> : <span className="grid min-w-0 flex-1">
-											<span className="font-medium text-nl-cacao">{methodName(method.id)}</span>
-											<span className="text-[13px] text-nl-russet">
-												{!method.available && method.reason_key
-													? t(method.reason_key as DynamicKey, reasonValues(method.reason_params))
-													: methodHint(method.id)}
+										{method.id === "net_terms" ? (
+											<NetTermsOptionText method={method} />
+										) : (
+											<span className="grid min-w-0 flex-1">
+												<span className="font-medium text-nl-cacao">{methodName(method.id)}</span>
+												<span className="text-[13px] text-nl-russet">
+													{!method.available && method.reason_key
+														? t(method.reason_key as DynamicKey, reasonValues(method.reason_params))
+														: methodHint(method.id)}
+												</span>
 											</span>
-										</span>}
+										)}
 										{method.id === "tamara" ? (
 											<img src="/tamara-logo.png" alt="" className="h-5 w-auto shrink-0 object-contain" />
 										) : (
