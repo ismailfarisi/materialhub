@@ -11,6 +11,9 @@ const replace = vi.fn();
 // `vitest run` for apps/web). Real `useSearchParams()` returns a stable
 // reference, so this only ever bit the test, never production.
 const searchParams = new URLSearchParams("");
+vi.mock("@/components/delivery/delivery-filter-group", () => ({
+	DeliveryFilterGroup: () => null,
+}));
 vi.mock("next/navigation", () => ({
 	useRouter: () => ({ replace }),
 	useSearchParams: () => searchParams,

@@ -1151,5 +1151,26 @@
     "viewing": "Viewing",
     "scrollBack": "Scroll back",
     "scrollForward": "Scroll forward"
+  },
+  "delivery": {
+    "getItBy": "Get it by {date}",
+    "getItToday": "Get it today",
+    "getItTomorrow": "Get it tomorrow, {date}",
+    "earliest": "As early as {date}",
+    "orderWithin": "Order within <b>{time}</b>",
+    "hoursMinutes": "{hours} h {minutes} m",
+    "minutesOnly": "{minutes} m",
+    "estimatedToLabel": "Estimated delivery to",
+    "change": "Change",
+    "deliverTo": "Deliver to",
+    "sameDay": "Same-day",
+    "nextDay": "Next-day",
+    "holidayNote": "Public holiday dates are estimates and may move this date.",
+    "unavailable": "Delivery date is confirmed at checkout.",
+    "loading": "Working out the delivery date",
+    "filterTitle": "Delivery",
+    "filterSameDay": "Same-day to {emirate}",
+    "filterNextDay": "Next-day to {emirate}",
+    "filterHint": "When you order before the supplier's daily cutoff."
   }
 }

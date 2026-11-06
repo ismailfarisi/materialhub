@@ -3,6 +3,7 @@ import { createElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProductHero } from "../product-hero";
 
+vi.mock("@/components/delivery/delivery-promise", () => ({ DeliveryPromise: () => null }));
 vi.mock("next-intl", () => ({
 	useLocale: () => "en",
 	useTranslations: () => {

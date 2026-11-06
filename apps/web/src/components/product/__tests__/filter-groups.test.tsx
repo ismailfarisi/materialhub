@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { FilterGroups } from "../filter-groups";
 
+vi.mock("@/components/delivery/delivery-filter-group", () => ({ DeliveryFilterGroup: () => null }));
 vi.mock("next-intl", () => ({
 	useTranslations: () => (key: string) => key,
 }));

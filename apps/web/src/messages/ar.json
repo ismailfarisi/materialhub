@@ -1107,5 +1107,26 @@
     "viewing": "تعرضه الآن",
     "scrollBack": "التمرير للخلف",
     "scrollForward": "التمرير للأمام"
+  },
+  "delivery": {
+    "getItBy": "يصلك بحلول {date}",
+    "getItToday": "يصلك اليوم",
+    "getItTomorrow": "يصلك غدًا، {date}",
+    "earliest": "قد يصل مبكرًا في {date}",
+    "orderWithin": "اطلب خلال <b>{time}</b>",
+    "hoursMinutes": "{hours} س {minutes} د",
+    "minutesOnly": "{minutes} د",
+    "estimatedToLabel": "موعد تقديري للتوصيل إلى",
+    "change": "تغيير",
+    "deliverTo": "التوصيل إلى",
+    "sameDay": "في اليوم نفسه",
+    "nextDay": "في اليوم التالي",
+    "holidayNote": "مواعيد العطلات الرسمية تقديرية وقد تغيّر هذا الموعد.",
+    "unavailable": "يتأكد موعد التوصيل عند إتمام الطلب.",
+    "loading": "جارٍ حساب موعد التوصيل",
+    "filterTitle": "التوصيل",
+    "filterSameDay": "في اليوم نفسه إلى {emirate}",
+    "filterNextDay": "في اليوم التالي إلى {emirate}",
+    "filterHint": "عند الطلب قبل موعد الإغلاق اليومي لدى المورّد."
   }
 }

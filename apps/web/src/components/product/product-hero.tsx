@@ -1,6 +1,7 @@
 "use client";
 
 import { Breadcrumb } from "@/components/product/breadcrumb";
+import { DeliveryPromise } from "@/components/delivery/delivery-promise";
 import { BnplStrip } from "@/components/product/bnpl-strip";
 import { type ColorGroupMember, GroupSwatches } from "@/components/product/group-swatches";
 import { MediaGallery } from "@/components/product/media-gallery";
@@ -300,6 +301,7 @@ export function ProductHero({
 						</div>
 
 						{!outOfStock && <BnplStrip total_fils={price * quantity} />}
+						{!outOfStock && <DeliveryPromise vendorId={product.vendor_id ?? vendor?.id} productIds={[product.id]} />}
 
 						<ul className="m-0 flex list-none flex-wrap gap-x-6 gap-y-2 p-0 text-[13px] text-nl-russet">
 							<li className="inline-flex items-center gap-2">
