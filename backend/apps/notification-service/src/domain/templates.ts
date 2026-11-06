@@ -65,6 +65,29 @@ const TEMPLATES: Record<string, NotificationTemplate> = {
     bodyTemplate: "Dispute resolved: {resolution}",
     actionUrlTemplate: "/disputes/{disputeId}",
   },
+  // ── Request for quotation (RFQ) ──────────────────────────────────────
+  // order-service sets {action_path} per audience: /account/quotes/<id> for
+  // the buyer, /quotes/<request-vendor-id> in the vendor dashboard.
+  quote_request_received: {
+    title: "New Quote Request",
+    bodyTemplate: "Quote request {request_number}: {title}",
+    actionUrlTemplate: "{action_path}",
+  },
+  quote_response_received: {
+    title: "Quote Received",
+    bodyTemplate: "{vendor_name} sent a quote for {request_number}",
+    actionUrlTemplate: "{action_path}",
+  },
+  quote_message_received: {
+    title: "New Message on a Quote",
+    bodyTemplate: "New message on quote request {request_number}",
+    actionUrlTemplate: "{action_path}",
+  },
+  quote_accepted: {
+    title: "Quote Accepted",
+    bodyTemplate: "Your quote for {request_number} was accepted. It is in the buyer's cart.",
+    actionUrlTemplate: "{action_path}",
+  },
 };
 
 export function getTemplate(eventType: string): NotificationTemplate | null {

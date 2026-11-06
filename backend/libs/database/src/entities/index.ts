@@ -77,6 +77,13 @@ export { ReturnItem } from "./return-item.entity.ts";
 export { Dispute } from "./dispute.entity.ts";
 export { DisputeMessage } from "./dispute-message.entity.ts";
 
+// Request for quotation (RFQ)
+export { QuoteRequest, type QuoteAttachment } from "./quote-request.entity.ts";
+export { QuoteRequestVendor } from "./quote-request-vendor.entity.ts";
+export { QuoteResponse } from "./quote-response.entity.ts";
+export { QuoteMessage } from "./quote-message.entity.ts";
+export { QuoteStatusHistory } from "./quote-status-history.entity.ts";
+
 // Payments
 export { Payment } from "./payment.entity.ts";
 export { WebhookEvent } from "./webhook-event.entity.ts";

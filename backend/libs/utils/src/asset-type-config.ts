@@ -10,7 +10,8 @@ export type MediaAssetType =
   | "category_icon"
   | "category_banner"
   | "user_avatar"
-  | "creator_portfolio_video";
+  | "creator_portfolio_video"
+  | "quote_attachment";
 
 export interface AssetTypeConfig {
   bucketKind: "public" | "private";
@@ -142,6 +143,18 @@ export const ASSET_TYPE_CONFIG: Record<MediaAssetType, AssetTypeConfig> = {
     process: "none",
     requiresVendorId: false,
     requiresUserId: true,
+  },
+  // RFQ: specs, dielines and sample photos a buyer attaches to a quote request
+  // or a quote message. Private: read back through a short-lived signed URL
+  // that order-service hands only to the buyer and the targeted suppliers.
+  quote_attachment: {
+    bucketKind: "private",
+    keyPrefix: "private/quotes/",
+    allowedContentTypes: ["application/pdf", "image/jpeg", "image/png", "image/webp"],
+    maxBytes: 10 * 1024 * 1024,
+    process: "none",
+    requiresVendorId: false,
+    requiresUserId: false,
   },
 };
 

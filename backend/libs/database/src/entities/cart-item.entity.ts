@@ -1,8 +1,10 @@
 import {
+  Check,
   Column,
   CreateDateColumn,
   DeleteDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
@@ -12,8 +14,11 @@ import {
 import type { Cart } from "./cart.entity.ts";
 import type { ProductVariant } from "./product-variant.entity.ts";
 import type { Product } from "./product.entity.ts";
+import type { QuoteResponse } from "./quote-response.entity.ts";
 import type { Vendor } from "./vendor.entity.ts";
 
+@Check("CHK_cart_items_quote_price", `("quote_id" IS NULL) = ("quoted_unit_price" IS NULL)`)
+@Index("IDX_cart_items_quote_id", ["quote_id"], { where: `"quote_id" IS NOT NULL` })
 @Entity("cart_items")
 @Unique(["cart_id", "product_id", "variant_id"])
 export class CartItem {
@@ -62,6 +67,20 @@ export class CartItem {
 
   @Column({ type: "integer" })
   line_total!: number;
+
+  // ── RFQ: a line added by accepting a supplier's quote ─────────────────
+  // The accepted quote response, and the per-unit price it locked in (fils).
+  // While set, quoted_unit_price wins over tier and base price (see
+  // order-service domain/cart/price-resolution.ts).
+  @Column({ type: "uuid", nullable: true })
+  quote_id!: string | null;
+
+  @ManyToOne("QuoteResponse", { nullable: true, onDelete: "SET NULL" })
+  @JoinColumn({ name: "quote_id" })
+  quote!: QuoteResponse | null;
+
+  @Column({ type: "integer", nullable: true })
+  quoted_unit_price!: number | null;
 
   @Column({ type: "jsonb", nullable: true })
   customization_data!: Record<string, unknown> | null;

@@ -28,6 +28,11 @@ import {
   Product,
   ProductCollectionMember,
   ProductVariant,
+  QuoteMessage,
+  QuoteRequest,
+  QuoteRequestVendor,
+  QuoteResponse,
+  QuoteStatusHistory,
   Return,
   ReturnItem,
   Review,
@@ -47,6 +52,7 @@ import {
   Vendor,
   VendorBankAccount,
   VendorCarrierAccount,
+  VendorMember,
   VendorOrder,
   VendorPayout,
   VendorPayoutAdjustment,
@@ -137,6 +143,7 @@ import { VendorOrderController } from "./domain/order/vendor-order.controller.ts
 import { VendorOrderService } from "./domain/order/vendor-order.service.ts";
 import { VerifiedPurchaseService } from "./domain/order/verified-purchase.service.ts";
 import { PromotionsService } from "./domain/promotions/promotions.service.ts";
+import { QuoteRequestService } from "./domain/quote/quote-request.service.ts";
 import { RefundService } from "./domain/refund/refund.service.ts";
 import { ReturnController } from "./domain/returns/return.controller.ts";
 import { ReturnService } from "./domain/returns/return.service.ts";
@@ -241,6 +248,13 @@ const paymentMethodThresholdRepo = AppDataSource.getRepository(PaymentMethodThre
 const rulesEpochRepo = AppDataSource.getRepository(RulesEpoch);
 const userAddressRepo = AppDataSource.getRepository(UserAddress);
 const productCollectionMemberRepo = AppDataSource.getRepository(ProductCollectionMember);
+// RFQ (request for quotation)
+const quoteRequestRepo = AppDataSource.getRepository(QuoteRequest);
+const quoteRequestVendorRepo = AppDataSource.getRepository(QuoteRequestVendor);
+const quoteResponseRepo = AppDataSource.getRepository(QuoteResponse);
+const quoteMessageRepo = AppDataSource.getRepository(QuoteMessage);
+const quoteStatusHistoryRepo = AppDataSource.getRepository(QuoteStatusHistory);
+const vendorMemberRepo = AppDataSource.getRepository(VendorMember);
 
 const integrationEventsQueue = getIntegrationEventsQueue();
 
@@ -252,6 +266,7 @@ const cartService = new CartService(
   productRepo,
   productVariantRepo,
   cartRedisService,
+  quoteResponseRepo,
 );
 const cartMergeService = new CartMergeService(cartRepo, cartItemRepo, cartRedisService);
 const cartController = new CartController(cartService, cartMergeService);
@@ -621,6 +636,24 @@ void schedulePendingOrderReaper(pendingOrderReaperQueue).catch((err: unknown) =>
 
 const _invoiceWorker = createInvoiceWorker(invoiceService);
 
+// RFQ: buyer requests, supplier responses, threads; acceptance fills the cart.
+// Distinct from checkout's QuoteService (the priced checkout quote).
+const quoteRequestService = new QuoteRequestService(
+  AppDataSource,
+  quoteRequestRepo,
+  quoteRequestVendorRepo,
+  quoteResponseRepo,
+  quoteMessageRepo,
+  quoteStatusHistoryRepo,
+  vendorRepo,
+  vendorMemberRepo,
+  productRepo,
+  productVariantRepo,
+  cartService,
+  notificationEventsQueue,
+  new MediaService(),
+);
+
 export const container = new Elysia({ name: "order-service-container" })
   .decorate("cartController", cartController)
   .decorate("shippingController", shippingController)
@@ -659,4 +692,5 @@ export const container = new Elysia({ name: "order-service-container" })
   .decorate("refundService", refundService)
   .decorate("paymentRepo", paymentRepo)
   .decorate("commissionService", commissionService)
-  .decorate("invoiceService", invoiceService);
+  .decorate("invoiceService", invoiceService)
+  .decorate("quoteRequestService", quoteRequestService);

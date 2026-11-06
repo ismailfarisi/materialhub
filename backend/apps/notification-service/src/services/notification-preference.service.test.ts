@@ -32,7 +32,13 @@ describe("NotificationPreferenceService.getPreferences — absent-row defaults",
   // Types added to the enum after users' preference rows were seeded. These
   // are the ones an absent row means "never asked" for, so they default
   // in-app ON.
-  const POST_SEED_TYPES = [NotificationType.vendor_new_order];
+  const POST_SEED_TYPES = [
+    NotificationType.vendor_new_order,
+    NotificationType.quote_request_received,
+    NotificationType.quote_response_received,
+    NotificationType.quote_message_received,
+    NotificationType.quote_accepted,
+  ];
 
   it("a user with ZERO rows gets in_app=true for the POST-SEED types only; email/push/sms=false for every type", async () => {
     const { service } = makeService([]);

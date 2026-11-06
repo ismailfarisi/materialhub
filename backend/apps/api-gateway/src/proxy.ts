@@ -50,6 +50,8 @@ const serviceRoutes: ServiceRoute[] = [
   { prefix: "/admin/reviews", target: order },
   { prefix: "/admin/returns", target: order },
   { prefix: "/admin/disputes", target: order },
+  // RFQ (buyer side lives under /buyer/quotes, already covered by /buyer)
+  { prefix: "/admin/quotes", target: order },
   { prefix: "/admin/commissions", target: order },
   { prefix: "/admin/payouts", target: order },
   { prefix: "/admin/payout-adjustments", target: order },
@@ -73,6 +75,7 @@ const serviceRoutes: ServiceRoute[] = [
   // Bulk-jobs (Phase 0/1/2) → product-service
   { prefix: "/bulk", target: product },
   { prefix: "/vendor/orders", target: order },
+  { prefix: "/vendor/quotes", target: order },
   { prefix: "/admin/vendor-orders", target: order },
   { prefix: "/vendor/returns", target: order },
   { prefix: "/orders", target: order },
