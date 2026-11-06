@@ -91,9 +91,12 @@ export const app = new Elysia()
     await Promise.all(
       services.map(async (service) => {
         try {
-          const res = await serviceFetch(`${config.serviceUrl[service]}/${pathMap[service]}/health`, {
-            signal: AbortSignal.timeout(2000),
-          });
+          const res = await serviceFetch(
+            `${config.serviceUrl[service]}/${pathMap[service]}/health`,
+            {
+              signal: AbortSignal.timeout(2000),
+            },
+          );
           checks[service] = res.ok ? "up" : "down";
         } catch {
           checks[service] = "down";

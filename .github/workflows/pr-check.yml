@@ -59,3 +59,63 @@ jobs:
       # bundles every module). The modules are typechecked and tested above.
       - name: Build
         run: bunx turbo run build --filter='@materialhub/api'
+
+  # The whole backend is one process that loads every module at boot; import
+  # cycles or boot-order mistakes only show up when it actually starts. Boot it
+  # against real Postgres/Redis and require /health to report the modules up.
+  boot-smoke:
+    name: Boot the API
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: materialhub
+          POSTGRES_PASSWORD: materialhub
+          POSTGRES_DB: materialhub
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U materialhub"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      NODE_ENV: development
+      DB_HOST: 127.0.0.1
+      REDIS_HOST: 127.0.0.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Migrate
+        run: bun run migrate
+        working-directory: backend/libs/database
+
+      - name: Boot and check /health
+        working-directory: backend/apps/api
+        run: |
+          bun run src/index.ts > /tmp/api.log 2>&1 &
+          for i in $(seq 1 60); do
+            h=$(curl -s -m 3 http://127.0.0.1:3000/health || true)
+            if echo "$h" | grep -q '"auth":"up"' && echo "$h" | grep -q '"product":"up"' \
+              && echo "$h" | grep -q '"order":"up"' && echo "$h" | grep -q '"notification":"up"'; then
+              echo "API up: $h"; exit 0
+            fi
+            sleep 2
+          done
+          echo "API did not come up. /health: $h"
+          grep -v '^query:' /tmp/api.log | tail -80
+          exit 1

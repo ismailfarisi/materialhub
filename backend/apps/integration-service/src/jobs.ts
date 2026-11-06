@@ -42,7 +42,6 @@ import {
   scheduleScrubPiiCron,
 } from "./domain/retention/scrub-pii.cron.ts";
 
-
 /**
  * Background work owned by the integration module: retention/PII crons,
  * sales-channel feed build, delta scan/push and conversion workers. Called

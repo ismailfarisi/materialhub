@@ -1,6 +1,8 @@
 import { config } from "@materialhub/config";
 import { ensureDatabase } from "@materialhub/database";
 import { permissionMatrix } from "@materialhub/guards";
+// Order matters: ./modules.ts loads every module app (and its container)
+// before ./jobs.ts lazily loads the job starters; see the note in jobs.ts.
 import { app } from "./app.ts";
 import { startAllJobs } from "./jobs.ts";
 import { registerModules } from "./modules.ts";

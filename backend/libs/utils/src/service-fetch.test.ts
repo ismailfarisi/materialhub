@@ -60,7 +60,10 @@ describe("serviceFetch", () => {
   });
 
   test("streams a request body through (gateway proxy shape)", async () => {
-    registerInProcessService("http://localhost:3002", async (req) => new Response(await req.text()));
+    registerInProcessService(
+      "http://localhost:3002",
+      async (req) => new Response(await req.text()),
+    );
     const incoming = new Request("http://gw/media", { method: "PUT", body: "raw-bytes" });
 
     const res = await serviceFetch("http://localhost:3002/media", {
@@ -76,7 +79,8 @@ describe("serviceFetch", () => {
   test("rejects when the signal aborts before the handler resolves", async () => {
     registerInProcessService(
       "http://localhost:3003",
-      () => new Promise<Response>((resolve) => setTimeout(() => resolve(new Response("late")), 200)),
+      () =>
+        new Promise<Response>((resolve) => setTimeout(() => resolve(new Response("late")), 200)),
     );
 
     await expect(
