@@ -45,6 +45,21 @@ export const vendorAdminRoutes = new Elysia({ prefix: "/admin/vendors" })
     { params: t.Object({ id: t.String({ format: "uuid" }) }) },
   )
 
+  .post(
+    "/:id/trn-verification",
+    async ({ params, body, user, vendorController, audit }) => {
+      audit.entity_type = "vendor";
+      audit.entity_id = params.id;
+      audit.action = body.verified ? "vendor.trn_verified" : "vendor.trn_unverified";
+      const vendor = await vendorController.setTrnVerified(params.id, user!.id, body.verified);
+      return { statusCode: 200, data: vendor, timestamp: new Date().toISOString() };
+    },
+    {
+      params: t.Object({ id: t.String({ format: "uuid" }) }),
+      body: t.Object({ verified: t.Boolean() }),
+    },
+  )
+
   .get(
     "/:id/documents",
     async ({ params, vendorController }) => {

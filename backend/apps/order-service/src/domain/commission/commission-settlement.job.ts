@@ -12,11 +12,15 @@ export interface CommissionSettlementDeps {
 /**
  * Promotes matured `held` commissions to `pending` (payable).
  *
- * Deliberately joinless: eligibility is a timestamp on the row itself,
- * stamped at delivery, so this never has to reason
- * about order state. `payout_id IS NULL` is belt-and-braces — a held row
- * should never be claimed by a draft, and if one ever is, we do not want to
- * quietly make it payable a second time.
+ * Eligibility is mostly a timestamp on the row itself, stamped at delivery.
+ * `payout_id IS NULL` is belt-and-braces — a held row should never be claimed
+ * by a draft, and if one ever is, we do not want to quietly make it payable a
+ * second time.
+ *
+ * The one order-state check: a net-terms order (orders.payment_terms set) is
+ * delivered before the buyer pays, so its commissions stay `held` until the
+ * admin marks the receivable paid (payment_status = 'captured'). This keeps
+ * vendor_payouts from paying out money MaterialHub has not received.
  */
 export async function runCommissionSettlement(
   deps: CommissionSettlementDeps,
@@ -29,7 +33,13 @@ export async function runCommissionSettlement(
         AND settle_after IS NOT NULL
         AND settle_after <= now()
         AND payout_id IS NULL
-        AND deleted_at IS NULL`,
+        AND deleted_at IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM orders o
+           WHERE o.id = commissions.order_id
+             AND o.payment_terms IS NOT NULL
+             AND o.payment_status <> 'captured'
+        )`,
   );
   return { settled: Number(affected ?? 0) };
 }

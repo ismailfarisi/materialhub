@@ -437,8 +437,15 @@ export class OrderStatusService {
     return result.order;
   }
 
+  private cancellationHooks: Array<(orderId: string) => Promise<unknown>> = [];
+
+  /** Register a callback run after an order cancellation commits. */
+  onOrderCancelled(hook: (orderId: string) => Promise<unknown>): void {
+    this.cancellationHooks.push(hook);
+  }
+
   async cancelOrder(orderId: string, actor: Actor, reason: string): Promise<Order> {
-    return this.orderRepo.manager.transaction(async (tx) => {
+    const cancelled = await this.orderRepo.manager.transaction(async (tx) => {
       const orderRepo = tx.getRepository("Order" as any) as Repository<Order>;
       const voRepo = tx.getRepository("VendorOrder" as any) as Repository<VendorOrder>;
       const historyRepo = tx.getRepository(
@@ -633,6 +640,16 @@ export class OrderStatusService {
 
       return order;
     });
+    // Post-commit hooks (workstream 3: release net-terms credit held by an
+    // unpaid order). Best-effort; never undoes the committed cancellation.
+    for (const hook of this.cancellationHooks) {
+      try {
+        await hook(orderId);
+      } catch (err) {
+        console.error("[order-status] cancellation hook failed", { orderId, error: String(err) });
+      }
+    }
+    return cancelled;
   }
 
   private isCustomerVisible(toStatus: OrderStatus, _role: string): boolean {

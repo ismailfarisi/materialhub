@@ -33,6 +33,7 @@ import {
   Badge,
 } from "@materialhub/ui";
 import { s3UploadClient } from "@/lib/s3-upload-client";
+import { TaxRegistrationPanel } from "@/components/settings/tax-registration-panel";
 import { Plus, Trash, Pencil, Buildings, Clock } from "@phosphor-icons/react";
 import {
   useVendorProfile,
@@ -484,9 +485,10 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="profile">
-        <TabsList className="mb-6">
+        <TabsList className="mb-6 max-w-full overflow-x-auto justify-start">
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="bank">Bank Details</TabsTrigger>
+          <TabsTrigger value="tax">Tax</TabsTrigger>
           <TabsTrigger value="processing">Processing</TabsTrigger>
         </TabsList>
 
@@ -496,6 +498,10 @@ export default function SettingsPage() {
 
         <TabsContent value="bank">
           <BankDetailsTab />
+        </TabsContent>
+
+        <TabsContent value="tax">
+          <TaxRegistrationPanel />
         </TabsContent>
 
         <TabsContent value="processing">

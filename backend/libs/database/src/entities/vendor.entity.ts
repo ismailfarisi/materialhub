@@ -1,4 +1,5 @@
 import {
+  Check,
   Column,
   CreateDateColumn,
   DeleteDateColumn,
@@ -21,6 +22,7 @@ import type { VendorTranslation } from "./vendor-translation.entity.ts";
 // admin-password.controller.ts.
 
 @Entity("vendors")
+@Check("chk_vendors_trn_format", `"trn" IS NULL OR "trn" ~ '^[0-9]{15}$'`)
 export class Vendor {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
@@ -80,6 +82,21 @@ export class Vendor {
 
   @Column({ type: "boolean", default: false })
   vat_registered!: boolean;
+
+  /**
+   * UAE Tax Registration Number (15 digits), printed as the seller TRN on the
+   * VAT tax invoices for this vendor's sub-orders. Backfilled from
+   * `vat_number` where that already held a valid TRN.
+   */
+  @Column({ type: "varchar", length: 15, nullable: true })
+  trn!: string | null;
+
+  /** Set by a platform admin after checking the VAT certificate. */
+  @Column({ type: "timestamptz", nullable: true })
+  trn_verified_at!: Date | null;
+
+  @Column({ type: "uuid", nullable: true })
+  trn_verified_by!: string | null;
 
   @Column({ type: "varchar", length: 255 })
   contact_email!: string;

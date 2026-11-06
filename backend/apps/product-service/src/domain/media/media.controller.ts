@@ -80,11 +80,16 @@ export class MediaController {
       }
     }
 
+    // User-scoped asset types (e.g. business_licence) are keyed under the
+    // caller's own id, so a key can later be checked for ownership by prefix.
+    const userId = cfg.requiresUserId ? user.id : undefined;
+
     return this.mediaService.generatePresignedUrlForAsset({
       assetType,
       filename: body.filename,
       contentType: body.content_type,
       vendorId,
+      userId,
     });
   }
 

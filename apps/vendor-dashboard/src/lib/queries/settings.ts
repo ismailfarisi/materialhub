@@ -24,6 +24,20 @@ export function useUpdateProfile() {
   });
 }
 
+/** PATCH /vendors/me/tax { trn } — changing it clears trn_verified_at. */
+export function useUpdateVendorTax() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { trn: string | null }) => {
+      const { data } = await api.patch("/vendors/me/tax", payload);
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vendor", "profile"] });
+    },
+  });
+}
+
 export function useBankAccounts() {
   return useQuery({
     queryKey: ["vendor", "bank-accounts"],

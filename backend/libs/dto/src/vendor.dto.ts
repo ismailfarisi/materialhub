@@ -118,6 +118,8 @@ export const AdminUpdateVendorBody = Type.Partial(
     website_url: Type.String({ maxLength: 512 }),
     trade_license_number: Type.String({ maxLength: 100 }),
     vat_number: Type.String({ maxLength: 50 }),
+    // UAE TRN, 15 digits (validated in the service). null clears it.
+    trn: Type.Union([Type.String({ maxLength: 32 }), Type.Null()]),
     vat_registered: Type.Boolean(),
     address: Type.Object({
       street: Type.Optional(Type.String()),

@@ -11,6 +11,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import {
 	AlertTriangle,
+	Building2,
 	ClipboardList,
 	Coins,
 	CreditCard,
@@ -25,6 +26,7 @@ import {
 	Package,
 	Percent,
 	Plug,
+	Receipt,
 	RotateCcw,
 	Settings,
 	ShieldCheck,
@@ -104,6 +106,11 @@ const navItems = [
 		icon: <Users size={20} />,
 		children: [
 			{ label: "Vendors", href: "/vendors", icon: <Store size={20} /> },
+			{
+				label: "Business Accounts",
+				href: "/business-accounts",
+				icon: <Building2 size={20} />,
+			},
 			{ label: "Users", href: "/users", icon: <Users size={20} /> },
 		],
 	},
@@ -164,6 +171,11 @@ const navItems = [
 				icon: <Percent size={20} />,
 			},
 			{ label: "Payouts", href: "/payouts", icon: <Wallet size={20} /> },
+			{
+				label: "Receivables",
+				href: "/receivables",
+				icon: <Receipt size={20} />,
+			},
 		],
 	},
 	{
@@ -258,6 +270,7 @@ function labelForSegment(seg: string, prev?: string) {
 		if (prev === "vendors") return "Vendor";
 		if (prev === "products") return "Product";
 		if (prev === "orders") return "Order";
+		if (prev === "business-accounts") return "Business account";
 		return "Detail";
 	}
 	return seg

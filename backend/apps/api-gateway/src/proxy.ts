@@ -16,6 +16,8 @@ const integration = `http://${config.serviceHost.integration}:${config.port.inte
 const serviceRoutes: ServiceRoute[] = [
   // Auth service — admin routes must come before generic prefixes
   { prefix: "/admin/users", target: auth },
+  // Business accounts (workstream 3): admin review lives in auth-service.
+  { prefix: "/admin/business-accounts", target: auth },
   { prefix: "/admin/auth", target: auth },
   { prefix: "/auth", target: auth },
   // Product service — admin routes must come before generic prefixes
@@ -52,6 +54,9 @@ const serviceRoutes: ServiceRoute[] = [
   { prefix: "/admin/disputes", target: order },
   { prefix: "/admin/commissions", target: order },
   { prefix: "/admin/payouts", target: order },
+  // Net-terms receivables and VAT tax invoices (workstream 3).
+  { prefix: "/admin/receivables", target: order },
+  { prefix: "/invoices", target: order },
   { prefix: "/admin/payout-adjustments", target: order },
   { prefix: "/admin/payment-methods", target: order },
   { prefix: "/admin/shipping-rates", target: order },

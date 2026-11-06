@@ -17,6 +17,16 @@ describe("runCommissionSettlement", () => {
     expect(sql).toContain("payout_id IS NULL");
   });
 
+  it("keeps commissions of unpaid net-terms orders held", async () => {
+    const query = mock(async () => [[], 0]);
+    // biome-ignore lint/suspicious/noExplicitAny: minimal repo stub
+    await runCommissionSettlement({ commissionRepo: { manager: { query } } as any });
+    const [sql] = query.mock.calls[0] as unknown as [string];
+    expect(sql).toContain("o.payment_terms IS NOT NULL");
+    expect(sql).toContain("o.payment_status <> 'captured'");
+    expect(sql).toContain("NOT EXISTS");
+  });
+
   it("reports zero when nothing has matured", async () => {
     const query = mock(async () => [[], 0]);
     const result = await runCommissionSettlement({

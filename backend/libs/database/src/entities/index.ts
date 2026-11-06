@@ -151,3 +151,19 @@ export { ChannelDelivery } from "./channel-delivery.entity.ts";
 
 // ─── Bookings ────────────────────────────────────────────────────────────
 export { RulesEpoch } from "./rules-epoch.entity.ts";
+
+// ─── Business accounts, net terms, tax invoices ──────────────────────────
+export { BusinessAccount } from "./business-account.entity.ts";
+export type { BusinessBillingAddress } from "./business-account.entity.ts";
+export { BusinessMember } from "./business-member.entity.ts";
+export { BusinessCreditAccount } from "./business-credit-account.entity.ts";
+export { BusinessOrderApproval } from "./business-order-approval.entity.ts";
+export type { ApprovalItemSnapshot } from "./business-order-approval.entity.ts";
+export { TaxInvoice } from "./tax-invoice.entity.ts";
+export type {
+  InvoiceAllowanceCharge,
+  InvoiceLine,
+  InvoiceParty,
+  VatBreakdownRow,
+} from "./tax-invoice.entity.ts";
+export { InvoiceNumberSequence } from "./invoice-number-sequence.entity.ts";

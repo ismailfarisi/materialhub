@@ -28,6 +28,14 @@ export function renderReceiptPdf(vm: ReceiptViewModel): Promise<Buffer> {
     if (config.invoice.trn) doc.text(`TRN: ${config.invoice.trn}`);
     doc.moveDown(0.6);
 
+    // Bill to (business accounts): legal name and buyer TRN.
+    if (vm.buyer) {
+      doc.fillColor(MUTED).fontSize(9).text("BILL TO");
+      doc.fillColor(INK).fontSize(11).text(vm.buyer.legalName);
+      doc.text(vm.buyer.trn ? `Buyer TRN: ${vm.buyer.trn}` : "Buyer TRN: not registered");
+      doc.moveDown(0.6);
+    }
+
     // Ship to
     doc.fillColor(MUTED).fontSize(9).text("SHIP TO");
     doc.fillColor(INK).fontSize(11).text(vm.address.name);
@@ -38,6 +46,7 @@ export function renderReceiptPdf(vm: ReceiptViewModel): Promise<Buffer> {
     // Vendor groups + items
     for (const group of vm.vendorGroups) {
       doc.fillColor(MUTED).fontSize(9).text(group.vendorName.toUpperCase());
+      if (group.vendorTrn) doc.fontSize(8).text(`Seller TRN: ${group.vendorTrn}`);
       doc.fillColor(INK).fontSize(10);
       for (const it of group.items) {
         const label = it.variant ? `${it.name} — ${it.variant}` : it.name;

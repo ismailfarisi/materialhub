@@ -11,6 +11,9 @@
     "checkout.error.no_eligible_payment_methods",
     "checkout.error.shipping_unavailable_for_group",
     "checkout.error.quote_token_stale",
-    "checkout.error.items_out_of_stock"
+    "checkout.error.items_out_of_stock",
+    "payment.net_terms.over_credit",
+    "payment.net_terms.overdue",
+    "payment.net_terms.not_verified"
   ]
 }

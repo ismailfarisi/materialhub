@@ -1,4 +1,5 @@
 import {
+  Check,
   Column,
   CreateDateColumn,
   DeleteDateColumn,
@@ -20,6 +21,10 @@ import type { User } from "./user.entity.ts";
 import type { VendorOrder } from "./vendor-order.entity.ts";
 
 @Entity("orders")
+@Check(
+  "chk_orders_payment_terms",
+  `"payment_terms" IS NULL OR "payment_terms" IN ('net_30', 'net_60')`,
+)
 export class Order {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
@@ -70,6 +75,24 @@ export class Order {
 
   @Column({ type: "text", nullable: true })
   invoice_last_error!: string | null;
+
+  // ── Business purchasing (workstream 3) ──────────────────────────
+  /** Set when the buyer placed the order as a member of a business account. */
+  @Index()
+  @Column({ type: "uuid", nullable: true })
+  business_account_id!: string | null;
+
+  /** Buyer TRN snapshotted from the business account at order time. */
+  @Column({ type: "varchar", length: 15, nullable: true })
+  buyer_trn!: string | null;
+
+  /** net_30 | net_60 when the order is on net terms; null otherwise. */
+  @Column({ type: "varchar", length: 10, nullable: true })
+  payment_terms!: string | null;
+
+  /** When a net-terms order must be paid by. */
+  @Column({ type: "timestamptz", nullable: true })
+  payment_due_at!: Date | null;
 
   @Column({ type: "char", length: 3, default: "AED" })
   currency!: string;

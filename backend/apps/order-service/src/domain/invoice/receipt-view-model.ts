@@ -14,9 +14,14 @@ export interface OrderWithReceiptRelations {
   refund_total: number;
   coupon_code: string | null;
   shipping_address: Record<string, unknown> | null;
+  billing_address?: Record<string, unknown> | null;
   vendorOrders: Array<{
     vendor_order_number: string;
-    vendor?: { business_name?: string | null } | null;
+    vendor?: {
+      business_name?: string | null;
+      trn?: string | null;
+      vat_number?: string | null;
+    } | null;
     items: Array<{
       product_name: string;
       variant_name: string | null;
@@ -36,6 +41,8 @@ export interface ReceiptLineItem {
 
 export interface ReceiptVendorGroup {
   vendorName: string;
+  /** Seller TRN, when the vendor has one on file. */
+  vendorTrn: string | null;
   vendorOrderNumber: string;
   items: ReceiptLineItem[];
 }
@@ -57,10 +64,17 @@ export interface ReceiptAddress {
   phone: string | null;
 }
 
+export interface ReceiptBuyer {
+  legalName: string;
+  trn: string | null;
+}
+
 export interface ReceiptViewModel {
   reference: string;
   dateLabel: string;
   address: ReceiptAddress;
+  /** Set when the order was placed for a business account. */
+  buyer: ReceiptBuyer | null;
   vendorGroups: ReceiptVendorGroup[];
   totals: ReceiptTotals;
 }
@@ -94,9 +108,22 @@ function buildAddress(raw: Record<string, unknown> | null): ReceiptAddress {
   return { name, lines, phone: str(a.phone) };
 }
 
+function trnOf(v: unknown): string | null {
+  const t = typeof v === "string" ? v.replace(/[\s.-]/g, "") : "";
+  return /^[0-9]{15}$/.test(t) ? t : null;
+}
+
+function buildBuyer(billing: Record<string, unknown> | null | undefined): ReceiptBuyer | null {
+  if (!billing || billing.type !== "business") return null;
+  const name = str(billing.legal_name);
+  if (!name) return null;
+  return { legalName: name, trn: trnOf(billing.trn) };
+}
+
 export function buildReceiptViewModel(order: OrderWithReceiptRelations): ReceiptViewModel {
   const vendorGroups: ReceiptVendorGroup[] = order.vendorOrders.map((vo) => ({
     vendorName: vo.vendor?.business_name ?? "Vendor",
+    vendorTrn: trnOf(vo.vendor?.trn) ?? trnOf(vo.vendor?.vat_number),
     vendorOrderNumber: vo.vendor_order_number,
     items: vo.items.map((it) => ({
       name: it.product_name,
@@ -121,6 +148,7 @@ export function buildReceiptViewModel(order: OrderWithReceiptRelations): Receipt
     reference: order.order_number,
     dateLabel: formatDate(order.created_at),
     address: buildAddress(order.shipping_address),
+    buyer: buildBuyer(order.billing_address),
     vendorGroups,
     totals,
   };

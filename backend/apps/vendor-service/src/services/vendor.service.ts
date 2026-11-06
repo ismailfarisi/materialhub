@@ -11,6 +11,7 @@ import {
 } from "@materialhub/database";
 import { bumpTokenVersion } from "@materialhub/guards";
 import { HttpError } from "@materialhub/plugins";
+import { checkTrn, isValidTrn } from "@materialhub/utils";
 import { generateSlug } from "@materialhub/utils";
 import { type VendorApplyData, isValidTransition } from "../domain/types.ts";
 import type { PaymentProviderAdapter } from "../providers/payment/payment-provider.interface.ts";
@@ -91,6 +92,10 @@ export class VendorService {
         contact_email: data.businessEmail,
         contact_phone: data.businessPhone,
         vat_number: data.taxRegistrationNumber ?? null,
+        // A UAE TRN given at application also fills the structured TRN.
+        trn: isValidTrn(data.taxRegistrationNumber)
+          ? parseVendorTrn(data.taxRegistrationNumber)
+          : null,
         address: data.businessAddress,
       };
 
@@ -444,6 +449,37 @@ export class VendorService {
     return result;
   }
 
+  /** Vendor dashboard: set or clear the vendor's TRN. Clears verification. */
+  async updateTrn(vendorId: string, input: string | null) {
+    const vendor = await this.findById(vendorId);
+    const trn = parseVendorTrn(input);
+    if (trn !== vendor.trn) {
+      vendor.trn = trn;
+      vendor.trn_verified_at = null;
+      vendor.trn_verified_by = null;
+      if (trn) vendor.vat_registered = true;
+      await this.vendorRepo.save(vendor);
+    }
+    return withTrnStatus(vendor);
+  }
+
+  /** Admin: mark the TRN as checked against the VAT certificate (or undo). */
+  async setTrnVerified(vendorId: string, adminId: string, verified: boolean) {
+    const vendor = await this.findById(vendorId);
+    if (verified) {
+      if (!isValidTrn(vendor.trn)) {
+        throw new HttpError(400, "The vendor has no valid 15-digit TRN", "TRN_INVALID");
+      }
+      vendor.trn_verified_at = new Date();
+      vendor.trn_verified_by = adminId;
+    } else {
+      vendor.trn_verified_at = null;
+      vendor.trn_verified_by = null;
+    }
+    await this.vendorRepo.save(vendor);
+    return withTrnStatus(vendor);
+  }
+
   async updateByAdmin(vendorId: string, updates: Record<string, any>) {
     const vendor = await this.findById(vendorId);
     const originalName = vendor.name;
@@ -483,6 +519,15 @@ export class VendorService {
     for (const key of allowedFields) {
       if (updates[key] !== undefined) {
         (vendor as any)[key] = updates[key];
+      }
+    }
+
+    if (updates.trn !== undefined) {
+      const trn = parseVendorTrn(updates.trn);
+      if (trn !== vendor.trn) {
+        vendor.trn = trn;
+        vendor.trn_verified_at = null;
+        vendor.trn_verified_by = null;
       }
     }
 
@@ -548,4 +593,23 @@ export class VendorService {
     (vendor as any).details_submitted = result.status.detailsSubmitted;
     await this.vendorRepo.save(vendor);
   }
+}
+
+/** Validate a TRN from a form: null/empty clears it, otherwise 15 digits. */
+export function parseVendorTrn(input: unknown): string | null {
+  if (input === null || input === undefined || String(input).trim() === "") return null;
+  const c = checkTrn(String(input));
+  if (!c.ok) {
+    throw new HttpError(
+      400,
+      "A TRN is 15 digits, as printed on the VAT certificate",
+      "TRN_INVALID",
+    );
+  }
+  return c.trn;
+}
+
+/** Vendor with the derived `trn_format_valid` flag the dashboards show. */
+export function withTrnStatus<T extends { trn?: string | null }>(vendor: T) {
+  return { ...vendor, trn_format_valid: isValidTrn(vendor.trn ?? null) };
 }

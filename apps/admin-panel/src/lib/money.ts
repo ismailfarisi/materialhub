@@ -16,3 +16,17 @@ export function parseAedInput(aedInput: string): number | null {
   if (!Number.isFinite(n) || n < 0) return null;
   return Math.round(n * 100);
 }
+
+/**
+ * "AED 12,345.00" — grouped, 2 decimals, for finance tables and tiles where
+ * five- and six-figure amounts need to be read at a glance.
+ */
+export function formatAedGrouped(fils: number | null | undefined): string {
+  if (fils == null) return "—";
+  const sign = fils < 0 ? "−" : "";
+  const aed = (Math.abs(fils) / 100).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return `${sign}AED ${aed}`;
+}

@@ -235,3 +235,17 @@ describe("resolveUpstream", () => {
     expect(estimate!.target).not.toBe(otherVendor!.target);
   });
 });
+
+describe("business accounts routing (workstream 3)", () => {
+  test("admin business accounts go to auth-service", () => {
+    expect(resolveUpstream("/admin/business-accounts/x")!.target).toContain("3001");
+  });
+  test("receivables and invoices go to order-service", () => {
+    const auth = resolveUpstream("/auth")!.target;
+    expect(resolveUpstream("/admin/receivables")!.target).not.toBe(auth);
+    expect(resolveUpstream("/invoices/abc/xml")!.target).toBe(resolveUpstream("/checkout")!.target);
+    expect(resolveUpstream("/admin/receivables")!.target).toBe(
+      resolveUpstream("/checkout")!.target,
+    );
+  });
+});

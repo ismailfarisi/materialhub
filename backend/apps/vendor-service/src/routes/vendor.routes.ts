@@ -94,6 +94,15 @@ export const vendorRoutes = new Elysia({ prefix: "/vendors" })
           }),
         },
       )
+      .patch(
+        "/me/tax",
+        async ({ body, member, vendorController }) => {
+          // TRN printed as the seller TRN on this vendor's VAT tax invoices.
+          const updated = await vendorController.updateTrn(member.vid, body.trn ?? null);
+          return { statusCode: 200, data: updated, timestamp: new Date().toISOString() };
+        },
+        { body: t.Object({ trn: t.Union([t.String({ maxLength: 32 }), t.Null()]) }) },
+      )
       .post("/me/deactivate", async ({ vendorController, user }) => {
         const deactivated = await vendorController.deactivate(user!.id);
         return {

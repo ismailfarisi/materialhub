@@ -20,6 +20,8 @@ export enum PaymentMethod {
   crypto = "crypto",
   tabby = "tabby",
   tamara = "tamara",
+  /** Pay on invoice (net 30/60) for approved business accounts. */
+  net_terms = "net_terms",
 }
 
 export enum GiftCardStatus {

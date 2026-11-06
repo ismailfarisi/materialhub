@@ -100,6 +100,18 @@ export class AdminOrderCancellationService {
     // once the courier collected it — which is exactly when the COD payment is
     // marked `captured` on delivery. Not captured ⇒ nothing was ever paid ⇒
     // nothing to refund. Captured ⇒ credit it back to the customer's wallet.
+    // Net terms: nothing was paid until an admin marks the receivable paid.
+    // Unpaid ⇒ the credit is released by the cancellation hook, no refund.
+    // Paid ⇒ the buyer paid by bank transfer; refund the same way, manually.
+    if (payment?.gateway === "net_terms") {
+      if (payment.status !== PaymentStatus.captured) return null;
+      order.admin_notes = appendAdminNote(
+        order.admin_notes,
+        `Net-terms order cancelled after payment: refund AED ${(amount / 100).toFixed(2)} by bank transfer (${reason})`,
+      );
+      await this.orderRepo.save(order);
+      return { manual: true, method: "bank_transfer", amount };
+    }
     if ((payment as any)?.gateway === "cod") {
       const collected = (payment as any).status === "captured";
       if (!collected) return null;

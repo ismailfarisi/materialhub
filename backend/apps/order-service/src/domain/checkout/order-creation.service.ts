@@ -74,6 +74,10 @@ export class OrderCreationService {
     cartItems: any[];
     shippingAddress: Record<string, unknown>;
     billingAddress?: Record<string, unknown>;
+    /** Business account the buyer ordered for (workstream 3). */
+    businessAccountId?: string | null;
+    /** Buyer TRN snapshotted from the business account. */
+    buyerTrn?: string | null;
     taxTotal: number;
     shippingTotal: number;
     surchargeTotal?: number;
@@ -135,6 +139,8 @@ export class OrderCreationService {
         coupon_discount: data.couponDiscount,
         shipping_address: data.shippingAddress,
         billing_address: data.billingAddress || data.shippingAddress,
+        business_account_id: data.businessAccountId ?? null,
+        buyer_trn: data.buyerTrn ?? null,
         shipping_method: data.shippingMethod || "standard",
         channel: data.channel,
         customer_notes: data.customerNotes,

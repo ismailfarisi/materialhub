@@ -2,6 +2,7 @@ import { config } from "@materialhub/config";
 import { AppDataSource, ensureDatabase } from "@materialhub/database";
 import {
   AuditLog,
+  BusinessOrderApproval,
   Cart,
   CartItem,
   Category,
@@ -41,6 +42,7 @@ import {
   ShippingProvider,
   ShippingRate,
   SiteSetting,
+  TaxInvoice,
   TaxRate,
   User,
   UserAddress,
@@ -62,6 +64,9 @@ import { createClient } from "redis";
 import Stripe from "stripe";
 
 import { Worker as BullWorker, Queue } from "bullmq";
+import { BusinessQuote } from "./domain/business/business-quote.provider.ts";
+import { NetTermsService } from "./domain/business/net-terms.service.ts";
+import { OrderApprovalService } from "./domain/business/order-approval.service.ts";
 import {
   createCartAbandonmentDetectionWorker,
   getCartAbandonmentDetectionQueue,
@@ -120,6 +125,7 @@ import { DisputeController } from "./domain/disputes/dispute.controller.ts";
 import { DisputeService } from "./domain/disputes/dispute.service.ts";
 import { createInvoiceWorker, getOrderInvoicesQueue } from "./domain/invoice/invoice.job.ts";
 import { InvoiceService } from "./domain/invoice/invoice.service.ts";
+import { TaxInvoiceService } from "./domain/invoice/tax-invoice/tax-invoice.service.ts";
 import { AdminOrderCancellationService } from "./domain/order/admin-order-cancellation.service.ts";
 import { getOrderEventQueue } from "./domain/order/order-event.job.ts";
 import { ORDER_EVENT_QUEUE } from "./domain/order/order-event.job.ts";
@@ -322,7 +328,14 @@ const orderStatusService = new OrderStatusService(
   payoutService,
 );
 const invoiceQueue = getOrderInvoicesQueue();
-const invoiceService = new InvoiceService(orderRepo, new MediaService());
+// VAT tax invoices (workstream 3). No ASP is connected: the default
+// transmitter is a no-op (domain/invoice/einvoice/transmitter.ts).
+const taxInvoiceService = new TaxInvoiceService(
+  AppDataSource.getRepository(TaxInvoice),
+  orderRepo,
+  new MediaService(),
+);
+const invoiceService = new InvoiceService(orderRepo, new MediaService(), taxInvoiceService);
 const orderConfirmationService = new OrderConfirmationService(
   orderRepo,
   inventoryReservationRepo,
@@ -332,6 +345,12 @@ const orderConfirmationService = new OrderConfirmationService(
   orderEventQueue,
   couponService,
   invoiceQueue,
+);
+const netTermsService = new NetTermsService(orderRepo, orderConfirmationService);
+orderStatusService.onOrderCancelled((orderId) => netTermsService.releaseForCancelledOrder(orderId));
+const orderApprovalService = new OrderApprovalService(
+  AppDataSource.getRepository(BusinessOrderApproval),
+  cartService,
 );
 const webhookService = new WebhookService(
   webhookEventRepo,
@@ -352,6 +371,7 @@ const quoteService = new QuoteService(
   siteSettingRepo,
   quoteSecret,
   couponService,
+  new BusinessQuote(netTermsService, orderApprovalService),
 );
 const paymentInstrumentsService = new PaymentInstrumentsService(paymentRepo);
 const quoteController = new QuoteController(quoteService, paymentInstrumentsService);
@@ -368,6 +388,7 @@ const checkoutService = new CheckoutService(
   paymentMethodThresholdRepo,
   shippingRateRepo,
   userAddressRepo,
+  { netTerms: netTermsService, approvals: orderApprovalService },
 );
 const checkoutController = new CheckoutController(checkoutService, webhookService);
 
@@ -659,4 +680,7 @@ export const container = new Elysia({ name: "order-service-container" })
   .decorate("refundService", refundService)
   .decorate("paymentRepo", paymentRepo)
   .decorate("commissionService", commissionService)
-  .decorate("invoiceService", invoiceService);
+  .decorate("invoiceService", invoiceService)
+  .decorate("taxInvoiceService", taxInvoiceService)
+  .decorate("netTermsService", netTermsService)
+  .decorate("orderApprovalService", orderApprovalService);

@@ -1,4 +1,5 @@
 import { AppDataSource, UserAddress } from "@materialhub/database";
+import { MediaService } from "@materialhub/utils";
 import { EmailService } from "@materialhub/utils";
 import { Elysia } from "elysia";
 import { AdminPasswordController } from "./controllers/admin-password.controller.ts";
@@ -10,6 +11,7 @@ import { UserAdminController } from "./controllers/user-admin.controller.ts";
 import { AddressPhoneVerificationService } from "./services/address-phone-verification.service.ts";
 import { AddressService } from "./services/address.service.ts";
 import { AuthService } from "./services/auth.service.ts";
+import { BusinessAccountService } from "./services/business-account.service.ts";
 import { PasswordService } from "./services/password.service.ts";
 import { PhoneAuthService } from "./services/phone-auth.service.ts";
 import { createPhoneVerificationProvider } from "./services/phone-verification-provider.ts";
@@ -37,6 +39,13 @@ const twoFactorController = new TwoFactorController(twoFactorService, authServic
 const userAdminService = new UserAdminService();
 const userAdminController = new UserAdminController(userAdminService);
 const adminPasswordController = new AdminPasswordController(passwordService, emailService);
+const businessAccountService = new BusinessAccountService(
+  undefined,
+  undefined,
+  undefined,
+  undefined,
+  new MediaService(),
+);
 
 export const container = new Elysia({ name: "auth-service-container" })
   .decorate("authController", authController)
@@ -46,4 +55,5 @@ export const container = new Elysia({ name: "auth-service-container" })
   .decorate("userAdminController", userAdminController)
   .decorate("adminPasswordController", adminPasswordController)
   .decorate("addressPhoneVerificationService", addressPhoneVerificationService)
-  .decorate("addressService", addressService);
+  .decorate("addressService", addressService)
+  .decorate("businessAccountService", businessAccountService);

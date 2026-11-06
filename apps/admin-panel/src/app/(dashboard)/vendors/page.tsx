@@ -17,6 +17,7 @@ import {
   Skeleton,
 } from "@materialhub/ui";
 import { useVendors } from "@/lib/queries/vendors";
+import { TrnValue } from "@/components/business/trn-value";
 
 interface Vendor {
   id: string;
@@ -25,6 +26,9 @@ interface Vendor {
   status: string;
   contact_email: string;
   created_at: string;
+  trn?: string | null;
+  trn_verified_at?: string | null;
+  trn_format_valid?: boolean;
 }
 
 const STATUS_OPTIONS = [
@@ -101,6 +105,24 @@ export default function VendorsPage() {
     {
       accessorKey: "business_name",
       header: "Business Name",
+    },
+    {
+      id: "trn",
+      header: "TRN",
+      cell: ({ row }) => (
+        <div className="space-y-0.5">
+          <TrnValue
+            trn={row.original.trn}
+            formatValid={!!row.original.trn_format_valid}
+            emptyLabel="—"
+          />
+          {row.original.trn && (
+            <p className="text-xs text-taupe">
+              {row.original.trn_verified_at ? "Verified" : "Not verified"}
+            </p>
+          )}
+        </div>
+      ),
     },
     {
       accessorKey: "status",

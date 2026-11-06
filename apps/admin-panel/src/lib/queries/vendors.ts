@@ -381,3 +381,23 @@ export async function fetchKycSignedUrl(s3Key: string): Promise<string> {
 	// The /media/* routes return data unwrapped (no { statusCode, data } envelope).
 	return data.url;
 }
+
+/**
+ * Marks a vendor's TRN as checked (or clears it). The TRN is printed as the
+ * seller TRN on every VAT tax invoice for that vendor's sub-orders.
+ */
+export function useVendorTrnVerification() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: async ({ id, verified }: { id: string; verified: boolean }) => {
+			const { data } = await api.post(`/admin/vendors/${id}/trn-verification`, {
+				verified,
+			});
+			return data.data;
+		},
+		onSuccess: (_data, { id }) => {
+			queryClient.invalidateQueries({ queryKey: ["admin", "vendors"] });
+			queryClient.invalidateQueries({ queryKey: ["admin", "vendors", id] });
+		},
+	});
+}

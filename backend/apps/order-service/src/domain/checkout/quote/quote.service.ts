@@ -40,6 +40,23 @@ export interface QuoteResult {
   rulesEpoch: number;
 }
 
+export interface BusinessQuoteProvider {
+  /**
+   * Given the buyer, the goods total (subtotal − discount), the grand total and
+   * the cart hash, return the net_terms payment method (or null when the buyer
+   * has no approved terms) and the business block (or null for retail).
+   */
+  forQuote(input: {
+    userId: string;
+    goodsTotalFils: number;
+    grandTotalFils: number;
+    cartHash: string;
+  }): Promise<{
+    paymentMethod: CheckoutQuoteResponse["payment_methods"][number] | null;
+    business: NonNullable<CheckoutQuoteResponse["business"]> | null;
+  }>;
+}
+
 export class QuoteService {
   constructor(
     private cartService: CartService,
@@ -51,6 +68,9 @@ export class QuoteService {
     private siteSettingRepo: Repository<SiteSetting>,
     private secret: string,
     private couponService?: CouponService,
+    // Business accounts (workstream 3): adds the net_terms payment method and
+    // the `business` block. Optional so retail-only setups and tests skip it.
+    private businessQuote?: BusinessQuoteProvider | null,
   ) {}
 
   async buildQuote(req: QuoteRequest): Promise<QuoteResult> {
@@ -270,6 +290,24 @@ export class QuoteService {
     // VAT is already in subtotalFils (extracted above for display only).
     const grandTotalFils = Math.max(0, subtotalFils + shippingFils + surchargeFils - discountFils);
 
+    let businessBlock: CheckoutQuoteResponse["business"] | null = null;
+    if (this.businessQuote && userId) {
+      try {
+        const b = await this.businessQuote.forQuote({
+          userId,
+          goodsTotalFils: subtotalFils - discountFils,
+          // Net terms carry no surcharge (the default method's may be COD's).
+          grandTotalFils: grandTotalFils - surchargeFils,
+          cartHash,
+        });
+        if (b.paymentMethod) paymentMethods.push(b.paymentMethod);
+        businessBlock = b.business;
+      } catch (err) {
+        // Never fail the quote over the business add-on; checkout re-checks.
+        console.error("[quote] business context failed", { userId, error: String(err) });
+      }
+    }
+
     if (!paymentMethods.some((p) => p.available)) {
       blockingError = {
         code: "no_eligible_payment_methods",
@@ -366,6 +404,7 @@ export class QuoteService {
       compatibility,
       notices: [],
       ...(blockingError ? { blocking_error: blockingError } : {}),
+      ...(businessBlock ? { business: businessBlock } : {}),
     };
 
     return { response, etag, cartHash, rulesEpoch };

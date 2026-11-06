@@ -101,3 +101,19 @@ describe("creator_portfolio_video asset type", () => {
     expect(() => buildAssetKey("creator_portfolio_video", "clip.mp4")).toThrow(/requires userId/);
   });
 });
+
+describe("business_licence asset type", () => {
+  it("is private, user-scoped and accepts PDF and images", () => {
+    expect(isAssetType("business_licence")).toBe(true);
+    const cfg = ASSET_TYPE_CONFIG.business_licence;
+    expect(cfg.bucketKind).toBe("private");
+    expect(cfg.requiresUserId).toBe(true);
+    expect(cfg.allowedContentTypes).toContain("application/pdf");
+  });
+
+  it("keys live under private/business/<userId>/", () => {
+    const key = buildAssetKey("business_licence", "licence 2026.pdf", { userId: "u-9" });
+    expect(key.startsWith("private/business/u-9/")).toBe(true);
+    expect(key.endsWith("/licence_2026.pdf")).toBe(true);
+  });
+});
