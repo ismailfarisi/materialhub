@@ -60,6 +60,7 @@ export class BusinessQuote implements BusinessQuoteProvider {
         role: ctx.role,
         verification_status: ctx.verificationStatus,
         approval_threshold_fils: ctx.approvalThresholdFils,
+        terms: credit?.terms ?? null,
         approval_required: approvalRequired && approval?.status !== "approved",
         approval,
         net_terms:

@@ -98,6 +98,8 @@ const BusinessQuote = Type.Object({
   role: Type.Union([Type.Literal("admin"), Type.Literal("approver"), Type.Literal("buyer")]),
   verification_status: Type.String(),
   approval_threshold_fils: Type.Union([Type.Integer(), Type.Null()]),
+  // Net terms period whenever the business has a credit account, else null.
+  terms: Type.Union([Type.Literal("net_30"), Type.Literal("net_60"), Type.Null()]),
   approval_required: Type.Boolean(),
   approval: Type.Union([Type.Object({ id: Type.String(), status: Type.String() }), Type.Null()]),
   net_terms: Type.Union([

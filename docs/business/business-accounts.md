@@ -151,7 +151,7 @@ Approval = {
   `reason_key` is `payment.net_terms.over_credit` (params `available`: money),
   `payment.net_terms.overdue` or `payment.net_terms.not_verified`.
 - The quote has a new optional `business` block:
-  `{ legal_name, trn, billing_address, role, approval_threshold_fils, approval_required: boolean, approval: { id, status } | null }`.
+  `{ legal_name, trn, billing_address, role, verification_status, approval_threshold_fils, terms: "net_30" | "net_60" | null, approval_required: boolean, approval: { id, status } | null, net_terms: { terms, status, credit_limit_fils, available_fils } | null }`.
   The checkout billing step shows it (legal name and TRN on the invoice).
 - `POST /checkout/initiate` with `payment_method: "net_terms"` re-runs the credit check.
   For business members the server always snapshots the buyer's legal name, TRN and billing
