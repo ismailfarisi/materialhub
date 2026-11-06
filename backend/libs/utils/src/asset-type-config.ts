@@ -6,6 +6,7 @@ export type MediaAssetType =
   | "vendor_logo"
   | "vendor_banner"
   | "kyc_document"
+  | "eco_certificate"
   | "category_image"
   | "category_icon"
   | "category_banner"
@@ -118,6 +119,18 @@ export const ASSET_TYPE_CONFIG: Record<MediaAssetType, AssetTypeConfig> = {
   kyc_document: {
     bucketKind: "private",
     keyPrefix: "private/kyc/{vendorId}/",
+    allowedContentTypes: ["image/jpeg", "image/png", "application/pdf"],
+    maxBytes: 10 * 1024 * 1024,
+    process: "none",
+    requiresVendorId: true,
+    requiresUserId: false,
+  },
+  // Eco catalogue: certificate backing a vendor's plastic-ban ready
+  // declaration (FSC/PEFC chain of custody, compostability, test report).
+  // Private: only the owning vendor and admins get short-lived signed URLs.
+  eco_certificate: {
+    bucketKind: "private",
+    keyPrefix: "private/eco-certificates/{vendorId}/",
     allowedContentTypes: ["image/jpeg", "image/png", "application/pdf"],
     maxBytes: 10 * 1024 * 1024,
     process: "none",

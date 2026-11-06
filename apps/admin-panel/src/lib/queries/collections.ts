@@ -15,6 +15,8 @@ export interface CollectionRules {
     price_min?: number;
     price_max?: number;
     in_stock?: boolean;
+    /** Only products whose plastic-ban ready declaration an admin approved. */
+    plastic_ban_ready?: boolean;
   };
 }
 

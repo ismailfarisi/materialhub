@@ -6,7 +6,6 @@ import {
   Product,
   ProductAttributeValue,
   ProductCategory,
-  ProductGroup,
   ProductGroupMember,
   ProductImage,
   ProductTranslation,
@@ -18,6 +17,7 @@ import { HttpError } from "@materialhub/plugins";
 import { generateSlug } from "@materialhub/utils";
 import { type EntityManager, In, IsNull, Not, type Repository } from "typeorm";
 import { categoryDescendantPredicate } from "../category/category-descendant.sql.ts";
+import { toPublicEcoDeclaration } from "../eco/eco-declaration.service.ts";
 import { enqueueSearchSync } from "../search/search-sync.job.ts";
 import type { SearchService } from "../search/search.interface.ts";
 import type { TrendingSearchService } from "../search/trending.service.ts";
@@ -74,6 +74,7 @@ export class ProductService {
     "attributeValues",
     "attributeValues.attribute",
     "attributeValues.attributeValue",
+    "ecoDeclaration",
   ];
 
   async reindexProduct(productId: string): Promise<void> {
@@ -525,9 +526,12 @@ export class ProductService {
         "attributeValues",
         "attributeValues.attribute",
         "attributeValues.attributeValue",
+        "ecoDeclaration",
       ],
     });
     if (!product) throw new HttpError(404, "Product not found", "PRODUCT_NOT_FOUND");
+    // Storefront-safe: only an approved declaration, never the certificate key.
+    (product as any).ecoDeclaration = toPublicEcoDeclaration(product.ecoDeclaration);
 
     // Compute stock from inventory
     const totalAvailable = ((product as any).inventoryRecords || []).reduce(
@@ -554,9 +558,11 @@ export class ProductService {
         "attributeValues",
         "attributeValues.attribute",
         "attributeValues.attributeValue",
+        "ecoDeclaration",
       ],
     });
     if (!product) throw new HttpError(404, "Product not found", "PRODUCT_NOT_FOUND");
+    (product as any).ecoDeclaration = toPublicEcoDeclaration(product.ecoDeclaration);
 
     return product;
   }
@@ -626,6 +632,10 @@ export class ProductService {
 
   async search(filters: any) {
     filters.query = filters.query ?? filters.q;
+    // Eco catalogue: `?plastic_ban_ready=true` → approved declarations only.
+    if (filters.plastic_ban_ready === true || filters.plastic_ban_ready === "true") {
+      filters.plasticBanReady = true;
+    }
 
     if (typeof filters.ids === "string") {
       filters.ids = filters.ids

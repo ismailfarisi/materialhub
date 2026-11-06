@@ -135,6 +135,17 @@ export function RuleBuilder({ value, onChange }: RuleBuilderProps) {
         />
         In stock only
       </label>
+
+      <div className="flex items-center gap-2 text-sm text-cacao">
+        <Switch
+          id="rule-plastic-ban-ready"
+          checked={c.plastic_ban_ready ?? false}
+          onCheckedChange={(v: boolean) => emit({ ...c, plastic_ban_ready: v || undefined })}
+        />
+        <label htmlFor="rule-plastic-ban-ready">
+          Plastic-ban ready only (approved vendor declarations)
+        </label>
+      </div>
     </div>
   );
 }

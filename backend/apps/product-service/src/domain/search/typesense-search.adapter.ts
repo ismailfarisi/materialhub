@@ -5,6 +5,8 @@ import type { ProductFilters, SearchService, SuggestProduct } from "./search.int
 import {
   type CategoryAncestors,
   type GroupInfoForIndex,
+  RANGE_FACET_FIELDS,
+  attributeFilterField,
   productCollectionSchema,
   productToDocument,
 } from "./typesense.collection.ts";
@@ -163,6 +165,7 @@ export class TypesenseSearchAdapter implements SearchService {
       }
     }
     if (filters.inStock != null) filterParts.push(`in_stock:=${filters.inStock}`);
+    if (filters.plasticBanReady === true) filterParts.push("plastic_ban_ready:=true");
     if (filters.tags?.length) {
       filterParts.push(`tags:=[${filters.tags.join(",")}]`);
     }
@@ -186,12 +189,16 @@ export class TypesenseSearchAdapter implements SearchService {
           case "radio":
             filterParts.push(`attributes:=${attr.attributeId}:${attr.valueId}`);
             break;
-          case "range":
-            if (attr.min != null) filterParts.push(`attr_${attr.attributeSlug}:>=${attr.min}`);
-            if (attr.max != null) filterParts.push(`attr_${attr.attributeSlug}:<=${attr.max}`);
+          case "range": {
+            const field = attributeFilterField(attr.attributeSlug);
+            if (attr.min != null && Number.isFinite(attr.min))
+              filterParts.push(`${field}:>=${attr.min}`);
+            if (attr.max != null && Number.isFinite(attr.max))
+              filterParts.push(`${field}:<=${attr.max}`);
             break;
+          }
           case "toggle":
-            filterParts.push(`attr_${attr.attributeSlug}:=${attr.value}`);
+            filterParts.push(`${attributeFilterField(attr.attributeSlug)}:=${attr.value}`);
             break;
         }
       }
@@ -220,7 +227,10 @@ export class TypesenseSearchAdapter implements SearchService {
       query_by: "name,description,tags,category_name,brand_name",
       filter_by: filterParts.join(" && "),
       sort_by: sortBy,
-      facet_by: "category_name,brand_slug,attributes,vendor_slug,in_stock",
+      facet_by: [
+        "category_name,brand_slug,attributes,vendor_slug,in_stock,plastic_ban_ready",
+        ...RANGE_FACET_FIELDS,
+      ].join(","),
       max_facet_values: 50,
       per_page: filters.limit || 20,
       page: filters.cursor ? Number(filters.cursor) : 1,
@@ -240,8 +250,21 @@ export class TypesenseSearchAdapter implements SearchService {
     const hasMore = page * params.per_page < (result.found || 0);
 
     const rawFacets: Record<string, Array<{ value: string; count: number }>> = {};
+    const rangeStats: Record<string, { min: number; max: number }> = {};
     if (result.facet_counts) {
       for (const fc of result.facet_counts as any[]) {
+        if (RANGE_FACET_FIELDS.includes(fc.field_name)) {
+          const st = fc.stats;
+          if (
+            st &&
+            Number.isFinite(st.min) &&
+            Number.isFinite(st.max) &&
+            (st.total_values ?? 1) > 0
+          ) {
+            rangeStats[fc.field_name] = { min: Number(st.min), max: Number(st.max) };
+          }
+          continue;
+        }
         rawFacets[fc.field_name] = fc.counts.map((c: any) => ({
           value: c.value,
           count: c.count,
@@ -251,10 +274,10 @@ export class TypesenseSearchAdapter implements SearchService {
 
     const brandFacets = await this.hydrateBrandFacets(rawFacets.brand_slug ?? []);
     const vendorFacets = await this.hydrateVendorFacets(rawFacets.vendor_slug ?? []);
-    const attributeFacets = await this.hydrateAttributeFacets(
-      rawFacets.attributes ?? [],
-      filters.locale,
-    );
+    const attributeFacets = [
+      ...(await this.hydrateAttributeFacets(rawFacets.attributes ?? [], filters.locale)),
+      ...(await this.hydrateRangeFacets(rangeStats, filters.locale)),
+    ];
 
     const facets = {
       ...rawFacets,
@@ -383,6 +406,59 @@ export class TypesenseSearchAdapter implements SearchService {
           values,
         };
       });
+  }
+
+  /**
+   * Range attributes (e.g. bag thickness in microns) have no value rows, so
+   * they never appear in the `attributes` bucket. Surface them from the
+   * numeric `attr_*` facet stats so the rail can draw a min/max filter.
+   */
+  async hydrateRangeFacets(
+    stats: Record<string, { min: number; max: number }>,
+    locale?: string | null,
+  ): Promise<
+    Array<{
+      key: string;
+      attributeId: string;
+      name: string;
+      filter_input_type: string | null;
+      values: never[];
+      min: number;
+      max: number;
+    }>
+  > {
+    const fields = Object.keys(stats);
+    if (!fields.length) return [];
+    const { AppDataSource, Attribute, AttributeTranslation } = await import(
+      "@materialhub/database"
+    );
+    const attrs = await AppDataSource.getRepository(Attribute).find({
+      where: { filter_input_type: "range" as any, is_filterable: true },
+    });
+    const matched = attrs.filter((a) => fields.includes(attributeFilterField(a.slug)));
+    if (!matched.length) return [];
+    const names =
+      normalizeLocale(locale) === "ar"
+        ? new Map(
+            (
+              await AppDataSource.getRepository(AttributeTranslation).find({
+                where: matched.map((a) => ({ attribute_id: a.id, locale: "ar" })),
+              })
+            ).map((tr: any) => [tr.attribute_id, tr.name]),
+          )
+        : new Map<string, string>();
+    return matched.map((a) => {
+      const st = stats[attributeFilterField(a.slug)]!;
+      return {
+        key: a.slug,
+        attributeId: a.id,
+        name: names.get(a.id) ?? a.name,
+        filter_input_type: "range",
+        values: [],
+        min: st.min,
+        max: st.max,
+      };
+    });
   }
 
   private async hydrateBrandFacets(

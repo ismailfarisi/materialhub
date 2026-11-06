@@ -1,6 +1,7 @@
 "use client";
 
 import { ProductForm } from "@/components/products/ProductForm";
+import { EcoDeclarationNotice } from "@/components/products/eco/EcoDeclarationPanel";
 
 export default function NewProductPage() {
   return (
@@ -12,6 +13,7 @@ export default function NewProductPage() {
         </p>
       </div>
       <ProductForm />
+      <EcoDeclarationNotice />
     </div>
   );
 }

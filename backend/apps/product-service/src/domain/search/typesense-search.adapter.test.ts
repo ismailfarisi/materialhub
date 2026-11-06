@@ -126,7 +126,9 @@ describe("TypesenseSearchAdapter", () => {
   it("facets on slug-backed brand and vendor fields for filter values", () => {
     const adapter = new TypesenseSearchAdapter();
     const params = (adapter as any).buildSearchParams({});
-    expect(params.facet_by).toBe("category_name,brand_slug,attributes,vendor_slug,in_stock");
+    expect(params.facet_by).toBe(
+      "category_name,brand_slug,attributes,vendor_slug,in_stock,plastic_ban_ready,attr_bag_thickness_microns",
+    );
   });
 
   it("builds filter for inStock", () => {
@@ -327,5 +329,58 @@ describe("collectIds pagination", () => {
     const fetchPage = async (page: number) => ({ ids: pages[page] ?? [], found: 5 });
     const ids = await collectIds(fetchPage, { cap: 4, perPage: 3 });
     expect(ids).toEqual(["a", "b", "c", "d"]); // capped at 4
+  });
+});
+
+describe("buildSearchParams — eco catalogue", () => {
+  const adapter = new TypesenseSearchAdapter();
+  it("filters on admin-approved plastic-ban ready declarations", () => {
+    const params = adapter.buildSearchParams({ plasticBanReady: true });
+    expect(params.filter_by).toContain("plastic_ban_ready:=true");
+  });
+  it("omits the clause when the filter is off", () => {
+    expect(adapter.buildSearchParams({}).filter_by).not.toContain("plastic_ban_ready");
+    expect(adapter.buildSearchParams({ plasticBanReady: false }).filter_by).not.toContain(
+      "plastic_ban_ready",
+    );
+  });
+  it("facets on plastic_ban_ready", () => {
+    expect(adapter.buildSearchParams({}).facet_by).toContain("plastic_ban_ready");
+  });
+  it("maps hyphenated range slugs onto the attr_ field name", () => {
+    const params = adapter.buildSearchParams({
+      attributes: [{ kind: "range", attributeSlug: "bag-thickness-microns", min: 50 }],
+    } as any);
+    expect(params.filter_by).toContain("attr_bag_thickness_microns:>=50");
+    expect(params.filter_by).not.toContain("<=");
+  });
+});
+
+describe("hydrateRangeFacets — eco catalogue", () => {
+  it("turns numeric attr_ facet stats into a range attribute facet", async () => {
+    (mockAttributes as any[]).push({
+      id: "attr-bag",
+      slug: "bag-thickness-microns",
+      name: "Bag thickness (microns)",
+      filter_input_type: "range",
+      values: [],
+    });
+    const adapter = new TypesenseSearchAdapter();
+    const out = await adapter.hydrateRangeFacets({
+      attr_bag_thickness_microns: { min: 40, max: 110 },
+    });
+    expect(out).toEqual([
+      {
+        key: "bag-thickness-microns",
+        attributeId: "attr-bag",
+        name: "Bag thickness (microns)",
+        filter_input_type: "range",
+        values: [],
+        min: 40,
+        max: 110,
+      },
+    ]);
+    expect(await adapter.hydrateRangeFacets({})).toEqual([]);
+    (mockAttributes as any[]).pop();
   });
 });

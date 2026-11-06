@@ -32,6 +32,11 @@ export const productCollectionSchema: CollectionCreateSchema = {
     { name: "is_group_primary", type: "bool", optional: true },
     { name: "group_swatches", type: "string[]", optional: true },
     { name: "group_from_price", type: "int32", optional: true },
+    // Eco catalogue. `plastic_ban_ready` is true only when admin approved the
+    // vendor's declaration. `attr_*` fields back the generic `range` / `toggle`
+    // attribute filters (see attributeFilterField in typesense-search.adapter).
+    { name: "plastic_ban_ready", type: "bool", facet: true, optional: true },
+    { name: "attr_bag_thickness_microns", type: "int32", facet: true, optional: true },
   ],
   token_separators: ["-", "/"],
   enable_nested_fields: false,
@@ -72,6 +77,50 @@ export interface ProductDocument {
   is_group_primary?: boolean;
   group_swatches?: string[];
   group_from_price?: number;
+  plastic_ban_ready?: boolean;
+  /** Typed attribute values for range / toggle filters, keyed `attr_<slug_with_underscores>`. */
+  [attrField: `attr_${string}`]: number | boolean | undefined;
+}
+
+/** Numeric `attr_*` fields declared in the schema; faceted so range filters get min/max. */
+export const RANGE_FACET_FIELDS: string[] = (
+  productCollectionSchema.fields as Array<{ name: string; type: string }>
+)
+  .filter((f) => f.name.startsWith("attr_") && (f.type === "int32" || f.type === "float"))
+  .map((f) => f.name);
+
+/** Typesense field name for a range/toggle attribute: `attr_` + slug with `-` → `_`. */
+export function attributeFilterField(slug: string): `attr_${string}` {
+  return `attr_${slug.replace(/[^a-zA-Z0-9_]/g, "_")}`;
+}
+
+/**
+ * Typed values for `number` and `boolean` attributes, which are stored as
+ * `text_value` rather than an attribute value row, so the `range` / `toggle`
+ * filters can query them. Only fields declared in the collection schema are
+ * indexed; others are stored but ignored by Typesense.
+ */
+export function typedAttributeFields(
+  attributeValues: any[] | undefined,
+): Record<`attr_${string}`, number | boolean> {
+  const out: Record<`attr_${string}`, number | boolean> = {};
+  for (const av of attributeValues ?? []) {
+    const attr = av?.attribute;
+    if (!attr?.slug || av.variant_id || av.text_value == null) continue;
+    const raw = String(av.text_value).trim();
+    if (attr.type === "number") {
+      const n = Number(raw);
+      if (raw !== "" && Number.isFinite(n)) out[attributeFilterField(attr.slug)] = Math.round(n);
+    } else if (attr.type === "boolean") {
+      if (raw === "true" || raw === "false") out[attributeFilterField(attr.slug)] = raw === "true";
+    }
+  }
+  return out;
+}
+
+/** True only for an admin-approved plastic-ban ready declaration. */
+export function isPlasticBanReady(product: any): boolean {
+  return product?.ecoDeclaration?.status === "approved";
 }
 
 export interface GroupInfoForIndex {
@@ -173,6 +222,8 @@ export function productToDocument(
     images: images.length > 0 ? images : undefined,
     status: product.status,
     created_at: Math.floor(new Date(product.created_at).getTime() / 1000),
+    plastic_ban_ready: isPlasticBanReady(product),
+    ...typedAttributeFields(product.attributeValues),
   };
 
   if (groupInfo) {

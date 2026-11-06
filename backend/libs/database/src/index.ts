@@ -3,6 +3,7 @@ import "reflect-metadata";
 export { AppDataSource } from "./data-source.ts";
 export * from "./enums.ts";
 export * from "./entities/index.ts";
+export * from "./eco/eco-catalogue.ts";
 
 import { AppDataSource } from "./data-source.ts";
 

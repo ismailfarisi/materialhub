@@ -1,6 +1,7 @@
 "use client";
 
 import { CategoryIndex } from "@/components/category/category-index";
+import { plasticBanFacetCount } from "@/components/eco";
 import { computeActiveFilters } from "@/components/product/filter-state";
 import { ListingHeader } from "@/components/product/listing-header";
 import { buildSearchListingParams } from "@/components/product/listing-params";
@@ -31,6 +32,7 @@ function SearchContent() {
 			vendors: data?.facets?.vendors || [],
 			attributes: data?.facets?.attributes || [],
 			priceRange: data?.facets?.priceRange || { min: 0, max: 100000 },
+			plasticBanReady: plasticBanFacetCount(data?.facets),
 		}),
 		[data?.facets],
 	);

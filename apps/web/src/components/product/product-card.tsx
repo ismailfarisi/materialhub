@@ -5,6 +5,7 @@ import { useAddToCart } from "@/lib/queries/cart";
 import { cn } from "@/lib/utils";
 import { useCartStore } from "@/stores/cart";
 import { usePreferencesStore } from "@/stores/preferences";
+import { EcoCardBadge } from "@/components/eco";
 import { PriceTag, SwatchCard, stockFor } from "@/components/swatch";
 import { Heart, Plus, Star } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -32,6 +33,8 @@ interface Product {
 	group_swatches?: string[];
 	group_from_price?: number;
 	group_listing_mode?: string;
+	/** Eco catalogue: true only for an admin-approved plastic-ban declaration. */
+	plastic_ban_ready?: boolean;
 }
 
 interface ProductCardProps {
@@ -183,6 +186,9 @@ export function ProductCard({
 						{product.name}
 					</Link>
 				</h3>
+
+				{/* Eco catalogue insertion point: renders only for plastic-ban ready products. */}
+				<EcoCardBadge product={product} />
 
 				{product.group_swatches && product.group_swatches.length > 0 && (
 					<div className="flex items-center gap-1">

@@ -8,6 +8,8 @@ export interface FacetConfig {
 	/** Reuses the @materialhub/ui AttributeFilter shape (key, name, values…) */
 	attributes: AttributeFilter[];
 	priceRange: { min: number; max: number };
+	/** Eco catalogue: results with an approved plastic-ban declaration. */
+	plasticBanReady?: number;
 }
 
 export interface ActivePill {
@@ -146,8 +148,13 @@ export function computeActiveFilters(
 		});
 	}
 
+	// Eco catalogue: the chip label is translated by ActiveFilterPills.
+	if (params.get("plastic_ban_ready") === "true") {
+		pills.push({ group: "plastic_ban_ready", value: "true", label: "Plastic-ban ready" });
+	}
+
 	for (const [key, raw] of params.entries()) {
-		if (NON_FILTER_PARAMS.has(key)) continue;
+		if (NON_FILTER_PARAMS.has(key) || key === "plastic_ban_ready") continue;
 		if (
 			[
 				"brand",

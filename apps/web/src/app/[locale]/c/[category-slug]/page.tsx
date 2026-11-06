@@ -1,4 +1,5 @@
 import { CategoryFooterLayout } from "@/components/category/category-footer-layout";
+import { plasticBanFacetCount } from "@/components/eco";
 import { HeroBanner } from "@/components/home/hero-banner";
 import { computeActiveFilters } from "@/components/product/filter-state";
 import { ListingHeader } from "@/components/product/listing-header";
@@ -195,6 +196,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
 		vendors: productsRes.facets?.vendors || [],
 		attributes: productsRes.facets?.attributes || [],
 		priceRange: productsRes.facets?.priceRange || { min: 0, max: 100000 },
+		plasticBanReady: plasticBanFacetCount(productsRes.facets),
 	};
 
 	const initialParams = new URLSearchParams(filters as Record<string, string>);

@@ -83,6 +83,11 @@ const navItems = [
 				icon: <Tag size={20} />,
 			},
 			{
+				label: "Plastic-ban Declarations",
+				href: "/catalog/eco-declarations",
+				icon: <ShieldCheck size={20} />,
+			},
+			{
 				label: "Attributes",
 				href: "/catalog/attributes",
 				icon: <Sliders size={20} />,
@@ -245,6 +250,7 @@ const SEGMENT_LABEL_OVERRIDES: Record<string, string> = {
 	"role-permissions": "Role Permissions",
 	"header-navigation": "Header Navigation",
 	"brand-submissions": "Brand Submissions",
+	"eco-declarations": "Plastic-ban Declarations",
 	"sales-channels": "Sales Channels",
 	"pending-writes": "Pending Writes",
 };

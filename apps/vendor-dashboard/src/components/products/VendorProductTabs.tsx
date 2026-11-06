@@ -5,6 +5,7 @@ import { InventoryPanel } from "./InventoryPanel";
 import { ProductForm } from "./ProductForm";
 import { ProductGroupPanel } from "./ProductGroupPanel";
 import { VendorMediaTab } from "./VendorMediaTab";
+import { EcoDeclarationPanel } from "./eco/EcoDeclarationPanel";
 
 interface Props {
 	productId: string;
@@ -28,6 +29,7 @@ export function VendorProductTabs({
 				<TabsTrigger value="seo">SEO</TabsTrigger>
 				<TabsTrigger value="editorial">Editorial</TabsTrigger>
 				<TabsTrigger value="color-group">Color group</TabsTrigger>
+				<TabsTrigger value="eco">Plastic-ban ready</TabsTrigger>
 			</TabsList>
 
 			<TabsContent value="details">
@@ -88,6 +90,9 @@ export function VendorProductTabs({
 				<div className="py-4">
 					<ProductGroupPanel productId={productId} />
 				</div>
+			</TabsContent>
+			<TabsContent value="eco">
+				<EcoDeclarationPanel productId={productId} />
 			</TabsContent>
 		</Tabs>
 	);

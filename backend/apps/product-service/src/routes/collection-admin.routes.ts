@@ -19,6 +19,7 @@ const rulesSchema = t.Optional(
         price_min: t.Optional(t.Number()),
         price_max: t.Optional(t.Number()),
         in_stock: t.Optional(t.Boolean()),
+        plastic_ban_ready: t.Optional(t.Boolean()),
       }),
     }),
     t.Null(),

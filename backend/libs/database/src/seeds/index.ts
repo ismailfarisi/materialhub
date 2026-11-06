@@ -8,6 +8,7 @@ import { TaxRate } from "../entities/tax-rate.entity.ts";
 import { User } from "../entities/user.entity.ts";
 import { Warehouse } from "../entities/warehouse.entity.ts";
 import { UserRole, UserStatus } from "../enums/user.enums.ts";
+import { seedEcoCatalogue } from "./eco-catalogue.seed.ts";
 
 async function seed() {
   const ds = await AppDataSource.initialize();
@@ -364,6 +365,9 @@ async function seed() {
   } else {
     console.log("  – Default platform hub warehouse already exists, skipping");
   }
+
+  // ── Eco catalogue: compliance attributes, food-service packaging ─
+  await seedEcoCatalogue(ds);
 
   await ds.destroy();
   console.log("Seeding complete.");

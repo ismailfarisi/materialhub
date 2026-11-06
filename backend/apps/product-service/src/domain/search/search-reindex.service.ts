@@ -93,6 +93,7 @@ export class SearchReindexService {
           "attributeValues",
           "attributeValues.attribute",
           "attributeValues.attributeValue",
+          "ecoDeclaration",
         ],
         skip: offset,
         take: BATCH_SIZE,
