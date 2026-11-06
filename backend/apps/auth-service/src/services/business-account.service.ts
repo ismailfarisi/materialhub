@@ -424,10 +424,11 @@ export class BusinessAccountService {
       );
     }
     // Work queue order: pending reviews and open applications first.
-    qb.orderBy(
+    qb.addSelect(
       `CASE WHEN b.verification_status = 'pending' OR c.status = 'applied' THEN 0 ELSE 1 END`,
-      "ASC",
+      "review_first",
     )
+      .orderBy("review_first", "ASC")
       .addOrderBy("b.created_at", "DESC")
       .skip((page - 1) * limit)
       .take(limit);
