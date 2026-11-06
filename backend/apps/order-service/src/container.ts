@@ -745,7 +745,6 @@ export const container = new Elysia({ name: "order-service-container" })
   .decorate("commissionService", commissionService)
   .decorate("invoiceService", invoiceService)
   .decorate("quoteRequestService", quoteRequestService)
-
   .decorate("taxInvoiceService", taxInvoiceService)
   .decorate("netTermsService", netTermsService)
   .decorate("orderApprovalService", orderApprovalService);

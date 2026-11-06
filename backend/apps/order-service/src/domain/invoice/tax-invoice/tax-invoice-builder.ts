@@ -58,6 +58,7 @@ export const UNIT_CODES: Record<string, string> = {
   roll: "XRO",
   pack: "XPK",
   carton: "XCT",
+  box: "XBX",
   metre: "MTR",
   kg: "KGM",
 };

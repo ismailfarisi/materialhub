@@ -21,6 +21,7 @@ import {
   VendorMember,
 } from "@materialhub/database";
 import { CartService } from "../cart/cart.service.ts";
+import { noTradePricing } from "../cart/pricing/cart-pricing.service.ts";
 import { QuoteRequestService } from "./quote-request.service.ts";
 
 let dbUp = false;
@@ -133,6 +134,7 @@ suite("QuoteRequestService (Postgres)", () => {
       AppDataSource.getRepository(Product),
       AppDataSource.getRepository(ProductVariant),
       fakeRedis,
+      noTradePricing,
       AppDataSource.getRepository(QuoteResponse),
     );
     service = new QuoteRequestService(

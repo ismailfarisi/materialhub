@@ -270,6 +270,7 @@ export class DeliveryEstimateService {
         const wh = warehouses[i];
         const base = { vendor_id: g.vendor_id ?? null, warehouse_id: g.warehouse_id ?? null };
         if (wh instanceof Error) return { ...base, estimate: null, error: wh.message };
+        if (!wh) return { ...base, estimate: null, error: "Warehouse not found" };
         try {
           const override = await this.handlingOverride(g.product_ids);
           const estimate = this.compute(
