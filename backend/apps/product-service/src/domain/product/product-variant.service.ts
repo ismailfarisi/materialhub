@@ -3,6 +3,7 @@ import { HttpError } from "@materialhub/plugins";
 import type { AttributeService } from "../attribute/attribute.service.ts";
 import type { InventoryService } from "../inventory/inventory.service.ts";
 import { enqueueSearchSync } from "../search/search-sync.job.ts";
+import { validateTradeTerms } from "../trade/trade-pricing.validation.ts";
 
 const MAX_VARIANTS = 100;
 
@@ -15,6 +16,11 @@ export interface ExplicitVariantInput {
   sku?: string;
   barcode?: string | null;
   quantity_on_hand?: number;
+  unit_of_measure?: string | null;
+  units_per_pack?: number | null;
+  pack_contents_unit?: string | null;
+  min_order_quantity?: number;
+  order_increment?: number;
 }
 
 export class ProductVariantService {
@@ -167,11 +173,20 @@ export class ProductVariantService {
         stockByIndex.set(newVariants.length, row.quantity_on_hand);
       }
 
+      // Unit, minimum and increment may come with the row; tiers are set
+      // afterwards through the trade-pricing endpoint.
+      const terms = validateTradeTerms(row, {}, row.price);
+
       newVariants.push(
         this.repo.create({
           product_id: productId,
           name,
           sku,
+          unit_of_measure: terms.unit_of_measure,
+          units_per_pack: terms.units_per_pack,
+          pack_contents_unit: terms.pack_contents_unit,
+          min_order_quantity: terms.min_order_quantity,
+          order_increment: terms.order_increment,
           barcode: row.barcode ?? null,
           option_values: optionValues,
           price: row.price,
@@ -217,8 +232,12 @@ export class ProductVariantService {
 
   /** The product-level price of a variable product is derived, not entered:
    * keep it at min(active variant prices) so listings show a correct "from" price. */
-  private async syncProductAfterVariantChange(productId: string) {
-    const variants = await this.repo.find({ where: { product_id: productId } });
+  async syncProductAfterVariantChange(productId: string) {
+    // A sample variant is not an option of the listing: it neither makes the
+    // product "have variants" nor sets its "from" price.
+    const variants = (await this.repo.find({ where: { product_id: productId } })).filter(
+      (v) => !v.is_sample,
+    );
     if (variants.length === 0) {
       await this.productRepo.update(productId, { has_variants: false });
     } else {
@@ -271,13 +290,53 @@ export class ProductVariantService {
       dimensions_cm: { length: number; width: number; height: number } | null;
       sort_order: number;
       is_active: boolean;
+      unit_of_measure: string | null;
+      units_per_pack: number | null;
+      pack_contents_unit: string | null;
+      min_order_quantity: number;
+      order_increment: number;
     }>,
+    vendorId: string | null = null,
   ) {
+    if (vendorId) await this.getOwnedProduct(productId, vendorId);
     const variant = await this.repo.findOne({
       where: { id: variantId, product_id: productId },
     });
     if (!variant) throw new HttpError(404, "Variant not found", "VARIANT_NOT_FOUND");
-    Object.assign(variant, data);
+    const tradeKeys = [
+      "unit_of_measure",
+      "units_per_pack",
+      "pack_contents_unit",
+      "min_order_quantity",
+      "order_increment",
+    ] as const;
+    const {
+      unit_of_measure,
+      units_per_pack,
+      pack_contents_unit,
+      min_order_quantity,
+      order_increment,
+      ...rest
+    } = data;
+    if (tradeKeys.some((k) => k in data)) {
+      if (variant.is_sample) {
+        throw new HttpError(422, "Samples have no trade terms", "SAMPLE_HAS_NO_TRADE_TERMS");
+      }
+      const terms = validateTradeTerms(
+        {
+          unit_of_measure,
+          units_per_pack,
+          pack_contents_unit,
+          min_order_quantity,
+          order_increment,
+        },
+        variant,
+        rest.price ?? variant.price,
+      );
+      // validateTradeTerms merged the current values, so write all five back.
+      for (const k of tradeKeys) (variant as any)[k] = terms[k];
+    }
+    Object.assign(variant, rest);
     const saved = await this.repo.save(variant);
     if (data.price !== undefined || data.is_active !== undefined) {
       await this.syncProductAfterVariantChange(productId);
@@ -285,7 +344,8 @@ export class ProductVariantService {
     return saved;
   }
 
-  async remove(productId: string, variantId: string) {
+  async remove(productId: string, variantId: string, vendorId: string | null = null) {
+    if (vendorId) await this.getOwnedProduct(productId, vendorId);
     const variant = await this.repo.findOne({
       where: { id: variantId, product_id: productId },
     });

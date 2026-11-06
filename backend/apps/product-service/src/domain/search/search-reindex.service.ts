@@ -88,6 +88,7 @@ export class SearchReindexService {
           "brand",
           "vendor",
           "variants",
+          "price_tiers",
           "inventoryRecords",
           "images",
           "attributeValues",

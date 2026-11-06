@@ -1,8 +1,9 @@
 // checkout.service.ts
 import type { PaymentMethodThreshold, ShippingRate, UserAddress } from "@materialhub/database";
-import { BadRequestError } from "@materialhub/plugins";
+import { BadRequestError, HttpError } from "@materialhub/plugins";
 import type { Repository } from "typeorm";
 import type { CartService } from "../cart/cart.service.ts";
+import { sampleShippingRule } from "../cart/pricing/sample-shipping.ts";
 import type { ShippingService } from "../shipping/shipping.service.ts";
 import { type CouponResult, type CouponService, toCouponLines } from "./coupon.service.ts";
 import type { OrderConfirmationService } from "./order-confirmation.service.ts";
@@ -60,7 +61,10 @@ export class CheckoutService {
       }
   > {
     // 1. Fetch and validate cart
-    const { cart, items, staleItems } = await this.cartService.getCart(data.userId, null);
+    const { cart, items, staleItems, ruleViolations } = await this.cartService.getCart(
+      data.userId,
+      null,
+    );
     // getCart returns a null cart when the caller has no identity at all.
     if (!cart) {
       throw new BadRequestError("Cart is empty");
@@ -70,6 +74,16 @@ export class CheckoutService {
     }
     if (staleItems.length > 0) {
       throw new BadRequestError("Cart has stale prices — please refresh your cart");
+    }
+    // Trade terms (minimum order, increments, sample cap) can change after a
+    // line was added; never place an order that breaks them.
+    if (ruleViolations && ruleViolations.length > 0) {
+      throw new HttpError(
+        422,
+        "Some cart quantities no longer meet the supplier's ordering rules",
+        "CART_QUANTITY_RULES",
+        { items: ruleViolations },
+      );
     }
 
     // 2. Flatten all items
@@ -183,6 +197,16 @@ export class CheckoutService {
         estimated_days_min: r.estimated_days_min,
         estimated_days_max: r.estimated_days_max,
       }));
+      // Suppliers shipping only samples pay the admin-set sample rate at most.
+      const sampleShipping = allItems.some((it: any) => it.variant?.is_sample)
+        ? sampleShippingRule(
+            allItems.map((it: any) => ({
+              vendor_id: it.vendor_id,
+              is_sample: it.variant?.is_sample,
+            })),
+            await this.cartService.pricing.sampleShippingFils(),
+          )
+        : undefined;
       const toShippingItems = (list: any[]) =>
         list.map((it: any) => ({
           id: it.id,
@@ -197,6 +221,7 @@ export class CheckoutService {
         zoneId,
         vendorHolidays: onHoliday,
         subtotalFils: (cart as any).subtotal,
+        sampleShipping,
       });
 
       // A free_shipping coupon waives the shipping of the delivery groups it
@@ -213,6 +238,7 @@ export class CheckoutService {
           zoneId,
           vendorHolidays: onHoliday,
           subtotalFils: (cart as any).subtotal,
+          sampleShipping,
         });
         shippingTotal = Math.max(0, shippingTotal - waived);
       }

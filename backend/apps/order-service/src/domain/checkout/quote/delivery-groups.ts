@@ -1,3 +1,4 @@
+import { type SampleShippingRule, capForSamples } from "../../cart/pricing/sample-shipping.ts";
 import type { ApiShippingMethod } from "./defaults.ts";
 
 export interface DgItem {
@@ -50,6 +51,7 @@ function effectiveRates(
   zoneId: string | null,
   allRates: DgRate[],
   subtotalFils: number,
+  sampleShipping?: SampleShippingRule,
 ): Map<ApiShippingMethod, DgGroupMethod> {
   const byMethod = new Map<string, { rate: DgRate; score: number }>();
   for (const r of allRates) {
@@ -64,7 +66,7 @@ function effectiveRates(
     const isFree = rate.free_above != null && subtotalFils >= rate.free_above;
     out.set(rate.method as ApiShippingMethod, {
       id: rate.method as ApiShippingMethod,
-      price_fils: isFree ? 0 : rate.base_cost,
+      price_fils: capForSamples(isFree ? 0 : rate.base_cost, vendorId, sampleShipping),
       estimated_days: {
         min: rate.estimated_days_min ?? 0,
         max: rate.estimated_days_max ?? 0,
@@ -81,10 +83,12 @@ export interface FormDeliveryGroupsInput {
   zoneId: string | null;
   vendorHolidays: Set<string>;
   subtotalFils: number;
+  /** Trade pricing: suppliers shipping only samples pay at most the sample rate per method. */
+  sampleShipping?: SampleShippingRule;
 }
 
 export function formDeliveryGroups(input: FormDeliveryGroupsInput): DgGroup[] {
-  const { items, rates, zoneId, vendorHolidays, subtotalFils } = input;
+  const { items, rates, zoneId, vendorHolidays, subtotalFils, sampleShipping } = input;
 
   // 1. Distinct vendor IDs.
   const vendorIds = Array.from(new Set(items.map((i) => i.vendor_id)));
@@ -95,7 +99,7 @@ export function formDeliveryGroups(input: FormDeliveryGroupsInput): DgGroup[] {
     if (vendorHolidays.has(v)) {
       perVendor.set(v, new Map());
     } else {
-      perVendor.set(v, effectiveRates(v, zoneId, rates, subtotalFils));
+      perVendor.set(v, effectiveRates(v, zoneId, rates, subtotalFils, sampleShipping));
     }
   }
 

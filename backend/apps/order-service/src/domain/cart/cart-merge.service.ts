@@ -3,12 +3,16 @@ import type { Cart, CartItem } from "@materialhub/database";
 import type { Repository } from "typeorm";
 import type { CartRedisService } from "./cart-redis.service.ts";
 import { computeCartTotals } from "./cart-totals.ts";
+import { type CartPricingSource, noTradePricing } from "./pricing/cart-pricing.service.ts";
+import { resolveLinePrice } from "./pricing/price-resolver.ts";
+import { tradeTermsFor } from "./pricing/trade-terms.ts";
 
 export class CartMergeService {
   constructor(
     private cartRepo: Repository<Cart>,
     private cartItemRepo: Repository<CartItem>,
     private redisCart: CartRedisService,
+    private pricing: CartPricingSource = noTradePricing,
   ) {}
 
   async mergeGuestToUser(guestSessionId: string, userId: string): Promise<void> {
@@ -46,6 +50,25 @@ export class CartMergeService {
 
       if (existing) {
         if (guestItem.quantity > existing.quantity) {
+          // Both quantities met the trade terms when added, so the larger one
+          // does too; re-price it, since a higher quantity can reach a tier.
+          const merged = await this.cartItemRepo.findOne({
+            where: { id: existing.id },
+            relations: ["product", "variant"],
+          });
+          if (merged?.product) {
+            const terms = tradeTermsFor(
+              merged.product,
+              merged.variant,
+              await this.pricing.tiersForProducts([merged.product_id]),
+            );
+            existing.unit_price = resolveLinePrice({
+              basePrice: terms.basePrice,
+              tiers: terms.tiers,
+              quantity: guestItem.quantity,
+            }).unitPrice;
+            existing.original_unit_price = existing.unit_price;
+          }
           existing.quantity = guestItem.quantity;
           existing.line_total = existing.unit_price * guestItem.quantity;
           await this.cartItemRepo.save(existing);

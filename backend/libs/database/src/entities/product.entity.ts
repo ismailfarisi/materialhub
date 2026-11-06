@@ -1,4 +1,5 @@
 import {
+  Check,
   Column,
   CreateDateColumn,
   DeleteDateColumn,
@@ -11,7 +12,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from "typeorm";
-import { ProductStatus } from "../enums.ts";
+import { ProductStatus, type UnitOfMeasure } from "../enums.ts";
 import type { Brand } from "./brand.entity.ts";
 import type { Category } from "./category.entity.ts";
 import type { Inventory } from "./inventory.entity.ts";
@@ -23,9 +24,23 @@ import type { ProductImage } from "./product-image.entity.ts";
 import type { ProductTranslation } from "./product-translation.entity.ts";
 import type { ProductVariant } from "./product-variant.entity.ts";
 import type { Review } from "./review.entity.ts";
+import type { VariantPriceTier } from "./variant-price-tier.entity.ts";
 import type { Vendor } from "./vendor.entity.ts";
 
+const UNIT_SQL = "'sheet', 'roll', 'metre', 'pack', 'carton', 'box', 'piece', 'kg'";
+
 @Entity("products")
+@Check(
+  "CHK_products_unit_of_measure",
+  `"unit_of_measure" IS NULL OR "unit_of_measure" IN (${UNIT_SQL})`,
+)
+@Check(
+  "CHK_products_pack_contents_unit",
+  `"pack_contents_unit" IS NULL OR "pack_contents_unit" IN (${UNIT_SQL})`,
+)
+@Check("CHK_products_units_per_pack", `"units_per_pack" IS NULL OR "units_per_pack" >= 1`)
+@Check("CHK_products_min_order_quantity", `"min_order_quantity" >= 1`)
+@Check("CHK_products_order_increment", `"order_increment" >= 1`)
 export class Product {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
@@ -169,6 +184,25 @@ export class Product {
   @Column({ type: "boolean", default: false })
   has_variants!: boolean;
 
+  // ── Trade pricing for a product without variants ─────────────────
+  // Same meaning as the columns on ProductVariant. A product with variants
+  // ignores these; each variant carries its own unit, minimum and tiers.
+
+  @Column({ type: "varchar", length: 16, nullable: true })
+  unit_of_measure!: UnitOfMeasure | null;
+
+  @Column({ type: "integer", nullable: true })
+  units_per_pack!: number | null;
+
+  @Column({ type: "varchar", length: 16, nullable: true })
+  pack_contents_unit!: UnitOfMeasure | null;
+
+  @Column({ type: "integer", default: 1 })
+  min_order_quantity!: number;
+
+  @Column({ type: "integer", default: 1 })
+  order_increment!: number;
+
   @Column({ type: "numeric", precision: 3, scale: 2, default: 0 })
   rating_avg!: number;
 
@@ -216,6 +250,10 @@ export class Product {
 
   @OneToMany("ProductVariant", "product")
   variants!: ProductVariant[];
+
+  /** Every price tier of the product: rows with a variant_id belong to that variant, the rest to the product itself. */
+  @OneToMany("VariantPriceTier", "product")
+  price_tiers!: VariantPriceTier[];
 
   @OneToMany("ProductCategory", "product")
   productCategories!: ProductCategory[];

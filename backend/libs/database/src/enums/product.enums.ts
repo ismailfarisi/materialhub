@@ -77,3 +77,20 @@ export enum EcoDeclarationStatus {
   rejected = "rejected",
   withdrawn = "withdrawn",
 }
+
+/**
+ * What one unit of a listing buys. Prices, minimum order quantities, order
+ * increments and price tiers are all counted in this unit ("AED 4.80 / sheet").
+ */
+export enum UnitOfMeasure {
+  sheet = "sheet",
+  roll = "roll",
+  metre = "metre",
+  pack = "pack",
+  carton = "carton",
+  box = "box",
+  piece = "piece",
+  kg = "kg",
+}
+
+export const UNITS_OF_MEASURE: readonly UnitOfMeasure[] = Object.values(UnitOfMeasure);

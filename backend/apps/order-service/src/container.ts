@@ -45,6 +45,7 @@ import {
   TaxRate,
   User,
   UserAddress,
+  VariantPriceTier,
   Vendor,
   VendorBankAccount,
   VendorCarrierAccount,
@@ -84,6 +85,7 @@ import { CartMergeService } from "./domain/cart/cart-merge.service.ts";
 import { CartRedisService } from "./domain/cart/cart-redis.service.ts";
 import { CartController } from "./domain/cart/cart.controller.ts";
 import { CartService } from "./domain/cart/cart.service.ts";
+import { CartPricingService } from "./domain/cart/pricing/cart-pricing.service.ts";
 import { CheckoutController } from "./domain/checkout/checkout.controller.ts";
 import { CheckoutService } from "./domain/checkout/checkout.service.ts";
 import { CouponService } from "./domain/checkout/coupon.service.ts";
@@ -248,6 +250,11 @@ const productCollectionMemberRepo = AppDataSource.getRepository(ProductCollectio
 const integrationEventsQueue = getIntegrationEventsQueue();
 
 const cartRedisService = new CartRedisService(redisClient as any);
+// Trade pricing: tiers and the sample shipping rate for the cart and quote.
+const cartPricingService = new CartPricingService(
+  AppDataSource.getRepository(VariantPriceTier),
+  siteSettingRepo,
+);
 const cartService = new CartService(
   cartRepo,
   cartItemRepo,
@@ -255,8 +262,14 @@ const cartService = new CartService(
   productRepo,
   productVariantRepo,
   cartRedisService,
+  cartPricingService,
 );
-const cartMergeService = new CartMergeService(cartRepo, cartItemRepo, cartRedisService);
+const cartMergeService = new CartMergeService(
+  cartRepo,
+  cartItemRepo,
+  cartRedisService,
+  cartPricingService,
+);
 const cartController = new CartController(cartService, cartMergeService);
 
 const shippingService = new ShippingService(

@@ -6,6 +6,7 @@ import { ProductForm } from "./ProductForm";
 import { ProductGroupPanel } from "./ProductGroupPanel";
 import { VendorMediaTab } from "./VendorMediaTab";
 import { EcoDeclarationPanel } from "./eco/EcoDeclarationPanel";
+import { TradePricingPanel } from "./trade/TradePricingPanel";
 
 interface Props {
 	productId: string;
@@ -24,6 +25,7 @@ export function VendorProductTabs({
 				<TabsTrigger value="details">Details</TabsTrigger>
 				<TabsTrigger value="media">Media</TabsTrigger>
 				<TabsTrigger value="pricing">Pricing</TabsTrigger>
+				<TabsTrigger value="trade">Trade pricing</TabsTrigger>
 				<TabsTrigger value="inventory">Inventory</TabsTrigger>
 				<TabsTrigger value="variants">Variants</TabsTrigger>
 				<TabsTrigger value="seo">SEO</TabsTrigger>
@@ -48,6 +50,9 @@ export function VendorProductTabs({
 					defaultValues={defaultValues}
 					forceStep="pricing"
 				/>
+			</TabsContent>
+			<TabsContent value="trade">
+				<TradePricingPanel productId={productId} />
 			</TabsContent>
 			<TabsContent value="inventory">
 				<div className="py-4">

@@ -1,3 +1,4 @@
+import type { SampleShippingRule } from "../../cart/pricing/sample-shipping.ts";
 import { type DgItem, type DgRate, formDeliveryGroups } from "./delivery-groups.ts";
 
 export interface SelectedShippingInput {
@@ -6,6 +7,7 @@ export interface SelectedShippingInput {
   zoneId: string | null;
   vendorHolidays: Set<string>;
   subtotalFils: number;
+  sampleShipping?: SampleShippingRule;
 }
 
 /**

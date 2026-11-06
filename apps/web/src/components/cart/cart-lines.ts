@@ -1,4 +1,5 @@
 import type { Spec } from "@/components/swatch";
+import type { CartLineTrade } from "@/components/trade/cart-line-trade";
 
 /** A cart line as `useCart()` maps it. Optional fields arrive only when the API sends them. */
 export interface CartLineItem {
@@ -20,6 +21,8 @@ export interface CartLineItem {
 	options?: Record<string, unknown> | null;
 	sku?: string | null;
 	product_status?: string | null;
+	/** Trade pricing for the line, when the API sends it. */
+	trade?: CartLineTrade | null;
 }
 
 export interface SupplierGroup {

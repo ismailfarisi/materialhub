@@ -83,7 +83,8 @@ export function normaliseVariants(product: AnyRecord): PdpVariant[] {
 	const stock = variantStock(product);
 	const untracked = product.track_inventory === false;
 	return product.variants
-		.filter((v: AnyRecord) => v?.id && v?.price != null && v?.is_active !== false)
+		// A sample variant is ordered from its own action, not picked as an option.
+		.filter((v: AnyRecord) => v?.id && v?.price != null && v?.is_active !== false && !v?.is_sample)
 		.sort((a: AnyRecord, b: AnyRecord) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
 		.map((v: AnyRecord) => {
 			const options: Record<string, string> = {};

@@ -234,103 +234,114 @@ async function seed() {
   }
 
   // ── Site settings ───────────────────────────────────────────────
+  // Insert each missing key, so settings added by later migrations (e.g.
+  // sample_shipping_rate_fils) don't stop the rest from being seeded.
   const settingRepo = ds.getRepository(SiteSetting);
-  const settingCount = await settingRepo.count();
-  if (settingCount === 0) {
-    await settingRepo.save([
-      settingRepo.create({
-        key: "site_name",
-        value: "MaterialHub",
-        value_type: "string",
-        group: "general",
-        description: "Marketplace name",
-      }),
-      settingRepo.create({
-        key: "site_tagline",
-        value: "Packaging materials and craft supplies for the UAE",
-        value_type: "string",
-        group: "general",
-        description: "Tagline shown in header",
-      }),
-      settingRepo.create({
-        key: "default_currency",
-        value: "AED",
-        value_type: "string",
-        group: "general",
-        description: "Default currency code",
-      }),
-      settingRepo.create({
-        key: "default_locale",
-        value: "en",
-        value_type: "string",
-        group: "general",
-        description: "Default locale",
-      }),
-      settingRepo.create({
-        key: "supported_locales",
-        value: '["en","ar","hi","ur","ml"]',
-        value_type: "json",
-        group: "general",
-        description: "Supported locale codes",
-      }),
-      settingRepo.create({
-        key: "supported_currencies",
-        value: '["AED","USD","EUR","GBP","SAR"]',
-        value_type: "json",
-        group: "general",
-        description: "Supported currency codes",
-      }),
-      settingRepo.create({
-        key: "vendor_commission_default",
-        value: "10.00",
-        value_type: "number",
-        group: "vendor",
-        description: "Default vendor commission percentage",
-      }),
-      settingRepo.create({
-        key: "vendor_auto_approve",
-        value: "false",
-        value_type: "boolean",
-        group: "vendor",
-        description: "Auto-approve new vendor applications",
-      }),
-      settingRepo.create({
-        key: "order_prefix",
-        value: "FS",
-        value_type: "string",
-        group: "order",
-        description: "Order number prefix",
-      }),
-      settingRepo.create({
-        key: "max_cart_items",
-        value: "50",
-        value_type: "number",
-        group: "cart",
-        description: "Maximum items per cart",
-      }),
-      settingRepo.create({
-        key: "cart_ttl_days",
-        value: "30",
-        value_type: "number",
-        group: "cart",
-        description: "Cart expiry in days",
-      }),
-      settingRepo.create({
-        key: "vat_rate",
-        value: "5.00",
-        value_type: "number",
-        group: "tax",
-        description: "UAE standard VAT rate",
-      }),
-      settingRepo.create({
-        key: "min_order_amount",
-        value: "10.00",
-        value_type: "number",
-        group: "order",
-        description: "Minimum order amount in AED",
-      }),
-    ]);
-    console.log("  ✓ Created 13 site settings");
+  const existingSettingKeys = new Set((await settingRepo.find()).map((s) => s.key));
+  const missingSettings = [
+    settingRepo.create({
+      key: "site_name",
+      value: "MaterialHub",
+      value_type: "string",
+      group: "general",
+      description: "Marketplace name",
+    }),
+    settingRepo.create({
+      key: "site_tagline",
+      value: "Packaging materials and craft supplies for the UAE",
+      value_type: "string",
+      group: "general",
+      description: "Tagline shown in header",
+    }),
+    settingRepo.create({
+      key: "default_currency",
+      value: "AED",
+      value_type: "string",
+      group: "general",
+      description: "Default currency code",
+    }),
+    settingRepo.create({
+      key: "default_locale",
+      value: "en",
+      value_type: "string",
+      group: "general",
+      description: "Default locale",
+    }),
+    settingRepo.create({
+      key: "supported_locales",
+      value: '["en","ar","hi","ur","ml"]',
+      value_type: "json",
+      group: "general",
+      description: "Supported locale codes",
+    }),
+    settingRepo.create({
+      key: "supported_currencies",
+      value: '["AED","USD","EUR","GBP","SAR"]',
+      value_type: "json",
+      group: "general",
+      description: "Supported currency codes",
+    }),
+    settingRepo.create({
+      key: "vendor_commission_default",
+      value: "10.00",
+      value_type: "number",
+      group: "vendor",
+      description: "Default vendor commission percentage",
+    }),
+    settingRepo.create({
+      key: "vendor_auto_approve",
+      value: "false",
+      value_type: "boolean",
+      group: "vendor",
+      description: "Auto-approve new vendor applications",
+    }),
+    settingRepo.create({
+      key: "order_prefix",
+      value: "FS",
+      value_type: "string",
+      group: "order",
+      description: "Order number prefix",
+    }),
+    settingRepo.create({
+      key: "max_cart_items",
+      value: "50",
+      value_type: "number",
+      group: "cart",
+      description: "Maximum items per cart",
+    }),
+    settingRepo.create({
+      key: "cart_ttl_days",
+      value: "30",
+      value_type: "number",
+      group: "cart",
+      description: "Cart expiry in days",
+    }),
+    settingRepo.create({
+      key: "vat_rate",
+      value: "5.00",
+      value_type: "number",
+      group: "tax",
+      description: "UAE standard VAT rate",
+    }),
+    settingRepo.create({
+      key: "min_order_amount",
+      value: "10.00",
+      value_type: "number",
+      group: "order",
+      description: "Minimum order amount in AED",
+    }),
+    settingRepo.create({
+      key: "sample_shipping_rate_fils",
+      value: "1000",
+      value_type: "number",
+      group: "samples",
+      description:
+        "Flat shipping in fils charged per supplier when an order from that supplier contains only samples",
+    }),
+  ].filter((s) => !existingSettingKeys.has(s.key));
+  if (missingSettings.length > 0) {
+    await settingRepo.save(missingSettings);
+    console.log(`  ✓ Created ${missingSettings.length} site settings`);
   } else {
     console.log("  – Site settings already seeded, skipping");
   }

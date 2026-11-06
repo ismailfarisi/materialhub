@@ -49,6 +49,8 @@ export function useCart() {
             options: item.variant?.option_values ?? null,
             sku: item.variant?.sku || item.product?.sku || null,
             product_status: item.product?.status ?? null,
+            // Trade pricing: unit, rules, tier and savings (order-service GET /cart).
+            trade: item.trade ?? null,
           };
         })
       );

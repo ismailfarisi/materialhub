@@ -37,6 +37,12 @@ export const productCollectionSchema: CollectionCreateSchema = {
     // attribute filters (see attributeFilterField in typesense-search.adapter).
     { name: "plastic_ban_ready", type: "bool", facet: true, optional: true },
     { name: "attr_bag_thickness_microns", type: "int32", facet: true, optional: true },
+    // Trade pricing (listing cards: "from AED 4.80 / sheet", minimum order, sample)
+    { name: "tier_price_min", type: "int32", optional: true },
+    { name: "unit_of_measure", type: "string", facet: true, optional: true },
+    { name: "min_order_quantity", type: "int32", optional: true },
+    { name: "has_trade_rules", type: "bool", optional: true },
+    { name: "has_sample", type: "bool", facet: true, optional: true },
   ],
   token_separators: ["-", "/"],
   enable_nested_fields: false,
@@ -77,6 +83,16 @@ export interface ProductDocument {
   is_group_primary?: boolean;
   group_swatches?: string[];
   group_from_price?: number;
+  /** Lowest unit price any quantity reaches, when a tier beats price_min. */
+  tier_price_min?: number;
+  /** Unit of the cheapest sellable ("sheet", "roll", …). */
+  unit_of_measure?: string;
+  /** Minimum order of the cheapest sellable, when above 1. */
+  min_order_quantity?: number;
+  /** Some sellable has a minimum above 1 or an increment above 1 (quick-add must go to the page). */
+  has_trade_rules?: boolean;
+  /** An active sample can be ordered. */
+  has_sample?: boolean;
   plastic_ban_ready?: boolean;
   /** Typed attribute values for range / toggle filters, keyed `attr_<slug_with_underscores>`. */
   [attrField: `attr_${string}`]: number | boolean | undefined;
@@ -131,15 +147,51 @@ export interface GroupInfoForIndex {
   from_price: number;
 }
 
+/**
+ * Trade pricing for the listing card, from the cheapest sellable (the product
+ * itself when it has no active variants) plus every tier on the listing.
+ */
+export function tradeSummary(
+  product: any,
+  variants: any[],
+): {
+  tierPriceMin: number | null;
+  unit: string | null;
+  minOrderQuantity: number;
+  hasRules: boolean;
+} {
+  const sellables: any[] = variants.length > 0 ? variants : [product];
+  const cheapest = sellables.reduce((a, b) => (Number(b.price) < Number(a.price) ? b : a));
+  const ids = new Set(variants.map((v: any) => v.id));
+  const tiers: any[] = (product.price_tiers ?? []).filter((t: any) =>
+    variants.length > 0 ? ids.has(t.variant_id) : t.variant_id == null,
+  );
+  const tierPriceMin = tiers.length
+    ? Math.min(...tiers.map((t: any) => Number(t.unit_price)))
+    : null;
+  return {
+    tierPriceMin,
+    unit: cheapest.unit_of_measure ?? null,
+    minOrderQuantity: Number(cheapest.min_order_quantity ?? 1) || 1,
+    hasRules: sellables.some(
+      (s: any) => Number(s.min_order_quantity ?? 1) > 1 || Number(s.order_increment ?? 1) > 1,
+    ),
+  };
+}
+
 export function productToDocument(
   product: any,
   ancestors?: CategoryAncestors,
   groupInfo?: GroupInfoForIndex | null,
 ): ProductDocument {
-  const variants = product.variants?.filter((v: any) => v.is_active) ?? [];
+  // A sample is not one of the listing's options: keep it out of prices and SKUs.
+  const activeVariants = product.variants?.filter((v: any) => v.is_active) ?? [];
+  const variants = activeVariants.filter((v: any) => !v.is_sample);
   const prices = variants.length > 0 ? variants.map((v: any) => v.price) : [product.price];
   const minPrice = Math.min(...prices);
   const maxPrice = Math.max(...prices);
+  const trade = tradeSummary(product, variants);
+  const hasSample = activeVariants.some((v: any) => v.is_sample);
 
   // Determine stock from inventory data (joined or pre-computed)
   let inStock = false;
@@ -225,6 +277,12 @@ export function productToDocument(
     plastic_ban_ready: isPlasticBanReady(product),
     ...typedAttributeFields(product.attributeValues),
   };
+  if (trade.tierPriceMin != null && trade.tierPriceMin < minPrice)
+    doc.tier_price_min = trade.tierPriceMin;
+  if (trade.unit) doc.unit_of_measure = trade.unit;
+  if (trade.minOrderQuantity > 1) doc.min_order_quantity = trade.minOrderQuantity;
+  if (trade.hasRules) doc.has_trade_rules = true;
+  if (hasSample) doc.has_sample = true;
 
   if (groupInfo) {
     doc.group_id = groupInfo.group_id;

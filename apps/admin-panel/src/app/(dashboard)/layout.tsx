@@ -217,6 +217,11 @@ const navItems = [
 				icon: <Coins size={20} />,
 			},
 			{
+				label: "Samples",
+				href: "/settings/samples",
+				icon: <Package size={20} />,
+			},
+			{
 				label: "Shipping Providers",
 				href: "/settings/shipping-providers",
 				icon: <Plug size={20} />,
