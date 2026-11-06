@@ -1,5 +1,6 @@
 "use client";
 
+import { NetTermsDetails, NetTermsIcon, NetTermsOptionText } from "@/components/business/checkout-business";
 import { filsToAed } from "@/lib/money";
 import { usePaymentInstruments } from "@/lib/queries/checkout-quote";
 import type { CheckoutQuotePaymentMethod } from "@/lib/queries/checkout-quote";
@@ -67,7 +68,7 @@ export function PaymentSection({ onExpressCheckoutConfirm }: PaymentSectionProps
 				) : (
 					<div role="radiogroup" aria-label={t("paymentMethodLabel")} className="grid gap-2">
 						{paymentMethods.map((method: CheckoutQuotePaymentMethod) => {
-							const Icon = method.id === "cod" ? Banknote : CreditCard;
+							const Icon = method.id === "cod" ? Banknote : method.id === "net_terms" ? NetTermsIcon : CreditCard;
 							return (
 								<OptionTile
 									key={method.id}
@@ -78,14 +79,14 @@ export function PaymentSection({ onExpressCheckoutConfirm }: PaymentSectionProps
 									onSelect={() => method.available && setPaymentMethod(method.id as PaymentMethod)}
 								>
 									<span className="flex items-center gap-3">
-										<span className="grid min-w-0 flex-1">
+										{method.id === "net_terms" ? <NetTermsOptionText method={method} /> : <span className="grid min-w-0 flex-1">
 											<span className="font-medium text-nl-cacao">{methodName(method.id)}</span>
 											<span className="text-[13px] text-nl-russet">
 												{!method.available && method.reason_key
 													? t(method.reason_key as DynamicKey, reasonValues(method.reason_params))
 													: methodHint(method.id)}
 											</span>
-										</span>
+										</span>}
 										{method.id === "tamara" ? (
 											<img src="/tamara-logo.png" alt="" className="h-5 w-auto shrink-0 object-contain" />
 										) : (
@@ -204,7 +205,9 @@ export function PaymentSection({ onExpressCheckoutConfirm }: PaymentSectionProps
 					</div>
 				)}
 
-				{current && !current.available && current.reason_key && (
+				{paymentMethod === "net_terms" && current && <NetTermsDetails method={current} />}
+
+				{current && !current.available && current.reason_key && current.id !== "net_terms" && (
 					<p className="m-0 text-[13px] text-destructive">
 						{t(current.reason_key as DynamicKey, reasonValues(current.reason_params))}
 					</p>

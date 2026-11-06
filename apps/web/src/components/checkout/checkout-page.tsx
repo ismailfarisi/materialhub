@@ -2,7 +2,10 @@
 
 import { useChannelEvents } from "@/lib/channels/use-channel-events";
 import type { CartLineItem } from "@/components/cart/cart-lines";
+import { BusinessCheckoutBlock, useApprovalGate } from "@/components/business/checkout-business";
 import { Button } from "@/components/swatch";
+import { isApprovalRequiredError } from "@/lib/business/net-terms";
+import { useNetTermsCheckout } from "@/lib/queries/business";
 import { useAddresses } from "@/lib/queries/account";
 import { useCart } from "@/lib/queries/cart";
 import { useCodCheckout, useCreatePaymentIntent, useInitiateCheckout } from "@/lib/queries/checkout";
@@ -64,6 +67,8 @@ function CheckoutInner() {
   const initiate = useInitiateCheckout();
   const paymentIntent = useCreatePaymentIntent();
   const codCheckout = useCodCheckout();
+  const netTermsCheckout = useNetTermsCheckout();
+  const setApprovalBlocked = useApprovalGate((s) => s.setBlocked);
   const { fire } = useChannelEvents();
 
   // Fetch quote whenever address changes
@@ -234,6 +239,11 @@ function CheckoutInner() {
         await codCheckout.mutateAsync({ order_id: orderId, amount: grandTotal });
         reset();
         router.push(`/${locale}/account/orders/${orderId}`);
+      } else if (paymentMethod === "net_terms") {
+        // Pay on invoice: confirms the order on terms (idempotent), then the same success path as COD.
+        await netTermsCheckout.mutateAsync({ order_id: orderId });
+        reset();
+        router.push(`/${locale}/account/orders/${orderId}`);
       } else if (paymentMethod === "tamara") {
         const origin = window.location.origin;
         const { data } = await (await import("@/lib/api")).api.post("/checkout/tamara", {
@@ -253,6 +263,11 @@ function CheckoutInner() {
       if (error.response?.status === 409 && error.response.data?.fresh_quote) {
         setQuote(error.response.data.fresh_quote);
         setError(t("quoteRefreshed"));
+        return;
+      }
+      if (isApprovalRequiredError(error)) {
+        // Above the company's approval limit: the business block shows "Send for approval".
+        setApprovalBlocked(true);
         return;
       }
       setError(error.response?.data?.message || error.message || t("paymentFailed"));
@@ -406,6 +421,7 @@ function CheckoutInner() {
           <OrderItemsSection items={items} quote={quoteData} />
           <DeliverySection />
           <ShippingSection items={items} />
+          <BusinessCheckoutBlock />
           <PaymentSection onExpressCheckoutConfirm={handleExpressCheckoutConfirm} />
           <CouponSection onChanged={handleCouponChanged} />
           <p className="m-0 flex items-start gap-2 px-1 text-[12.5px] leading-relaxed text-nl-russet lg:hidden">

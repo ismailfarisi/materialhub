@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { CheckoutQuote } from "@/lib/queries/checkout-quote";
 
-export type PaymentMethod = "card" | "cod" | "tamara";
+export type PaymentMethod = "card" | "cod" | "tamara" | "net_terms";
 
 interface CheckoutState {
   selectedAddressId: string | null;
