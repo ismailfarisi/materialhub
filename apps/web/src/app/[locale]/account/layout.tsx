@@ -5,6 +5,7 @@ import { useRequireAuth } from "@/hooks/use-require-auth";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth";
 import {
+	FileText,
 	Heart,
 	LayoutGrid,
 	LifeBuoy,
@@ -27,12 +28,15 @@ interface NavItem {
 	href: string;
 	/** Only the exact path is active (the overview). */
 	exact?: boolean;
+	/** Label from the RFQ namespace instead of `account` (workstream-owned copy). */
+	rfqLabel?: boolean;
 }
 
 // Order history first: trade buyers come back to re-order the same SKUs.
 const navItems: NavItem[] = [
 	{ key: "overview", icon: LayoutGrid, href: "/account", exact: true },
 	{ key: "orders", icon: Package, href: "/account/orders" },
+	{ key: "quotes", icon: FileText, href: "/account/quotes", rfqLabel: true },
 	{ key: "returns", icon: PackageX, href: "/account/returns" },
 	{ key: "wishlist", icon: Heart, href: "/account/wishlist" },
 	{ key: "savedSearches", icon: Search, href: "/account/saved-searches" },
@@ -44,6 +48,8 @@ const navItems: NavItem[] = [
 
 export default function AccountLayout({ children }: { children: React.ReactNode }) {
 	const t = useTranslations("account");
+	const tRfq = useTranslations("rfq");
+	const label = (item: NavItem) => (item.rfqLabel ? tRfq("nav") : t(item.key));
 	const locale = useLocale();
 	const pathname = usePathname();
 	const { user } = useAuthStore();
@@ -113,7 +119,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
 												)}
 											>
 												<Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-												<span className="truncate">{t(item.key)}</span>
+												<span className="truncate">{label(item)}</span>
 											</Link>
 										</li>
 									);
@@ -142,7 +148,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
 												: "text-nl-russet after:bg-transparent hover:text-nl-cacao",
 										)}
 									>
-										{t(item.key)}
+										{label(item)}
 									</Link>
 								);
 							})}

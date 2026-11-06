@@ -5,6 +5,7 @@ import { ListingHeader } from "@/components/product/listing-header";
 import { buildListingParams } from "@/components/product/listing-params";
 import { ListingResults } from "@/components/product/listing-results";
 import { ListingSeoContent } from "@/components/product/listing-seo-content";
+import { CategoryQuoteBand } from "@/components/rfq/category-quote-band";
 import { formatFils, stockFor } from "@/components/swatch";
 import { TTL, publicGet } from "@/lib/api-public";
 import { formatAedForLocale } from "@/lib/money";
@@ -261,6 +262,8 @@ export default async function CategoryPage({ params, searchParams }: Props) {
 				activeCount={activeCount}
 				isError={"failed" in productsRes}
 			/>
+
+			<CategoryQuoteBand locale={locale} categorySlug={slug} categoryName={category.name} supplierCount={facetConfig.vendors.length} />
 
 			<ListingSeoContent
 				locale={locale}
