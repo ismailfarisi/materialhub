@@ -79,6 +79,14 @@ export function LoginForm({ onAuthenticated, onSwitchToRegister }: LoginFormProp
 			<Button type="submit" size="lg" disabled={login.isPending} className="w-full">
 				{login.isPending ? tCommon("loading") : t("loginTitle")}
 			</Button>
+			<p className="m-0 flex flex-wrap justify-center gap-x-4 gap-y-1 text-sm text-nl-russet">
+				<Link href={`/${locale}/auth/forgot-password`} className={switchClassName}>
+					{t("forgotPassword")}
+				</Link>
+				<Link href={`/${locale}/auth/magic-link`} className={switchClassName}>
+					{t("recovery.emailLink")}
+				</Link>
+			</p>
 			<p className="m-0 text-center text-sm text-nl-russet">
 				{t("noAccount")}{" "}
 				{onSwitchToRegister ? (

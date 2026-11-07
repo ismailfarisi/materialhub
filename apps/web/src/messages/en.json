@@ -714,6 +714,32 @@
       "back": "Back to log in",
       "invalidCode": "That code didn't work. Try again.",
       "expired": "Your sign-in timed out. Log in again."
+    },
+    "recovery": {
+      "forgotTitle": "Reset your password",
+      "forgotDescription": "Enter the email on your account and we'll send a link to choose a new password.",
+      "sendLink": "Send reset link",
+      "sending": "Sending…",
+      "forgotSent": "If an account exists for {email}, a reset link is on its way. It expires in 1 hour.",
+      "resetTitle": "Choose a new password",
+      "resetDescription": "At least 8 characters.",
+      "newPassword": "New password",
+      "savePassword": "Save new password",
+      "saving": "Saving…",
+      "resetDone": "Your password is changed. Sign in with the new one.",
+      "signIn": "Sign in",
+      "linkMissing": "This link is incomplete. Open the link from your email again, or request a new one.",
+      "linkInvalid": "This link has expired or was already used. Request a new one.",
+      "verifyTitle": "Verify your email",
+      "verifying": "Checking your link…",
+      "verifyDone": "Your email is verified.",
+      "continueShopping": "Continue shopping",
+      "magicTitle": "Email me a sign-in link",
+      "magicDescription": "We'll email you a link that signs you in, no password needed.",
+      "magicSent": "If an account exists for {email}, a sign-in link is on its way.",
+      "magicVerifying": "Signing you in…",
+      "emailLink": "Email me a sign-in link instead",
+      "backToLogin": "Back to sign in"
     }
   },
   "footer": {
