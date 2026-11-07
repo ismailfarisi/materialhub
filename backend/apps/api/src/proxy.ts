@@ -17,9 +17,22 @@ const notification = config.serviceUrl.notification;
 const cms = config.serviceUrl.cms;
 const integration = config.serviceUrl.integration;
 
+/**
+ * Routes whose owner can't be expressed as a path prefix, because a broader
+ * prefix owned by another module covers them. Checked before the prefix
+ * table.
+ */
+const patternRoutes: Array<{ pattern: RegExp; target: string }> = [
+  // Product reviews live in order-service (they need verified purchases), but
+  // /products/* belongs to product-service.
+  { pattern: /^\/products\/[^/]+\/reviews(\/|$)/, target: order },
+];
+
 const serviceRoutes: ServiceRoute[] = [
   // Auth service — admin routes must come before generic prefixes
   { prefix: "/admin/users", target: auth },
+  // Vendor role → permission matrix editor (admin panel /role-permissions).
+  { prefix: "/admin/role-permissions", target: vendor },
   // Business accounts (workstream 3): admin review lives in auth-service.
   { prefix: "/admin/business-accounts", target: auth },
   { prefix: "/admin/auth", target: auth },
@@ -81,6 +94,8 @@ const serviceRoutes: ServiceRoute[] = [
   { prefix: "/vendor/coupons", target: order },
   { prefix: "/admin/promotions", target: order },
   { prefix: "/vendor/product-groups", target: product },
+  // Vendor brand requests (vendor dashboard product form / brand modal).
+  { prefix: "/vendor/brands", target: product },
   // AI image enhance settings → product-service
   { prefix: "/admin/settings/ai", target: product },
   // Bulk-jobs (Phase 0/1/2) → product-service
@@ -96,6 +111,9 @@ const serviceRoutes: ServiceRoute[] = [
   { prefix: "/reviews", target: order },
   { prefix: "/shipping", target: order },
   { prefix: "/disputes", target: order },
+  // Stripe Connect (vendor payouts onboarding) must precede the broader
+  // /webhooks/stripe prefix below: resolveUpstream is first-match-wins.
+  { prefix: "/webhooks/stripe/connect", target: vendor },
   { prefix: "/webhooks/stripe", target: order },
   { prefix: "/webhooks/tamara", target: order },
   { prefix: "/webhooks/carrier", target: order },
@@ -105,11 +123,14 @@ const serviceRoutes: ServiceRoute[] = [
   // precede the generic /vendors prefix because resolveUpstream is
   // first-match-wins.
   { prefix: "/vendors/me/payouts", target: order },
+  // Vendor replies to reviews live with reviews in order-service.
+  { prefix: "/vendors/me/reviews", target: order },
   { prefix: "/vendors", target: vendor },
   // Vendor follow endpoints (PR #143) live on the vendor-service:
   // POST/DELETE/GET /me/follows/vendors/:id and GET /me/follows/vendors/recent
   { prefix: "/me/follows/vendors", target: vendor },
-  { prefix: "/webhooks/stripe/connect", target: vendor },
+  // Invitee side of vendor team invites (preview, accept, decline).
+  { prefix: "/vendor-members", target: vendor },
   // Integration service — vendor-managed integrations + admin views + inbound webhooks
   { prefix: "/admin/sales-channels", target: integration },
   { prefix: "/admin/integrations", target: integration },
@@ -140,6 +161,9 @@ const serviceRoutes: ServiceRoute[] = [
  * Resolve which upstream service handles this request path.
  */
 export function resolveUpstream(path: string): { target: string; upstreamPath: string } | null {
+  for (const route of patternRoutes) {
+    if (route.pattern.test(path)) return { target: route.target, upstreamPath: path };
+  }
   for (const route of serviceRoutes) {
     if (path === route.prefix || path.startsWith(`${route.prefix}/`)) {
       return {

@@ -75,6 +75,22 @@ export const app = new Elysia()
       },
     }),
   )
+  // Unknown paths are 404 for every caller. This must run before jwtAuth:
+  // otherwise anonymous callers get 401 for paths that don't exist (and for
+  // /internal/*, which is never routed publicly) while signed-in callers get
+  // 404. CORS preflights are left to the cors plugin.
+  .onRequest(({ request, set }) => {
+    if (request.method === "OPTIONS") return;
+    const path = new URL(request.url).pathname;
+    if (path === "/health" || path.startsWith("/api/docs") || resolveUpstream(path)) return;
+    set.status = 404;
+    return {
+      statusCode: 404,
+      message: `No service handles ${path}`,
+      error: "NOT_FOUND",
+      timestamp: new Date().toISOString(),
+    };
+  })
   .use(jwtAuth)
   // Health check — returns service statuses
   .get("/health", async () => {

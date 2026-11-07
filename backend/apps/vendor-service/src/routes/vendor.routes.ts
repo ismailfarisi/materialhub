@@ -4,6 +4,13 @@ import { container } from "../container.ts";
 
 export const vendorRoutes = new Elysia({ prefix: "/vendors" })
   .use(container)
+  // Health check (polled in-process by the API's /health). Registered before
+  // jwtAuth so it needs no token, like /auth/health.
+  .get("/health", () => ({
+    status: "ok",
+    service: "vendor-service",
+    timestamp: new Date().toISOString(),
+  }))
   .use(jwtAuth)
 
   .get(

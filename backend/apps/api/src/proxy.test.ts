@@ -262,3 +262,42 @@ describe("business accounts routing (workstream 3)", () => {
     );
   });
 });
+
+describe("resolveUpstream: routes that used to be shadowed or unrouted", () => {
+  const cases: Array<[string, string, string]> = [
+    // [path, expected port, why]
+    ["/webhooks/stripe/connect", "3004", "Stripe Connect webhook lives in vendor-service"],
+    ["/webhooks/stripe", "3003", "payment webhook stays in order-service"],
+    ["/admin/role-permissions", "3004", "admin role-permission matrix"],
+    ["/admin/role-permissions/vendor", "3004", "admin role-permission matrix update"],
+    ["/vendor/brands", "3002", "vendor brand requests"],
+    ["/vendor-members/invite/tok123", "3004", "invite preview"],
+    ["/vendor-members/accept", "3004", "invite accept"],
+    ["/vendors/me/reviews/abc/reply", "3003", "vendor review reply (order-service)"],
+    ["/vendors/me/payouts", "3003", "payout history"],
+    ["/vendors/abc/profile", "3004", "public vendor profile"],
+    [
+      "/products/11111111-1111-1111-1111-111111111111/reviews",
+      "3003",
+      "product reviews (order-service)",
+    ],
+    [
+      "/products/11111111-1111-1111-1111-111111111111/questions",
+      "3002",
+      "product questions stay in product-service",
+    ],
+    ["/products/11111111-1111-1111-1111-111111111111", "3002", "product detail"],
+  ];
+  for (const [path, port, why] of cases) {
+    test(`${path} → :${port} (${why})`, () => {
+      const result = resolveUpstream(path);
+      expect(result?.target).toEndWith(`:${port}`);
+      expect(result?.upstreamPath).toBe(path);
+    });
+  }
+
+  test("/internal/* is never routed publicly", () => {
+    expect(resolveUpstream("/internal/inventory/adjust")).toBeNull();
+    expect(resolveUpstream("/internal/orders/verified-purchase")).toBeNull();
+  });
+});

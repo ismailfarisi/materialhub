@@ -2,7 +2,7 @@ name: PR Check
 
 on:
   pull_request:
-    branches: [master]
+    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -103,6 +103,10 @@ jobs:
       - name: Migrate
         run: bun run migrate
         working-directory: backend/libs/database
+
+      - name: Check route ownership
+        run: bun scripts/check-routes.ts
+        working-directory: backend/apps/api
 
       - name: Boot and check /health
         working-directory: backend/apps/api

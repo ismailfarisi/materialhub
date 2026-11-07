@@ -52,7 +52,7 @@ export function isPublicRoute(path: string, method: string): boolean {
   if (path.startsWith("/categories/")) return true;
   if (path === "/brands" || path.startsWith("/brands/")) return true;
   // Products: public read routes only (list, detail, slug lookup, suggest,
-  // questions, recommendations). Recommendations powers the PDP rails and
+  // questions, recommendations, reviews). Recommendations powers the PDP rails and
   // must be reachable from the unauthenticated browser.
   const isRead = method === "GET" || method === "HEAD";
   if (
@@ -60,7 +60,7 @@ export function isPublicRoute(path: string, method: string): boolean {
     (path === "/products" ||
       path === "/products/suggest" ||
       path.startsWith("/products/by-slug/") ||
-      /^\/products\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(\/questions|\/recommendations)?$/.test(
+      /^\/products\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(\/questions|\/recommendations|\/reviews)?$/.test(
         path,
       ))
   )
@@ -97,6 +97,9 @@ export function isPublicRoute(path: string, method: string): boolean {
   if (method === "POST" && path === "/shipping/delivery-estimate/batch") return true;
   if (path.startsWith("/vendors/") && path.endsWith("/profile")) return true;
   if (path.startsWith("/vendors/by-slug/")) return true;
+  // Vendor team invite preview: the invitee opens the emailed link before
+  // signing in. Accept/decline (POST) stay authenticated.
+  if (isRead && /^\/vendor-members\/invite\/[^/]+$/.test(path)) return true;
   // Section-type registry is public metadata (read-only)
   if (path === "/section-types" || path.startsWith("/section-types/")) return true;
   if (path.startsWith("/webhooks/")) return true;
