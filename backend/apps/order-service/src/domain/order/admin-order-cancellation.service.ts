@@ -142,39 +142,51 @@ export class AdminOrderCancellationService {
     const alreadyRefunded = Number(order.refund_total ?? 0);
     const grandTotal = Number(order.grand_total ?? 0);
 
-    const user = await this.userRepo
-      .createQueryBuilder("user")
-      .where("user.id = :id", { id: (order as any).user_id })
-      .setLock("pessimistic_write")
-      .getOne();
-    if (!user) throw new Error("User not found for wallet refund");
+    // One transaction: a pessimistic lock needs one (outside it TypeORM
+    // throws "open transaction is required for pessimistic lock", a 500), and
+    // the ledger row, balance and order totals must commit together.
+    const walletTx = await this.userRepo.manager.transaction(async (m) => {
+      const userRepo = m.getRepository(this.userRepo.target);
+      const walletRepo = m.getRepository(this.walletTransactionRepo.target);
+      const orderRepo = m.getRepository(this.orderRepo.target);
 
-    const balanceBefore = Number((user as any).wallet_balance ?? 0);
-    const balanceAfter = balanceBefore + amount;
+      const user = await userRepo
+        .createQueryBuilder("user")
+        .where("user.id = :id", { id: (order as any).user_id })
+        .setLock("pessimistic_write")
+        .getOne();
+      if (!user) throw new Error("User not found for wallet refund");
 
-    const walletTx = this.walletTransactionRepo.create({
-      user_id: (order as any).user_id,
-      amount,
-      balance_before: balanceBefore,
-      balance_after: balanceAfter,
-      transaction_type: "refund",
-      order_id: order.id,
-      reference_type: "order_cancellation",
-      reference_id: order.id,
-    } as any);
-    await this.walletTransactionRepo.save(walletTx);
+      const balanceBefore = Number((user as any).wallet_balance ?? 0);
+      const balanceAfter = balanceBefore + amount;
 
-    (user as any).wallet_balance = balanceAfter;
-    await this.userRepo.save(user);
+      const tx = walletRepo.create({
+        user_id: (order as any).user_id,
+        amount,
+        balance_before: balanceBefore,
+        balance_after: balanceAfter,
+        transaction_type: "refund",
+        order_id: order.id,
+        reference_type: "order_cancellation",
+        reference_id: order.id,
+      } as any);
+      await walletRepo.save(tx);
 
-    order.refund_total = alreadyRefunded + amount;
-    order.payment_status =
-      order.refund_total >= grandTotal ? PaymentStatus.refunded : PaymentStatus.partially_refunded;
-    order.admin_notes = appendAdminNote(
-      order.admin_notes,
-      `Cancellation wallet refund issued: ${reason}`,
-    );
-    await this.orderRepo.save(order);
+      (user as any).wallet_balance = balanceAfter;
+      await userRepo.save(user);
+
+      order.refund_total = alreadyRefunded + amount;
+      order.payment_status =
+        order.refund_total >= grandTotal
+          ? PaymentStatus.refunded
+          : PaymentStatus.partially_refunded;
+      order.admin_notes = appendAdminNote(
+        order.admin_notes,
+        `Cancellation wallet refund issued: ${reason}`,
+      );
+      await orderRepo.save(order);
+      return tx;
+    });
 
     return {
       gateway: "wallet",

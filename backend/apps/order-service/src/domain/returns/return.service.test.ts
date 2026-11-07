@@ -93,6 +93,14 @@ describe("ReturnService", () => {
     };
     userRepo = makeMockRepo();
     walletTransactionRepo = makeMockRepo();
+    // The wallet credit runs in its own transaction (it locks the user row);
+    // hand the same fakes back from the transactional manager.
+    userRepo.target = "User";
+    walletTransactionRepo.target = "WalletTransaction";
+    userRepo.manager = {
+      transaction: async (cb: any) =>
+        cb({ getRepository: (t: string) => (t === "User" ? userRepo : walletTransactionRepo) }),
+    };
     orderStatusService = {
       transitionOrder: mock(() => Promise.resolve({})),
     };

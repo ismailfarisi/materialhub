@@ -488,32 +488,41 @@ export class ReturnService {
     } else if (method === "wallet" && alreadyCredited) {
       // Credited by an earlier attempt.
     } else if (method === "wallet") {
-      // SELECT FOR UPDATE on user
-      const qb = this.userRepo.createQueryBuilder("user");
-      const user = await qb
-        .where("user.id = :id", { id: ret.user_id })
-        .setLock("pessimistic_write")
-        .getOne();
+      // One transaction: the user-row lock requires one (outside it TypeORM
+      // throws "open transaction is required for pessimistic lock"), and the
+      // duplicate check is repeated under the lock so two concurrent retries
+      // can't both credit.
+      await this.userRepo.manager.transaction(async (m) => {
+        const userRepo = m.getRepository(this.userRepo.target);
+        const walletRepo = m.getRepository(this.walletTransactionRepo.target);
+        const user = await userRepo
+          .createQueryBuilder("user")
+          .where("user.id = :id", { id: ret.user_id })
+          .setLock("pessimistic_write")
+          .getOne();
+        if (!user) throw new NotFoundError("User not found");
 
-      if (!user) throw new NotFoundError("User not found");
+        const credited = await walletRepo.findOne({
+          where: { reference_type: "return", reference_id: returnId } as any,
+        });
+        if (credited) return;
 
-      const balanceBefore = (user as any).wallet_balance;
-      const balanceAfter = balanceBefore + refundAmount;
-
-      const walletTx = this.walletTransactionRepo.create({
-        user_id: ret.user_id,
-        amount: refundAmount,
-        balance_before: balanceBefore,
-        balance_after: balanceAfter,
-        transaction_type: "refund",
-        order_id: ret.order_id,
-        reference_type: "return",
-        reference_id: returnId,
-      } as any);
-      await this.walletTransactionRepo.save(walletTx);
-
-      (user as any).wallet_balance = balanceAfter;
-      await this.userRepo.save(user);
+        const balanceBefore = Number((user as any).wallet_balance ?? 0);
+        const balanceAfter = balanceBefore + refundAmount;
+        const walletTx = walletRepo.create({
+          user_id: ret.user_id,
+          amount: refundAmount,
+          balance_before: balanceBefore,
+          balance_after: balanceAfter,
+          transaction_type: "refund",
+          order_id: ret.order_id,
+          reference_type: "return",
+          reference_id: returnId,
+        } as any);
+        await walletRepo.save(walletTx);
+        (user as any).wallet_balance = balanceAfter;
+        await userRepo.save(user);
+      });
     } else {
       // Refund to the customer's original payment instrument (card / BNPL).
       // The single sink lives in RefundService — adding a gateway means
