@@ -216,11 +216,11 @@ describe("DeliveryEstimateService", () => {
       ],
     });
     expect(out).toHaveLength(3);
-    expect(out[0].estimate?.speed).toBe("same_day");
-    expect(out[1].estimate?.basis).toBe("default");
-    expect(out[1].estimate?.earliest).toBe("2026-11-11");
-    expect(out[2].estimate).toBeNull();
-    expect(out[2].error).toContain("no active warehouse");
+    expect(out[0]!.estimate?.speed).toBe("same_day");
+    expect(out[1]!.estimate?.basis).toBe("default");
+    expect(out[1]!.estimate?.earliest).toBe("2026-11-11");
+    expect(out[2]!.estimate).toBeNull();
+    expect(out[2]!.error).toContain("no active warehouse");
     expect(holidayQueries()).toBe(1);
   });
 

@@ -1,4 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
+import { VendorStatus } from "@materialhub/database";
 import { VendorController, toVendorApplyData } from "./vendor.controller.ts";
 
 const USER_ID = "00000000-0000-0000-0000-0000000000aa";
@@ -30,7 +31,7 @@ describe("toVendorApplyData (POST /vendors/apply body mapping)", () => {
       ...applyBody,
       documents: [{ type: "vat_certificate", s3_key: "k/abc", file_name: "VAT cert.pdf" }],
     });
-    expect(data.documents[0].fileName).toBe("VAT cert.pdf");
+    expect(data.documents[0]?.fileName).toBe("VAT cert.pdf");
   });
 
   test("maps address and contact fields; bank account is optional", () => {
@@ -143,7 +144,7 @@ describe("VendorController.approve / reactivate", () => {
     const { controller, transitions } = makeController("suspended");
     const v = await controller.reactivate(VENDOR_ID, "admin");
     expect(transitions).toEqual(["approved"]);
-    expect(v.status).toBe("approved");
+    expect(v.status).toBe(VendorStatus.approved);
   });
 
   test("reactivate refuses a vendor that is not suspended", async () => {

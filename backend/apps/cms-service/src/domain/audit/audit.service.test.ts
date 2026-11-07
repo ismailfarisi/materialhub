@@ -46,8 +46,8 @@ describe("AuditService.list", () => {
     Object.defineProperty(service, "userRepo", { get: () => ({ find: async () => [actor] }) });
 
     const res = await service.list({ action: "create", actor: "ops", page: 1, limit: 20 });
-    expect(res.data[0].actor).toEqual(actor);
-    expect(res.data[1].actor).toBeNull();
+    expect(res.data[0]?.actor).toEqual(actor);
+    expect(res.data[1]?.actor).toBeNull();
     expect(where.some((w) => w.includes("FROM users u"))).toBe(true);
   });
 

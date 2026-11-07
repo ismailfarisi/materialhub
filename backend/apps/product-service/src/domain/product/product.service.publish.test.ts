@@ -193,10 +193,11 @@ describe("ProductService.unpublish", () => {
 
 describe("ProductService.bulkAction", () => {
   const row = (id: string, status: string) => ({ id, vendor_id: "vendor-1", status, price: 9900 });
+  type Row = ReturnType<typeof row>;
 
   test("publish validates each product; drafts fail without blocking approved ones", async () => {
     inventoryRows = [{ quantity_on_hand: 10, quantity_reserved: 0 }];
-    const products = [row("p-ok", "approved"), row("p-draft", "draft")];
+    const products: [Row, Row] = [row("p-ok", "approved"), row("p-draft", "draft")];
     const service = makeService(products[0], products);
     const result = await service.bulkAction("vendor-1", "publish", ["p-ok", "p-draft"]);
     expect(result.succeeded).toEqual(["p-ok"]);
@@ -210,7 +211,7 @@ describe("ProductService.bulkAction", () => {
 
   test("archive removes the products from search", async () => {
     syncCalls.length = 0;
-    const products = [row("p-1", "published"), row("p-2", "approved")];
+    const products: [Row, Row] = [row("p-1", "published"), row("p-2", "approved")];
     const service = makeService(products[0], products);
     const result = await service.bulkAction("vendor-1", "archive", ["p-1", "p-2"]);
     expect(result.affected).toBe(2);
@@ -220,14 +221,17 @@ describe("ProductService.bulkAction", () => {
   });
 
   test("delete removes the products from search", async () => {
-    const products = [row("p-1", "published")];
+    const products: [Row] = [row("p-1", "published")];
     const service = makeService(products[0], products);
     await service.bulkAction("vendor-1", "delete", ["p-1"]);
     expect(service.removed).toEqual(["p-1"]);
   });
 
   test("ids of other vendors are reported as not found", async () => {
-    const products = [row("p-1", "approved"), { ...row("p-x", "approved"), vendor_id: "other" }];
+    const products: [Row, Row] = [
+      row("p-1", "approved"),
+      { ...row("p-x", "approved"), vendor_id: "other" },
+    ];
     const service = makeService(products[0], products);
     inventoryRows = [{ quantity_on_hand: 1, quantity_reserved: 0 }];
     const result = await service.bulkAction("vendor-1", "publish", ["p-1", "p-x"]);

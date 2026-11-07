@@ -87,10 +87,10 @@ describe("AiSettingsRepository.update — against real Postgres (skips if unavai
       expect((JSON.parse(row!.value) as { enabled: boolean }).enabled).toBe(true);
     } finally {
       if (before) {
-        await settings.update(
-          { key: "ai_image_enhance" },
-          { value: before.value, updated_by: before.updated_by } as any,
-        );
+        await settings.update({ key: "ai_image_enhance" }, {
+          value: before.value,
+          updated_by: before.updated_by,
+        } as any);
       } else {
         await settings.delete({ key: "ai_image_enhance" });
       }

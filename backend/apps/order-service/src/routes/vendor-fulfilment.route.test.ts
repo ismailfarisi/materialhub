@@ -163,7 +163,7 @@ describe("POST /vendor/orders/:id/ship", () => {
       body: { carrier: "Aramex", tracking_number: "AWB-100" },
     });
     expect(res.status).toBe(201);
-    const [voId, vendorId, body, userId] = shipmentTrackingController.createShipment.mock.calls[0];
+    const [voId, vendorId, body, userId] = shipmentTrackingController.createShipment.mock.calls[0]!;
     expect([voId, vendorId, userId]).toEqual([VO_ID, VENDOR_ID, MEMBER_USER_ID]);
     expect(body.items).toBeUndefined();
   });
