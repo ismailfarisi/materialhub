@@ -102,6 +102,14 @@ export function isPublicRoute(path: string, method: string): boolean {
   // Vendor team invite preview: the invitee opens the emailed link before
   // signing in. Accept/decline (POST) stay authenticated.
   if (isRead && /^\/vendor-members\/invite\/[^/]+$/.test(path)) return true;
+  // Declining needs only the emailed token (the invitee may have no account).
+  // Accepting stays authenticated.
+  if (method === "POST" && path === "/vendor-members/decline") return true;
+  // Inbound vendor-integration webhooks: authenticated by the integration's
+  // HMAC signature inside the handler (InboundService), not by JWT. Without
+  // this, partners could never deliver and the handler's own "inbound
+  // disabled" 503 never ran.
+  if (method === "POST" && /^\/integrations\/inbound\/[^/]+\/[^/]+$/.test(path)) return true;
   // Section-type registry is public metadata (read-only)
   if (path === "/section-types" || path.startsWith("/section-types/")) return true;
   if (path.startsWith("/webhooks/")) return true;
