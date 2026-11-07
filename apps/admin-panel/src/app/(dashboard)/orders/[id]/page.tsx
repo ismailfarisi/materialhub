@@ -1240,15 +1240,25 @@ export default function OrderDetailPage() {
 								</div>
 							)}
 							<div className="flex justify-between text-taupe">
-								<span>VAT</span>
-								<span className="tabular-nums">
-									{formatCurrency(order.tax_total ?? 0)}
-								</span>
-							</div>
-							<div className="flex justify-between text-taupe">
 								<span>Shipping</span>
 								<span className="tabular-nums">
 									{formatCurrency(order.shipping_total ?? 0)}
+								</span>
+							</div>
+							{/* Payment-method fee (e.g. COD) is part of grand_total. */}
+							{Number(order.surcharge_total ?? 0) > 0 && (
+								<div className="flex justify-between text-taupe">
+									<span>Payment method fee</span>
+									<span className="tabular-nums">
+										{formatCurrency(order.surcharge_total ?? 0)}
+									</span>
+								</div>
+							)}
+							{/* Prices are VAT-inclusive: VAT is part of the lines above. */}
+							<div className="flex justify-between text-taupe">
+								<span>VAT (5% included)</span>
+								<span className="tabular-nums">
+									{formatCurrency(order.tax_total ?? 0)}
 								</span>
 							</div>
 							<Separator className="my-1" />

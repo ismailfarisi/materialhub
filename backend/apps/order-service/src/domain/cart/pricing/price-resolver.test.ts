@@ -97,3 +97,30 @@ describe("tier helpers", () => {
     expect(lowestUnitPrice(600, [])).toBe(600);
   });
 });
+
+describe("resolveLinePrice: a quote never costs more than the listing", () => {
+  // Greyboard sheet: base 450 fils; 100+ at 400; 500+ at 350.
+  const tiers = [
+    { min_quantity: 100, unit_price: 400 },
+    { min_quantity: 500, unit_price: 350 },
+  ];
+
+  it("uses the quoted price when it beats the listing's tier", () => {
+    const r = resolveLinePrice({ basePrice: 450, tiers, quantity: 2000, quotedUnitPrice: 300 });
+    expect(r.unitPrice).toBe(300);
+    expect(r.source).toBe("quote");
+  });
+
+  it("falls back to the tier price when the quote is higher (E2E: 380 quoted vs 350 tier)", () => {
+    const r = resolveLinePrice({ basePrice: 450, tiers, quantity: 2000, quotedUnitPrice: 380 });
+    expect(r.unitPrice).toBe(350);
+    expect(r.lineTotal).toBe(700_000);
+    expect(r.source).toBe("tier");
+  });
+
+  it("caps at the base price when no tier applies", () => {
+    const r = resolveLinePrice({ basePrice: 450, tiers, quantity: 10, quotedUnitPrice: 500 });
+    expect(r.unitPrice).toBe(450);
+    expect(r.source).toBe("base");
+  });
+});

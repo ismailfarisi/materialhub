@@ -725,7 +725,7 @@ export function ProductForm({ productId, defaultValues, forceStep }: ProductForm
                 </p>
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {["Books", "Electronics", "Art", "Single items"].map((ex) => (
+                {["Greyboard sheet", "Kraft roll", "Adhesive", "Craft kit"].map((ex) => (
                   <span
                     key={ex}
                     className="text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-100"
@@ -768,7 +768,7 @@ export function ProductForm({ productId, defaultValues, forceStep }: ProductForm
                 </p>
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {["Clothing", "Shoes", "Jewelry", "Furniture"].map((ex) => (
+                {["Paper by gsm", "Box by size", "Ribbon by colour", "Leather by finish"].map((ex) => (
                   <span
                     key={ex}
                     className="text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-full bg-violet-50 text-violet-600 border border-violet-100"
@@ -916,7 +916,7 @@ export function ProductForm({ productId, defaultValues, forceStep }: ProductForm
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Premium Cotton T-Shirt"
+                  placeholder="e.g. Greyboard 2 mm, 70 × 100 cm"
                   className={`mt-1 ${errors.name ? "border-red-300 focus-visible:ring-red-200" : ""}`}
                 />
               </div>
@@ -954,22 +954,22 @@ export function ProductForm({ productId, defaultValues, forceStep }: ProductForm
               </div>
 
               <div>
-                <Label className="text-sm font-medium text-gray-700">Ingredients</Label>
+                <Label className="text-sm font-medium text-gray-700">Material composition</Label>
                 <Textarea
                   value={ingredients}
                   onChange={(e) => setIngredients(e.target.value)}
-                  placeholder="Water, Glycerin, Vitamin E…"
+                  placeholder="e.g. 100% recycled board, water-based coating"
                   rows={3}
                   className="mt-1"
                 />
               </div>
 
               <div>
-                <Label className="text-sm font-medium text-gray-700">Usage Instructions</Label>
+                <Label className="text-sm font-medium text-gray-700">Handling and use</Label>
                 <Textarea
                   value={usageInstructions}
                   onChange={(e) => setUsageInstructions(e.target.value)}
-                  placeholder="Apply twice daily after cleansing…"
+                  placeholder="e.g. Store flat and dry; score before folding"
                   rows={3}
                   className="mt-1"
                 />

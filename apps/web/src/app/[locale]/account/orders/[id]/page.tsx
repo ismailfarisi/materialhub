@@ -30,6 +30,7 @@ import { useEffect, useState } from "react";
 export default function OrderDetailPage() {
 	const t = useTranslations("account");
 	const tCommon = useTranslations("common");
+	const tCheckout = useTranslations("checkout");
 	const tOrderStatus = useTranslations("account.orderStatus");
 	const tPayStatus = useTranslations("account.paymentStatus");
 	const locale = useLocale();
@@ -218,7 +219,13 @@ export default function OrderDetailPage() {
 								label={t("shipping")}
 								value={order.shipping_total > 0 ? money(order.shipping_total) : tCommon("free")}
 							/>
-							<ValueRow label={t("tax")} value={money(order.tax_total)} />
+							{/* The payment-method fee (e.g. COD) is part of grand_total; without
+							    this row the summary didn't add up to the total. */}
+							{Number(order.surcharge_total ?? 0) > 0 && (
+								<ValueRow label={tCheckout("paymentFee")} value={money(order.surcharge_total)} />
+							)}
+							{/* Prices include VAT: show it as included, not as a line added on top. */}
+							<ValueRow label={tCheckout("vatIncluded")} value={money(order.tax_total)} />
 							{order.refund_total > 0 && <ValueRow label={t("refunded")} value={`−${money(order.refund_total)}`} />}
 							<ValueRow
 								strong

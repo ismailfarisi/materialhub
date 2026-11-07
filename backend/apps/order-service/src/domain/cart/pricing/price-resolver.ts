@@ -85,13 +85,20 @@ export function resolveLinePrice(input: ResolvePriceInput): ResolvedPrice {
   const tiers = normaliseTiers(input.tiers);
 
   // ── RFQ hook: quote > tier > base ─────────────────────────────────
+  // A quote never makes the buyer pay MORE than the listing charges for the
+  // same quantity: when the listing's own quantity-break price is lower, that
+  // price applies to the quoted line.
   if (input.quotedUnitPrice != null && Number.isFinite(input.quotedUnitPrice)) {
-    const unitPrice = Math.max(0, Math.trunc(input.quotedUnitPrice));
+    const quoted = Math.max(0, Math.trunc(input.quotedUnitPrice));
+    const listedTier = tierFor(tiers, quantity, basePrice);
+    const listed = listedTier ? listedTier.unit_price : basePrice;
+    const unitPrice = Math.min(quoted, listed);
+    const quoteWins = quoted <= listed;
     return {
       unitPrice,
       lineTotal: unitPrice * quantity,
-      source: "quote",
-      tier: null,
+      source: quoteWins ? "quote" : listedTier ? "tier" : "base",
+      tier: quoteWins ? null : listedTier,
       baseUnitPrice: basePrice,
       savingsFils: Math.max(0, (basePrice - unitPrice) * quantity),
       nextTier: null,
