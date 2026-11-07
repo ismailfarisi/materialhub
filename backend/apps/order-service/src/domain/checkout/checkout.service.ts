@@ -293,7 +293,10 @@ export class CheckoutService {
       if (!codRow) {
         throw new BadRequestError("Cash on delivery is not available");
       }
-      if ((cart as any).subtotal > codRow.max_amount_fils) {
+      if (
+        (cart as any).subtotal > codRow.max_amount_fils ||
+        (cart as any).subtotal < Number(codRow.min_amount_fils ?? 0)
+      ) {
         throw new BadRequestError("Cash on delivery is not available for this order amount");
       }
       surchargeTotal = codRow.surcharge_fils ?? 0;

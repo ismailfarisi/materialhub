@@ -1,6 +1,7 @@
 "use client";
 
 import { useEditor, EditorContent } from "@tiptap/react";
+import { useEffect } from "react";
 import StarterKit from "@tiptap/starter-kit";
 import TiptapLink from "@tiptap/extension-link";
 import TiptapImage from "@tiptap/extension-image";
@@ -78,6 +79,16 @@ export function RichEditor({ content, onChange, placeholder }: RichEditorProps) 
       onChange(ed.getHTML());
     },
   });
+
+  // `content` is only read by useEditor at mount. Edit pages load the stored
+  // body after mounting, so the editor opened empty and typing replaced the
+  // whole stored page. Sync external changes in, but never while the user is
+  // typing (focused), and without echoing them back through onChange.
+  useEffect(() => {
+    if (!editor || editor.isFocused) return;
+    const next = content ?? "";
+    if (next !== editor.getHTML()) editor.commands.setContent(next, false);
+  }, [editor, content]);
 
   if (!editor) return null;
 

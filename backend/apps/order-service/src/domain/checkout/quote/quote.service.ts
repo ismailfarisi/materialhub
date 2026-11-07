@@ -204,16 +204,31 @@ export class QuoteService {
     // COD: only included if the row exists AND is active (the where clause above
     // already filters is_active). Disabled COD is omitted entirely.
     if (cod) {
-      const codAvailable = subtotalFils <= cod.max_amount_fils;
+      // Both limits apply: the admin can set a COD minimum, which was
+      // editable but never enforced.
+      const codMin = Number(cod.min_amount_fils ?? 0);
+      const underMin = subtotalFils < codMin;
+      const overMax = subtotalFils > cod.max_amount_fils;
+      const codAvailable = !underMin && !overMax;
       paymentMethods.push({
         id: "cod",
         available: codAvailable,
         surcharge_fils: cod.surcharge_fils ?? 0,
         surcharge_type: "fixed",
-        reason_key: codAvailable ? null : "payment.cod.over_threshold",
+        reason_key: codAvailable
+          ? null
+          : underMin
+            ? "payment.cod.under_threshold"
+            : "payment.cod.over_threshold",
         reason_params: codAvailable
           ? null
-          : { limit: { value: cod.max_amount_fils, type: "money", currency: "AED" } },
+          : {
+              limit: {
+                value: underMin ? codMin : cod.max_amount_fils,
+                type: "money",
+                currency: "AED",
+              },
+            },
       });
     }
     for (const [id, row] of [

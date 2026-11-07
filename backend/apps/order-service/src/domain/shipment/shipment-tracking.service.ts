@@ -667,13 +667,24 @@ export class ShipmentTrackingService {
     } as any);
     await this.shipmentStatusHistoryRepo.save(historyEntry);
 
-    // Trigger vendor_order transitions
+    // Trigger vendor_order transitions. The shipment change was already
+    // authorised above (vendor of this shipment, admin or carrier webhook),
+    // and the vendor-order hops it implies (shipped -> out_for_delivery ->
+    // delivered) are system transitions in the state machine. Cascading them
+    // as the vendor actor was rejected and swallowed, so a vendor-delivered
+    // shipment left its vendor order "shipped" forever (no reviews, stock
+    // still reserved). The acting user is kept for the history row.
+    const cascadeActor = {
+      userId: (actor as any).userId ?? null,
+      role: "system" as const,
+      vendorId: (actor as any).vendorId,
+    };
     try {
       if (toStatus === ShipmentStatus.picked_up || toStatus === ShipmentStatus.in_transit) {
         await this.orderStatusService.transitionVendorOrder(
           (shipment as any).vendor_order_id,
           OrderStatus.shipped,
-          actor,
+          cascadeActor as any,
           reason,
           metadata,
         );
@@ -681,7 +692,7 @@ export class ShipmentTrackingService {
         await this.orderStatusService.transitionVendorOrder(
           (shipment as any).vendor_order_id,
           OrderStatus.out_for_delivery,
-          actor,
+          cascadeActor as any,
           reason,
           metadata,
         );
@@ -689,13 +700,19 @@ export class ShipmentTrackingService {
         await this.orderStatusService.transitionVendorOrder(
           (shipment as any).vendor_order_id,
           OrderStatus.delivered,
-          actor,
+          cascadeActor as any,
           reason,
           metadata,
         );
       }
-    } catch {
-      // Silently catch transition errors (same pattern as processWebhookEvent)
+    } catch (err) {
+      // Never fail the shipment update, but don't hide a stuck vendor order.
+      console.error("[shipment] vendor order cascade failed", {
+        shipmentId,
+        vendorOrderId: (shipment as any).vendor_order_id,
+        toStatus,
+        error: String(err),
+      });
     }
 
     // Emit shipment.status_changed integration event after persistence,

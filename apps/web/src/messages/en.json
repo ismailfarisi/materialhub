@@ -331,8 +331,9 @@
     "bnplPlan": "{installments} payments of {amount} AED",
     "payment": {
       "cod": {
-        "over_threshold": "Cash on delivery is not available for orders above 5,000 AED",
-        "surcharge": "Includes {amount} AED COD fee"
+        "over_threshold": "Cash on delivery is not available for orders above {limit} AED",
+        "surcharge": "Includes {amount} AED COD fee",
+        "under_threshold": "Cash on delivery is available for orders of {limit} AED or more"
       },
       "tabby": {
         "unavailable_min": "Tabby requires a minimum order of {amount} AED",

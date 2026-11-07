@@ -953,7 +953,7 @@ describe("ShipmentTrackingService", () => {
       expect(mockOrderStatusService.transitionVendorOrder).toHaveBeenCalledWith(
         "vo-1",
         OrderStatus.delivered,
-        { userId: "vendor-1", role: "vendor" },
+        { userId: "vendor-1", role: "system" },
         "Delivered to customer",
         undefined,
       );
@@ -981,7 +981,7 @@ describe("ShipmentTrackingService", () => {
       expect(mockOrderStatusService.transitionVendorOrder).toHaveBeenCalledWith(
         "vo-1",
         OrderStatus.out_for_delivery,
-        { userId: "vendor-1", role: "vendor" },
+        { userId: "vendor-1", role: "system" },
         "Out for delivery now",
         undefined,
       );

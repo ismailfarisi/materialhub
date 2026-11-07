@@ -235,6 +235,43 @@ describe("QuoteService — §12 worked example + edge cases", () => {
     expect(cod?.reason_key).toBe("payment.cod.over_threshold");
   });
 
+  it("COD unavailable below the admin's COD minimum (min was editable but ignored)", async () => {
+    mocks.thresholdRepo.find.mockResolvedValueOnce([
+      {
+        provider: "cod",
+        min_amount_fils: 20000,
+        max_amount_fils: 500000,
+        plans: [],
+        is_active: true,
+        surcharge_fils: 1000,
+      },
+    ] as any);
+    mocks.cartService.getCart.mockResolvedValueOnce({
+      cart: { id: "c1", subtotal: 15000, coupon_discount: 0 },
+      items: [
+        {
+          vendor_id: "v_a",
+          items: [
+            {
+              id: "i1",
+              vendor_id: "v_a",
+              product_id: "p1",
+              variant_id: null,
+              quantity: 1,
+              unit_price: 15000,
+            },
+          ],
+        },
+      ],
+      staleItems: [],
+    } as any);
+    const { response } = await svc.buildQuote({ userId: "u1", addressId: "a1" });
+    const cod = response.payment_methods.find((p) => p.id === "cod");
+    expect(cod?.available).toBe(false);
+    expect(cod?.reason_key).toBe("payment.cod.under_threshold");
+    expect((cod?.reason_params as any)?.limit?.value).toBe(20000);
+  });
+
   it("partial quote (no address) has requires_address: true and shipping null", async () => {
     const { response } = await svc.buildQuote({ userId: "u1", addressId: null });
     expect(response.requires_address).toBe(true);
