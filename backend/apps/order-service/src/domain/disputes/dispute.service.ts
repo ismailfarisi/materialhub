@@ -6,6 +6,7 @@ import type { VendorOrder } from "@materialhub/database";
 import type { User } from "@materialhub/database";
 import type { WalletTransaction } from "@materialhub/database";
 import { DisputeStatus, OrderStatus } from "@materialhub/database/src/enums/order.enums.ts";
+import { BadRequestError, ForbiddenError, NotFoundError } from "@materialhub/plugins";
 import type { Queue } from "bullmq";
 // dispute.service.ts
 import type { Repository } from "typeorm";
@@ -70,14 +71,14 @@ export class DisputeService {
       where: { id: orderId } as any,
     });
     if (!order || (order as any).user_id !== userId) {
-      throw new Error("Order not found");
+      throw new NotFoundError("Order not found");
     }
 
     // 2. Verify status: delivered (or shipped for item_not_received)
     const status = (order as any).status;
     const allowShipped = data.category === "item_not_received" && status === OrderStatus.shipped;
     if (status !== OrderStatus.delivered && !allowShipped) {
-      throw new Error("Order must be delivered to open a dispute");
+      throw new BadRequestError("Order must be delivered to open a dispute");
     }
 
     // 3. Derive vendor_id from vendor orders
@@ -90,14 +91,14 @@ export class DisputeService {
 
     if (data.vendor_order_id) {
       const match = vendorOrders.find((vo: any) => vo.id === data.vendor_order_id);
-      if (!match) throw new Error("Vendor order not found");
+      if (!match) throw new NotFoundError("Vendor order not found");
       vendorOrderId = (match as any).id;
       vendorId = (match as any).vendor_id;
     } else if (vendorOrders.length === 1) {
       vendorOrderId = (vendorOrders[0] as any).id;
       vendorId = (vendorOrders[0] as any).vendor_id;
     } else {
-      throw new Error("vendor_order_id is required when order has multiple vendors");
+      throw new BadRequestError("vendor_order_id is required when order has multiple vendors");
     }
 
     // 4. Generate dispute_number
@@ -148,9 +149,9 @@ export class DisputeService {
     const dispute = await this.disputeRepo.findOne({
       where: { id: disputeId } as any,
     });
-    if (!dispute) throw new Error("Dispute not found");
+    if (!dispute) throw new NotFoundError("Dispute not found");
     if (dispute.status !== DisputeStatus.opened) {
-      throw new Error("Only opened disputes can be assigned");
+      throw new BadRequestError("Only opened disputes can be assigned");
     }
 
     dispute.assigned_to = assigneeId;
@@ -166,9 +167,9 @@ export class DisputeService {
     const dispute = await this.disputeRepo.findOne({
       where: { id: disputeId } as any,
     });
-    if (!dispute) throw new Error("Dispute not found");
+    if (!dispute) throw new NotFoundError("Dispute not found");
     if (dispute.status !== DisputeStatus.under_review) {
-      throw new Error("Only under_review disputes can be escalated");
+      throw new BadRequestError("Only under_review disputes can be escalated");
     }
 
     dispute.escalated_at = new Date();
@@ -188,12 +189,12 @@ export class DisputeService {
     const dispute = await this.disputeRepo.findOne({
       where: { id: disputeId } as any,
     });
-    if (!dispute) throw new Error("Dispute not found");
+    if (!dispute) throw new NotFoundError("Dispute not found");
     if (
       dispute.status !== DisputeStatus.under_review &&
       dispute.status !== DisputeStatus.escalated
     ) {
-      throw new Error("Dispute must be under_review or escalated to resolve");
+      throw new BadRequestError("Dispute must be under_review or escalated to resolve");
     }
 
     dispute.resolution = data.resolution;
@@ -367,12 +368,12 @@ export class DisputeService {
     const dispute = await this.disputeRepo.findOne({
       where: { id: disputeId } as any,
     });
-    if (!dispute) throw new Error("Dispute not found");
+    if (!dispute) throw new NotFoundError("Dispute not found");
     if (
       dispute.status !== DisputeStatus.resolved_buyer &&
       dispute.status !== DisputeStatus.resolved_seller
     ) {
-      throw new Error("Only resolved disputes can be closed");
+      throw new BadRequestError("Only resolved disputes can be closed");
     }
 
     dispute.status = DisputeStatus.closed;
@@ -392,15 +393,15 @@ export class DisputeService {
     const dispute = await this.disputeRepo.findOne({
       where: { id: disputeId } as any,
     });
-    if (!dispute) throw new Error("Dispute not found");
+    if (!dispute) throw new NotFoundError("Dispute not found");
     if (dispute.status === DisputeStatus.closed) {
-      throw new Error("Cannot add messages to a closed dispute");
+      throw new BadRequestError("Cannot add messages to a closed dispute");
     }
 
     // is_internal only allowed for admin/super_admin
     const isInternal = data.is_internal ?? false;
     if (isInternal && senderRole !== "admin" && senderRole !== "super_admin") {
-      throw new Error("Only admins can send internal messages");
+      throw new ForbiddenError("Only admins can send internal messages");
     }
 
     const message = this.disputeMessageRepo.create({
@@ -413,6 +414,25 @@ export class DisputeService {
     } as any);
 
     return this.disputeMessageRepo.save(message) as unknown as Promise<DisputeMessage>;
+  }
+
+  /* ================================================================ */
+  /*  assertParticipant                                               */
+  /* ================================================================ */
+  /**
+   * Resolve a dispute for a caller on the shared /disputes/:id/messages
+   * thread. Admins see any dispute; a customer only the disputes they
+   * opened. A customer asking for someone else's dispute gets the SAME
+   * NotFound as a non-existent id, so existence is not leaked.
+   */
+  async assertParticipant(disputeId: string, userId: string, role: string): Promise<Dispute> {
+    const dispute = await this.disputeRepo.findOne({
+      where: { id: disputeId } as any,
+    });
+    if (!dispute) throw new NotFoundError("Dispute not found");
+    if (role === "admin" || role === "super_admin") return dispute;
+    if (role === "customer" && (dispute as any).opened_by === userId) return dispute;
+    throw new NotFoundError("Dispute not found");
   }
 
   /* ================================================================ */

@@ -11,12 +11,23 @@ export class ReviewController {
     return this.reviewService.getProductReviews(productId, query);
   }
 
+  /** GET /products/:id/reviews (the route's name for getProductReviews). */
+  async listForProduct(productId: string, query: any) {
+    return this.reviewService.getProductReviews(productId, query);
+  }
+
   async vendorReply(reviewId: string, vendorId: string, body: any) {
     return this.reviewService.vendorReply(reviewId, vendorId, body.reply);
   }
 
-  async vote(reviewId: string, userId: string, body: any) {
-    return this.reviewService.voteReview(reviewId, userId, body.is_helpful);
+  /** PATCH /vendors/me/reviews/:id/reply — route passes the reply string. */
+  async reply(reviewId: string, vendorId: string, reply: string) {
+    return this.reviewService.vendorReply(reviewId, vendorId, reply);
+  }
+
+  /** Route passes the already-validated boolean, not the body. */
+  async vote(reviewId: string, userId: string, isHelpful: boolean) {
+    return this.reviewService.voteReview(reviewId, userId, isHelpful);
   }
 
   async flag(reviewId: string, userId: string) {

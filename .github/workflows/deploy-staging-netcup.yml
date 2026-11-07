@@ -151,6 +151,7 @@ jobs:
           # Stripe
           STRIPE_SECRET_KEY=${{ secrets.STAGING_STRIPE_SECRET_KEY }}
           STRIPE_CONNECT_WEBHOOK_SECRET=${{ secrets.STAGING_STRIPE_CONNECT_WEBHOOK_SECRET }}
+          STRIPE_WEBHOOK_SECRET=${{ secrets.STAGING_STRIPE_WEBHOOK_SECRET }}
 
           # Tamara
           TAMARA_API_TOKEN=${{ secrets.STAGING_TAMARA_API_TOKEN }}

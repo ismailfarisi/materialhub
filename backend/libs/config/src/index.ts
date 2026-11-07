@@ -110,6 +110,9 @@ export const config = {
   stripe: {
     secretKey: process.env.STRIPE_SECRET_KEY || "",
     connectWebhookSecret: process.env.STRIPE_CONNECT_WEBHOOK_SECRET || "",
+    // Signing secret of the platform PaymentIntent webhook endpoint
+    // (POST /webhooks/stripe). Unset → that endpoint fails closed with 503.
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",
   },
   tamara: {
     apiToken: process.env.TAMARA_API_TOKEN || "",

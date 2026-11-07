@@ -45,8 +45,9 @@ export class CheckoutController {
     );
   }
 
-  handleStripeWebhook(eventId: string, eventType: string, payload: any) {
-    return this.webhookService.handleStripeWebhook(eventId, eventType, payload);
+  /** Verifies the Stripe signature over the raw body before processing. */
+  handleStripeWebhookRequest(rawBody: string, signature: string | null) {
+    return this.webhookService.handleStripeWebhookRequest(rawBody, signature);
   }
 
   handleTamaraWebhook(tamaraToken: string | null, authorization: string | null, payload: any) {

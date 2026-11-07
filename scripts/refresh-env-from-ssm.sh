@@ -36,6 +36,7 @@ path_to_env() {
     "${PREFIX}/booking/ical-feed-secret")     echo "BOOKING_ICAL_FEED_SECRET" ;;
     "${PREFIX}/stripe/secret-key")            echo "STRIPE_SECRET_KEY" ;;
     "${PREFIX}/stripe/connect-webhook")       echo "STRIPE_CONNECT_WEBHOOK_SECRET" ;;
+    "${PREFIX}/stripe/payment-webhook")       echo "STRIPE_WEBHOOK_SECRET" ;;
     "${PREFIX}/encryption/vendor-key")        echo "VENDOR_ENCRYPTION_KEY" ;;
     "${PREFIX}/encryption/key")               echo "ENCRYPTION_KEY" ;;
     "${PREFIX}/encryption/two-fa-key")        echo "TWO_FA_ENCRYPTION_KEY" ;;

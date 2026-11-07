@@ -21,6 +21,7 @@ SECRETS=(
   "STAGING_INTERNAL_SERVICE_SECRET|Service-to-service auth header secret"
   "STAGING_STRIPE_SECRET_KEY|Stripe API secret key (sk_test_...)"
   "STAGING_STRIPE_CONNECT_WEBHOOK_SECRET|Stripe Connect webhook signing secret (whsec_...)"
+  "STAGING_STRIPE_WEBHOOK_SECRET|Stripe PaymentIntent webhook signing secret for /webhooks/stripe (whsec_...)"
   "STAGING_VENDOR_ENCRYPTION_KEY|Vendor bank account encryption key (64-char hex)"
   "STAGING_ENCRYPTION_KEY|Generic encryption key for shipping creds etc (64-char hex)"
   "STAGING_TWO_FA_ENCRYPTION_KEY|2FA TOTP secret encryption key (32-char hex)"

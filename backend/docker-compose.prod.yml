@@ -97,6 +97,7 @@ services:
       # audited bank-detail reveal (admin-payout.controller.ts revealBank).
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
       - STRIPE_CONNECT_WEBHOOK_SECRET=${STRIPE_CONNECT_WEBHOOK_SECRET}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
       - VENDOR_ENCRYPTION_KEY=${VENDOR_ENCRYPTION_KEY}
       # AWS: SES email, S3 media, CloudFront
       - AWS_REGION=${AWS_REGION}

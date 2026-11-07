@@ -83,6 +83,7 @@ jobs:
           INTERNAL_SERVICE_SECRET: ${{ secrets.STAGING_INTERNAL_SERVICE_SECRET }}
           STRIPE_SECRET_KEY: ${{ secrets.STAGING_STRIPE_SECRET_KEY }}
           STRIPE_CONNECT_WEBHOOK_SECRET: ${{ secrets.STAGING_STRIPE_CONNECT_WEBHOOK_SECRET }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STAGING_STRIPE_WEBHOOK_SECRET }}
           VENDOR_ENCRYPTION_KEY: ${{ secrets.STAGING_VENDOR_ENCRYPTION_KEY }}
           ENCRYPTION_KEY: ${{ secrets.STAGING_ENCRYPTION_KEY }}
           TWO_FA_ENCRYPTION_KEY: ${{ secrets.STAGING_TWO_FA_ENCRYPTION_KEY }}
@@ -124,6 +125,7 @@ jobs:
             "internal-service-secret|INTERNAL_SERVICE_SECRET"
             "stripe/secret-key|STRIPE_SECRET_KEY"
             "stripe/connect-webhook|STRIPE_CONNECT_WEBHOOK_SECRET"
+            "stripe/payment-webhook|STRIPE_WEBHOOK_SECRET"
             "encryption/vendor-key|VENDOR_ENCRYPTION_KEY"
             "encryption/key|ENCRYPTION_KEY"
             "encryption/two-fa-key|TWO_FA_ENCRYPTION_KEY"

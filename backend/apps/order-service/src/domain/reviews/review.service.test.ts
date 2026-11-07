@@ -10,6 +10,8 @@ import { ReviewService } from "./review.service.ts";
 const makeQb = (resolvedValue: [any[], number] = [[], 0]) => {
   const qb: any = {
     leftJoinAndSelect: mock(() => qb),
+    leftJoin: mock(() => qb),
+    addSelect: mock(() => qb),
     innerJoinAndSelect: mock(() => qb),
     where: mock(() => qb),
     andWhere: mock(() => qb),
@@ -346,6 +348,20 @@ describe("ReviewService", () => {
   /*  getProductReviews                                               */
   /* ================================================================ */
   describe("getProductReviews", () => {
+    it("selects only the reviewer's display fields (public endpoint)", async () => {
+      const qb = makeQb([[], 0]);
+      reviewRepo.createQueryBuilder.mockReturnValueOnce(qb);
+
+      await service.getProductReviews("p-1", {});
+
+      expect(qb.leftJoinAndSelect).not.toHaveBeenCalled();
+      expect(qb.leftJoin).toHaveBeenCalledWith("review.user", "user");
+      const selected = qb.addSelect.mock.calls[0]?.[0] as string[];
+      expect(selected).toEqual(["user.id", "user.first_name", "user.last_name", "user.avatar_url"]);
+      expect(selected).not.toContain("user.password_hash");
+      expect(selected).not.toContain("user.email");
+    });
+
     it("only returns approved reviews", async () => {
       const reviews = [{ id: "r-1", status: ReviewStatus.approved, rating: 5 }];
       const qb = makeQb([reviews, 1]);
@@ -433,6 +449,37 @@ describe("ReviewService", () => {
       await service.listForAdmin({ vendor_id: "v-1" });
 
       expect(qb.andWhere).toHaveBeenCalledWith("review.vendor_id = :vendorId", { vendorId: "v-1" });
+    });
+  });
+
+  /* ================================================================ */
+  /*  Unknown ids → 404 (was a plain Error → 500)                     */
+  /* ================================================================ */
+  describe("unknown review id", () => {
+    it.each([
+      ["approveReview", (svc: ReviewService) => svc.approveReview("missing", "admin-1")],
+      ["rejectReview", (svc: ReviewService) => svc.rejectReview("missing", "admin-1", "spam")],
+      ["flagReview", (svc: ReviewService) => svc.flagReview("missing", "user-1")],
+      ["vendorReply", (svc: ReviewService) => svc.vendorReply("missing", "v-1", "Thanks")],
+      ["voteReview", (svc: ReviewService) => svc.voteReview("missing", "user-1", true)],
+    ])("%s rejects with a 404 NotFoundError", async (_name, call) => {
+      reviewRepo.findOne.mockResolvedValueOnce(null);
+      await expect(call(service)).rejects.toMatchObject({ statusCode: 404, code: "NOT_FOUND" });
+    });
+
+    it("voteReview checks existence before writing the vote (no FK violation)", async () => {
+      reviewRepo.findOne.mockResolvedValueOnce(null);
+      await expect(service.voteReview("missing", "user-1", true)).rejects.toMatchObject({
+        statusCode: 404,
+      });
+      expect(reviewVoteRepo.query).not.toHaveBeenCalled();
+    });
+
+    it("an invalid state transition is a 400, not a 500", async () => {
+      reviewRepo.findOne.mockResolvedValueOnce({ id: "r-1", status: ReviewStatus.pending });
+      await expect(service.flagReview("r-1", "user-1")).rejects.toMatchObject({
+        statusCode: 400,
+      });
     });
   });
 });

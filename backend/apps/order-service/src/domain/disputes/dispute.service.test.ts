@@ -908,4 +908,71 @@ describe("DisputeService", () => {
       expect(qb.andWhere).toHaveBeenCalled();
     });
   });
+
+  /* ================================================================ */
+  /*  Unknown ids → 404 (was a plain Error → 500)                     */
+  /* ================================================================ */
+  describe("unknown dispute id", () => {
+    it.each([
+      [
+        "assignDispute",
+        (svc: DisputeService) => svc.assignDispute("missing", "admin-1", "agent-1"),
+      ],
+      ["escalateDispute", (svc: DisputeService) => svc.escalateDispute("missing", "admin-1")],
+      [
+        "resolveDispute",
+        (svc: DisputeService) =>
+          svc.resolveDispute("missing", "admin-1", { decision: "seller", resolution: "x" }),
+      ],
+      ["closeDispute", (svc: DisputeService) => svc.closeDispute("missing", "admin-1")],
+      [
+        "addMessage",
+        (svc: DisputeService) => svc.addMessage("missing", "u-1", "customer", { message: "hi" }),
+      ],
+      [
+        "assertParticipant",
+        (svc: DisputeService) => svc.assertParticipant("missing", "u-1", "admin"),
+      ],
+    ])("%s rejects with a 404 NotFoundError", async (_name, call) => {
+      disputeRepo.findOne.mockResolvedValueOnce(null);
+      await expect(call(service)).rejects.toMatchObject({ statusCode: 404, code: "NOT_FOUND" });
+    });
+
+    it("an invalid state transition is a 400, not a 500", async () => {
+      disputeRepo.findOne.mockResolvedValueOnce({ id: "d-1", status: DisputeStatus.opened });
+      await expect(service.closeDispute("d-1", "admin-1")).rejects.toMatchObject({
+        statusCode: 400,
+      });
+    });
+  });
+
+  describe("assertParticipant", () => {
+    it("lets the customer who opened the dispute through", async () => {
+      disputeRepo.findOne.mockResolvedValueOnce({ id: "d-1", opened_by: "u-1" });
+      await expect(service.assertParticipant("d-1", "u-1", "customer")).resolves.toMatchObject({
+        id: "d-1",
+      });
+    });
+
+    it("answers another customer with the same 404 as an unknown id (no existence leak)", async () => {
+      disputeRepo.findOne.mockResolvedValueOnce({ id: "d-1", opened_by: "u-1" });
+      await expect(service.assertParticipant("d-1", "u-2", "customer")).rejects.toMatchObject({
+        statusCode: 404,
+        message: "Dispute not found",
+      });
+    });
+
+    it("lets admins and super_admins see any dispute", async () => {
+      disputeRepo.findOne.mockResolvedValue({ id: "d-1", opened_by: "u-1" });
+      await expect(service.assertParticipant("d-1", "a-1", "admin")).resolves.toBeTruthy();
+      await expect(service.assertParticipant("d-1", "a-2", "super_admin")).resolves.toBeTruthy();
+    });
+
+    it("rejects any other role with 404", async () => {
+      disputeRepo.findOne.mockResolvedValueOnce({ id: "d-1", opened_by: "u-1" });
+      await expect(service.assertParticipant("d-1", "u-1", "vendor")).rejects.toMatchObject({
+        statusCode: 404,
+      });
+    });
+  });
 });

@@ -399,7 +399,14 @@ const webhookService = new WebhookService(
   paymentRepo,
   orderConfirmationService,
   orderStatusService,
-  config.tamara,
+  // Production fails closed when TAMARA_NOTIFICATION_TOKEN is unset; dev stays permissive.
+  { ...config.tamara, requireNotificationToken: config.isProduction },
+  {
+    // The static helper verifies signatures without an API key, so the
+    // webhook still verifies (rather than crashing) when STRIPE_SECRET_KEY is unset.
+    webhooks: config.stripe.secretKey ? stripe.webhooks : Stripe.webhooks,
+    secret: config.stripe.webhookSecret,
+  },
 );
 const rulesEpochService = new RulesEpochService(rulesEpochRepo);
 const quoteSecret = process.env.QUOTE_TOKEN_KEY ?? "dev-only-quote-key";
