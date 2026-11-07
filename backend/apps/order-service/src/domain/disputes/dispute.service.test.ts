@@ -864,8 +864,14 @@ describe("DisputeService", () => {
         disputeRepo.findOne.mockResolvedValueOnce({
           ...disputeRow(),
           status: DisputeStatus.resolved_buyer,
+          resolution_amount: 5000,
         });
-        orderRepo.findOne.mockResolvedValueOnce({ id: "order-1", status: OrderStatus.disputed });
+        orderRepo.findOne.mockResolvedValueOnce({
+          id: "order-1",
+          status: OrderStatus.disputed,
+          grand_total: 20000,
+          refund_total: 5000,
+        });
 
         await service.resolveDispute("d-1", "admin-1", {
           decision: "buyer",
@@ -873,12 +879,72 @@ describe("DisputeService", () => {
           resolution_amount: 5000,
         });
 
+        // The refund was recorded by the first attempt: no second bump.
+        expect(orderRepo.save).not.toHaveBeenCalled();
         expect(orderStatusService.transitionOrder).toHaveBeenCalledWith(
           "order-1",
-          OrderStatus.refund_requested,
+          OrderStatus.partially_refunded,
           { userId: "admin-1", role: "admin" },
         );
         expect(walletTransactionRepo.create).not.toHaveBeenCalled();
+      });
+
+      it("a buyer-favour wallet credit adds to refund_total and partially refunds the order", async () => {
+        disputeRepo.findOne.mockResolvedValueOnce(disputeRow());
+        const order = {
+          id: "order-1",
+          status: OrderStatus.disputed,
+          grand_total: 20000,
+          refund_total: 1000,
+          invoice_s3_key: "private/receipts/order-1.pdf",
+        };
+        orderRepo.findOne.mockResolvedValueOnce(order);
+        const userQb = makeQb();
+        userQb.getOne.mockResolvedValueOnce({ id: "user-1", wallet_balance: 0 });
+        userRepo.createQueryBuilder.mockReturnValueOnce(userQb);
+
+        await service.resolveDispute("d-1", "admin-1", {
+          decision: "buyer",
+          resolution: "Greyboard arrived crushed",
+          resolution_amount: 5000,
+        });
+
+        expect(order.refund_total).toBe(6000);
+        expect(order.invoice_s3_key).toBeNull();
+        // Locked inside the resolve transaction.
+        expect(orderRepo.findOne).toHaveBeenCalledWith(
+          expect.objectContaining({ lock: { mode: "pessimistic_write" } }),
+        );
+        expect(orderStatusService.transitionOrder).toHaveBeenCalledWith(
+          "order-1",
+          OrderStatus.partially_refunded,
+          { userId: "admin-1", role: "admin" },
+        );
+      });
+
+      it("a buyer-favour refund of the whole order moves it to refunded", async () => {
+        disputeRepo.findOne.mockResolvedValueOnce(disputeRow());
+        const order = {
+          id: "order-1",
+          status: OrderStatus.disputed,
+          grand_total: 5000,
+          refund_total: 0,
+        };
+        orderRepo.findOne.mockResolvedValueOnce(order);
+
+        await service.resolveDispute("d-1", "admin-1", {
+          decision: "buyer",
+          resolution: "Full card refund",
+          resolution_amount: 5000,
+          refund_method: "original_payment",
+        });
+
+        expect(order.refund_total).toBe(5000);
+        expect(orderStatusService.transitionOrder).toHaveBeenCalledWith(
+          "order-1",
+          OrderStatus.refunded,
+          { userId: "admin-1", role: "admin" },
+        );
       });
 
       it("resolving an already-resolved dispute the other way is a 409", async () => {

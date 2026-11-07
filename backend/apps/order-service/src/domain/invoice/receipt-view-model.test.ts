@@ -107,3 +107,114 @@ describe("buildReceiptViewModel", () => {
     expect(vm.vendorGroups[0]?.vendorTrn).toBe("100987654300003");
   });
 });
+
+describe("buildReceiptViewModel — cancellations", () => {
+  const twoVendor = {
+    ...baseOrder,
+    status: "delivered",
+    payment_status: "captured",
+    vendorOrders: [
+      {
+        vendor_order_number: "MH-10234-V1",
+        status: "delivered",
+        vendor: { business_name: "Vendor A" },
+        items: [
+          {
+            id: "gb",
+            product_name: "Greyboard 2 mm",
+            variant_name: null,
+            quantity: 1,
+            unit_price: 4500,
+            line_total: 4500,
+          },
+          {
+            id: "kl",
+            product_name: "Kraft liner 125 gsm",
+            variant_name: null,
+            quantity: 1,
+            unit_price: 500,
+            line_total: 500,
+            status: "cancelled",
+          },
+        ],
+      },
+      {
+        vendor_order_number: "MH-10234-V2",
+        status: "cancelled",
+        vendor: { business_name: "Vendor B" },
+        items: [
+          {
+            id: "kr",
+            product_name: "Brown kraft roll",
+            variant_name: null,
+            quantity: 1,
+            unit_price: 3000,
+            line_total: 3000,
+          },
+        ],
+      },
+    ],
+  } as any;
+
+  test("lists only supplied lines: no cancelled line, no rejected sub-order", () => {
+    const vm = buildReceiptViewModel(twoVendor, { kl: { quantity: 1, amount: 500 } });
+    expect(vm.statusLabel).toBeNull();
+    expect(vm.vendorGroups.map((g) => g.vendorOrderNumber)).toEqual(["MH-10234-V1"]);
+    expect(vm.vendorGroups[0]!.items.map((i) => i.name)).toEqual(["Greyboard 2 mm"]);
+  });
+
+  test("a partially cancelled line shows the supplied quantity and value", () => {
+    const o = {
+      ...twoVendor,
+      vendorOrders: [
+        {
+          ...twoVendor.vendorOrders[0],
+          items: [{ ...twoVendor.vendorOrders[0].items[0], quantity: 3, line_total: 13500 }],
+        },
+      ],
+    };
+    const vm = buildReceiptViewModel(o, { gb: { quantity: 1, amount: 4500 } });
+    expect(vm.vendorGroups[0]!.items[0]!.qtyUnitLabel).toBe("2 × AED 45.00");
+    expect(vm.vendorGroups[0]!.items[0]!.lineTotal).toBe("AED 90.00");
+  });
+
+  test("a cancelled COD order says Cancelled and shows nothing paid", () => {
+    const vm = buildReceiptViewModel({
+      ...baseOrder,
+      status: "cancelled",
+      payment_status: "cancelled",
+      grand_total: 7000,
+    });
+    expect(vm.statusLabel).toBe("Cancelled");
+    expect(vm.totals.grandTotal).toBe("AED 70.00");
+    expect(vm.totals.paid).toBe("AED 0.00");
+    // The ordered lines stay on the record.
+    expect(vm.vendorGroups[0]!.items).toHaveLength(1);
+  });
+
+  test("a cancelled prepaid order nets the refund off what was paid", () => {
+    const vm = buildReceiptViewModel({
+      ...baseOrder,
+      status: "cancelled",
+      payment_status: "refunded",
+      grand_total: 7000,
+      refund_total: 7000,
+    });
+    expect(vm.totals.paid).toBe("AED 0.00");
+    expect(vm.totals.refund).toBe("-AED 70.00");
+  });
+
+  test("paid is the total net of refunds for a captured order", () => {
+    const vm = buildReceiptViewModel({ ...twoVendor, grand_total: 7000, refund_total: 500 });
+    expect(vm.totals.paid).toBe("AED 65.00");
+  });
+
+  test("a COD order not yet delivered has paid nothing", () => {
+    const vm = buildReceiptViewModel({
+      ...twoVendor,
+      status: "confirmed",
+      payment_status: "pending",
+    });
+    expect(vm.totals.paid).toBe("AED 0.00");
+  });
+});

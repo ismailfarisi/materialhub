@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { computeItemRefund, recomputeCommissionForSurvivingQty } from "./item-cancellation-calc.ts";
+import {
+  computeItemRefund,
+  recomputeCommissionForSurvivingQty,
+  shrinkCodOrderTotals,
+} from "./item-cancellation-calc.ts";
 
 describe("computeItemRefund", () => {
   test("full line refunds the whole line_total", () => {
@@ -106,5 +110,27 @@ describe("recomputeCommissionForSurvivingQty", () => {
       tax_on_commission: 183,
       vendor_earning: 20_516,
     });
+  });
+});
+
+describe("shrinkCodOrderTotals", () => {
+  test("takes goods, their VAT share and shipping off the master totals", () => {
+    const o = { subtotal: 10000, tax_total: 476, shipping_total: 3000, grand_total: 14000 };
+    shrinkCodOrderTotals(o, { itemsGross: 4500, shippingGross: 1500 });
+    expect(o).toEqual({
+      subtotal: 5500,
+      tax_total: 476 - 214,
+      shipping_total: 1500,
+      grand_total: 8000,
+    });
+  });
+
+  test("never goes negative and stays integer fils", () => {
+    const o = { subtotal: 100, tax_total: 5, shipping_total: 0, grand_total: 100 };
+    shrinkCodOrderTotals(o, { itemsGross: 333.4, shippingGross: 50 });
+    expect(o.subtotal).toBe(0);
+    expect(o.grand_total).toBe(0);
+    expect(o.shipping_total).toBe(0);
+    expect(Number.isInteger(o.tax_total)).toBe(true);
   });
 });

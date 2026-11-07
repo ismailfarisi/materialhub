@@ -1,6 +1,7 @@
 import type { Order } from "@materialhub/database";
 import type { MediaService } from "@materialhub/utils";
 import type { Repository } from "typeorm";
+import { type CancelledByItem, loadCancelledByItem } from "./cancelled-quantities.ts";
 import { renderReceiptPdf } from "./receipt-pdf.ts";
 import { buildReceiptViewModel } from "./receipt-view-model.ts";
 import type { TaxInvoiceService } from "./tax-invoice/tax-invoice.service.ts";
@@ -27,6 +28,16 @@ export class InvoiceService {
       where: { id: orderId } as any,
       relations: RECEIPT_RELATIONS,
     });
+  }
+
+  /** Item cancellations of the order; never fails the receipt. */
+  private async cancelledFor(orderId: string): Promise<CancelledByItem> {
+    try {
+      return await loadCancelledByItem((this.orderRepo as any).manager, orderId);
+    } catch (err) {
+      console.error("[invoice] loading item cancellations failed", { orderId, error: String(err) });
+      return {};
+    }
   }
 
   /**
@@ -64,7 +75,7 @@ export class InvoiceService {
 
     const key = receiptKey(o.id);
     try {
-      const vm = buildReceiptViewModel(order as any);
+      const vm = buildReceiptViewModel(order as any, await this.cancelledFor(o.id));
       const pdf = await renderReceiptPdf(vm);
       await this.mediaService.uploadBuffer(key, pdf, "application/pdf");
       o.invoice_s3_key = key;
@@ -121,7 +132,9 @@ export class InvoiceService {
     // receipt is a pure render of the order, so serve it directly instead of
     // a 404 JSON body the browser opens as a page.
     try {
-      const pdf = await renderReceiptPdf(buildReceiptViewModel(order as any));
+      const pdf = await renderReceiptPdf(
+        buildReceiptViewModel(order as any, await this.cancelledFor(orderId)),
+      );
       return { pdf, filename: `receipt-${(order as any).order_number ?? orderId}.pdf` };
     } catch (err) {
       console.error("[invoice] inline receipt render failed", { orderId, error: String(err) });

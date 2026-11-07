@@ -26,6 +26,8 @@ export class VerifiedPurchaseService {
       .andWhere("o.status IN (:...statuses)", {
         statuses: [OrderStatus.delivered, OrderStatus.partially_delivered],
       })
+      // A line cancelled in full before shipping was never received.
+      .andWhere("i.status <> :cancelledLine", { cancelledLine: OrderStatus.cancelled })
       .getCount();
     return count > 0;
   }
@@ -66,6 +68,8 @@ export class VerifiedPurchaseService {
       ])
       .where("o.user_id = :userId", { userId })
       .andWhere("oi.deleted_at IS NULL")
+      // A line cancelled in full before shipping was never received.
+      .andWhere("oi.status <> :cancelledLine", { cancelledLine: OrderStatus.cancelled })
       .andWhere("o.deleted_at IS NULL")
       .andWhere("vo.deleted_at IS NULL")
       .andWhere("(si.id IS NOT NULL OR vo.status IN (:...deliveredStates))", {

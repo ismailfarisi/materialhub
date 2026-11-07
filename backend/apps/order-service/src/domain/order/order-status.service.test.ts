@@ -1494,6 +1494,59 @@ describe("OrderStatusService", () => {
       expect(ctx.order.status).toBe(OrderStatus.confirmed);
     });
 
+    it("a COD sub-order reject shrinks the master totals like an item cancel", async () => {
+      const cod = { id: "pay-1", gateway: "cod", status: "pending", amount: 30000 };
+      const ctx = vendorTx({
+        voStatus: OrderStatus.confirmed,
+        siblings: [OrderStatus.confirmed],
+        reservations: [],
+        codPayment: cod,
+      });
+      // Two vendors: 12,000 + 13,500 goods, 1,500 shipping each, 1,500 COD fee.
+      Object.assign(ctx.order, {
+        subtotal: 25500,
+        tax_total: 1214,
+        shipping_total: 3000,
+        surcharge_total: 1500,
+        grand_total: 30000,
+        refund_total: 0,
+        invoice_s3_key: "private/receipts/order-1.pdf",
+        invoice_generated_at: new Date(),
+      });
+      mockOrderRepo.manager.transaction.mockImplementationOnce(async (cb: any) => cb(ctx.tx));
+
+      await serviceWithInventory().transitionVendorOrder("vo-1", OrderStatus.cancelled, {
+        userId: MEMBER_USER_ID,
+        vendorId: VENDOR_ID,
+        role: "vendor",
+      });
+
+      expect(ctx.paymentSaves[0]).toMatchObject({ status: "pending", amount: 16500 });
+      expect(ctx.order.subtotal).toBe(13500);
+      expect(ctx.order.shipping_total).toBe(1500);
+      // 1214 × 12000 / 25500 = 571 off the VAT.
+      expect(ctx.order.tax_total).toBe(1214 - 571);
+      // What the courier collects is what the order now says.
+      expect(ctx.order.grand_total).toBe(16500);
+      expect(ctx.order.refund_total).toBe(0);
+      expect(ctx.order.invoice_s3_key).toBeNull();
+    });
+
+    it("a prepaid sub-order cancel leaves the master totals alone", async () => {
+      const ctx = vendorTx({ voStatus: OrderStatus.confirmed, siblings: [OrderStatus.confirmed] });
+      Object.assign(ctx.order, { subtotal: 25500, grand_total: 30000 });
+      mockOrderRepo.manager.transaction.mockImplementationOnce(async (cb: any) => cb(ctx.tx));
+
+      await serviceWithInventory().transitionVendorOrder("vo-1", OrderStatus.cancelled, {
+        userId: MEMBER_USER_ID,
+        vendorId: VENDOR_ID,
+        role: "vendor",
+      });
+
+      expect(ctx.order.subtotal).toBe(25500);
+      expect(ctx.order.grand_total).toBe(30000);
+    });
+
     it("cancelling the last live sub-order cancels the master and voids the COD payment", async () => {
       const cod = { id: "pay-1", gateway: "cod", status: "pending", amount: 13500 };
       const ctx = vendorTx({
@@ -1515,6 +1568,7 @@ describe("OrderStatusService", () => {
 
       expect(ctx.order.status).toBe(OrderStatus.cancelled);
       expect(ctx.paymentSaves[0]).toMatchObject({ status: "cancelled" });
+      expect(ctx.order.payment_status).toBe("cancelled");
       expect(hook).toHaveBeenCalledWith("order-1");
     });
   });

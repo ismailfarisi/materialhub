@@ -272,10 +272,17 @@ export function useInvoices(params: {
 	});
 }
 
-/** Signed PDF URL for a tax invoice. */
+/**
+ * URL to open a tax invoice PDF: the signed storage URL, or, when the API has
+ * no object storage and answers with the PDF itself, a blob URL for it.
+ */
 export async function fetchInvoicePdfUrl(id: string): Promise<string> {
-	const { data } = await api.get(`/invoices/${id}/pdf`);
-	return (data.data ?? data).url;
+	const { data } = await api.get<Blob>(`/invoices/${id}/pdf`, {
+		responseType: "blob",
+	});
+	if (data.type === "application/pdf") return URL.createObjectURL(data);
+	const json = JSON.parse(await data.text());
+	return (json.data ?? json).url;
 }
 
 /** UBL 2.1 XML as a Blob (sent as an attachment). */

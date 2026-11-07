@@ -264,3 +264,36 @@ describe("OrderDetailPage product links", () => {
     expect(container.textContent).toContain("Kraft mailer box, E-flute");
   });
 });
+
+describe("OrderDetailPage review action", () => {
+  const deliveredOrder = {
+    ...paidOrder,
+    status: "delivered",
+    vendorOrders: [
+      {
+        id: "vo-1",
+        vendor_order_number: "VO-1",
+        status: "delivered",
+        items: [
+          { id: "i1", product_id: "p1", product_name: "Greyboard 2 mm", quantity: 2, unit_price: 5_000 },
+          {
+            id: "i2",
+            product_id: "p2",
+            product_name: "Kraft liner sheet",
+            quantity: 1,
+            unit_price: 2_000,
+            status: "cancelled",
+            cancelled_quantity: 1,
+          },
+        ],
+      },
+    ],
+  };
+
+  it("offers a review on a delivered line but not on a line cancelled in full", () => {
+    mockOrderResult.current = { data: deliveredOrder, isLoading: false };
+    const { getAllByText } = render(wrap(<OrderDetailPage />));
+    // OrderLine renders its actions twice (desktop + mobile slot): one line.
+    expect(getAllByText("leaveReview")).toHaveLength(2);
+  });
+});

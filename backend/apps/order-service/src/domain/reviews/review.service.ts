@@ -133,6 +133,13 @@ export class ReviewService {
     if (!order || order.user_id !== userId) {
       throw new ForbiddenError("Order does not belong to user");
     }
+    // A line cancelled in full before shipping was never received: there is
+    // no purchase to verify. (The item cancellation flips the line to
+    // `cancelled` once its whole quantity is gone; a partial cancel or a
+    // return leaves it reviewable — those units were delivered.)
+    if ((orderItem as any).status === OrderStatus.cancelled) {
+      throw new BadRequestError("This item was cancelled and cannot be reviewed");
+    }
 
     // 3. Check no existing review for same order_item_id
     const existing = await this.reviewRepo.findOne({

@@ -10,6 +10,7 @@ import { In, IsNull, Not, type Repository } from "typeorm";
 import type { DraftInvalidator } from "../commission/commission-reversal.service.ts";
 import type { CommissionService } from "../commission/commission.service.ts";
 import { IntegrationEventType, emitIfEnabled } from "../integration/emit.ts";
+import { shrinkCodOrderTotals } from "./item-cancellation-calc.ts";
 import { OrderAggregationService } from "./order-aggregation.service.ts";
 import type { OrderStatusChangedEvent } from "./order-event.job.ts";
 import { OrderStateMachine } from "./order-state-machine.ts";
@@ -335,7 +336,7 @@ export class OrderStatusService {
       if (releasesHoldings && order) {
         await this.adjustCodForCancelledVendorOrder(
           tx,
-          (order as any).id,
+          order,
           vendorOrder,
           newParentStatus === OrderStatus.cancelled,
         );
@@ -917,29 +918,52 @@ export class OrderStatusService {
   }
 
   /**
-   * COD side of a vendor sub-order cancel: the pending COD payment no longer
-   * includes that sub-order's goods and shipping; with every sub-order
-   * cancelled the payment is cancelled outright.
+   * COD side of a vendor sub-order cancel (vendor reject, admin/system cancel
+   * before delivery). Nothing was collected, so nothing is refunded — the
+   * order just got smaller:
+   *
+   * - some sub-orders remain: the pending COD payment AND the master order
+   *   totals (subtotal, VAT share, shipping, grand_total) lose the sub-order's
+   *   goods (`vendor_orders.subtotal`, already net of any earlier item
+   *   cancels) and its shipping (`vendor_orders.shipping_cost`). Same maths as
+   *   the admin item cancel (`shrinkCodOrderTotals`), so buyer, admin, receipt
+   *   and tax invoice all show what the courier collects.
+   * - every sub-order cancelled: the COD payment is cancelled outright and the
+   *   order's payment_status follows, as in cancelOrder; the totals stay as
+   *   the record of what was ordered.
+   *
+   * Either way the stored receipt is stale, so it is invalidated in the same
+   * transaction (regenerated lazily on the next download). Runs once per
+   * sub-order: a repeat cancel is a no-op transition and never gets here, and
+   * only a `pending` COD payment is touched.
    */
   private async adjustCodForCancelledVendorOrder(
     tx: any,
-    orderId: string,
+    order: Order,
     vendorOrder: VendorOrder,
     parentCancelled: boolean,
   ): Promise<void> {
+    const o = order as any;
     const paymentRepo = tx.getRepository("Payment" as any) as Repository<any>;
     const cod = await paymentRepo.findOne({
-      where: { order_id: orderId, gateway: "cod", status: "pending" } as any,
+      where: { order_id: o.id, gateway: "cod", status: "pending" } as any,
     });
     if (!cod) return;
+    const vo = vendorOrder as any;
+    const goods = Math.max(0, Number(vo.subtotal ?? 0));
+    const shipping = Math.max(0, Number(vo.shipping_cost ?? 0));
     if (parentCancelled) {
       cod.status = "cancelled";
+      o.payment_status = "cancelled";
     } else {
-      const vo = vendorOrder as any;
-      const share = Number(vo.subtotal ?? 0) + Number(vo.shipping_cost ?? 0);
-      cod.amount = Math.max(0, Number(cod.amount ?? 0) - share);
+      cod.amount = Math.max(0, Number(cod.amount ?? 0) - goods - shipping);
+      shrinkCodOrderTotals(o, { itemsGross: goods, shippingGross: shipping });
     }
     await paymentRepo.save(cod);
+    o.invoice_s3_key = null;
+    o.invoice_generated_at = null;
+    const orderRepo = tx.getRepository("Order" as any) as Repository<Order>;
+    await orderRepo.save(order);
   }
 
   private isCustomerVisible(toStatus: OrderStatus, _role: string): boolean {

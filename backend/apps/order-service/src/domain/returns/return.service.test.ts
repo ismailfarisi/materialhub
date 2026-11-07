@@ -627,6 +627,106 @@ describe("ReturnService", () => {
       expect(refundService.getCapturedGateway).not.toHaveBeenCalled();
     });
 
+    it("approve: with only a total, the refund is shared across the lines pro rata", async () => {
+      const returnItems = [
+        // 1 of 2 kraft liner sheets (line 1,000) and 1 of 1 book cloth roll (2,000).
+        {
+          id: "ri-1",
+          order_item_id: "oi-1",
+          quantity: 1,
+          orderItem: { quantity: 2, line_total: 1000 },
+        },
+        {
+          id: "ri-2",
+          order_item_id: "oi-2",
+          quantity: 1,
+          orderItem: { quantity: 1, line_total: 2000 },
+        },
+      ];
+      returnRepo.findOne.mockResolvedValueOnce({
+        id: "ret-1",
+        order_id: "order-1",
+        status: ReturnStatus.requested,
+        returnItems,
+      });
+
+      const result = await service.approveReturn("ret-1", "admin-1", {
+        refund_method: "store_credit",
+        items: [],
+      });
+
+      expect(result.refund_amount).toBe(2500);
+      expect(returnItems.map((ri: any) => ri.refund_amount)).toEqual([500, 2000]);
+      expect(returnItemRepo.save).toHaveBeenCalledTimes(2);
+    });
+
+    it("approve: a reduced total keeps admin-priced lines and shares the rest", async () => {
+      const returnItems = [
+        {
+          id: "ri-1",
+          order_item_id: "oi-1",
+          quantity: 1,
+          orderItem: { quantity: 1, line_total: 3000 },
+        },
+        {
+          id: "ri-2",
+          order_item_id: "oi-2",
+          quantity: 1,
+          orderItem: { quantity: 1, line_total: 1000 },
+        },
+        {
+          id: "ri-3",
+          order_item_id: "oi-3",
+          quantity: 1,
+          orderItem: { quantity: 1, line_total: 3000 },
+        },
+      ];
+      returnRepo.findOne.mockResolvedValueOnce({
+        id: "ret-1",
+        order_id: "order-1",
+        status: ReturnStatus.requested,
+        returnItems,
+      });
+
+      await service.approveReturn("ret-1", "admin-1", {
+        refund_amount: 4001,
+        refund_method: "store_credit",
+        items: [{ return_item_id: "ri-2", refund_amount: 1000 }],
+      });
+
+      expect(returnItems.map((ri: any) => ri.refund_amount)).toEqual([1500, 1000, 1501]);
+    });
+
+    it("processRefund: a return whose lines were never priced credits each order line its share", async () => {
+      refundService.getCapturedGateway.mockResolvedValueOnce("cod");
+      returnRepo.findOne.mockResolvedValueOnce(
+        receivedReturn({
+          returnItems: [
+            {
+              id: "ri-1",
+              order_item_id: "oi-1",
+              quantity: 1,
+              refund_amount: null,
+              orderItem: { quantity: 1, line_total: 4000 },
+            },
+          ],
+        }),
+      );
+      primeRefundSideEffects();
+
+      await service.processRefund("ret-cod");
+
+      expect(orderItemRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "oi-1", refunded_quantity: 1, refunded_amount: 4000 }),
+      );
+      expect(commissionReversal.reverseForItems).toHaveBeenCalledWith(
+        reversalTxManager,
+        expect.objectContaining({
+          items: [{ orderItemId: "oi-1", refundedQuantity: 1, refundedAmount: 4000 }],
+        }),
+      );
+    });
+
     it("processRefund: a COD return approved as original_payment credits the wallet", async () => {
       refundService.getCapturedGateway.mockResolvedValueOnce("cod");
       returnRepo.findOne.mockResolvedValueOnce(receivedReturn());

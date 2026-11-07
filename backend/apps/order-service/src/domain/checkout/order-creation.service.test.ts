@@ -140,6 +140,44 @@ describe("OrderCreationService", () => {
     }
   });
 
+  it("stores each vendor's share of shipping on its sub-order (was always 0)", async () => {
+    const cartItems = [
+      {
+        product_id: "p1",
+        variant_id: null,
+        vendor_id: "vendor-A",
+        quantity: 1,
+        unit_price: 5000,
+        line_total: 5000,
+      },
+      {
+        product_id: "p2",
+        variant_id: null,
+        vendor_id: "vendor-B",
+        quantity: 1,
+        unit_price: 3000,
+        line_total: 3000,
+      },
+    ];
+    const result = await service.createOrder({
+      userId: "user-1",
+      cartItems: cartItems as any,
+      shippingAddress: { city: "Dubai" },
+      taxTotal: 0,
+      shippingTotal: 3000,
+      shippingByVendor: { "vendor-A": 1500, "vendor-B": 1500 },
+      discountTotal: 0,
+      couponId: null,
+      couponCode: null,
+      couponDiscount: 0,
+      channel: "web",
+    });
+    const byVendor = Object.fromEntries(
+      result.vendorOrders.map((vo: any) => [vo.vendor_id, vo.shipping_cost]),
+    );
+    expect(byVendor).toEqual({ "vendor-A": 1500, "vendor-B": 1500 });
+  });
+
   it("snapshots shipping_contribution per vendor sub-order from the tiers", async () => {
     const tierRepo = {
       find: mock(async () => [

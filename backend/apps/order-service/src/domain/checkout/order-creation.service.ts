@@ -143,6 +143,8 @@ export class OrderCreationService {
     buyerTrn?: string | null;
     taxTotal: number;
     shippingTotal: number;
+    /** Shipping per vendor (fils), adds up to shippingTotal (selectedShippingByVendor). */
+    shippingByVendor?: Record<string, number>;
     surchargeTotal?: number;
     discountTotal: number;
     couponId: string | null;
@@ -259,7 +261,10 @@ export class OrderCreationService {
           vendor_order_number: vendorOrderNumber,
           status: "confirmed",
           subtotal: vendorSubtotal,
-          shipping_cost: 0, // TODO: per-vendor shipping
+          // Per-vendor share of shipping (checkout's selectedShippingByVendor),
+          // so a rejected supplier's delivery charge can come off the order.
+          shipping_cost:
+            data.shippingByVendor?.[vendorId] ?? (groups.length === 1 ? data.shippingTotal : 0),
           shipping_contribution: shippingContribution,
           tax_total: 0, // TODO: per-vendor tax
           vendor_total: vendorSubtotal,

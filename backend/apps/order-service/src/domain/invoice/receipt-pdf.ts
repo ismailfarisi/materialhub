@@ -18,7 +18,10 @@ export function renderReceiptPdf(vm: ReceiptViewModel): Promise<Buffer> {
     // Header
     doc.fillColor(INK).fontSize(22).text(config.invoice.legalName, { continued: false });
     doc.moveDown(0.2);
-    doc.fillColor(MUTED).fontSize(11).text("Order Receipt");
+    doc
+      .fillColor(MUTED)
+      .fontSize(11)
+      .text(vm.statusLabel ? `Order Receipt — ${vm.statusLabel}` : "Order Receipt");
     doc.moveDown(0.6);
 
     // Meta
@@ -79,8 +82,20 @@ export function renderReceiptPdf(vm: ReceiptViewModel): Promise<Buffer> {
     if (vm.totals.refund) row("Refunded", vm.totals.refund);
     doc.moveDown(0.2);
     const y = doc.y;
-    doc.fillColor(INK).fontSize(12).text("Total", 350, y, { width: 100 });
+    doc
+      .fillColor(INK)
+      .fontSize(12)
+      .text(vm.statusLabel ? "Order total" : "Total", 350, y, { width: 100 });
     doc.fontSize(12).text(vm.totals.grandTotal, 450, y, { width: 95, align: "right" });
+    doc.moveDown(0.25);
+    row("Paid", vm.totals.paid);
+    if (vm.statusLabel) {
+      doc.moveDown(0.4);
+      doc
+        .fillColor(MUTED)
+        .fontSize(10)
+        .text(`This order was ${vm.statusLabel.toLowerCase()}. Nothing more is due.`, 50);
+    }
 
     doc.end();
   });

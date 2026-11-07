@@ -38,7 +38,7 @@ import {
   warehouseToCarrierAddress,
 } from "../shipment/auto-shipment.job.ts";
 import type { ShippingProviderRegistry } from "../shipment/shipping-provider-adapter.ts";
-import { computeItemRefund } from "./item-cancellation-calc.ts";
+import { computeItemRefund, shrinkCodOrderTotals } from "./item-cancellation-calc.ts";
 import type { OrderStatusService } from "./order-status.service.ts";
 
 // Mirrors OrderItemCancellation.items — the entity's exported interface is not
@@ -576,14 +576,10 @@ export class OrderItemCancellationService {
       await payRepo.save(payment);
     }
 
-    const subtotalBefore = Number(o.subtotal ?? 0);
-    if (subtotalBefore > 0 && o.tax_total != null) {
-      // VAT is inside line totals; take the cancelled lines' share of it.
-      const taxShare = Math.round((Number(o.tax_total) * itemsRefund) / subtotalBefore);
-      o.tax_total = Math.max(0, Number(o.tax_total) - taxShare);
-    }
-    if (o.subtotal != null) o.subtotal = Math.max(0, subtotalBefore - itemsRefund);
-    if (o.grand_total != null) o.grand_total = Math.max(0, Number(o.grand_total) - totalRefund);
+    // Goods and the emptied sub-orders' shipping come off the master totals
+    // (shipping_total too, so the platform invoice and receipt match what the
+    // courier collects).
+    shrinkCodOrderTotals(o, { itemsGross: itemsRefund, shippingGross: totalRefund - itemsRefund });
 
     const voRepo = tx.getRepository("VendorOrder" as any) as Repository<VendorOrder>;
     const byVo = new Map<string, number>();

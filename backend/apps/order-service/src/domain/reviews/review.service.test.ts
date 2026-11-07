@@ -127,6 +127,23 @@ describe("ReviewService", () => {
       );
     });
 
+    it("rejects a review for a line that was cancelled in full", async () => {
+      orderItemRepo.findOne.mockResolvedValueOnce({
+        id: "oi-1",
+        status: OrderStatus.cancelled,
+        quantity: 1,
+        refunded_quantity: 1,
+        vendorOrder: { status: OrderStatus.delivered, vendor_id: "v-1" },
+        order: { user_id: userId },
+        product: { id: "p-1" },
+      });
+
+      await expect(service.createReview(userId, baseData)).rejects.toThrow(
+        "This item was cancelled and cannot be reviewed",
+      );
+      expect(reviewRepo.save).not.toHaveBeenCalled();
+    });
+
     it("throws if review already exists for order item", async () => {
       orderItemRepo.findOne.mockResolvedValueOnce({
         id: "oi-1",

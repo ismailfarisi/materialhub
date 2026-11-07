@@ -19,6 +19,7 @@ import type {
   InvoiceParty,
   VatBreakdownRow,
 } from "@materialhub/database";
+import { type CancelledByItem, suppliedPart } from "../cancelled-quantities.ts";
 
 export const UAE_VAT_RATE = 5;
 const VAT_DIVISOR = 1 + UAE_VAT_RATE / 100;
@@ -113,6 +114,28 @@ export function computeInvoiceTotals(
   };
 }
 
+/**
+ * Fractional-fils digits kept on `unit_price_excl_fils`. The VAT-exclusive
+ * unit price is `line_net / quantity`, which is rarely a whole fil (3 rolls
+ * at 12,857 fils net = 4,285.67 each). UBL needs it that precise:
+ * PINT AE / EN 16931 check `line net = quantity × price` and the serialiser
+ * (ubl.ts `unitPrice`) prints up to 6 AED decimals, i.e. 4 fils decimals.
+ * Rounding the price to a whole fil would break that check (4,286 × 3 =
+ * 12,858 ≠ 12,857), so the price is stored rounded to 4 decimals of a fil —
+ * the exact precision the XML carries — instead of a raw float such as
+ * 4285.666666666667. Every MONEY amount (line_net_fils, line_gross_fils, all
+ * totals) stays an integer number of fils; the price is a rate, not money.
+ * With 4 decimals, `round(price × quantity)` reproduces line_net exactly for
+ * quantities below 10,000.
+ */
+export const UNIT_PRICE_FILS_DECIMALS = 4;
+
+export function unitPriceExclFils(lineNetFils: number, quantity: number): number {
+  if (!(quantity > 0)) return lineNetFils;
+  const f = 10 ** UNIT_PRICE_FILS_DECIMALS;
+  return Math.round((lineNetFils / quantity) * f) / f;
+}
+
 export function makeLine(input: {
   line_no: number;
   source_id: string;
@@ -130,7 +153,7 @@ export function makeLine(input: {
     sku: input.sku,
     quantity: input.quantity,
     unit_code: unitCodeFor(input.uom),
-    unit_price_excl_fils: input.quantity > 0 ? net / input.quantity : net,
+    unit_price_excl_fils: unitPriceExclFils(net, input.quantity),
     line_net_fils: net,
     vat_category: "S",
     vat_rate: UAE_VAT_RATE,
@@ -157,6 +180,8 @@ export interface BuilderOrder {
     id: string;
     vendor_id: string;
     vendor_order_number: string;
+    /** A cancelled (rejected) sub-order supplied nothing and is not invoiced. */
+    status?: string;
     items: Array<{
       id: string;
       product_name: string;
@@ -198,6 +223,12 @@ export function dubaiDate(d: Date): string {
  * Build one draft per vendor sub-order and, when shipping or a surcharge was
  * charged, one platform draft. An order-level discount is shared across the
  * vendor invoices in proportion to their goods totals.
+ *
+ * Only what was supplied is invoiced: a cancelled (vendor-rejected) sub-order
+ * gets no invoice, and each line carries its quantity and value net of item
+ * cancellations (`cancelled`, from order_item_cancellations). Returns are NOT
+ * deducted — a returned item was supplied, and its reversal is a credit note
+ * against this invoice (see cancelled-quantities.ts).
  * UNVERIFIED (tax adviser): whether a platform-wide coupon should reduce the
  * vendor's taxable supply (as here) or be a platform-funded discount on a
  * separate document; and whether the marketplace or each vendor is the issuer.
@@ -209,6 +240,8 @@ export function buildInvoiceDrafts(input: {
   buyer: InvoiceParty;
   paymentMethod: string | null;
   issuedAt: Date;
+  /** Completed item cancellations by order item id. */
+  cancelled?: CancelledByItem;
 }): InvoiceDraft[] {
   const { order } = input;
   const issueDate = dubaiDate(input.issuedAt);
@@ -217,24 +250,29 @@ export function buildInvoiceDrafts(input: {
   // Peppol exchange only makes sense when the buyer has a TRN.
   const einvoice = input.buyer.trn ? ("ready" as const) : ("not_applicable" as const);
 
-  const vendorGroups = order.vendorOrders.map((vo) => ({
-    vo,
-    gross: vo.items.reduce((s, i) => s + i.line_total, 0),
-  }));
+  const vendorGroups = order.vendorOrders
+    .filter((vo) => vo.status !== "cancelled")
+    .map((vo) => {
+      const items = vo.items
+        .map((it) => ({ it, supplied: suppliedPart(it, input.cancelled) }))
+        .filter((x) => x.supplied.quantity > 0);
+      return { vo, items, gross: items.reduce((s, x) => s + x.supplied.gross, 0) };
+    })
+    .filter((g) => g.items.length > 0);
   const discountShares = allocateProportionally(
     order.discount_total,
     vendorGroups.map((g) => g.gross),
   );
 
-  const drafts: InvoiceDraft[] = vendorGroups.map(({ vo }, idx) => {
-    const lines = vo.items.map((it, i) =>
+  const drafts: InvoiceDraft[] = vendorGroups.map(({ vo, items }, idx) => {
+    const lines = items.map(({ it, supplied }, i) =>
       makeLine({
         line_no: i + 1,
         source_id: it.id,
         description: it.variant_name ? `${it.product_name}, ${it.variant_name}` : it.product_name,
         sku: it.product_sku,
-        quantity: it.quantity,
-        gross_fils: it.line_total,
+        quantity: supplied.quantity,
+        gross_fils: supplied.gross,
       }),
     );
     const share = discountShares[idx] ?? 0;

@@ -167,7 +167,11 @@ export default function OrderDetailPage() {
 								{vo.status && <OrderTimeline currentStatus={vo.status} />}
 								<ul className="m-0 list-none divide-y divide-nl-cacao/10 p-0">
 									{(vo.items || []).map((item) => {
-										const canReview = vo.status === "delivered" && !item.is_reviewed;
+										// A line cancelled in full was never received: nothing to review.
+										const fullyCancelled =
+											item.status === "cancelled" ||
+											((item.quantity ?? 0) > 0 && (item.cancelled_quantity ?? 0) >= (item.quantity ?? 0));
+										const canReview = vo.status === "delivered" && !item.is_reviewed && !fullyCancelled;
 										return (
 											<OrderLine
 												key={item.id}

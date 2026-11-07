@@ -192,6 +192,9 @@ describe("CheckoutService", () => {
     });
     expect(capturedCreateOrderArgs.surchargeTotal).toBe(1000);
     expect(capturedCreateOrderArgs.shippingTotal).toBe(1500);
+    // Split per vendor sub-order, adding up to the order's shipping.
+    const byVendor = capturedCreateOrderArgs.shippingByVendor as Record<string, number>;
+    expect(Object.values(byVendor).reduce((s, x) => s + x, 0)).toBe(1500);
   });
 
   it("rejects COD when the cart exceeds the COD max threshold", async () => {

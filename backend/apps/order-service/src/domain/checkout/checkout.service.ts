@@ -16,7 +16,11 @@ import type { CartHashItem } from "./quote/cart-hash.ts";
 import { computeCartHash } from "./quote/cart-hash.ts";
 import { getFxSnapshot } from "./quote/defaults.ts";
 import type { QuoteService } from "./quote/quote.service.ts";
-import { selectedShippingFils } from "./quote/shipping-total.ts";
+import {
+  reconcileVendorShipping,
+  selectedShippingByVendor,
+  selectedShippingFils,
+} from "./quote/shipping-total.ts";
 import type { TaxService } from "./tax.service.ts";
 
 export class CheckoutService {
@@ -206,6 +210,9 @@ export class CheckoutService {
     // that here so a no-address initiate is never charged shipping.
     const vendorIds = Array.from(new Set(allItems.map((i: any) => i.vendor_id as string)));
     let shippingTotal = 0;
+    // The same shipping split per vendor sub-order (vendor_orders.shipping_cost);
+    // adds up to shippingTotal exactly.
+    let shippingByVendor: Record<string, number> = {};
     {
       const zoneId: string | null = savedAddress.area_id ?? null;
 
@@ -252,14 +259,16 @@ export class CheckoutService {
           quantity: it.quantity,
           unit_price: it.unit_price,
         }));
-      shippingTotal = selectedShippingFils({
+      const shippingInput = {
         items: toShippingItems(allItems),
         rates: shippingRates,
         zoneId,
         vendorHolidays: onHoliday,
         subtotalFils: (cart as any).subtotal,
         sampleShipping,
-      });
+      };
+      shippingTotal = selectedShippingFils(shippingInput);
+      shippingByVendor = selectedShippingByVendor(shippingInput);
 
       // A free_shipping coupon waives the shipping of the delivery groups it
       // covers: the coupon's vendor group for vendor coupons, all groups for
@@ -278,7 +287,11 @@ export class CheckoutService {
           sampleShipping,
         });
         shippingTotal = Math.max(0, shippingTotal - waived);
+        for (const vendorId of Object.keys(shippingByVendor)) {
+          if (!coupon.vendorId || coupon.vendorId === vendorId) shippingByVendor[vendorId] = 0;
+        }
       }
+      shippingByVendor = reconcileVendorShipping(shippingByVendor, shippingTotal);
     }
 
     // 5b. Payment-method surcharge (COD only today; single source =
@@ -327,7 +340,12 @@ export class CheckoutService {
     // 6. Create order
     let created: Awaited<ReturnType<OrderCreationService["createOrder"]>>;
     try {
-      created = await this.orderCreationService.createOrder({
+      // `shippingByVendor` is read by createOrder once it stamps
+      // vendor_orders.shipping_cost per vendor; passed through a typed
+      // variable so this compiles before and after that parameter exists.
+      const createInput: Parameters<OrderCreationService["createOrder"]>[0] & {
+        shippingByVendor?: Record<string, number>;
+      } = {
         userId: data.userId,
         cartItems: allItems,
         shippingAddress: data.shippingAddress,
@@ -346,7 +364,9 @@ export class CheckoutService {
         customerNotes: data.customerNotes,
         ipAddress: data.ipAddress,
         userAgent: data.userAgent,
-      });
+        shippingByVendor,
+      };
+      created = await this.orderCreationService.createOrder(createInput);
     } catch (err) {
       if (approvalId) await this.business?.approvals.release(approvalId);
       throw err;

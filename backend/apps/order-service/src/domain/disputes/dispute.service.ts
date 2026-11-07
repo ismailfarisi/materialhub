@@ -238,73 +238,106 @@ export class DisputeService {
   ): Promise<Dispute> {
     const amount = data.decision === "buyer" ? (data.resolution_amount ?? 0) : 0;
 
-    const { dispute, replay } = await this.disputeRepo.manager.transaction(async (tx) => {
-      const disputeRepo = tx.withRepository(this.disputeRepo);
-      const locked = await disputeRepo.findOne({
-        where: { id: disputeId } as any,
-        lock: { mode: "pessimistic_write" },
-      });
-      if (!locked) throw new NotFoundError("Dispute not found");
-
-      const resolvedAs =
-        locked.status === DisputeStatus.resolved_buyer
-          ? "buyer"
-          : locked.status === DisputeStatus.resolved_seller
-            ? "seller"
-            : null;
-      if (resolvedAs) {
-        if (resolvedAs === data.decision) return { dispute: locked, replay: true };
-        throw new ConflictError(`Dispute is already resolved in the ${resolvedAs}'s favour`);
-      }
-      if (
-        locked.status !== DisputeStatus.under_review &&
-        locked.status !== DisputeStatus.escalated
-      ) {
-        throw new BadRequestError("Dispute must be under_review or escalated to resolve");
-      }
-
-      locked.resolution = data.resolution;
-      locked.resolution_amount =
-        data.decision === "buyer" ? (data.resolution_amount ?? null) : null;
-      locked.resolved_at = new Date();
-      locked.resolved_by = adminId;
-      locked.status =
-        data.decision === "buyer" ? DisputeStatus.resolved_buyer : DisputeStatus.resolved_seller;
-
-      const toOriginalPayment = amount > 0 && data.refund_method === "original_payment";
-      if (amount > 0) {
-        // Ledger first (item refunded_amount, then the commission reversal
-        // that re-reads it — same transaction, so it sees the new value).
-        await this.reverseDisputedCommission(tx, locked, disputeId, amount);
-        if (!toOriginalPayment) {
-          await this.creditWallet(tx, locked, disputeId, amount);
-        }
-      }
-
-      const saved = await disputeRepo.save(locked);
-
-      if (toOriginalPayment) {
-        await this.refundService.refundToOriginalPayment({
-          orderId: locked.order_id,
-          amount,
-          referenceType: "dispute",
-          referenceId: disputeId,
-          reason: "requested_by_customer",
+    const result: { dispute: Dispute; replay: boolean; order: Order | null } =
+      await this.disputeRepo.manager.transaction(async (tx) => {
+        const disputeRepo = tx.withRepository(this.disputeRepo);
+        const locked = await disputeRepo.findOne({
+          where: { id: disputeId } as any,
+          lock: { mode: "pessimistic_write" },
         });
-      }
+        if (!locked) throw new NotFoundError("Dispute not found");
 
-      return { dispute: saved, replay: false };
-    });
+        const resolvedAs =
+          locked.status === DisputeStatus.resolved_buyer
+            ? "buyer"
+            : locked.status === DisputeStatus.resolved_seller
+              ? "seller"
+              : null;
+        if (resolvedAs) {
+          if (resolvedAs === data.decision) return { dispute: locked, replay: true, order: null };
+          throw new ConflictError(`Dispute is already resolved in the ${resolvedAs}'s favour`);
+        }
+        if (
+          locked.status !== DisputeStatus.under_review &&
+          locked.status !== DisputeStatus.escalated
+        ) {
+          throw new BadRequestError("Dispute must be under_review or escalated to resolve");
+        }
 
-    const target =
-      dispute.status === DisputeStatus.resolved_buyer
-        ? OrderStatus.refund_requested
-        : OrderStatus.delivered;
+        locked.resolution = data.resolution;
+        locked.resolution_amount =
+          data.decision === "buyer" ? (data.resolution_amount ?? null) : null;
+        locked.resolved_at = new Date();
+        locked.resolved_by = adminId;
+        locked.status =
+          data.decision === "buyer" ? DisputeStatus.resolved_buyer : DisputeStatus.resolved_seller;
+
+        const toOriginalPayment = amount > 0 && data.refund_method === "original_payment";
+        if (amount > 0) {
+          // Ledger first (item refunded_amount, then the commission reversal
+          // that re-reads it — same transaction, so it sees the new value).
+          await this.reverseDisputedCommission(tx, locked, disputeId, amount);
+          if (!toOriginalPayment) {
+            await this.creditWallet(tx, locked, disputeId, amount);
+          }
+        }
+
+        // The money went back to the buyer (wallet or card), so it is a refund
+        // on the order: add it to refund_total under the order row lock. Runs
+        // once per dispute — a replay returned above, before reaching here.
+        let order: Order | null = null;
+        if (amount > 0) {
+          const orderRepo = tx.withRepository(this.orderRepo);
+          order = await orderRepo.findOne({
+            where: { id: locked.order_id } as any,
+            lock: { mode: "pessimistic_write" },
+          });
+          if (order) {
+            const o = order as any;
+            o.refund_total = Number(o.refund_total ?? 0) + amount;
+            // The stored receipt shows the old refund; regenerate it lazily.
+            o.invoice_s3_key = null;
+            o.invoice_generated_at = null;
+            await orderRepo.save(order);
+          }
+        }
+
+        const saved = await disputeRepo.save(locked);
+
+        if (toOriginalPayment) {
+          await this.refundService.refundToOriginalPayment({
+            orderId: locked.order_id,
+            amount,
+            referenceType: "dispute",
+            referenceId: disputeId,
+            reason: "requested_by_customer",
+          });
+        }
+
+        return { dispute: saved, replay: false, order };
+      });
+
+    // Where the order goes: a seller decision puts it back to delivered; a
+    // buyer decision that returned money is a refund, partial or full by
+    // amount (refund_total against grand_total), like a return refund; a
+    // buyer decision with no money (an apology) stays refund_requested.
+    const { dispute, replay } = result;
+    let order: Order | null = result.order;
     let shouldTransition = !replay;
     if (replay) {
-      const order = await this.orderRepo.findOne({ where: { id: dispute.order_id } as any });
+      order = await this.orderRepo.findOne({ where: { id: dispute.order_id } as any });
       shouldTransition = (order as any)?.status === OrderStatus.disputed;
     }
+    const refunded = Number((dispute as any).resolution_amount ?? 0) > 0;
+    const target =
+      dispute.status !== DisputeStatus.resolved_buyer
+        ? OrderStatus.delivered
+        : refunded && order
+          ? Number((order as any).grand_total ?? 0) > 0 &&
+            Number((order as any).refund_total ?? 0) >= Number((order as any).grand_total)
+            ? OrderStatus.refunded
+            : OrderStatus.partially_refunded
+          : OrderStatus.refund_requested;
     if (shouldTransition) {
       await this.orderStatusService.transitionOrder(dispute.order_id, target, {
         userId: adminId,

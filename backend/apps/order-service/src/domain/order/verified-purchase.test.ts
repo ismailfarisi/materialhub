@@ -30,6 +30,35 @@ describe("VerifiedPurchaseService.hasVerifiedPurchase", () => {
   });
 });
 
+describe("VerifiedPurchaseService cancelled lines", () => {
+  it("never counts a line cancelled in full as a purchase", async () => {
+    const calls: Array<{ sql: string; params?: Record<string, unknown> }> = [];
+    const qb: any = {
+      innerJoin: () => qb,
+      leftJoin: () => qb,
+      select: () => qb,
+      where: () => qb,
+      andWhere: (sql: string, params?: Record<string, unknown>) => {
+        calls.push({ sql, params });
+        return qb;
+      },
+      orderBy: () => qb,
+      addOrderBy: () => qb,
+      limit: () => qb,
+      getCount: async () => 0,
+      getRawMany: async () => [],
+    };
+    const service = new VerifiedPurchaseService({ createQueryBuilder: () => qb } as any);
+
+    await service.hasVerifiedPurchase("user-1", "product-1");
+    await service.listDeliveredItems({ userId: "user-1", q: null, limit: 20 });
+
+    const filters = calls.filter((c) => c.sql.includes("status <> :cancelledLine"));
+    expect(filters).toHaveLength(2);
+    expect(filters[0]!.params).toEqual({ cancelledLine: "cancelled" });
+  });
+});
+
 describe("VerifiedPurchaseService.listDeliveredItems", () => {
   function makeDeliveredItemsQB(rows: any[]) {
     const qb: any = {

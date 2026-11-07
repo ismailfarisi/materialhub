@@ -19,6 +19,7 @@ import { IsNull, type Repository } from "typeorm";
 import type { CommissionReversalService } from "../commission/commission-reversal.service.ts";
 import type { OrderStatusService } from "../order/order-status.service.ts";
 import type { RefundService } from "../refund/refund.service.ts";
+import { splitRefundAcrossLines } from "./return-refund-split.ts";
 import { assertWithinReturnWindow } from "./return-window.ts";
 
 /* ------------------------------------------------------------------ */
@@ -237,14 +238,29 @@ export class ReturnService {
     ret.status = ReturnStatus.approved;
 
     // Update per-item refund amounts
-    for (const itemData of data.items) {
-      const returnItem = ((ret as any).returnItems || []).find(
-        (ri: any) => ri.id === itemData.return_item_id,
-      );
+    const returnItems: any[] = (ret as any).returnItems || [];
+    const given = new Set<string>();
+    let givenTotal = 0;
+    for (const itemData of data.items ?? []) {
+      const returnItem = returnItems.find((ri: any) => ri.id === itemData.return_item_id);
       if (returnItem) {
         returnItem.refund_amount = itemData.refund_amount;
+        given.add(returnItem.id);
+        givenTotal += Number(itemData.refund_amount) || 0;
         await this.returnItemRepo.save(returnItem);
       }
+    }
+    // Lines the admin did not price share the rest of the refund, pro rata
+    // by their paid value. Without this a refund approved with only a total
+    // (the default, and every COD wallet refund) left each line at null, so
+    // processRefund added 0 to order_items.refunded_amount and the buyer saw
+    // AED 0.00 refunded per line.
+    const unpriced = returnItems.filter((ri: any) => !given.has(ri.id));
+    if (unpriced.length > 0) {
+      await this.fillLineRefunds(
+        unpriced,
+        Math.max(0, Number(ret.refund_amount ?? 0) - givenTotal),
+      );
     }
 
     const saved = await this.returnRepo.save(ret);
@@ -442,15 +458,32 @@ export class ReturnService {
   }
 
   /** What the buyer paid for the returned units (line_total pro rata). */
+  /** Paid value of a return line's units: its order line's total, pro rata. */
+  private async returnedValue(ri: any): Promise<number> {
+    const oi =
+      ri.orderItem ??
+      (await this.orderItemRepo.findOne({ where: { id: ri.order_item_id } as any }));
+    if (!oi || !oi.quantity) return 0;
+    return Math.round((Number(oi.line_total) * Number(ri.quantity)) / Number(oi.quantity));
+  }
+
+  /** Spread `total` over `returnItems` (pro rata by value, integer fils) and save them. */
+  private async fillLineRefunds(returnItems: any[], total: number): Promise<void> {
+    const values: number[] = [];
+    for (const ri of returnItems) values.push(await this.returnedValue(ri));
+    const shares = splitRefundAcrossLines(
+      total,
+      values.map((value) => ({ value })),
+    );
+    for (let i = 0; i < returnItems.length; i++) {
+      returnItems[i].refund_amount = shares[i] ?? 0;
+      await this.returnItemRepo.save(returnItems[i]);
+    }
+  }
+
   private async defaultRefundAmount(returnItems: any[]): Promise<number> {
     let total = 0;
-    for (const ri of returnItems) {
-      const oi =
-        ri.orderItem ??
-        (await this.orderItemRepo.findOne({ where: { id: ri.order_item_id } as any }));
-      if (!oi || !oi.quantity) continue;
-      total += Math.round((Number(oi.line_total) * Number(ri.quantity)) / Number(oi.quantity));
-    }
+    for (const ri of returnItems) total += await this.returnedValue(ri);
     return total;
   }
 
@@ -543,6 +576,17 @@ export class ReturnService {
 
     // Update each order item's refunded_quantity and refunded_amount
     const returnItems = (ret as any).returnItems || [];
+    // A return approved before lines were priced automatically carries the
+    // refund only on the return: share it across the lines now so the order
+    // items and the commission reversal see the real amounts. Idempotent —
+    // a priced return is left alone.
+    const linesTotal = returnItems.reduce(
+      (sum: number, ri: any) => sum + (Number(ri.refund_amount) || 0),
+      0,
+    );
+    if (returnItems.length > 0 && refundAmount > 0 && linesTotal === 0) {
+      await this.fillLineRefunds(returnItems, refundAmount);
+    }
     const orderItemIds = returnItems.map((ri: any) => ri.order_item_id);
 
     if (orderItemIds.length > 0) {

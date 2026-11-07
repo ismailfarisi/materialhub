@@ -63,3 +63,45 @@ export function recomputeCommissionForSurvivingQty(input: {
     vendor_earning: vendorEarning,
   };
 }
+
+/**
+ * Shrink a cash-on-delivery order's master totals when part of it is taken
+ * out before anything was collected (admin item cancel, vendor sub-order
+ * reject/cancel). Nothing was paid, so nothing is refunded: the order simply
+ * got smaller and `refund_total` is left alone. Shared by
+ * OrderItemCancellationService and OrderStatusService so both paths shrink
+ * the same way.
+ *
+ *   itemsGross     VAT-inclusive goods value removed (line totals)
+ *   shippingGross  shipping removed (the emptied vendor sub-order's
+ *                  `shipping_cost`)
+ *
+ * VAT sits inside the line totals; `tax_total` loses the removed goods'
+ * proportional share of it. Mutates and returns `order`. Integer fils.
+ */
+export function shrinkCodOrderTotals<
+  T extends {
+    subtotal?: number | null;
+    tax_total?: number | null;
+    shipping_total?: number | null;
+    grand_total?: number | null;
+  },
+>(order: T, removed: { itemsGross: number; shippingGross: number }): T {
+  const items = Math.max(0, Math.round(removed.itemsGross));
+  const shipping = Math.max(0, Math.round(removed.shippingGross));
+  const subtotalBefore = Number(order.subtotal ?? 0);
+  if (subtotalBefore > 0 && order.tax_total != null) {
+    const taxShare = Math.round(
+      (Number(order.tax_total) * Math.min(items, subtotalBefore)) / subtotalBefore,
+    );
+    order.tax_total = Math.max(0, Number(order.tax_total) - taxShare);
+  }
+  if (order.subtotal != null) order.subtotal = Math.max(0, subtotalBefore - items);
+  if (order.shipping_total != null && shipping > 0) {
+    order.shipping_total = Math.max(0, Number(order.shipping_total) - shipping);
+  }
+  if (order.grand_total != null) {
+    order.grand_total = Math.max(0, Number(order.grand_total) - items - shipping);
+  }
+  return order;
+}

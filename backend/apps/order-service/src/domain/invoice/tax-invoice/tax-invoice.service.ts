@@ -15,6 +15,7 @@ import {
 import { HttpError } from "@materialhub/plugins";
 import { isValidTrn, peppolIdFromTrn } from "@materialhub/utils";
 import type { EntityManager, Repository } from "typeorm";
+import { loadCancelledByItem } from "../cancelled-quantities.ts";
 import { type EInvoiceTransmitter, NoopEInvoiceTransmitter } from "../einvoice/transmitter.ts";
 import { buildUblInvoice } from "../einvoice/ubl.ts";
 import {
@@ -183,6 +184,9 @@ export class TaxInvoiceService {
 
     const sellers: Record<string, InvoiceParty> = {};
     for (const vo of order.vendorOrders ?? []) sellers[vo.vendor_id] = this.sellerParty(vo.vendor);
+    // Item cancellations are never supplied, so never invoiced (returns are,
+    // and stay on the invoice — see cancelled-quantities.ts).
+    const cancelled = await loadCancelledByItem(this.orderRepo.manager, orderId);
     const drafts = buildInvoiceDrafts({
       order,
       sellers,
@@ -190,6 +194,7 @@ export class TaxInvoiceService {
       buyer: this.buyerParty(order),
       paymentMethod: payment?.payment_method ?? null,
       issuedAt: now,
+      cancelled,
     });
     const year = Number(drafts[0]?.issue_date.slice(0, 4) ?? now.getUTCFullYear());
     const paid = order.payment_status === "captured";
@@ -359,21 +364,69 @@ export class TaxInvoiceService {
     return { filename: `${inv.invoice_number}.xml`, xml: this.toXml(inv, inv.order_number) };
   }
 
-  async pdfUrlFor(userId: string, id: string, isAdmin = false) {
+  /**
+   * The invoice PDF: a signed storage URL when object storage works, else the
+   * rendered PDF itself (no S3 credentials locally, an outage, ...). Mirrors
+   * the receipt's no-storage fallback (InvoiceService.resolveDownload): the
+   * PDF is a pure render of the stored invoice row, so serving it inline is
+   * always correct; a storage failure must not 500 the download.
+   */
+  async pdfFor(
+    userId: string,
+    id: string,
+    isAdmin = false,
+  ): Promise<{ url: string } | { pdf: Buffer; filename: string }> {
     const inv = await this.findVisible(userId, id, isAdmin);
     if (!inv) throw new HttpError(404, "Invoice not found", "NOT_FOUND");
+    const filename = `${inv.invoice_number}.pdf`;
     // pdf_s3_key is cleared whenever the payment status changes (net-terms
     // mark-paid / cancellation), so a stored key is always current.
     let key: string | null = inv.pdf_s3_key;
+    let pdf: Buffer | null = null;
     if (!key) {
-      const pdf = await renderTaxInvoicePdf(inv, inv.order_number);
-      key = taxInvoicePdfKey(inv.id);
-      await this.media.uploadBuffer(key, pdf, "application/pdf");
-      await this.invoiceRepo.update({ id: inv.id }, { pdf_s3_key: key });
+      pdf = await renderTaxInvoicePdf(inv, inv.order_number);
+      try {
+        const k = taxInvoicePdfKey(inv.id);
+        await this.media.uploadBuffer(k, pdf, "application/pdf");
+        await this.invoiceRepo.update({ id: inv.id }, { pdf_s3_key: k });
+        key = k;
+      } catch (err) {
+        console.error("[tax-invoice] storing PDF failed; serving inline", {
+          invoiceId: inv.id,
+          error: String(err),
+        });
+      }
     }
-    const { url } = await this.media.getReceiptSignedUrl(key);
-    return { url };
+    if (key) {
+      try {
+        const { url } = await this.media.getReceiptSignedUrl(key);
+        return { url };
+      } catch (err) {
+        console.error("[tax-invoice] signing PDF URL failed; serving inline", {
+          invoiceId: inv.id,
+          error: String(err),
+        });
+      }
+    }
+    return { pdf: pdf ?? (await renderTaxInvoicePdf(inv, inv.order_number)), filename };
   }
+}
+
+/** HTTP answer for `pdfFor`: the JSON `{ url }` envelope, or the PDF bytes. */
+export function taxInvoicePdfResponse(
+  result: { url: string } | { pdf: Buffer; filename: string },
+): Response | { statusCode: number; data: { url: string }; timestamp: string } {
+  if ("pdf" in result) {
+    return new Response(new Uint8Array(result.pdf), {
+      status: 200,
+      headers: {
+        "content-type": "application/pdf",
+        "content-disposition": `inline; filename="${result.filename}"`,
+        "cache-control": "private, no-store",
+      },
+    });
+  }
+  return { statusCode: 200, data: { url: result.url }, timestamp: new Date().toISOString() };
 }
 
 export function toInvoiceRow(t: RawInvoiceRow) {

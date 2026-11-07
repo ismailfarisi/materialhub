@@ -324,6 +324,21 @@ describe("OrderItemCancellationService", () => {
     expect(orderRepo.save).toHaveBeenCalled();
   });
 
+  it("COD: emptying a vendor sub-order also takes its shipping off shipping_total", async () => {
+    const { order, payment } = seed({
+      payment: { gateway: "cod", status: "pending", amount: 32000 },
+      order: { subtotal: 30000, tax_total: 1500, shipping_total: 2000, grand_total: 32000 },
+      vo: { subtotal: 30000, vendor_total: 30000 },
+    });
+
+    await call([{ order_item_id: "oi-1", quantity: 3 }]);
+
+    expect(payment.amount).toBe(0);
+    expect(order.subtotal).toBe(0);
+    expect(order.shipping_total).toBe(0);
+    expect(order.grand_total).toBe(0);
+  });
+
   it("shrinks the order's reservation row so a later full cancel cannot release the units twice", async () => {
     seed();
     reservationQuery.mockImplementation((sql: string) =>
