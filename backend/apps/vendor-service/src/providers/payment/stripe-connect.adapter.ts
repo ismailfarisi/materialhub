@@ -55,7 +55,13 @@ export class StripeConnectAdapter implements PaymentProviderAdapter {
   }
 
   async handleWebhook(rawBody: string, signature: string): Promise<WebhookResult> {
-    const event = this.stripe.webhooks.constructEvent(rawBody, signature, this.webhookSecret);
+    // Async: under Bun the stripe package loads its SubtleCrypto build, where the
+    // synchronous constructEvent always throws.
+    const event = await this.stripe.webhooks.constructEventAsync(
+      rawBody,
+      signature,
+      this.webhookSecret,
+    );
 
     if (event.type !== "account.updated") {
       return {
