@@ -16,9 +16,35 @@ import { OrderStateMachine } from "./order-state-machine.ts";
 
 type Role = "buyer" | "vendor" | "admin" | "system";
 
-interface Actor {
-  userId: string;
+/**
+ * Who is acting on an order.
+ *
+ * `userId` is always a USER id (or null / "system" for jobs and webhooks): it
+ * is what lands in `order_status_history.changed_by`, an FK to `users`.
+ * A vendor acting on its own sub-order also carries `vendorId`, which is what
+ * vendor ownership is checked against. Passing the vendor id as `userId`
+ * violated the FK and 500'd every vendor-side order action.
+ */
+export interface Actor {
+  userId: string | null;
   role: Role;
+  vendorId?: string | null;
+}
+
+/**
+ * The vendor a vendor-role actor acts for. Legacy callers that put the vendor
+ * id into `userId` (no `vendorId`) are still honoured for the ownership
+ * check, but see `historyActorUserId`: that id is never written as a user.
+ */
+export function actorVendorId(actor: Actor): string | null {
+  if (actor.role !== "vendor") return null;
+  return actor.vendorId ?? actor.userId ?? null;
+}
+
+/** The user id to record in history for this actor (never a vendor id). */
+export function historyActorUserId(actor: Actor): string | null {
+  if (actor.role === "vendor" && !actor.vendorId) return null;
+  return historyActorId(actor.userId);
 }
 
 /**
@@ -108,7 +134,7 @@ export class OrderStatusService {
       if (!vendorOrder) throw new Error("Vendor order not found");
 
       // Verify vendor ownership when role is vendor
-      if (actor.role === "vendor" && (vendorOrder as any).vendor_id !== actor.userId) {
+      if (actor.role === "vendor" && (vendorOrder as any).vendor_id !== actorVendorId(actor)) {
         throw new Error("Vendor order not found");
       }
 
@@ -269,7 +295,7 @@ export class OrderStatusService {
         vendor_order_id: vendorOrderId,
         from_status: fromStatus,
         to_status: toStatus,
-        changed_by: historyActorId(actor.userId),
+        changed_by: historyActorUserId(actor),
         changed_by_role: actor.role,
         is_customer_visible: this.isCustomerVisible(toStatus, actor.role),
         comment: reason || null,
@@ -334,7 +360,7 @@ export class OrderStatusService {
         fromStatus,
         toStatus,
         parentOrderStatus,
-        actorId: actor.userId,
+        actorId: actor.userId ?? "system",
         actorRole: actor.role,
         reason,
         metadata,
@@ -411,7 +437,7 @@ export class OrderStatusService {
         order_id: orderId,
         from_status: fromStatus,
         to_status: toStatus,
-        changed_by: historyActorId(actor.userId),
+        changed_by: historyActorUserId(actor),
         changed_by_role: actor.role,
         is_customer_visible: this.isCustomerVisible(toStatus, actor.role),
         comment: reason || null,
@@ -424,7 +450,7 @@ export class OrderStatusService {
         orderId,
         fromStatus,
         toStatus,
-        actorId: actor.userId,
+        actorId: actor.userId ?? "system",
         actorRole: actor.role,
         reason,
         metadata,
@@ -502,7 +528,7 @@ export class OrderStatusService {
           vendor_order_id: vo.id,
           from_status: voFrom,
           to_status: OrderStatus.cancelled,
-          changed_by: historyActorId(actor.userId),
+          changed_by: historyActorUserId(actor),
           changed_by_role: "system",
           is_customer_visible: true,
           comment: `Cancelled by buyer: ${reason}`,
@@ -672,7 +698,7 @@ export class OrderStatusService {
         order_id: orderId,
         from_status: fromStatus,
         to_status: OrderStatus.cancelled,
-        changed_by: historyActorId(actor.userId),
+        changed_by: historyActorUserId(actor),
         changed_by_role: actor.role,
         is_customer_visible: true,
         comment: reason,
@@ -685,7 +711,7 @@ export class OrderStatusService {
         orderId,
         fromStatus,
         toStatus: OrderStatus.cancelled,
-        actorId: actor.userId,
+        actorId: actor.userId ?? "system",
         actorRole: actor.role,
         reason,
         timestamp: new Date().toISOString(),

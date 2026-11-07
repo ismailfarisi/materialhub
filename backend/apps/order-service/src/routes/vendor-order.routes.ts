@@ -107,7 +107,7 @@ export const vendorOrderRoutes = new Elysia()
         async ({ user, params, body, vendorOrderController, audit }: any) => {
           const result = await vendorOrderController.adminTransition(
             params.id,
-            user?.id ?? "admin",
+            user?.id ?? null,
             body.status,
             body.reason,
           );
@@ -162,14 +162,17 @@ export const vendorOrderRoutes = new Elysia()
           )
           .get(
             "/:id",
-            async ({ member, params, vendorOrderController }: any) => {
+            async ({ member, params, vendorOrderController, set }: any) => {
               const vo = await vendorOrderController.getById(params.id, member.vid);
-              if (!vo)
+              if (!vo) {
+                set.status = 404;
                 return {
                   statusCode: 404,
+                  error: "VENDOR_ORDER_NOT_FOUND",
                   message: "Vendor order not found",
                   timestamp: new Date().toISOString(),
                 };
+              }
               return {
                 statusCode: 200,
                 data: vo,
@@ -186,11 +189,12 @@ export const vendorOrderRoutes = new Elysia()
           .use(vendorMembership("orders.fulfill"))
           .patch(
             "/:id/status",
-            async ({ member, params, body, vendorOrderController }: any) => {
+            async ({ user, member, params, body, vendorOrderController }: any) => {
               const result = await vendorOrderController.transition(
                 params.id,
                 member.vid,
                 body.status,
+                user?.id ?? null,
               );
               return {
                 statusCode: 200,
@@ -205,8 +209,13 @@ export const vendorOrderRoutes = new Elysia()
           )
           .post(
             "/:id/reject",
-            async ({ member, params, body, vendorOrderController }: any) => {
-              const result = await vendorOrderController.reject(params.id, member.vid, body.reason);
+            async ({ user, member, params, body, vendorOrderController }: any) => {
+              const result = await vendorOrderController.reject(
+                params.id,
+                member.vid,
+                body.reason,
+                user?.id ?? null,
+              );
               return {
                 statusCode: 200,
                 data: result,

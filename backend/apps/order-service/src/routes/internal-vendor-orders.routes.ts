@@ -28,7 +28,7 @@ export const internalVendorOrdersRoutes = new Elysia({ prefix: "/internal/vendor
       const updated = await orderStatusService.transitionVendorOrder(
         params.id,
         target,
-        { userId: body.vendor_id, role: "vendor" },
+        { userId: null, vendorId: body.vendor_id, role: "vendor" },
         body.action === "reject" ? body.reason : body.notes,
       );
       return ok({ vendor_order_id: params.id, status: target, vo: updated });

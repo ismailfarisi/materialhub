@@ -16,18 +16,34 @@ export class VendorOrderController {
     return this.vendorOrderService.getForVendor(vendorOrderId, vendorId);
   }
 
-  async transition(vendorOrderId: string, vendorId: string, status: string) {
+  /**
+   * `vendorId` is the vendor the member acts for (ownership); `actorUserId`
+   * is the member's own user id, which is what history records as
+   * `changed_by` (an FK to users — a vendor id there violates it).
+   */
+  async transition(
+    vendorOrderId: string,
+    vendorId: string,
+    status: string,
+    actorUserId: string | null = null,
+  ) {
     return this.orderStatusService.transitionVendorOrder(vendorOrderId, status as OrderStatus, {
-      userId: vendorId,
+      userId: actorUserId,
+      vendorId,
       role: "vendor",
     });
   }
 
-  async reject(vendorOrderId: string, vendorId: string, reason: string) {
+  async reject(
+    vendorOrderId: string,
+    vendorId: string,
+    reason: string,
+    actorUserId: string | null = null,
+  ) {
     return this.orderStatusService.transitionVendorOrder(
       vendorOrderId,
       OrderStatus.cancelled,
-      { userId: vendorId, role: "vendor" },
+      { userId: actorUserId, vendorId, role: "vendor" },
       reason,
     );
   }
@@ -41,7 +57,7 @@ export class VendorOrderController {
    */
   async adminTransition(
     vendorOrderId: string,
-    actorUserId: string,
+    actorUserId: string | null,
     status: string,
     reason?: string,
   ) {

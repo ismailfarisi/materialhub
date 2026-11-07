@@ -37,10 +37,29 @@ const STATUS_ORDER: Record<string, number> = {
 
 type Role = "vendor" | "admin" | "system";
 
+/**
+ * `userId` is the acting USER (history `changed_by`, nullable for jobs and
+ * integrations). A vendor-role actor carries the vendor it acts for in
+ * `vendorId`; ownership is checked against that, never against `userId`.
+ */
 interface Actor {
-  userId: string;
+  userId: string | null;
   role: Role;
+  vendorId?: string | null;
 }
+
+/** Vendor a vendor-role actor acts for (legacy callers put it in userId). */
+function actorVendorId(actor: Actor): string | null {
+  return actor.vendorId ?? actor.userId ?? null;
+}
+
+/** User id safe to write into a `changed_by` uuid column. */
+function historyUserId(actor: Actor): string | null {
+  if (actor.role === "vendor" && !actor.vendorId) return null;
+  return actor.userId && UUID_RE.test(actor.userId) ? actor.userId : null;
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const VENDOR_ALLOWED_STATUSES = new Set([
   ShipmentStatus.picked_up,
@@ -84,7 +103,12 @@ interface CreateShipmentData {
   external_shipment_id?: string | null;
   warehouse_id?: string | null;
   auto_booked?: boolean;
-  items: { order_item_id: string; quantity: number }[];
+  /**
+   * Lines to put in this shipment. Omitted or empty means "everything of this
+   * vendor order not yet shipped" — the vendor dashboard's Create Shipment
+   * form ships the whole sub-order; split shipments pass explicit lines.
+   */
+  items?: { order_item_id: string; quantity: number }[];
 }
 
 interface WebhookEventData {
@@ -188,6 +212,7 @@ export class ShipmentTrackingService {
     vendorOrderId: string,
     vendorId: string,
     data: CreateShipmentData,
+    actorUserId: string | null = null,
   ): Promise<Shipment> {
     // 1. Find vendor_order with items, verify ownership and shippable status
     const vendorOrder = await this.vendorOrderRepo.findOne({
@@ -222,7 +247,25 @@ export class ShipmentTrackingService {
       orderItemMap.set(item.id, item.quantity);
     }
 
-    for (const reqItem of data.items) {
+    // Default: every unshipped unit of every (non-cancelled) line.
+    const requestedItems =
+      data.items && data.items.length > 0
+        ? data.items
+        : ((vendorOrder as any).items as any[])
+            .filter((item) => item.status !== OrderStatus.cancelled)
+            .map((item) => ({
+              order_item_id: item.id as string,
+              quantity: Number(item.quantity) - (shippedByItem.get(item.id) || 0),
+            }))
+            .filter((item) => item.quantity > 0);
+    if (requestedItems.length === 0) {
+      throw new Error("Nothing left to ship on this vendor order");
+    }
+
+    for (const reqItem of requestedItems) {
+      if (!orderItemMap.has(reqItem.order_item_id)) {
+        throw new Error("Order item does not belong to this vendor order");
+      }
       const alreadyShipped = shippedByItem.get(reqItem.order_item_id) || 0;
       const orderedQty = orderItemMap.get(reqItem.order_item_id) || 0;
       if (alreadyShipped + reqItem.quantity > orderedQty) {
@@ -258,7 +301,7 @@ export class ShipmentTrackingService {
     const savedShipment = (await this.shipmentRepo.save(shipment)) as unknown as Shipment;
 
     // 5. Create ShipmentItem records
-    const shipmentItems = data.items.map((item) =>
+    const shipmentItems = requestedItems.map((item) =>
       this.shipmentItemRepo.create({
         shipment_id: (savedShipment as any).id,
         order_item_id: item.order_item_id,
@@ -268,7 +311,7 @@ export class ShipmentTrackingService {
     await this.shipmentItemRepo.save(shipmentItems as any);
 
     // 6. Sequential transitions based on current status
-    const actor = { userId: vendorId, role: "vendor" as const };
+    const actor = { userId: actorUserId, vendorId, role: "vendor" as const };
     const reason = "Shipment created";
 
     if (!isAutoBooked) {
@@ -404,7 +447,7 @@ export class ShipmentTrackingService {
     await this.shipmentStatusHistoryRepo.save(historyEntry);
 
     // 5. Trigger vendor_order transitions (catch errors silently)
-    const systemActor = { userId: "system", role: "system" as const };
+    const systemActor = { userId: null, role: "system" as const };
 
     try {
       if (data.status === ShipmentStatus.picked_up || data.status === ShipmentStatus.in_transit) {
@@ -515,7 +558,10 @@ export class ShipmentTrackingService {
       relations: ["items"],
     });
 
-    if (!shipment || (actor.role === "vendor" && (shipment as any).vendor_id !== actor.userId)) {
+    if (
+      !shipment ||
+      (actor.role === "vendor" && (shipment as any).vendor_id !== actorVendorId(actor))
+    ) {
       throw new Error("Shipment not found");
     }
 
@@ -565,7 +611,7 @@ export class ShipmentTrackingService {
       vendor_order_id: (shipment as any).vendor_order_id,
       from_status: fromStatus,
       to_status: toStatus,
-      changed_by: actor.userId,
+      changed_by: historyUserId(actor),
       changed_by_role: actor.role,
       is_customer_visible: CUSTOMER_VISIBLE_STATUSES.has(toStatus),
       reason,
@@ -579,7 +625,7 @@ export class ShipmentTrackingService {
         await this.orderStatusService.transitionVendorOrder(
           (shipment as any).vendor_order_id,
           OrderStatus.shipped,
-          { userId: actor.userId, role: actor.role as any },
+          { userId: actor.userId, vendorId: actor.vendorId, role: actor.role as any },
           reason,
           metadata,
         );
@@ -587,7 +633,7 @@ export class ShipmentTrackingService {
         await this.orderStatusService.transitionVendorOrder(
           (shipment as any).vendor_order_id,
           OrderStatus.out_for_delivery,
-          { userId: actor.userId, role: actor.role as any },
+          { userId: actor.userId, vendorId: actor.vendorId, role: actor.role as any },
           reason,
           metadata,
         );
@@ -595,7 +641,7 @@ export class ShipmentTrackingService {
         await this.orderStatusService.transitionVendorOrder(
           (shipment as any).vendor_order_id,
           OrderStatus.delivered,
-          { userId: actor.userId, role: actor.role as any },
+          { userId: actor.userId, vendorId: actor.vendorId, role: actor.role as any },
           reason,
           metadata,
         );

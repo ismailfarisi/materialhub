@@ -125,14 +125,19 @@ export async function processAutoShipmentJob(
     booking_error: null,
   });
 
-  await deps.orderStatusService.transitionVendorOrder(vendorOrderId, OrderStatus.processing, {
-    userId: vendorId,
-    role: "vendor",
-  });
-  await deps.orderStatusService.transitionVendorOrder(vendorOrderId, OrderStatus.ready_to_ship, {
-    userId: vendorId,
-    role: "vendor",
-  });
+  // A background job has no acting user: history records changed_by NULL
+  // (changed_by is an FK to users; the vendor id is not a user id).
+  const jobActor = { userId: null, vendorId, role: "vendor" as const };
+  await deps.orderStatusService.transitionVendorOrder(
+    vendorOrderId,
+    OrderStatus.processing,
+    jobActor,
+  );
+  await deps.orderStatusService.transitionVendorOrder(
+    vendorOrderId,
+    OrderStatus.ready_to_ship,
+    jobActor,
+  );
 
   await deps.shipmentService.createShipment(vendorOrderId, vendorId, {
     auto_booked: true,
