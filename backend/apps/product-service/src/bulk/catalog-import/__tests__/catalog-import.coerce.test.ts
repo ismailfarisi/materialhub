@@ -12,14 +12,14 @@ describe("coerceProductRow", () => {
     const r = coerceProductRow(
       mk({
         sku: "T-1",
-        name: "Tee",
+        name: "Linen Book Cloth",
         category_slug: "kraft-papers",
         price: "9900",
         tags: "a|b|c",
         image_urls: "https://x/1.jpg|https://x/2.jpg",
         has_variants: "false",
         "attr.color": "red",
-        "attr.material": "cotton",
+        "attr.material": "linen",
       }),
     );
     expect(r.ok).toBe(true);
@@ -29,7 +29,7 @@ describe("coerceProductRow", () => {
       expect(r.value.imageUrls).toHaveLength(2);
       expect(r.value.attributes).toEqual([
         { slug: "color", value: "red" },
-        { slug: "material", value: "cotton" },
+        { slug: "material", value: "linen" },
       ]);
     }
   });

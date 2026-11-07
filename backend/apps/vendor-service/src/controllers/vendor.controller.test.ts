@@ -130,6 +130,15 @@ describe("VendorController.approve / reactivate", () => {
     expect(transitions).toEqual(["approved"]);
   });
 
+  test("approve refuses a suspended vendor (that is reactivate)", async () => {
+    const { controller, transitions } = makeController("suspended");
+    await expect(controller.approve(VENDOR_ID, "admin")).rejects.toMatchObject({
+      statusCode: 422,
+      code: "INVALID_TRANSITION",
+    });
+    expect(transitions).toEqual([]);
+  });
+
   test("reactivate moves a suspended vendor straight to approved", async () => {
     const { controller, transitions } = makeController("suspended");
     const v = await controller.reactivate(VENDOR_ID, "admin");

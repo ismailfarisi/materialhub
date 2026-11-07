@@ -15,6 +15,7 @@ import { HttpError } from "@materialhub/plugins";
 import { checkTrn, isValidTrn } from "@materialhub/utils";
 import { generateSlug } from "@materialhub/utils";
 import { type VendorApplyData, isValidTransition } from "../domain/types.ts";
+import { returningRows } from "../lib/returning-rows.ts";
 import type { PaymentProviderAdapter } from "../providers/payment/payment-provider.interface.ts";
 
 export class VendorService {
@@ -272,14 +273,16 @@ export class VendorService {
       vendor.verified_at = new Date();
       // Phase 3b: applicant is the user_id on the pending owner membership row
       // (created in apply()). Activate that row; no need to read vendor.user_id.
-      const ownerRows = (await AppDataSource.query(
-        `UPDATE vendor_members
+      const ownerRows = returningRows<{ user_id: string | null }>(
+        await AppDataSource.query(
+          `UPDATE vendor_members
             SET status = 'active', accepted_at = NOW(), updated_at = NOW()
           WHERE vendor_id = $1 AND role = 'owner' AND deleted_at IS NULL
             AND status IN ('pending', 'active')
         RETURNING user_id`,
-        [vendor.id],
-      )) as Array<{ user_id: string | null }>;
+          [vendor.id],
+        ),
+      );
       const ownerUserId = ownerRows[0]?.user_id ?? null;
       if (!ownerUserId) {
         throw new HttpError(

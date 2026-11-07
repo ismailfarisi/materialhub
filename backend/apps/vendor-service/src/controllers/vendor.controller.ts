@@ -87,8 +87,16 @@ export class VendorController {
   async approve(vendorId: string, adminId: string, message?: string) {
     const vendor = await this.vendorService.findById(vendorId);
     // pending -> under_review -> approved; an application already under review
-    // goes straight to approved. Anything else (suspended, approved, ...) is
-    // rejected by transition() with INVALID_TRANSITION.
+    // goes straight to approved. A suspended vendor is reactivated instead.
+    if (vendor.status !== "pending" && vendor.status !== "under_review") {
+      throw new HttpError(
+        422,
+        vendor.status === "suspended"
+          ? "Vendor is suspended; use reactivate"
+          : `Only a pending application can be approved (status is '${vendor.status}')`,
+        "INVALID_TRANSITION",
+      );
+    }
     if (vendor.status === "pending") {
       await this.vendorService.transition(vendorId, "under_review");
     }
@@ -104,6 +112,15 @@ export class VendorController {
   async reject(vendorId: string, adminId: string, reason: string) {
     const vendor = await this.vendorService.findById(vendorId);
     // Auto-transition to under_review if still pending
+    if (vendor.status !== "pending" && vendor.status !== "under_review") {
+      throw new HttpError(
+        422,
+        vendor.status === "suspended"
+          ? "Vendor is suspended; use reactivate"
+          : `Only a pending application can be approved (status is '${vendor.status}')`,
+        "INVALID_TRANSITION",
+      );
+    }
     if (vendor.status === "pending") {
       await this.vendorService.transition(vendorId, "under_review");
     }

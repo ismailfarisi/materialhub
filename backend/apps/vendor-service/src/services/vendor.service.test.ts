@@ -555,3 +555,22 @@ describe("VendorService.apply — documents", () => {
     ).rejects.toMatchObject({ statusCode: 400, code: "INVALID_DOCUMENT_KEY" });
   });
 });
+
+describe("VendorService.transition — approve with the real pg UPDATE result shape", () => {
+  test("reads the owner from [rows, count] (TypeORM UPDATE ... RETURNING)", async () => {
+    clearCalls();
+    appDataSourceQueryReturns.set("RETURNING user_id", [[{ user_id: USER_ID }], 1] as any);
+    const vendor: any = { id: VENDOR_ID, status: "under_review", address: {} };
+    const service = makeService({
+      vendorRepo: { findOne: mock(async () => vendor), save: mock(async (v: any) => v) },
+      warehouseRepo: {
+        findOne: mock(async () => ({ id: "wh" })),
+        create: mock((d: any) => d),
+        save: mock(async (v: any) => v),
+      },
+    });
+    const saved: any = await service.transition(VENDOR_ID, "approved");
+    expect(saved.status).toBe("approved");
+    expect(bumpTokenVersionCalls).toEqual([USER_ID]);
+  });
+});

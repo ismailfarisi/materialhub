@@ -81,7 +81,7 @@ describeIfDb("catalog-import — integration", () => {
   test("imports 2 simple products", async () => {
     const csv = [
       "external_id,name,category_slug,price,initial_quantity",
-      `P-A,Alpha Tee,${categorySlug},9900,50`,
+      `P-A,Alpha Kraft Sheet,${categorySlug},9900,50`,
       `P-B,Beta Hoodie,${categorySlug},19900,25`,
     ].join("\n");
 
@@ -160,7 +160,7 @@ describeIfDb("catalog-import — integration", () => {
     try {
       const csv = [
         "external_id,name,category_slug,price,image_urls",
-        `P-DRIVE,Drive Folder Tee,${categorySlug},9900,https://drive.google.com/drive/folders/TEST_FOLDER_ID`,
+        `P-DRIVE,Drive Folder Kraft Sheet,${categorySlug},9900,https://drive.google.com/drive/folders/TEST_FOLDER_ID`,
       ].join("\n");
 
       const { jobId } = await service.initiate({

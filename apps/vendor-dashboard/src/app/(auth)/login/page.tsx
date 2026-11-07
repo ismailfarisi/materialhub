@@ -80,15 +80,17 @@ function LoginForm() {
   const user = useAuthStore((s) => s.user);
   // Signed in, but with no vendor membership (a customer account, or an
   // application still under review): explain instead of bouncing in a loop.
+  // Invite and apply pages work for accounts without a vendor team.
+  const openToAnyAccount = returnTo.startsWith("/invite/") || returnTo.startsWith("/apply");
   const notVendor =
-    (isAuthenticated && !canUseDashboard(user?.role)) ||
+    (isAuthenticated && !openToAnyAccount && !canUseDashboard(user?.role)) ||
     (!isAuthenticated && searchParams.get("reason") === "not-vendor");
 
   useEffect(() => {
-    if (isAuthenticated && canUseDashboard(user?.role)) {
+    if (isAuthenticated && (openToAnyAccount || canUseDashboard(user?.role))) {
       router.replace(returnTo);
     }
-  }, [isAuthenticated, user?.role, returnTo, router]);
+  }, [isAuthenticated, openToAnyAccount, user?.role, returnTo, router]);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
