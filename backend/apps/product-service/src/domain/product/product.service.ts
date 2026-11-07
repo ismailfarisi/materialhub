@@ -24,7 +24,7 @@ import { enqueueSearchSync } from "../search/search-sync.job.ts";
 import type { SearchService } from "../search/search.interface.ts";
 import type { TrendingSearchService } from "../search/trending.service.ts";
 import { parseAttributeParams } from "./filter-param-parser.ts";
-import { toPublicProductDetail } from "./public-product.ts";
+import { applyProductTranslation, toPublicProductDetail } from "./public-product.ts";
 
 const WAREHOUSE_FULFILLMENT_PERMISSION = "fulfillment_origin";
 
@@ -621,7 +621,7 @@ export class ProductService {
     return { affected: succeeded.length, succeeded, failed };
   }
 
-  async getBySlug(slug: string) {
+  async getBySlug(slug: string, locale = "en") {
     const product = await this.repo.findOne({
       where: { slug, status: "published" as any },
       relations: [
@@ -652,6 +652,12 @@ export class ProductService {
     (product as any).in_stock = totalAvailable > 0;
     (product as any).quantity_available = totalAvailable;
 
+    if (locale !== "en") {
+      const translation = await this.repo.manager.getRepository("ProductTranslation").findOne({
+        where: { product_id: (product as any).id, locale } as any,
+      });
+      applyProductTranslation(product as any, translation as any);
+    }
     return toPublicProductDetail(product);
   }
 

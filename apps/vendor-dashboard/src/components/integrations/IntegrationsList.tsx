@@ -1,6 +1,7 @@
 "use client";
 
 import type { Integration } from "@/lib/integrations/api";
+import { inboundIntegrationUrl } from "@/lib/urls";
 import { CaretRight, Plug } from "@phosphor-icons/react";
 import Link from "next/link";
 import { PulseDot } from "./PulseDot";
@@ -93,7 +94,7 @@ function IntegrationCard({ integration }: { integration: Integration }) {
       <div className="mb-4">
         <p className="text-xs uppercase tracking-wide text-taupe mb-1">Inbound URL</p>
         <p className="font-mono text-sm text-cacao break-all">
-          /integrations/inbound/{integration.id}
+          {inboundIntegrationUrl(integration.id)}
         </p>
       </div>
 

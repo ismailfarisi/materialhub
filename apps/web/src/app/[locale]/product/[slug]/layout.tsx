@@ -16,7 +16,7 @@ export default async function ProductLayout({
 	children: ReactNode;
 	params: Promise<{ locale: string; slug: string }>;
 }) {
-	const { slug } = await params;
-	if (!(await fetchProduct(slug))) notFound();
+	const { locale, slug } = await params;
+	if (!(await fetchProduct(slug, locale))) notFound();
 	return children;
 }

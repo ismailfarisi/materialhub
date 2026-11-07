@@ -4,6 +4,7 @@ import { jwtAuth, permissionMatrix, vendorMembership } from "@materialhub/guards
 import { NotFoundError } from "@materialhub/plugins";
 import { Elysia, t } from "elysia";
 import { container } from "../container.ts";
+import { categoryLocale } from "../domain/category/category.service.ts";
 import {
   ProductCreateInventoryInput,
   ProductSeoInput,
@@ -55,8 +56,11 @@ export const productRoutes = new Elysia({ prefix: "/products" })
 
   .get(
     "/by-slug/:slug",
-    async ({ params, productController }) => {
-      const data = await productController.getBySlug(params.slug);
+    async ({ params, query, headers, productController }: any) => {
+      const data = await productController.getBySlug(
+        params.slug,
+        categoryLocale(query?.locale ?? headers?.["accept-language"]),
+      );
       return { statusCode: 200, data, timestamp: new Date().toISOString() };
     },
     { params: t.Object({ slug: t.String() }) },

@@ -53,3 +53,33 @@ export function toPublicProductDetail<T extends Record<string, any>>(product: T)
   (product as any).inventoryRecords = toPublicInventory(product.inventoryRecords);
   return product;
 }
+
+const TRANSLATED_FIELDS = [
+  "name",
+  "short_description",
+  "description",
+  "rich_description",
+  "ingredients",
+  "usage_instructions",
+  "meta_title",
+  "meta_description",
+] as const;
+
+/**
+ * Overlay a product translation (e.g. "ar") on the English product. Blank
+ * translated fields keep the English value, so a partial translation never
+ * blanks the page.
+ */
+export function applyProductTranslation<T extends Record<string, any>>(
+  product: T,
+  translation: Record<string, unknown> | null | undefined,
+): T {
+  if (!translation) return product;
+  for (const f of TRANSLATED_FIELDS) {
+    const v = translation[f];
+    if (v == null) continue;
+    if (typeof v === "string" && v.trim() === "") continue;
+    (product as any)[f] = v;
+  }
+  return product;
+}

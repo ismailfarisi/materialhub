@@ -36,8 +36,8 @@ export class ProductController {
   async bulkAction(vendorId: string, data: any) {
     return this.productService.bulkAction(vendorId, data.action, data.ids);
   }
-  async getBySlug(slug: string) {
-    return this.productService.getBySlug(slug);
+  async getBySlug(slug: string, locale?: string) {
+    return this.productService.getBySlug(slug, locale);
   }
   async getGroupBySlug(slug: string) {
     return this.productService.getGroupBySlug(slug);

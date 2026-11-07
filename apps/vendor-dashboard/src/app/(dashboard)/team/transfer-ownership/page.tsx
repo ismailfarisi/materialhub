@@ -104,7 +104,7 @@ export default function TransferOwnershipPage() {
               onSuccess: async () => {
                 // Our role changed: re-issue the token so the vm claim says manager,
                 // then drop cached data that was fetched as owner.
-                await api.post("/auth/refresh").catch(() => {});
+                await api.post("/auth/refresh", {}).catch(() => {});
                 void queryClient.invalidateQueries();
                 setNewOwnerEmail(candidates.find((c) => c.id === target)?.email ?? "The new owner");
               },

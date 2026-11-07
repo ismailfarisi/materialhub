@@ -53,6 +53,10 @@ export default function InvitePage() {
 	}
 
 	const expired = preview.expired;
+	// The preview returns the invite's status; only a pending invite can be
+	// accepted or declined (a used/declined/revoked link offered both).
+	const inviteStatus = (preview as { status?: string }).status;
+	const closed = inviteStatus && inviteStatus !== "pending" && inviteStatus !== "invited";
 	const emailMatch =
 		Boolean(authedEmail) && authedEmail?.toLowerCase() === preview.invitedEmail.toLowerCase();
 
@@ -67,7 +71,13 @@ export default function InvitePage() {
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					{expired ? (
+					{closed ? (
+						<p className="text-sm text-muted-foreground">
+							{inviteStatus === "accepted" || inviteStatus === "active"
+								? "This invite has already been accepted."
+								: "This invite is no longer active. Ask the store owner for a new one."}
+						</p>
+					) : expired ? (
 						<p className="text-sm text-destructive">
 							This invite has expired. Ask the store owner to resend it.
 						</p>
@@ -92,7 +102,7 @@ export default function InvitePage() {
 									onSuccess: async () => {
 										// Refresh so the JWT carries the new membership (vm claim),
 										// then make the newly joined store the active one.
-										await api.post("/auth/refresh").catch(() => {});
+										await api.post("/auth/refresh", {}).catch(() => {});
 										const joined = getMembershipsFromToken().find((m) => !before.has(m.vid));
 										if (joined) useActiveVendor.getState().setActiveVendorId(joined.vid);
 										queryClient.clear();

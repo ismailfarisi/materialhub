@@ -45,7 +45,7 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
 	const { locale, slug } = await params;
 
-	const product = await fetchProduct(slug);
+	const product = await fetchProduct(slug, locale);
 	if (!product) return { title: "Product" };
 
 	return {
@@ -63,7 +63,7 @@ export default async function ProductDetailPage({ params }: Props) {
 	const { locale, slug } = await params;
 	setRequestLocale(locale);
 
-	const raw = await fetchProduct(slug);
+	const raw = await fetchProduct(slug, locale);
 
 	if (!raw) notFound();
 

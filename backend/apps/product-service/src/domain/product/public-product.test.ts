@@ -43,3 +43,17 @@ describe("toPublicProductDetail", () => {
     ]);
   });
 });
+
+import { applyProductTranslation } from "./public-product.ts";
+
+describe("applyProductTranslation", () => {
+  test("overlays non-blank translated fields and keeps English for blanks", () => {
+    const p: any = applyProductTranslation(
+      { name: "Greyboard 2mm", description: "Rigid board", meta_title: "Greyboard" },
+      { name: "كرتون رمادي 2 مم", description: "  ", meta_title: null },
+    );
+    expect(p.name).toBe("كرتون رمادي 2 مم");
+    expect(p.description).toBe("Rigid board");
+    expect(p.meta_title).toBe("Greyboard");
+  });
+});
