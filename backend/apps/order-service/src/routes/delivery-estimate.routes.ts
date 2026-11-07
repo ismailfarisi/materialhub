@@ -1,5 +1,5 @@
 import { jwtAuth, requireRole, vendorMembership } from "@materialhub/guards";
-import { HttpError, NotFoundError } from "@materialhub/plugins";
+import { HttpError, NotFoundError, auditPlugin } from "@materialhub/plugins";
 // delivery-estimate.routes.ts — delivery promise (workstream 5).
 import { Elysia, t } from "elysia";
 import { container } from "../container.ts";
@@ -181,6 +181,7 @@ export const publicHolidayAdminRoutes = new Elysia({ prefix: "/admin/public-holi
   .use(container)
   .use(jwtAuth)
   .use(requireRole("admin", "super_admin"))
+  .use(auditPlugin)
   .get(
     "/",
     async ({ query, publicHolidayService }: any) =>

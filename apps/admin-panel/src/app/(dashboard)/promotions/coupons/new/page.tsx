@@ -13,6 +13,7 @@ import {
 } from "@materialhub/ui";
 import { ArrowLeft, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "@materialhub/ui";
+import { couponMoneyFromInput } from "@/lib/coupon-money";
 import { useCreateCoupon } from "@/lib/queries/promotions";
 import { EntityMultiCombobox } from "@/components/ui/entity-combobox";
 import {
@@ -80,6 +81,13 @@ export default function NewCouponPage() {
     setError("");
     if (!code.trim()) { setError("Coupon code is required."); return; }
     if (!name.trim()) { setError("Coupon name is required."); return; }
+    const money = couponMoneyFromInput({
+      type,
+      discountValue,
+      maxDiscountAed: maxDiscountAmount,
+      minimumOrderAed: minimumOrderAmount,
+    });
+    if (!money.ok) { setError(money.error); return; }
 
     const payload: Record<string, any> = {
       code: code.trim().toUpperCase(),
@@ -88,14 +96,14 @@ export default function NewCouponPage() {
       is_active: isActive,
       is_public: isPublic,
       type,
-      discount_value: discountValue ? Number(discountValue) : undefined,
-      max_discount_amount: type === "percentage" && maxDiscountAmount ? Number(maxDiscountAmount) : undefined,
+      discount_value: money.values.discount_value,
+      max_discount_amount: money.values.max_discount_amount,
       applicable_to: applicableTo,
       product_ids: applicableTo === "specific_products" ? productIds : undefined,
       category_ids: applicableTo === "specific_categories" ? categoryIds : undefined,
       vendor_ids: applicableTo === "specific_vendors" ? vendorIds : undefined,
       excluded_product_ids: excludedProductIds.length > 0 ? excludedProductIds : undefined,
-      minimum_order_amount: minimumOrderAmount ? Number(minimumOrderAmount) : undefined,
+      minimum_order_amount: money.values.minimum_order_amount,
       minimum_quantity: minimumQuantity ? Number(minimumQuantity) : undefined,
       usage_limit: usageLimit ? Number(usageLimit) : undefined,
       usage_limit_per_user: usageLimitPerUser ? Number(usageLimitPerUser) : undefined,
@@ -231,25 +239,29 @@ export default function NewCouponPage() {
           {(type === "percentage" || type === "fixed_amount") && (
             <div>
               <label className="block text-sm font-medium text-cacao mb-1">
-                {type === "percentage" ? "Discount %" : "Amount (fils)"}
+                {type === "percentage" ? "Discount %" : "Discount amount (AED)"}
               </label>
               <Input
                 type="number"
                 value={discountValue}
                 onChange={(e) => setDiscountValue(e.target.value)}
-                placeholder={type === "percentage" ? "20" : "5000"}
+                placeholder={type === "percentage" ? "20" : "50.00"}
+                step={type === "percentage" ? 1 : 0.01}
+                min={0}
               />
             </div>
           )}
 
           {type === "percentage" && (
             <div>
-              <label className="block text-sm font-medium text-cacao mb-1">Max Discount (fils)</label>
+              <label className="block text-sm font-medium text-cacao mb-1">Max discount (AED)</label>
               <Input
                 type="number"
                 value={maxDiscountAmount}
                 onChange={(e) => setMaxDiscountAmount(e.target.value)}
-                placeholder="Optional cap"
+                placeholder="Optional cap, e.g. 100.00"
+                step={0.01}
+                min={0}
               />
             </div>
           )}
@@ -369,12 +381,14 @@ export default function NewCouponPage() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-cacao mb-1">Minimum Order Amount (fils)</label>
+              <label className="block text-sm font-medium text-cacao mb-1">Minimum order (AED)</label>
               <Input
                 type="number"
                 value={minimumOrderAmount}
                 onChange={(e) => setMinimumOrderAmount(e.target.value)}
-                placeholder="0"
+                placeholder="0.00"
+                step={0.01}
+                min={0}
               />
             </div>
             <div>

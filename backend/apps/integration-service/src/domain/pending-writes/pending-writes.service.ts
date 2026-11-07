@@ -4,7 +4,11 @@ import type { Repository } from "typeorm";
 import { isUuid } from "../ids.ts";
 
 export class PendingWritesService {
-  constructor(private repo: Repository<VendorIntegrationPendingWrite>) {}
+  constructor(
+    private repo: Repository<VendorIntegrationPendingWrite>,
+    /** When given, listing an unknown integration is a 404 instead of an empty list. */
+    private integrationExists?: (id: string) => Promise<boolean>,
+  ) {}
 
   stage(input: {
     integration_id: string;
@@ -24,6 +28,11 @@ export class PendingWritesService {
   }
 
   async list(integrationId: string, status?: string): Promise<VendorIntegrationPendingWrite[]> {
+    if (this.integrationExists) {
+      if (!isUuid(integrationId) || !(await this.integrationExists(integrationId))) {
+        throw new NotFoundError("Integration not found");
+      }
+    }
     if (!isUuid(integrationId)) return [];
     const where: any = { integration_id: integrationId };
     if (status) where.status = status;

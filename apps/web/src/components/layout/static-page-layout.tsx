@@ -43,6 +43,8 @@ export const readingProse = cn(
 	"[&_a]:underline [&_a]:decoration-nl-cacao/30 [&_a]:underline-offset-[0.2em] [&_a:hover]:decoration-nl-amber [&_a]:transition-colors",
 );
 
+const RTL_LANGS = new Set(["ar", "ur"]);
+
 interface StaticPageLayoutProps {
 	/** Where this page sits, shown as the second breadcrumb (e.g. "Help", "Legal"). */
 	eyebrow?: string;
@@ -55,9 +57,10 @@ interface StaticPageLayoutProps {
 	/**
 	 * Language the page copy is written in, when it isn't translated. In
 	 * another locale the copy is marked with this language and set left to
-	 * right, so Arabic pages don't reorder English punctuation.
+	 * right (or right to left for Arabic and Urdu copy), so Arabic pages don't
+	 * reorder English punctuation.
 	 */
-	contentLang?: "en";
+	contentLang?: string;
 	children: ReactNode;
 }
 
@@ -71,7 +74,10 @@ export async function StaticPageLayout({
 	children,
 }: StaticPageLayoutProps) {
 	const locale = await getLocale();
-	const foreign: { lang?: string; dir?: "ltr" } = contentLang && contentLang !== locale ? { lang: contentLang, dir: "ltr" as const } : {};
+	const foreign: { lang?: string; dir?: "ltr" | "rtl" } =
+		contentLang && contentLang !== locale
+			? { lang: contentLang, dir: RTL_LANGS.has(contentLang) ? "rtl" : "ltr" }
+			: {};
 	const t = await getTranslations("content.layout");
 	const hasContents = !!contents && contents.length > 1;
 

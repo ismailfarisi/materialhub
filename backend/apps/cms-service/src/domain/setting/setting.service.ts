@@ -12,9 +12,10 @@ const PUBLIC_SETTING_KEYS = new Set([
   "free_shipping_threshold",
 ]);
 
-const VALUE_TYPE_VALIDATORS: Record<string, (v: string) => boolean> = {
+export const VALUE_TYPE_VALIDATORS: Record<string, (v: string) => boolean> = {
   string: () => true,
-  number: (v) => !Number.isNaN(Number(v)),
+  number: (v) => v.trim() !== "" && Number.isFinite(Number(v)),
+  integer: (v) => /^-?\d+$/.test(v.trim()),
   boolean: (v) => v === "true" || v === "false",
   json: (v) => {
     try {

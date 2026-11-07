@@ -1,3 +1,4 @@
+import { UserRole, UserStatus } from "@materialhub/database";
 import { jwtAuth, requireRole } from "@materialhub/guards";
 import { auditPlugin } from "@materialhub/plugins";
 import { Elysia, t } from "elysia";
@@ -38,8 +39,8 @@ export const adminUserRoutes = new Elysia({ prefix: "/admin/users" })
     {
       query: t.Object({
         search: t.Optional(t.String()),
-        role: t.Optional(t.String()),
-        status: t.Optional(t.String()),
+        role: t.Optional(t.Enum(UserRole)),
+        status: t.Optional(t.Enum(UserStatus)),
         page: t.Optional(t.Integer({ minimum: 1, default: 1 })),
         limit: t.Optional(t.Integer({ minimum: 1, maximum: 100, default: 20 })),
       }),

@@ -163,19 +163,21 @@ export function MediaManager({
         }
       }}
     >
-      <MediaUploadDropzone
-        compact={items.length > 0}
-        isUploading={isUploading}
-        remaining={remaining}
-        onFiles={async (files) => {
-          setError(null);
-          try {
-            await actions.upload(files);
-          } catch (err) {
-            setError(mediaErrorMessage(err));
-          }
-        }}
-      />
+      {capabilities.upload === false ? null : (
+        <MediaUploadDropzone
+          compact={items.length > 0}
+          isUploading={isUploading}
+          remaining={remaining}
+          onFiles={async (files) => {
+            setError(null);
+            try {
+              await actions.upload(files);
+            } catch (err) {
+              setError(mediaErrorMessage(err));
+            }
+          }}
+        />
+      )}
 
       {error ? (
         <div

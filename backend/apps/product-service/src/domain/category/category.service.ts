@@ -8,6 +8,44 @@ import { HttpError } from "@materialhub/plugins";
 import { generateSlug } from "@materialhub/utils";
 import { In, Like } from "typeorm";
 
+type CategoryTranslationFields = {
+  name: string;
+  description: string | null;
+  meta_title: string | null;
+  meta_description: string | null;
+};
+
+/**
+ * Locale for category copy: an explicit `?locale=` or the storefront's
+ * Accept-Language ("ar", "ar-AE,ar;q=0.9", …). Only the first tag counts.
+ */
+export function categoryLocale(raw?: string | null): string {
+  const first = raw?.split(",")[0]?.split(";")[0]?.trim().toLowerCase() ?? "";
+  const lang = first.split("-")[0] ?? "";
+  return /^[a-z]{2,3}$/.test(lang) ? lang : "en";
+}
+
+/** Overlay translated copy on an English category; blank translated fields keep English. */
+export function applyCategoryTranslation<
+  T extends {
+    name: string;
+    description?: string | null;
+    meta_title?: string | null;
+    meta_description?: string | null;
+  },
+>(category: T, translation?: CategoryTranslationFields | null): T {
+  if (!translation) return category;
+  const pick = (v: string | null | undefined, fallback: string | null | undefined) =>
+    typeof v === "string" && v.trim() ? v : fallback;
+  return {
+    ...category,
+    name: pick(translation.name, category.name) as string,
+    description: pick(translation.description, category.description) ?? null,
+    meta_title: pick(translation.meta_title, category.meta_title) ?? null,
+    meta_description: pick(translation.meta_description, category.meta_description) ?? null,
+  };
+}
+
 export class CategoryService {
   private get repo() {
     return AppDataSource.getRepository(Category);
@@ -318,17 +356,24 @@ export class CategoryService {
       });
   }
 
-  async getBySlug(slug: string) {
-    const category = await this.repo.findOne({ where: { slug } });
+  /**
+   * Public category page payload. Inactive categories 404 (the storefront
+   * must not serve disabled pages), and for a non-English locale the name,
+   * description and SEO fields of the category, its breadcrumb and its
+   * children come from `category_translations`, falling back to English.
+   */
+  async getBySlug(slug: string, opts: { locale?: string | null } = {}) {
+    const category = await this.repo.findOne({ where: { slug, is_active: true } });
     if (!category) throw new HttpError(404, "Category not found", "CATEGORY_NOT_FOUND");
+    const locale = categoryLocale(opts.locale);
 
     // Build breadcrumb from path
     const pathParts = (category.path ?? "").split(".");
-    const breadcrumb = [];
+    const ancestors: Category[] = [];
     for (let i = 0; i < pathParts.length; i++) {
       const partPath = pathParts.slice(0, i + 1).join(".");
       const ancestor = await this.repo.findOne({ where: { path: partPath } });
-      if (ancestor) breadcrumb.push({ id: ancestor.id, name: ancestor.name, slug: ancestor.slug });
+      if (ancestor) ancestors.push(ancestor);
     }
 
     const children = await this.repo.find({
@@ -336,7 +381,34 @@ export class CategoryService {
       order: { sort_order: "ASC", name: "ASC" },
     });
 
-    return { ...category, breadcrumb, children };
+    const translations =
+      locale === "en"
+        ? new Map<string, CategoryTranslationFields>()
+        : await this.loadLocaleTranslations(
+            [category.id, ...ancestors.map((a) => a.id), ...children.map((c) => c.id)],
+            locale,
+          );
+    const tr = (c: Category) => applyCategoryTranslation(c, translations.get(c.id));
+
+    return {
+      ...tr(category),
+      locale,
+      breadcrumb: ancestors.map((a) => {
+        const t = tr(a);
+        return { id: t.id, name: t.name, slug: t.slug };
+      }),
+      children: children.map(tr),
+    };
+  }
+
+  private async loadLocaleTranslations(
+    categoryIds: string[],
+    locale: string,
+  ): Promise<Map<string, CategoryTranslationFields>> {
+    const rows = await this.translationRepo.find({
+      where: { category_id: In(categoryIds), locale },
+    });
+    return new Map(rows.map((r) => [r.category_id, r]));
   }
 
   async reorder(items: Array<{ id: string; sort_order: number }>) {

@@ -8,12 +8,13 @@ import {
   ProductCategory,
   ProductGroupMember,
   ProductImage,
+  ProductStatus,
   ProductTranslation,
   Vendor,
   Warehouse,
   WarehouseVendorPermission,
 } from "@materialhub/database";
-import { HttpError } from "@materialhub/plugins";
+import { HttpError, assertEnumFilter } from "@materialhub/plugins";
 import { generateSlug } from "@materialhub/utils";
 import { type EntityManager, In, IsNull, Not, type Repository } from "typeorm";
 import { categoryDescendantPredicate } from "../category/category-descendant.sql.ts";
@@ -953,10 +954,11 @@ export class ProductService {
       .leftJoinAndSelect("p.brand", "brand")
       .leftJoinAndSelect("p.images", "images", "images.is_primary = true")
       .where("p.deleted_at IS NULL");
+    assertEnumFilter(filters.status, ProductStatus);
     if (filters.status) qb.andWhere("p.status = :status", { status: filters.status });
     if (filters.vendor_id) qb.andWhere("p.vendor_id = :vendorId", { vendorId: filters.vendor_id });
     // Match the category itself plus its descendants, so picking a parent
-    // ("Skincare") also returns products filed under its children. Shared with
+    // ("Papers") also returns products filed under its children. Shared with
     // the product export so the two can never drift — see the helper.
     if (filters.category_id)
       qb.andWhere(categoryDescendantPredicate(":categoryId"), {

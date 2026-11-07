@@ -28,6 +28,31 @@ interface ResolvedSection {
   data: { blocks?: unknown[]; items?: unknown[] };
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_MANUAL_PRODUCTS = 24;
+
+/** Product ids picked in a manual product_carousel, in order, de-duplicated. */
+export function manualProductIds(blocks: unknown): string[] {
+  if (!Array.isArray(blocks)) return [];
+  const ids: string[] = [];
+  for (const b of blocks) {
+    const id = (b as { data?: { product_id?: unknown } } | null)?.data?.product_id;
+    if (typeof id === "string" && UUID_RE.test(id) && !ids.includes(id)) ids.push(id);
+    if (ids.length >= MAX_MANUAL_PRODUCTS) break;
+  }
+  return ids;
+}
+
+/** Keep the editor's order; products that didn't come back (unpublished, deleted) drop out. */
+export function orderByIds<T>(items: T[], ids: string[]): T[] {
+  const byId = new Map<string, T>();
+  for (const item of items) {
+    const id = (item as { id?: unknown })?.id;
+    if (typeof id === "string") byId.set(id, item);
+  }
+  return ids.map((id) => byId.get(id)).filter((x): x is T => x !== undefined);
+}
+
 /** Reads the collection slug out of a section's data_source, if it has one. */
 function collectionSlugOf(dataSource: Record<string, unknown> | null): string | undefined {
   if (!dataSource) return undefined;
@@ -222,6 +247,11 @@ export class LayoutResolverService {
     switch (section.source_mode) {
       case SourceMode.manual:
         base.data = { blocks: section.blocks || [] };
+        // A hand-picked product rail stores product ids; the storefront renders
+        // product cards from `items`, so resolve the picks to live products.
+        if (section.section_type.name === "product_carousel") {
+          base.data.items = await this.resolveManualProducts(section.blocks, contextVendorId);
+        }
         break;
 
       case SourceMode.query:
@@ -306,6 +336,26 @@ export class LayoutResolverService {
       }
       const items = json.data?.data ?? json.data ?? [];
       return Array.isArray(items) ? items : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private async resolveManualProducts(
+    blocks: unknown,
+    contextVendorId?: string,
+  ): Promise<unknown[]> {
+    const ids = manualProductIds(blocks);
+    if (ids.length === 0) return [];
+    const params = new URLSearchParams({ ids: ids.join(","), limit: String(ids.length) });
+    // On a vendor page, only that vendor's products may appear.
+    if (contextVendorId) params.set("vendorId", contextVendorId);
+    try {
+      const res = await serviceFetch(`${config.serviceUrl.product}/products?${params.toString()}`);
+      if (!res.ok) return [];
+      const json = (await res.json()) as any;
+      const items = json.data?.data ?? json.data ?? [];
+      return Array.isArray(items) ? orderByIds(items, ids) : [];
     } catch {
       return [];
     }

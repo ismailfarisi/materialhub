@@ -1,4 +1,5 @@
 import { jwtAuth, requireRole } from "@materialhub/guards";
+import { auditPlugin } from "@materialhub/plugins";
 import { Elysia, t } from "elysia";
 import { container } from "../container.ts";
 
@@ -12,6 +13,7 @@ export const channelsAdminRoutes = new Elysia({ prefix: "/admin/sales-channels" 
   .use(container)
   .use(jwtAuth)
   .use(requireRole("admin", "super_admin"))
+  .use(auditPlugin)
   .get("/", async ({ channelController }: any) => ok(await channelController.list()))
   .get(
     "/:code",

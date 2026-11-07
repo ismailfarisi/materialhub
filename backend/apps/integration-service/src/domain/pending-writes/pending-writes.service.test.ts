@@ -81,3 +81,18 @@ describe("PendingWritesService", () => {
     expect(repo.find).not.toHaveBeenCalled();
   });
 });
+
+describe("PendingWritesService.list for an unknown integration", () => {
+  const INTEGRATION = "7a1c2e44-0b6a-4a8e-9d2f-3c5b7a9e1d02";
+  it("is a 404, not an empty list", async () => {
+    const svc = new PendingWritesService(repoStub() as any, async () => false);
+    await expect(svc.list(INTEGRATION)).rejects.toMatchObject({ statusCode: 404 });
+    await expect(svc.list("not-a-uuid")).rejects.toMatchObject({ statusCode: 404 });
+  });
+  it("lists when the integration exists", async () => {
+    const repo = repoStub();
+    const svc = new PendingWritesService(repo as any, async () => true);
+    expect(await svc.list(INTEGRATION, "pending")).toEqual([]);
+    expect(repo.find).toHaveBeenCalled();
+  });
+});

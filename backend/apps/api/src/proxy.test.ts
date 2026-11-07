@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { resolveUpstream } from "./proxy.ts";
+import { forwardedFor, resolveUpstream } from "./proxy.ts";
 
 describe("resolveUpstream", () => {
   test("routes RFQ prefixes to the order service", () => {
@@ -299,5 +299,19 @@ describe("resolveUpstream: routes that used to be shadowed or unrouted", () => {
   test("/internal/* is never routed publicly", () => {
     expect(resolveUpstream("/internal/inventory/adjust")).toBeNull();
     expect(resolveUpstream("/internal/orders/verified-purchase")).toBeNull();
+  });
+});
+
+describe("forwardedFor", () => {
+  test("uses the socket peer when no proxy set the header", () => {
+    expect(forwardedFor(null, "10.0.0.7")).toBe("10.0.0.7");
+  });
+  test("appends the peer to an existing chain, once", () => {
+    expect(forwardedFor("203.0.113.9", "10.0.0.2")).toBe("203.0.113.9, 10.0.0.2");
+    expect(forwardedFor("203.0.113.9, 10.0.0.2", "10.0.0.2")).toBe("203.0.113.9, 10.0.0.2");
+  });
+  test("never invents a value", () => {
+    expect(forwardedFor(null, null)).toBeNull();
+    expect(forwardedFor("", undefined)).toBeNull();
   });
 });

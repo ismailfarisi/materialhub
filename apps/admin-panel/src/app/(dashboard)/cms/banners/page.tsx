@@ -42,12 +42,32 @@ interface Banner {
 	locale?: string;
 }
 
+// Must match the API's placement enum (banner.routes.ts). The storefront
+// shows "home_hero" at the top of the home page and "category_top" on
+// category pages.
 const PLACEMENT_OPTIONS = [
-	{ label: "Homepage Hero", value: "homepage_hero" },
-	{ label: "Homepage Secondary", value: "homepage_secondary" },
+	{ label: "Homepage Hero", value: "home_hero" },
+	{ label: "Homepage Secondary", value: "home_secondary" },
 	{ label: "Category Top", value: "category_top" },
-	{ label: "App Splash", value: "app_splash" },
+	{ label: "Sidebar", value: "sidebar" },
 ];
+
+/** The stored instant as the UAE calendar day, for a date input. */
+function isoToUaeDate(iso?: string | null): string {
+	if (!iso) return "";
+	return new Date(iso).toLocaleDateString("en-CA", { timeZone: "Asia/Dubai" });
+}
+
+function apiMessage(err: unknown, fallback: string): string {
+	const m = (err as { response?: { data?: { message?: unknown } } })?.response?.data?.message;
+	return typeof m === "string" && m ? m : fallback;
+}
+
+/** Date inputs give "YYYY-MM-DD"; the API wants an ISO date-time (UAE day bounds). */
+function dateToIso(date: string, endOfDay = false): string | undefined {
+	if (!date) return undefined;
+	return new Date(`${date}T${endOfDay ? "23:59:59" : "00:00:00"}+04:00`).toISOString();
+}
 
 const LOCALE_OPTIONS = [
 	{ label: "English", value: "en" },
@@ -76,7 +96,7 @@ const emptyBanner = {
 	image_url: "",
 	mobile_image_url: "",
 	link_url: "",
-	placement: "homepage_hero",
+	placement: "home_hero",
 	starts_at: "",
 	expires_at: "",
 	locale: "en",
@@ -119,7 +139,8 @@ export default function BannersPage() {
 	const { mutate: updateBanner, isPending: updating } = useUpdateBanner();
 	const { mutate: deleteBanner } = useDeleteBanner();
 
-	const banners: Banner[] = data?.banners ?? data?.items ?? [];
+	// The API answers { data: [...], total }.
+	const banners: Banner[] = data?.data ?? data?.banners ?? data?.items ?? [];
 	const total: number = data?.total ?? 0;
 	const pageCount = Math.ceil(total / pagination.pageSize) || 1;
 
@@ -138,9 +159,9 @@ export default function BannersPage() {
 			image_url: banner.image_url ?? "",
 			mobile_image_url: banner.mobile_image_url ?? "",
 			link_url: banner.link_url ?? "",
-			placement: banner.placement ?? "homepage_hero",
-			starts_at: banner.starts_at ? banner.starts_at.slice(0, 10) : "",
-			expires_at: banner.expires_at ? banner.expires_at.slice(0, 10) : "",
+			placement: banner.placement ?? "home_hero",
+			starts_at: isoToUaeDate(banner.starts_at),
+			expires_at: isoToUaeDate(banner.expires_at),
 			locale: banner.locale ?? "en",
 			is_active: banner.is_active ?? true,
 			sort_order: banner.sort_order ?? 0,
@@ -167,8 +188,8 @@ export default function BannersPage() {
 			mobile_image_url: form.mobile_image_url || undefined,
 			link_url: form.link_url || undefined,
 			placement: form.placement,
-			starts_at: form.starts_at || undefined,
-			expires_at: form.expires_at || undefined,
+			starts_at: dateToIso(form.starts_at),
+			expires_at: dateToIso(form.expires_at, true),
 			locale: form.locale,
 			is_active: form.is_active,
 			sort_order: form.sort_order,
@@ -179,13 +200,13 @@ export default function BannersPage() {
 				{ id: editingId, payload },
 				{
 					onSuccess: () => setDialogOpen(false),
-					onError: () => setFormError("Failed to update banner."),
+					onError: (err) => setFormError(apiMessage(err, "Failed to update banner.")),
 				},
 			);
 		} else {
 			createBanner(payload, {
 				onSuccess: () => setDialogOpen(false),
-				onError: () => setFormError("Failed to create banner."),
+				onError: (err) => setFormError(apiMessage(err, "Failed to create banner.")),
 			});
 		}
 	}

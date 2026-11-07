@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { Elysia } from "elysia";
-import { errorHandler, requestLogger } from "./index.ts";
+import { HttpError, assertEnumFilter, errorHandler, requestLogger } from "./index.ts";
 
 describe("errorHandler", () => {
   function createApp() {
@@ -63,5 +63,27 @@ describe("requestLogger", () => {
     expect(body.correlationId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     );
+  });
+});
+
+describe("assertEnumFilter", () => {
+  enum Colour {
+    kraft = "kraft",
+    white = "white",
+  }
+  test("passes valid values and empties through", () => {
+    expect(assertEnumFilter("kraft", Colour)).toBe("kraft");
+    expect(assertEnumFilter(undefined, Colour)).toBeUndefined();
+    expect(assertEnumFilter("", ["a", "b"])).toBeUndefined();
+  });
+  test("an unknown value is a 400, not a database error", () => {
+    try {
+      assertEnumFilter("pending", Colour);
+      throw new Error("expected throw");
+    } catch (e) {
+      expect(e).toBeInstanceOf(HttpError);
+      expect((e as any).statusCode).toBe(400);
+      expect((e as Error).message).toContain("kraft, white");
+    }
   });
 });

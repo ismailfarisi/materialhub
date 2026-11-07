@@ -4,12 +4,15 @@ import { Card, CardContent, Switch, toast } from "@materialhub/ui";
 import { CreditCard, Info, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
+  type PaymentMethodAmountField,
+  type PaymentMethodThreshold,
+  paymentProviderLabel,
   usePaymentMethods,
   useTogglePaymentMethod,
-  useUpdateCodSurcharge,
-  type PaymentMethodThreshold,
+  useUpdatePaymentMethodAmount,
+  validatePaymentMethodAmount,
 } from "@/lib/queries/payment-methods";
-import { formatAed, filsToAed, parseAedInput } from "@/lib/money";
+import { filsToAed, parseAedInput } from "@/lib/money";
 
 function formatRelativeTime(iso: string): string {
   const delta = Date.now() - new Date(iso).getTime();
@@ -27,14 +30,27 @@ function formatPlans(plans: PaymentMethodThreshold["plans"]): string {
   return plans.map((p) => `${p.installments} × ${p.interval_days}d`).join(", ");
 }
 
-function providerLabel(provider: string): string {
-  return provider.charAt(0).toUpperCase() + provider.slice(1);
-}
+const providerLabel = paymentProviderLabel;
 
-function CodSurchargeCell({ row }: { row: PaymentMethodThreshold }) {
-  const serverFils = row.surcharge_fils ?? 0;
+const FIELD_LABELS: Record<PaymentMethodAmountField, string> = {
+  surcharge_fils: "surcharge",
+  min_amount_fils: "minimum order",
+  max_amount_fils: "maximum order",
+};
+
+/** An AED input for one fils amount on a payment method, saved on its own. */
+function AmountCell({
+  row,
+  field,
+}: {
+  row: PaymentMethodThreshold;
+  field: PaymentMethodAmountField;
+}) {
+  const serverFils = (row[field] as number | null) ?? 0;
   const [aedInput, setAedInput] = useState<string>(filsToAed(serverFils));
-  const update = useUpdateCodSurcharge();
+  const update = useUpdatePaymentMethodAmount();
+  const fieldLabel = FIELD_LABELS[field];
+  const ariaLabel = `${providerLabel(row.provider)} ${fieldLabel} in AED`;
 
   useEffect(() => {
     setAedInput(filsToAed(serverFils));
@@ -42,24 +58,29 @@ function CodSurchargeCell({ row }: { row: PaymentMethodThreshold }) {
 
   const parsed = parseAedInput(aedInput);
   const isDirty = parsed !== null && parsed !== serverFils;
-  const isInvalid = aedInput.trim() !== "" && parsed === null;
+  const rangeError = parsed !== null ? validatePaymentMethodAmount(row, field, parsed) : null;
+  const isInvalid = (aedInput.trim() !== "" && parsed === null) || !!rangeError;
 
   const handleSave = async () => {
-    if (parsed === null || !isDirty || update.isPending) return;
+    if (parsed === null || !isDirty || isInvalid || update.isPending) return;
     try {
-      await update.mutateAsync({ surcharge_fils: parsed });
-      toast({ title: "Surcharge updated", description: `${filsToAed(parsed)} AED` });
+      await update.mutateAsync({ provider: row.provider, field, fils: parsed });
+      toast({
+        title: `${providerLabel(row.provider)} ${fieldLabel} updated`,
+        description: `${filsToAed(parsed)} AED`,
+      });
     } catch (err: any) {
       const msg =
         err?.response?.data?.message ??
         err?.message ??
-        "Failed to update surcharge";
+        `Failed to update ${fieldLabel}`;
       toast({ title: "Error", description: msg, variant: "destructive" });
       setAedInput(filsToAed(serverFils));
     }
   };
 
   return (
+    <div className="flex flex-col items-end gap-1">
     <div className="flex items-center gap-2 justify-end">
       <div className="flex items-center">
         <input
@@ -69,7 +90,8 @@ function CodSurchargeCell({ row }: { row: PaymentMethodThreshold }) {
           value={aedInput}
           disabled={update.isPending}
           onChange={(e) => setAedInput(e.target.value)}
-          aria-label="COD surcharge in AED"
+          aria-label={ariaLabel}
+          aria-invalid={isInvalid || undefined}
           className={`w-24 px-2 py-1 text-right text-sm border rounded-md bg-background ${
             isInvalid ? "border-destructive" : "border-input"
           } focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50`}
@@ -86,6 +108,8 @@ function CodSurchargeCell({ row }: { row: PaymentMethodThreshold }) {
           Save
         </button>
       )}
+    </div>
+    {rangeError && <p className="text-xs text-destructive">{rangeError}</p>}
     </div>
   );
 }
@@ -131,8 +155,10 @@ export default function PaymentMethodsPage() {
       <div className="mb-4 flex gap-2 rounded-md border bg-muted/30 p-3 text-sm">
         <Info className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
         <p className="text-muted-foreground">
-          Minimum/maximum amounts and instalment plans are set by database
-          migration. Surcharge is editable for COD only.
+          Minimum and maximum order totals decide when a method is offered at
+          checkout (for example the COD cap and the Tabby/Tamara thresholds).
+          The surcharge applies to COD only. Instalment plans are set by
+          migration.
         </p>
       </div>
 
@@ -187,12 +213,16 @@ export default function PaymentMethodsPage() {
               {methods?.map((m) => (
                 <tr key={m.provider} className="border-b last:border-b-0">
                   <td className="px-4 py-4 font-medium" data-card-title>{providerLabel(m.provider)}</td>
-                  <td className="px-4 py-4" data-label="Min order">{formatAed(m.min_amount_fils)}</td>
-                  <td className="px-4 py-4" data-label="Max order">{formatAed(m.max_amount_fils)}</td>
+                  <td className="px-4 py-4" data-label="Min order">
+                    <AmountCell row={m} field="min_amount_fils" />
+                  </td>
+                  <td className="px-4 py-4" data-label="Max order">
+                    <AmountCell row={m} field="max_amount_fils" />
+                  </td>
                   <td className="px-4 py-4 text-muted-foreground" data-label="Plans">{formatPlans(m.plans)}</td>
                   <td className="px-4 py-4 text-right" data-label="Surcharge">
                     {m.provider === "cod" ? (
-                      <CodSurchargeCell row={m} />
+                      <AmountCell row={m} field="surcharge_fils" />
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}

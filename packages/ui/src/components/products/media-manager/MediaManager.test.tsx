@@ -40,6 +40,15 @@ describe("MediaManager upload errors", () => {
   });
 });
 
+describe("MediaManager capabilities", () => {
+  it("hides the upload dropzone when uploads are off (admin view mode)", () => {
+    const { container } = render(
+      <MediaManager items={[]} isUploading={false} actions={actions()} capabilities={{ upload: false }} />,
+    );
+    expect(container.querySelector('input[type="file"][multiple]')).toBeNull();
+  });
+});
+
 describe("mediaErrorMessage", () => {
   it("prefers the API message", () => {
     expect(mediaErrorMessage({ response: { data: { message: "Maximum 10 images per product" } } })).toBe(

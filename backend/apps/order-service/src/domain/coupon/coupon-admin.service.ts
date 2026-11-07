@@ -77,6 +77,10 @@ export class CouponAdminService {
       .leftJoinAndSelect("coupon.couponVendors", "couponVendors")
       .leftJoinAndSelect("coupon.couponExcludedProducts", "couponExcludedProducts")
       .leftJoinAndSelect("coupon.couponUserRestrictions", "couponUserRestrictions")
+      // Owner of a vendor coupon (null = platform coupon); the promotions
+      // overview labels rows with it.
+      .leftJoin("coupon.vendor", "vendor")
+      .addSelect(["vendor.id", "vendor.name", "vendor.business_name"])
       .where("coupon.deleted_at IS NULL");
 
     if (filters.search) {

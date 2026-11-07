@@ -10,7 +10,7 @@ const tabs: HeaderNavTab[] = [
 		kind: "category",
 		category_id: "cat-1",
 		href_override: null,
-		label: { en: "Makeup" },
+		label: { en: "Papers & boards" },
 		show_subcategories: true,
 		enabled: true,
 		position: 0,
@@ -50,7 +50,7 @@ describe("TabList", () => {
 				onReorder={() => {}}
 			/>,
 		);
-		expect(screen.getByText("Makeup")).toBeInTheDocument();
+		expect(screen.getByText("Papers & boards")).toBeInTheDocument();
 		expect(screen.getByText("Offers")).toBeInTheDocument();
 	});
 

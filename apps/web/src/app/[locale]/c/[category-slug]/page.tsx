@@ -1,6 +1,7 @@
 import { CategoryFooterLayout } from "@/components/category/category-footer-layout";
 import { plasticBanFacetCount } from "@/components/eco";
 import { HeroBanner } from "@/components/home/hero-banner";
+import { type CmsBanner, bannersToSlides } from "@/lib/cms-content";
 import { computeActiveFilters } from "@/components/product/filter-state";
 import { ListingHeader } from "@/components/product/listing-header";
 import { buildListingParams } from "@/components/product/listing-params";
@@ -115,13 +116,16 @@ export default async function CategoryPage({ params, searchParams }: Props) {
 
 
 	const [banners, productsRes, facts, siteSettings] = await Promise.all([
-		// biome-ignore lint/suspicious/noExplicitAny: untyped API response shape
-		publicGet<any[]>("/products/banners", {
-			params: { placement: "category", category: slug },
-			revalidate: TTL.productListing,
-			tags: ["banners", `category:${slug}`],
+		// CMS banners scheduled for the top of category pages (admin → CMS → Banners).
+		publicGet<CmsBanner[]>("/banners/active", {
+			params: { placement: "category_top", locale },
+			revalidate: TTL.cmsContent,
+			tags: ["banners"],
 			locale,
-		}).then((data) => data ?? []),
+		})
+			.then(async (data) =>
+				bannersToSlides(data, (await getTranslations({ locale, namespace: "home" }))("shopNow")),
+			),
 		publicGet<{
 			// biome-ignore lint/suspicious/noExplicitAny: untyped API response shape
 			data?: any[];

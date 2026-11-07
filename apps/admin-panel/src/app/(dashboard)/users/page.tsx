@@ -46,7 +46,6 @@ interface User {
 const ROLE_OPTIONS = [
   { label: "Super Admin", value: "super_admin" },
   { label: "Admin", value: "admin" },
-  { label: "Vendor", value: "vendor" },
   { label: "Customer", value: "customer" },
   { label: "Guest", value: "guest" },
 ];

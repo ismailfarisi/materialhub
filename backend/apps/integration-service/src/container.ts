@@ -64,7 +64,9 @@ const eventsQueue = getIntegrationEventsQueue();
 const integrationService = new IntegrationService(integrationRepo, encryption, auditLogRepo);
 const integrationController = new IntegrationController(integrationService);
 const mappingService = new MappingService(mappingRepo, auditLogRepo);
-const pendingWritesService = new PendingWritesService(pendingWriteRepo);
+const pendingWritesService = new PendingWritesService(pendingWriteRepo, (id) =>
+  integrationRepo.exists({ where: { id } }),
+);
 // Served in-process by the monolith (see serviceFetch in @materialhub/utils).
 const domainDispatch = new DomainDispatch({
   orderHost: config.serviceUrl.order,

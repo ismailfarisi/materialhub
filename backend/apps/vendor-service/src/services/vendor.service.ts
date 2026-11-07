@@ -11,7 +11,7 @@ import {
   Warehouse,
 } from "@materialhub/database";
 import { bumpTokenVersion } from "@materialhub/guards";
-import { HttpError } from "@materialhub/plugins";
+import { HttpError, assertEnumFilter } from "@materialhub/plugins";
 import { checkTrn, isValidTrn } from "@materialhub/utils";
 import { generateSlug } from "@materialhub/utils";
 import { type VendorApplyData, isValidTransition } from "../domain/types.ts";
@@ -322,6 +322,7 @@ export class VendorService {
   }
 
   async listForAdmin(status?: string, page = 1, limit = 20, search?: string) {
+    assertEnumFilter(status, VendorStatus);
     const qb = this.vendorRepo.createQueryBuilder("v").withDeleted();
     if (status) qb.where("v.status = :status", { status });
     if (search) {

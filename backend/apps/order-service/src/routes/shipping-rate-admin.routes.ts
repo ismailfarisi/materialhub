@@ -1,4 +1,5 @@
 import { jwtAuth, requireRole } from "@materialhub/guards";
+import { auditPlugin } from "@materialhub/plugins";
 import { Elysia, t } from "elysia";
 import { container } from "../container.ts";
 
@@ -38,6 +39,7 @@ export const shippingRateAdminRoutes = new Elysia({ prefix: "/admin/shipping-rat
   .use(container)
   .use(jwtAuth)
   .use(requireRole("admin", "super_admin"))
+  .use(auditPlugin)
   // LIST
   .get(
     "/",

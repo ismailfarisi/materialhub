@@ -1,7 +1,7 @@
 import { AppDataSource, AuditLog } from "@materialhub/database";
 import { Elysia } from "elysia";
 
-interface AuditContext {
+export interface AuditContext {
   action?: string;
   entity_type?: string;
   entity_id?: string;
@@ -73,6 +73,86 @@ function inferEntityId(path: string): string | null {
   return match ? match[0] : null;
 }
 
+const UUID_EXACT_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Id of the row a create returned (`{ data: { id } }` envelope or a bare
+ * `{ id }`), so audit rows for POST /x carry the new entity's id.
+ */
+export function responseEntityId(response: unknown): string | null {
+  const r = response as { id?: unknown; data?: { id?: unknown } } | null | undefined;
+  const id = r?.data?.id ?? r?.id;
+  return typeof id === "string" && UUID_EXACT_RE.test(id) ? id : null;
+}
+
+const SECRET_KEY_RE =
+  /(secret|password|passwd|token|api[_-]?key|private[_-]?key|credential|client[_-]?secret|signing[_-]?key|webhook[_-]?key)/i;
+
+/**
+ * Audit payloads must never carry secrets: values under secret-looking keys
+ * (at any depth) are replaced by "[redacted]"; the key itself stays so the
+ * log still shows *what* changed.
+ */
+export function redactSecrets<T>(value: T, depth = 0): T {
+  if (value === null || typeof value !== "object" || depth > 6) return value;
+  if (Array.isArray(value)) return value.map((v) => redactSecrets(v, depth + 1)) as T;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    out[k] = SECRET_KEY_RE.test(k) ? "[redacted]" : redactSecrets(v, depth + 1);
+  }
+  return out as T;
+}
+
+/** First X-Forwarded-For entry (the gateway appends the socket peer); never the "unknown" placeholder. */
+export function clientIpFrom(headers: Headers): string | null {
+  const first = headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  if (!first || first.toLowerCase() === "unknown") return null;
+  return first.slice(0, 45);
+}
+
+/** The row the plugin writes for one request, or null when it isn't audited. */
+export function buildAuditEntry(input: {
+  request: Request;
+  audit: AuditContext;
+  user?: { id?: string; role?: string } | null;
+  response?: unknown;
+}): Partial<AuditLog> | null {
+  const { request, audit } = input;
+  if (audit.skip) return null;
+
+  const path = new URL(request.url).pathname;
+  const method = request.method;
+  if (!shouldAudit(method, path, audit.force ?? false)) return null;
+
+  const actor = input.user ?? null;
+  const resolvedActorId = audit.actor_id !== undefined ? audit.actor_id : (actor?.id ?? null);
+  const resolvedActorRole = audit.actor_role ?? actor?.role ?? "system";
+  // entity_id is a uuid column: a natural key ("store_name", "cod", "google")
+  // would fail the insert and silently drop the row, so it goes in metadata.
+  const explicitId = audit.entity_id ?? null;
+  const explicitIsUuid = !!explicitId && UUID_EXACT_RE.test(explicitId);
+  const entityId =
+    (explicitIsUuid ? explicitId : null) ??
+    inferEntityId(path) ??
+    (method === "POST" ? responseEntityId(input.response) : null);
+  const metadata =
+    explicitId && !explicitIsUuid
+      ? { ...(audit.metadata ?? {}), entity_key: explicitId }
+      : audit.metadata;
+
+  return {
+    actor_id: resolvedActorId,
+    actor_role: resolvedActorRole,
+    action: audit.action ?? inferAction(method, path),
+    entity_type: audit.entity_type ?? inferEntityType(path),
+    entity_id: entityId ?? undefined,
+    changes: audit.changes ? (redactSecrets(audit.changes) as any) : null,
+    ip_address: clientIpFrom(request.headers),
+    user_agent: request.headers.get("user-agent")?.substring(0, 512) ?? null,
+    metadata: metadata ? (redactSecrets(metadata) as any) : null,
+  };
+}
+
 export const auditPlugin = new Elysia({ name: "audit-logger" })
   .derive({ as: "scoped" }, () => ({
     audit: {
@@ -88,30 +168,13 @@ export const auditPlugin = new Elysia({ name: "audit-logger" })
     } as AuditContext,
   }))
   .onAfterHandle({ as: "scoped" }, (ctx) => {
-    const { request, audit } = ctx;
-    if (audit.skip) return;
-
-    const url = new URL(request.url);
-    const path = url.pathname;
-    const method = request.method;
-
-    if (!shouldAudit(method, path, audit.force ?? false)) return;
-
-    const actor = (ctx as any).user ?? null;
-    const resolvedActorId = audit.actor_id !== undefined ? audit.actor_id : (actor?.id ?? null);
-    const resolvedActorRole = audit.actor_role ?? actor?.role ?? "system";
-
-    const entry: Partial<AuditLog> = {
-      actor_id: resolvedActorId,
-      actor_role: resolvedActorRole,
-      action: audit.action ?? inferAction(method, path),
-      entity_type: audit.entity_type ?? inferEntityType(path),
-      entity_id: audit.entity_id ?? inferEntityId(path) ?? undefined,
-      changes: (audit.changes as any) ?? null,
-      ip_address: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
-      user_agent: request.headers.get("user-agent")?.substring(0, 512) ?? null,
-      metadata: (audit.metadata as any) ?? null,
-    };
+    const entry = buildAuditEntry({
+      request: ctx.request,
+      audit: ctx.audit,
+      user: (ctx as any).user ?? null,
+      response: (ctx as any).responseValue ?? (ctx as any).response,
+    });
+    if (!entry) return;
 
     // Fire-and-forget — don't block the response
     const repo = AppDataSource.getRepository(AuditLog);

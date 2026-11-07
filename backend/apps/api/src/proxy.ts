@@ -180,18 +180,39 @@ export function resolveUpstream(path: string): { target: string; upstreamPath: s
 /**
  * Forward an HTTP request to the module that owns it.
  */
+/**
+ * X-Forwarded-For for the module: the chain a load balancer already set, with
+ * the socket peer appended, or just the peer. Modules (the audit log) read the
+ * first entry as the client. Nothing is set when neither is known.
+ */
+export function forwardedFor(
+  existing: string | null,
+  clientIp: string | null | undefined,
+): string | null {
+  const chain = existing?.trim() || "";
+  const peer = clientIp?.trim() || "";
+  if (chain && peer) {
+    const parts = chain.split(",").map((p) => p.trim());
+    return parts[parts.length - 1] === peer ? chain : `${chain}, ${peer}`;
+  }
+  return chain || peer || null;
+}
+
 export async function proxyRequest(
   request: Request,
   target: string,
   upstreamPath: string,
   correlationId: string,
+  clientIp?: string | null,
 ): Promise<Response> {
   const url = new URL(request.url);
   const upstreamUrl = `${target}${upstreamPath}${url.search}`;
 
   const headers = new Headers(request.headers);
   headers.set("x-correlation-id", correlationId);
-  headers.set("x-forwarded-for", headers.get("x-forwarded-for") || "unknown");
+  const xff = forwardedFor(headers.get("x-forwarded-for"), clientIp);
+  if (xff) headers.set("x-forwarded-for", xff);
+  else headers.delete("x-forwarded-for");
   headers.set("x-forwarded-host", url.host);
   headers.set("x-forwarded-proto", url.protocol.replace(":", ""));
 

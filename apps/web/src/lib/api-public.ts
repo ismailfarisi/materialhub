@@ -33,6 +33,8 @@ export const TTL = {
 	productDetail: 600,
 	categoryTree: 3600,
 	vendorProfile: 1800,
+	/** Published CMS pages and active banners: admin edits show within 5 minutes. */
+	cmsContent: 300,
 } as const;
 
 type QueryValue = string | number | boolean | undefined | null;

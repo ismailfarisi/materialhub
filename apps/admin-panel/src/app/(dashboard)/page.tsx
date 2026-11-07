@@ -69,7 +69,7 @@ export default function AdminDashboardPage() {
         ) : (
           <>
             <StatCard
-              title="GMV (Total)"
+              title="GMV (30d)"
               value={stats?.gmv != null ? formatCurrency(stats.gmv) : "—"}
               icon={<TrendingUp size={20} />}
               trend={stats?.gmv_change}
@@ -87,7 +87,7 @@ export default function AdminDashboardPage() {
               trend={stats?.new_users_30d_change}
             />
             <StatCard
-              title="Total Orders"
+              title="Orders (30d)"
               value={stats?.total_orders != null ? stats.total_orders.toLocaleString() : "—"}
               icon={<ShoppingCart size={20} />}
               trend={stats?.total_orders_change}

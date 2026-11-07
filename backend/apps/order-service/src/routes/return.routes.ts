@@ -1,3 +1,4 @@
+import { ReturnStatus } from "@materialhub/database";
 import { jwtAuth, requireRole, vendorMembership } from "@materialhub/guards";
 import { auditPlugin } from "@materialhub/plugins";
 import { Elysia, t } from "elysia";
@@ -70,7 +71,7 @@ export const returnRoutes = new Elysia()
           query: t.Object({
             page: t.Optional(t.Integer({ minimum: 1, default: 1 })),
             limit: t.Optional(t.Integer({ minimum: 1, maximum: 100, default: 20 })),
-            status: t.Optional(t.String()),
+            status: t.Optional(t.Enum(ReturnStatus)),
           }),
         },
       )
@@ -123,7 +124,7 @@ export const returnRoutes = new Elysia()
           query: t.Object({
             page: t.Optional(t.Integer({ minimum: 1, default: 1 })),
             limit: t.Optional(t.Integer({ minimum: 1, maximum: 100, default: 20 })),
-            status: t.Optional(t.String()),
+            status: t.Optional(t.Enum(ReturnStatus)),
             vendor_id: t.Optional(t.String({ format: "uuid" })),
           }),
         },
@@ -226,7 +227,7 @@ export const returnRoutes = new Elysia()
             query: t.Object({
               page: t.Optional(t.Integer({ minimum: 1, default: 1 })),
               limit: t.Optional(t.Integer({ minimum: 1, maximum: 100, default: 20 })),
-              status: t.Optional(t.String()),
+              status: t.Optional(t.Enum(ReturnStatus)),
             }),
           },
         ),

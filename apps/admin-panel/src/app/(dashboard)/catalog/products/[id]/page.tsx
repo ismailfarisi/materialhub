@@ -420,6 +420,19 @@ export default function ProductDetailPage() {
 		});
 	}
 
+	/** Status actions report both outcomes; failures show the API's reason (e.g. missing images). */
+	function statusActionCallbacks(successTitle: string, errorTitle: string) {
+		return {
+			onSuccess: () => toast({ title: successTitle }),
+			onError: (err: unknown) =>
+				toast({
+					title: errorTitle,
+					description: getApiErrorMessage(err),
+					variant: "destructive" as const,
+				}),
+		};
+	}
+
 	function handleRejectSubmit() {
 		if (!rejectReason.trim()) return;
 		rejectProduct(
@@ -515,11 +528,22 @@ export default function ProductDetailPage() {
 						});
 					}
 				}}
-				onApprove={() => approveProduct(id)}
+				onApprove={() =>
+					approveProduct(id, statusActionCallbacks("Product approved", "Couldn't approve product"))
+				}
 				onRejectOpen={() => setRejectOpen(true)}
-				onPublish={() => publishProduct(id)}
-				onUnpublish={() => unpublishProduct(id)}
-				onToggleFeature={() => toggleFeature(id)}
+				onPublish={() =>
+					publishProduct(id, statusActionCallbacks("Product published", "Couldn't publish product"))
+				}
+				onUnpublish={() =>
+					unpublishProduct(
+						id,
+						statusActionCallbacks("Product unpublished", "Couldn't unpublish product"),
+					)
+				}
+				onToggleFeature={() =>
+					toggleFeature(id, statusActionCallbacks("Featured flag updated", "Couldn't update featured flag"))
+				}
 				onAiEnhanceOpen={() => setAiDialogOpen(true)}
 				aiEnhanceBusy={generateAiDraft.isPending}
 			/>

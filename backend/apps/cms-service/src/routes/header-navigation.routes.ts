@@ -1,4 +1,5 @@
 import { jwtAuth, requireRole } from "@materialhub/guards";
+import { auditPlugin } from "@materialhub/plugins";
 import { Elysia, t } from "elysia";
 import { container } from "../container.ts";
 
@@ -35,6 +36,7 @@ export const adminHeaderNavRoutes = new Elysia({
   .use(container)
   .use(jwtAuth)
   .use(requireRole("admin", "super_admin"))
+  .use(auditPlugin)
 
   .get("/draft", async ({ headerNavController }) => {
     const data = await headerNavController.getDraft();

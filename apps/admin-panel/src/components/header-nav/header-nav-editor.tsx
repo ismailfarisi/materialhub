@@ -45,20 +45,39 @@ export function HeaderNavEditor() {
 		setHydrated(true);
 	}, [draft, hydrated, isLoading]);
 
+	// Only local edits are saved (never the hydrated server copy), and an
+	// edit that leaves no tabs is saved too: deleting the last tab must stick.
+	const [dirty, setDirty] = useState(false);
+
 	useEffect(() => {
-		if (!hydrated) return;
-		if (config.tabs.length === 0) return;
+		if (!hydrated || !dirty) return;
 		const handle = setTimeout(() => upsert(config), 500);
 		return () => clearTimeout(handle);
-	}, [config, hydrated, upsert]);
+	}, [config, hydrated, dirty, upsert]);
+
+	function edit(next: HeaderNavConfig) {
+		setConfig(next);
+		setDirty(true);
+	}
 
 	function handlePublish() {
 		// Flush any pending draft synchronously, then publish. Prevents the
 		// race where the user clicks Publish before the 500ms debounce fires.
-		if (config.tabs.length > 0) {
+		if (dirty) {
 			upsert(config, { onSuccess: () => publish() });
 		} else {
 			publish();
+		}
+	}
+
+	function deleteTab(id: string) {
+		const index = config.tabs.findIndex((t) => t.id === id);
+		const tabs = config.tabs
+			.filter((t) => t.id !== id)
+			.map((t, i) => ({ ...t, position: i }));
+		edit({ ...config, tabs });
+		if (selectedId === id) {
+			setSelectedId(tabs[Math.min(index, tabs.length - 1)]?.id ?? null);
 		}
 	}
 
@@ -68,14 +87,14 @@ export function HeaderNavEditor() {
 	);
 
 	function updateTab(next: HeaderNavTab) {
-		setConfig({
+		edit({
 			...config,
 			tabs: config.tabs.map((t) => (t.id === next.id ? next : t)),
 		});
 	}
 
 	function toggleEnabled(id: string) {
-		setConfig({
+		edit({
 			...config,
 			tabs: config.tabs.map((t) =>
 				t.id === id ? { ...t, enabled: !t.enabled } : t,
@@ -104,13 +123,14 @@ export function HeaderNavEditor() {
 					selectedId={selectedId}
 					onSelect={setSelectedId}
 					onToggleEnabled={toggleEnabled}
-					onReorder={(tabs) => setConfig({ ...config, tabs })}
+					onReorder={(tabs) => edit({ ...config, tabs })}
+					onDelete={deleteTab}
 				/>
 				<div className="px-3 py-2 border-t border-nl-cacao/10">
 					<AddTabDropdown
 						onAdd={(tab) => {
 							const newTab = { ...tab, position: config.tabs.length };
-							setConfig({ ...config, tabs: [...config.tabs, newTab] });
+							edit({ ...config, tabs: [...config.tabs, newTab] });
 							setSelectedId(newTab.id);
 						}}
 						disabled={config.tabs.length >= 11}
@@ -129,7 +149,7 @@ export function HeaderNavEditor() {
 							: "Select a tab"}
 					</span>
 					<div className="flex items-center gap-3">
-						<SaveStatus saving={saving} hasContent={config.tabs.length > 0} />
+						<SaveStatus saving={saving} hasContent={dirty || config.tabs.length > 0} />
 						<button
 							type="button"
 							onClick={handlePublish}

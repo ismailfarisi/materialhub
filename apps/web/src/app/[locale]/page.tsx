@@ -1,10 +1,13 @@
 import { CategoryStocks } from "@/components/home/category-stocks";
+import { HeroBanner } from "@/components/home/hero-banner";
 import { HomeLead } from "@/components/home/home-lead";
 import { HomeSkeleton } from "@/components/home/home-skeleton";
 import { RecentlyViewed } from "@/components/home/recently-viewed";
 import { LayoutRenderer } from "@/components/layout/layout-renderer";
 import { PreviewBanner } from "@/components/layout/preview-banner";
+import { TTL, publicGet } from "@/lib/api-public";
 import { apiServer } from "@/lib/api-server";
+import { type CmsBanner, type HeroSlide, bannersToSlides } from "@/lib/cms-content";
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { unstable_noStore as noStore } from "next/cache";
@@ -88,6 +91,19 @@ async function getHomePageLayout(
 	}
 }
 
+async function getHomeHeroBanners(locale: string): Promise<HeroSlide[]> {
+	const [banners, t] = await Promise.all([
+		publicGet<CmsBanner[]>("/banners/active", {
+			params: { placement: "home_hero", locale },
+			revalidate: TTL.cmsContent,
+			tags: ["banners"],
+			locale,
+		}),
+		getTranslations({ locale, namespace: "home" }),
+	]);
+	return bannersToSlides(banners, t("shopNow"));
+}
+
 async function HomeSections({
 	locale,
 	previewToken,
@@ -97,12 +113,16 @@ async function HomeSections({
 	previewToken?: string;
 	previewLayoutSlug?: string;
 }) {
-	const { layout, previewStatus, failed } = await getHomePageLayout(
-		locale,
-		previewToken,
-		previewLayoutSlug,
-	);
+	const [{ layout, previewStatus, failed }, heroSlides] = await Promise.all([
+		getHomePageLayout(locale, previewToken, previewLayoutSlug),
+		getHomeHeroBanners(locale),
+	]);
 	const sections = layout?.sections ?? [];
+	// Scheduled CMS banners (placement "home_hero") lead the page unless the
+	// published layout already opens with its own hero carousel.
+	const layoutHasHero = sections.some((s) => s?.type === "hero_carousel");
+	const bannerHero =
+		heroSlides.length > 0 && !layoutHasHero ? <HeroBanner banners={heroSlides} /> : null;
 
 	const previewInjected = sections.some((s) =>
 		// biome-ignore lint/suspicious/noExplicitAny: untyped CMS block
@@ -132,6 +152,7 @@ async function HomeSections({
 			<div>
 				{banner}
 				<div className="space-y-10 md:space-y-16">
+					{bannerHero}
 					<HomeLead locale={locale} unavailable={failed} />
 					<CategoryStocks locale={locale} />
 				</div>
@@ -144,6 +165,7 @@ async function HomeSections({
 		<div>
 			{banner}
 			<h1 className="sr-only">{t("title")}</h1>
+			{bannerHero}
 			<LayoutRenderer
 				sections={sections}
 				afterHero={<CategoryStocks locale={locale} />}

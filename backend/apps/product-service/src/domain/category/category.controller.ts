@@ -37,8 +37,8 @@ export class CategoryController {
     return this.cacheService.getTree();
   }
 
-  async getBySlug(slug: string) {
-    return this.categoryService.getBySlug(slug);
+  async getBySlug(slug: string, opts: { locale?: string | null } = {}) {
+    return this.categoryService.getBySlug(slug, opts);
   }
 
   async reorder(items: Array<{ id: string; sort_order: number }>) {

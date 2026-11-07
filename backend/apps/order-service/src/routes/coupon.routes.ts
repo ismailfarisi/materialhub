@@ -1,5 +1,6 @@
 import { jwtAuth, requireRole, vendorMembership } from "@materialhub/guards";
 // coupon.routes.ts
+import { auditPlugin } from "@materialhub/plugins";
 import { Elysia, t } from "elysia";
 import { container } from "../container.ts";
 
@@ -124,6 +125,7 @@ const idParamsSchema = t.Object({ id: t.String({ format: "uuid" }) });
 export const couponRoutes = new Elysia()
   .use(container)
   .use(jwtAuth)
+  .use(auditPlugin)
   // ── Admin routes ───────────────────────────────────────────────────────────
   .group("/admin/coupons", (app) =>
     app

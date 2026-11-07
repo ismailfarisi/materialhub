@@ -140,7 +140,7 @@ function EditorialReadView({ editorial }: { editorial: ProductEditorial | null }
       {editorial.ingredient_origins && editorial.ingredient_origins.length > 0 && (
         <Card>
           <CardContent className="p-6 space-y-3">
-            <SectionHeader title="Ingredient Origins" badge={`${editorial.ingredient_origins.length} ${editorial.ingredient_origins.length === 1 ? "ingredient" : "ingredients"}`} />
+            <SectionHeader title="Material origins" badge={`${editorial.ingredient_origins.length} ${editorial.ingredient_origins.length === 1 ? "material" : "materials"}`} />
             <div className="space-y-3">
               {editorial.ingredient_origins.map((row, i) => (
                 <div key={i} className="rounded border border-gray-200 p-3 space-y-1">
@@ -157,7 +157,7 @@ function EditorialReadView({ editorial }: { editorial: ProductEditorial | null }
                   </div>
                   <p className="text-xs text-taupe whitespace-pre-wrap">{row.body}</p>
                   {row.annual_harvest && (
-                    <p className="text-xs text-taupe">Annual harvest: {row.annual_harvest}</p>
+                    <p className="text-xs text-taupe">Annual output: {row.annual_harvest}</p>
                   )}
                 </div>
               ))}

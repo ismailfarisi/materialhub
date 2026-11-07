@@ -1,3 +1,4 @@
+import { DisputeStatus } from "@materialhub/database";
 import {
   AssignDisputeBody,
   DisputeMessageBody,
@@ -57,7 +58,7 @@ export const disputeRoutes = new Elysia()
           query: t.Object({
             page: t.Optional(t.Integer({ minimum: 1, default: 1 })),
             limit: t.Optional(t.Integer({ minimum: 1, maximum: 100, default: 20 })),
-            status: t.Optional(t.String()),
+            status: t.Optional(t.Enum(DisputeStatus)),
             order_id: t.Optional(t.String({ format: "uuid" })),
           }),
         },
@@ -89,7 +90,7 @@ export const disputeRoutes = new Elysia()
           query: t.Object({
             page: t.Optional(t.Integer({ minimum: 1, default: 1 })),
             limit: t.Optional(t.Integer({ minimum: 1, maximum: 100, default: 20 })),
-            status: t.Optional(t.String()),
+            status: t.Optional(t.Enum(DisputeStatus)),
             assigned_to: t.Optional(t.String({ format: "uuid" })),
           }),
         },
@@ -210,7 +211,7 @@ export const disputeRoutes = new Elysia()
               query: t.Object({
                 page: t.Optional(t.Integer({ minimum: 1, default: 1 })),
                 limit: t.Optional(t.Integer({ minimum: 1, maximum: 100, default: 20 })),
-                status: t.Optional(t.String()),
+                status: t.Optional(t.Enum(DisputeStatus)),
                 order_id: t.Optional(t.String({ format: "uuid" })),
               }),
             },

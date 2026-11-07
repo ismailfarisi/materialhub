@@ -28,3 +28,15 @@ export function useAuditLog(filters: AuditLogFilters = {}) {
     },
   });
 }
+
+/** Entity types present in the log (stored values such as "categories", "user"). */
+export function useAuditFacets() {
+  return useQuery({
+    queryKey: ["admin", "audit-log", "facets"],
+    queryFn: async () => {
+      const { data } = await api.get("/admin/audit-log/facets");
+      return data.data as { entity_types: string[] };
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}

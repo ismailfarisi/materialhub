@@ -37,6 +37,13 @@ export default function PendingWritesPage() {
             <Skeleton key={i} className="h-16 w-full" />
           ))}
         </div>
+      ) : isError && (error as { response?: { status?: number } })?.response?.status === 404 ? (
+        <div className="space-y-2 py-8 text-center">
+          <p className="text-base font-medium">Integration not found</p>
+          <p className="text-sm text-muted-foreground">
+            There is no sales integration with this id. It may have been removed.
+          </p>
+        </div>
       ) : isError ? (
         <div className="text-sm text-destructive">
           Couldn&apos;t load pending writes. {error instanceof Error ? error.message : ""}

@@ -1,5 +1,7 @@
 import { config } from "@materialhub/config";
+import { LayoutStatus } from "@materialhub/database";
 import { jwtAuth, requireRole } from "@materialhub/guards";
+import { auditPlugin } from "@materialhub/plugins";
 import { Elysia, t } from "elysia";
 import jwt from "jsonwebtoken";
 import { container } from "../container.ts";
@@ -23,6 +25,7 @@ export const layoutRoutes = new Elysia({ prefix: "/admin/layouts" })
   // ─── Admin Routes ────────────────────────────────────────────────────────
   .use(jwtAuth)
   .use(requireRole("admin", "super_admin"))
+  .use(auditPlugin)
 
   // ─── Layout CRUD ─────────────────────────────────────────────────────────
   .get(
@@ -35,7 +38,7 @@ export const layoutRoutes = new Elysia({ prefix: "/admin/layouts" })
       query: t.Object({
         page: t.Optional(t.Number({ minimum: 1 })),
         limit: t.Optional(t.Number({ minimum: 1, maximum: 100 })),
-        status: t.Optional(t.String()),
+        status: t.Optional(t.Enum(LayoutStatus)),
         vendor_id: t.Optional(t.Union([t.String({ format: "uuid" }), t.Literal("null")])),
       }),
     },

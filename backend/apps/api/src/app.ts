@@ -128,7 +128,7 @@ export const app = new Elysia()
     };
   })
   // Catch-all proxy to upstream services
-  .all("/*", async ({ request, correlationId }) => {
+  .all("/*", async ({ request, correlationId, server }) => {
     const url = new URL(request.url);
     const upstream = resolveUpstream(url.pathname);
 
@@ -145,7 +145,16 @@ export const app = new Elysia()
     }
 
     try {
-      return await proxyRequest(request, upstream.target, upstream.upstreamPath, correlationId);
+      // The socket peer, so modules see a real client IP (audit log) when no
+      // load balancer set X-Forwarded-For.
+      const clientIp = server?.requestIP(request)?.address ?? null;
+      return await proxyRequest(
+        request,
+        upstream.target,
+        upstream.upstreamPath,
+        correlationId,
+        clientIp,
+      );
     } catch {
       return new Response(
         JSON.stringify({
