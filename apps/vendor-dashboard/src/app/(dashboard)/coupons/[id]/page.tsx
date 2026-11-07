@@ -183,7 +183,7 @@ export default function EditCouponPage() {
           </Link>
         </Button>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Pencil Coupon</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Edit Coupon</h1>
           <p className="text-sm text-gray-500">Update coupon details</p>
         </div>
       </div>

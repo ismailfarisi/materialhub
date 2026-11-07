@@ -223,7 +223,7 @@ export function ProductGroupPanel({ productId }: Props) {
 									)}
 								</div>
 								<p className="text-xs text-gray-500">
-									Each shade is its own listing, linked via "also available in"
+									Each colour is its own listing, linked via "also available in"
 									swatches.
 								</p>
 							</button>

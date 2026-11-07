@@ -82,3 +82,28 @@ describe("VendorBankAccountService masking", () => {
     expect(view.accountNumberMasked).toBe("****");
   });
 });
+
+describe("normalizeBankDetails", () => {
+  test("strips spaces and uppercases the IBAN", async () => {
+    const { normalizeBankDetails } = await import("./vendor-bank-account.service.ts");
+    expect(
+      normalizeBankDetails({ iban: "ae07 0331 2345 6789 0123 456", accountNumber: " 1012 3456 " }),
+    ).toEqual({
+      iban: "AE070331234567890123456",
+      accountNumber: "10123456",
+    });
+  });
+
+  test("errors never contain the submitted number", async () => {
+    const { normalizeBankDetails } = await import("./vendor-bank-account.service.ts");
+    let message = "";
+    try {
+      normalizeBankDetails({ accountNumber: "12-34-SECRET-99999999999999999999999999999" });
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(message).toMatch(/Account number/);
+    expect(message).not.toContain("SECRET");
+    expect(() => normalizeBankDetails({ iban: "XX1" })).toThrow(/IBAN is not valid/);
+  });
+});

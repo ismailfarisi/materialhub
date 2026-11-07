@@ -518,7 +518,11 @@ describe("VendorService.apply — documents", () => {
     const vendor = await applyService().apply({
       ...baseData,
       documents: [
-        { type: "trade_license", s3Key: "vendor-docs/u/licence.pdf", fileName: "licence.pdf" },
+        {
+          type: "trade_license",
+          s3Key: `private/business/${USER_ID}/licence.pdf`,
+          fileName: "licence.pdf",
+        },
       ],
     });
     expect(vendor.id).toBe("generated-id");
@@ -533,5 +537,21 @@ describe("VendorService.apply — documents", () => {
         documents: [{ type: "selfie", s3Key: "k", fileName: "k" }],
       }),
     ).rejects.toMatchObject({ statusCode: 400, code: "INVALID_DOCUMENT" });
+  });
+
+  test("rejects a document key outside the applicant's own upload prefix", async () => {
+    clearCalls();
+    await expect(
+      applyService().apply({
+        ...baseData,
+        documents: [
+          {
+            type: "trade_license",
+            s3Key: "private/business/someone-else/licence.pdf",
+            fileName: "licence.pdf",
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({ statusCode: 400, code: "INVALID_DOCUMENT_KEY" });
   });
 });

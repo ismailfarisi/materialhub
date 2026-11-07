@@ -11,7 +11,7 @@ import { TradePricingPanel } from "./trade/TradePricingPanel";
 interface Props {
 	productId: string;
 	defaultValues: any;
-	variants: { id: string; name: string }[];
+	variants: { id: string; name: string; sku?: string | null }[];
 }
 
 export function VendorProductTabs({
@@ -58,6 +58,7 @@ export function VendorProductTabs({
 				<div className="py-4">
 					<InventoryPanel
 						productId={productId}
+						variants={variants}
 						inventoryRecords={(defaultValues?.inventoryRecords ?? []).map(
 							(r: any, i: number) => ({
 								id: r.id ?? `row-${i}`,

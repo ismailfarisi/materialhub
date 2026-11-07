@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,6 +13,7 @@ import {
   Sparkle,
   Storefront,
 } from "@phosphor-icons/react";
+import Link from "next/link";
 import {
   Button,
   Form,
@@ -22,15 +23,16 @@ import {
   FormLabel,
   FormMessage,
   Input,
-  Textarea,
 } from "@materialhub/ui";
-import { useLogin } from "@/lib/queries/auth";
-import {
-  buildVendorInterestSummary,
-  type VendorInterestFormValues,
-  vendorInterestSchema,
-} from "@/lib/vendor-interest";
+import { getMembershipsFromToken } from "@/lib/auth";
+import { useLogin, useLogout } from "@/lib/queries/auth";
+import { safeReturnTo } from "@/lib/return-to";
 import { useAuthStore } from "@/stores/auth";
+
+/** Signed-in users who may use the dashboard: a vendor team member, or an admin. */
+function canUseDashboard(role: string | undefined): boolean {
+  return getMembershipsFromToken().length > 0 || role === "admin" || role === "super_admin";
+}
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email"),
@@ -70,53 +72,33 @@ export default function LoginPage() {
 
 function LoginForm() {
   const router = useRouter();
+  const { mutate: logout } = useLogout();
   const searchParams = useSearchParams();
-  const returnTo = searchParams.get("returnTo") || "/";
+  const returnTo = safeReturnTo(searchParams);
   const { mutate: login, isPending, error } = useLogin();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const [interestSummary, setInterestSummary] = useState<string | null>(null);
+  const user = useAuthStore((s) => s.user);
+  // Signed in, but with no vendor membership (a customer account, or an
+  // application still under review): explain instead of bouncing in a loop.
+  const notVendor =
+    (isAuthenticated && !canUseDashboard(user?.role)) ||
+    (!isAuthenticated && searchParams.get("reason") === "not-vendor");
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && canUseDashboard(user?.role)) {
       router.replace(returnTo);
     }
-  }, [isAuthenticated, returnTo, router]);
+  }, [isAuthenticated, user?.role, returnTo, router]);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
   });
 
-  const interestForm = useForm<VendorInterestFormValues>({
-    resolver: zodResolver(vendorInterestSchema),
-    defaultValues: {
-      brandName: "",
-      contactName: "",
-      email: "",
-      category: "",
-      website: "",
-      message: "",
-    },
-  });
-
   function onSubmit(values: LoginFormValues) {
-    login(values, {
-      onSuccess: () => {
-        router.replace(returnTo);
-      },
-    });
-  }
-
-  function onInterestSubmit(values: VendorInterestFormValues) {
-    setInterestSummary(buildVendorInterestSummary(values));
-    interestForm.reset({
-      brandName: "",
-      contactName: "",
-      email: "",
-      category: "",
-      website: "",
-      message: "",
-    });
+    // Redirect happens in the effect above once the session is known, and
+    // only when the account can actually use the dashboard.
+    login(values);
   }
 
   return (
@@ -130,7 +112,7 @@ function LoginForm() {
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center border border-amber/50 bg-espresso/70 text-sm font-semibold tracking-[0.22em] text-amber">
-                  NL
+                  MH
                 </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-caramel">
@@ -147,15 +129,15 @@ function LoginForm() {
 
             <div className="max-w-4xl space-y-5">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber">
-                Register interest
+                MaterialHub suppliers
               </p>
               <h1 className="max-w-3xl text-4xl font-semibold leading-[0.98] text-linen sm:text-5xl lg:text-7xl">
                 Grow your materials business with a dashboard built for selling.
               </h1>
               <p className="max-w-2xl text-base leading-7 text-pearl/82 sm:text-lg">
-                Tell us about your brand and the MaterialHub UAE team will review
-                category fit, operational needs, and the best path into the
-                vendor program.
+                List papers, boards, leather, fittings and packaging, sell at trade
+                quantity breaks, and run orders, quotes and payouts from one
+                workspace.
               </p>
             </div>
 
@@ -181,171 +163,24 @@ function LoginForm() {
           </div>
 
           <div className="max-w-4xl border-t border-pearl/15 pt-5">
-            <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber">
+              New supplier
+            </p>
+            <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber">
-                  New vendor
+                <h2 className="text-2xl font-semibold text-linen">Apply to sell on MaterialHub</h2>
+                <p className="mt-1 max-w-xl text-sm leading-6 text-pearl/70">
+                  Sign in with your MaterialHub account, tell us about your business and upload
+                  your trade licence. We review every application before your store opens.
                 </p>
-                <h2 className="mt-1 text-2xl font-semibold text-linen">
-                  Register interest
-                </h2>
               </div>
-              <p className="max-w-xs text-sm leading-6 text-pearl/70">
-                This is not account creation. We will follow up after review.
-              </p>
+              <Button asChild className="h-11 shrink-0">
+                <Link href="/apply">
+                  Start your application
+                  <ArrowRight className="h-4 w-4" weight="thin" />
+                </Link>
+              </Button>
             </div>
-
-            {interestSummary ? (
-              <div className="border border-amber/40 bg-linen/[0.06] p-4">
-                <div className="flex items-start gap-3">
-                  <CheckCircle className="mt-0.5 h-6 w-6 text-amber" weight="thin" />
-                  <div>
-                    <h3 className="font-semibold text-linen">Interest received</h3>
-                    <p className="mt-1 text-sm leading-6 text-pearl/75">
-                      We recorded your interest for {interestSummary}. The vendor
-                      team will contact you with next steps.
-                    </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="mt-4"
-                      onClick={() => setInterestSummary(null)}
-                    >
-                      Send another request
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <Form {...interestForm}>
-                <form
-                  onSubmit={interestForm.handleSubmit(onInterestSubmit)}
-                  className="grid gap-4 text-linen"
-                >
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <FormField
-                      control={interestForm.control}
-                      name="brandName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Brand name</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Gulf Packaging Supplies"
-                              autoComplete="organization"
-                              className="border-pearl/25 bg-linen/95"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={interestForm.control}
-                      name="contactName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Contact name</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Sara Vendor"
-                              autoComplete="name"
-                              className="border-pearl/25 bg-linen/95"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <FormField
-                      control={interestForm.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Work email</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="email"
-                              placeholder="founder@brand.com"
-                              autoComplete="email"
-                              className="border-pearl/25 bg-linen/95"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={interestForm.control}
-                      name="category"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Product category</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Packaging papers, boards, adhesives"
-                              autoComplete="off"
-                              className="border-pearl/25 bg-linen/95"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <FormField
-                    control={interestForm.control}
-                    name="website"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Website or Instagram</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="https://brand.com or @brand"
-                            autoComplete="url"
-                            className="border-pearl/25 bg-linen/95"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={interestForm.control}
-                    name="message"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>What should we know?</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="Share your product range, launch stage, or selling goals."
-                            className="min-h-24 resize-none border-pearl/25 bg-linen/95 text-cacao"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <Button type="submit" className="h-11 w-full">
-                    Register interest
-                    <ArrowRight className="h-4 w-4" weight="thin" />
-                  </Button>
-                </form>
-              </Form>
-            )}
           </div>
         </section>
 
@@ -354,7 +189,7 @@ function LoginForm() {
           <div className="mb-7">
             <div className="mb-5 flex items-center justify-between gap-4 border-b border-pearl/70 pb-5">
               <div className="flex h-14 w-14 items-center justify-center bg-amber text-sm font-semibold tracking-[0.22em] text-espresso shadow-[0_14px_40px_rgba(184,115,51,0.24)]">
-                NL
+                MH
               </div>
               <div className="text-right">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber">
@@ -371,6 +206,33 @@ function LoginForm() {
               to the requested dashboard page after authentication.
             </p>
           </div>
+
+          {notVendor ? (
+            <div role="status" className="mb-5 border border-amber/50 bg-amber/10 p-4 text-sm text-cacao">
+              <p className="font-semibold">
+                {user?.email ? `${user.email} is not on a vendor team yet.` : "This account is not on a vendor team yet."}
+              </p>
+              <p className="mt-1 leading-6 text-taupe">
+                Apply to open a store, or ask a store owner to invite you. If you have already
+                applied, you can sign in here once MaterialHub approves the application.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button asChild size="sm">
+                  <Link href="/apply">Apply to sell</Link>
+                </Button>
+                {isAuthenticated ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => logout()}
+                  >
+                    Use another account
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">

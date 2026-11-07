@@ -91,7 +91,7 @@ export function JobDetailDrawer({
 							rel="noreferrer"
 							className="mt-2 block text-sm text-blue-600 underline"
 						>
-							DownloadSimple report.csv
+							Download report.csv
 						</a>
 					)}
 				</div>

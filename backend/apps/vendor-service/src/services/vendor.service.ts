@@ -77,6 +77,17 @@ export class VendorService {
         "INVALID_DOCUMENT",
       );
     }
+    // Documents are uploaded with the user-scoped `business_licence` presign,
+    // so each key must sit under the applicant's own prefix: an applicant must
+    // not attach someone else's upload.
+    const ownPrefix = `private/business/${data.userId}/`;
+    if (data.documents.some((d) => !d.s3Key.startsWith(ownPrefix))) {
+      throw new HttpError(
+        400,
+        "Documents must be uploaded by the applicant",
+        "INVALID_DOCUMENT_KEY",
+      );
+    }
 
     // Generate unique slug
     let slug = generateSlug(data.businessName);

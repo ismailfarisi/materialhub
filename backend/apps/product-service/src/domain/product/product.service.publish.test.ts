@@ -103,7 +103,9 @@ function makeService(product: Record<string, any>, all?: Record<string, any>[]) 
     get: () => ({
       findOne: async ({ where }: any) => products.find((p) => p.id === where.id) ?? null,
       find: async ({ where }: any) =>
-        products.filter((p) => where.some((w: any) => w.id === p.id && w.vendor_id === p.vendor_id)),
+        products.filter((p) =>
+          where.some((w: any) => w.id === p.id && w.vendor_id === p.vendor_id),
+        ),
       save: async (row: unknown) => row,
       update: async (id: string, patch: any) => {
         const p = products.find((x) => x.id === id);

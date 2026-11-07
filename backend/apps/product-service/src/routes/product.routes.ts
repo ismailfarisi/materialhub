@@ -7,11 +7,11 @@ import { container } from "../container.ts";
 import {
   ProductCreateInventoryInput,
   ProductSeoInput,
-  VendorTranslationsInput,
   SampleInput,
   TradePricingInput,
   VariantTradeTermsInput,
   VendorStatusInput,
+  VendorTranslationsInput,
 } from "./product-input.schemas.ts";
 
 const ProductAttributeInput = t.Object({

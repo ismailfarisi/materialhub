@@ -339,7 +339,7 @@ export function EditorialEditor({
 								<Label htmlFor="maker-letter-author-role">Author Role *</Label>
 								<Input
 									id="maker-letter-author-role"
-									placeholder="e.g. Perfumer · Grasse"
+									placeholder="e.g. Head of production · Sharjah mill"
 									value={v.maker_letter.author_role}
 									onChange={(e) =>
 										emit({
@@ -531,13 +531,13 @@ export function EditorialEditor({
 				)}
 			</Card>
 
-			{/* ── Ingredient Origins ────────────────────────────────────── */}
+			{/* ── Material Origins (stored as ingredient_origins) ─────────── */}
 			<Card>
 				<CardHeader className="pb-3 flex flex-row items-center justify-between">
-					<CardTitle className="text-base">Ingredient Origins</CardTitle>
+					<CardTitle className="text-base">Material Origins</CardTitle>
 					<div className="flex items-center gap-2 text-sm">
 						<Switch
-							aria-label="Enable Ingredient Origins"
+							aria-label="Enable Material Origins"
 							checked={Array.isArray(v.ingredient_origins)}
 							onCheckedChange={(checked) => {
 								if (checked) {
@@ -562,7 +562,7 @@ export function EditorialEditor({
 									<Label htmlFor={`origin-role-${idx}`}>Role</Label>
 									<Input
 										id={`origin-role-${idx}`}
-										placeholder="Top note / Active / Pigment"
+										placeholder="Board core / Cover paper / Coating"
 										value={item.role ?? ""}
 										onChange={(e) => {
 											const next = (v.ingredient_origins ?? []).map((row, i) =>
@@ -617,7 +617,7 @@ export function EditorialEditor({
 								</div>
 								<div>
 									<Label htmlFor={`origin-harvest-${idx}`}>
-										Annual Harvest
+										Annual output
 									</Label>
 									<Input
 										id={`origin-harvest-${idx}`}
@@ -664,7 +664,7 @@ export function EditorialEditor({
 								})
 							}
 						>
-							+ Add ingredient origin
+							+ Add material origin
 						</button>
 					</CardContent>
 				)}

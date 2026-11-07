@@ -1,6 +1,8 @@
 "use client";
 
 import { ProductExportDialog } from "@/components/product-export/ProductExportDialog";
+import { ProductStatusControl } from "@/components/products/ProductStatusControl";
+import { type BulkActionResult, summarizeBulkResult } from "@/lib/product-status";
 import {
 	useBulkAction,
 	useDeleteProduct,
@@ -33,6 +35,8 @@ const STATUS_OPTIONS = [
 	{ label: "Pending Review", value: "pending_review" },
 	{ label: "Approved", value: "approved" },
 	{ label: "Published", value: "published" },
+	{ label: "Rejected", value: "rejected" },
+	{ label: "Unpublished", value: "unpublished" },
 	{ label: "Archived", value: "archived" },
 ];
 
@@ -65,6 +69,7 @@ export default function ProductsPage() {
 	const searchParams = useSearchParams();
 	const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
 	const [exportOpen, setExportOpen] = useState(false);
+	const [bulkMessage, setBulkMessage] = useState<string | null>(null);
 	const selectedIds = useMemo(
 		() => Object.keys(rowSelection).filter((k) => rowSelection[k]),
 		[rowSelection],
@@ -95,7 +100,29 @@ export default function ProductsPage() {
 		limit: 20,
 	});
 
-	const { mutate: bulkAction, isPending: bulkPending } = useBulkAction();
+	const { mutate: bulkMutate, isPending: bulkPending } = useBulkAction();
+	const verbs: Record<string, string> = {
+		archive: "archived",
+		delete: "deleted",
+		publish: "published",
+		unpublish: "unpublished",
+	};
+	const bulkAction = (
+		vars: { ids: string[]; action: string },
+		opts?: { onSuccess?: () => void },
+	) => {
+		setBulkMessage(null);
+		bulkMutate(vars, {
+			onSuccess: (result: BulkActionResult) => {
+				setBulkMessage(summarizeBulkResult(verbs[vars.action] ?? "updated", result));
+				opts?.onSuccess?.();
+			},
+			onError: (err: unknown) => {
+				const e = err as { response?: { data?: { message?: string } } };
+				setBulkMessage(e?.response?.data?.message ?? "Bulk action failed. Try again.");
+			},
+		});
+	};
 	const { mutate: deleteProduct } = useDeleteProduct();
 
 	const products: VendorProduct[] = data?.items ?? [];
@@ -180,7 +207,8 @@ export default function ProductsPage() {
 			cell: ({ row }: { row: { original: VendorProduct } }) => {
 				const p = row.original;
 				return (
-					<div className="flex gap-2 justify-end">
+					<div className="flex items-start gap-2 justify-end">
+						<ProductStatusControl productId={p.id} status={p.status} compact />
 						<Button variant="ghost" size="sm" asChild aria-label="Edit product">
 							<Link href={`/products/${p.id}/edit`}>
 								<PencilSimple size={16} />
@@ -258,10 +286,36 @@ export default function ProductsPage() {
 			/>
 
 			{selectedIds.length > 0 && (
-				<div className="flex items-center gap-2 p-3 bg-pearl/20 rounded-lg text-sm">
+				<div className="flex flex-wrap items-center gap-2 p-3 bg-pearl/20 rounded-lg text-sm">
 					<span className="text-muted-foreground">
 						{selectedIds.length} selected
 					</span>
+					<Button
+						size="sm"
+						variant="outline"
+						disabled={bulkPending}
+						onClick={() =>
+							bulkAction(
+								{ ids: selectedIds, action: "publish" },
+								{ onSuccess: () => setRowSelection({}) },
+							)
+						}
+					>
+						Publish Selected
+					</Button>
+					<Button
+						size="sm"
+						variant="outline"
+						disabled={bulkPending}
+						onClick={() =>
+							bulkAction(
+								{ ids: selectedIds, action: "unpublish" },
+								{ onSuccess: () => setRowSelection({}) },
+							)
+						}
+					>
+						Unpublish Selected
+					</Button>
 					<Button
 						size="sm"
 						variant="outline"
@@ -293,6 +347,12 @@ export default function ProductsPage() {
 					</Button>
 				</div>
 			)}
+
+			{bulkMessage ? (
+				<p role="status" className="text-sm text-muted-foreground">
+					{bulkMessage}
+				</p>
+			) : null}
 
 			<div className="flex">
 				{(data?.facets?.attributes?.length ?? 0) > 0 && (

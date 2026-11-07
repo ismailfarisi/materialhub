@@ -2,6 +2,53 @@ import { AppDataSource, VendorBankAccount } from "@materialhub/database";
 import { HttpError } from "@materialhub/plugins";
 import type { EncryptionService } from "@materialhub/utils";
 
+const ACCOUNT_NUMBER_RE = /^[A-Za-z0-9]{4,34}$/;
+const IBAN_RE = /^[A-Z]{2}[0-9A-Z]{13,32}$/;
+
+/** Strip the spaces people paste; uppercase IBAN letters. */
+const compact = (v: string) => v.replace(/\s+/g, "").toUpperCase();
+
+/**
+ * Validates bank details without ever echoing them back: error messages name
+ * the field, never its value.
+ */
+export function normalizeBankDetails(data: {
+  bankName?: string;
+  accountHolderName?: string;
+  accountNumber?: string;
+  iban?: string;
+}) {
+  const out: {
+    bankName?: string;
+    accountHolderName?: string;
+    accountNumber?: string;
+    iban?: string;
+  } = {};
+  if (data.bankName !== undefined) {
+    out.bankName = data.bankName.trim();
+    if (!out.bankName) throw new HttpError(400, "Bank name is required", "INVALID_BANK_NAME");
+  }
+  if (data.accountHolderName !== undefined) {
+    out.accountHolderName = data.accountHolderName.trim();
+    if (!out.accountHolderName)
+      throw new HttpError(400, "Account holder name is required", "INVALID_ACCOUNT_HOLDER");
+  }
+  if (data.accountNumber !== undefined) {
+    out.accountNumber = compact(data.accountNumber);
+    if (!ACCOUNT_NUMBER_RE.test(out.accountNumber))
+      throw new HttpError(
+        400,
+        "Account number must be 4 to 34 letters or digits",
+        "INVALID_ACCOUNT_NUMBER",
+      );
+  }
+  if (data.iban !== undefined) {
+    out.iban = compact(data.iban);
+    if (!IBAN_RE.test(out.iban)) throw new HttpError(400, "IBAN is not valid", "INVALID_IBAN");
+  }
+  return out;
+}
+
 export class VendorBankAccountService {
   constructor(private readonly encryption: EncryptionService) {}
 
@@ -11,7 +58,7 @@ export class VendorBankAccountService {
 
   async create(
     vendorId: string,
-    data: {
+    input: {
       bankName: string;
       accountHolderName: string;
       accountNumber: string;
@@ -21,6 +68,13 @@ export class VendorBankAccountService {
       currency?: string;
     },
   ) {
+    const clean = normalizeBankDetails({
+      bankName: input.bankName,
+      accountHolderName: input.accountHolderName,
+      accountNumber: input.accountNumber,
+      iban: input.iban || undefined,
+    });
+    const data = { ...input, ...clean };
     const existing = await this.repo.find({ where: { vendor_id: vendorId } });
     const isPrimary = existing.length === 0;
 
@@ -77,7 +131,7 @@ export class VendorBankAccountService {
   async update(
     vendorId: string,
     accountId: string,
-    data: Partial<{
+    input: Partial<{
       bankName: string;
       accountHolderName: string;
       accountNumber: string;
@@ -91,6 +145,15 @@ export class VendorBankAccountService {
     });
     if (!account) throw new HttpError(404, "Bank account not found", "BANK_ACCOUNT_NOT_FOUND");
 
+    const data = {
+      ...input,
+      ...normalizeBankDetails({
+        bankName: input.bankName,
+        accountHolderName: input.accountHolderName,
+        accountNumber: input.accountNumber || undefined,
+        iban: input.iban || undefined,
+      }),
+    };
     if (data.bankName) account.bank_name = data.bankName;
     if (data.accountHolderName) account.account_holder_name = data.accountHolderName;
     if (data.accountNumber)

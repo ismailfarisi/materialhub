@@ -1,128 +1,126 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@materialhub/ui";
 import { api } from "@/lib/api";
-import {
-  useAcceptInvite,
-  useInvitePreview,
-} from "@/lib/queries/vendor-members";
+import { getMembershipsFromToken } from "@/lib/auth";
+import { useMe } from "@/lib/queries/auth";
+import { useAcceptInvite, useInvitePreview } from "@/lib/queries/vendor-members";
+import { loginUrl } from "@/lib/return-to";
+import { useActiveVendor } from "@/stores/active-vendor";
 import { useAuthStore } from "@/stores/auth";
+import {
+	Button,
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@materialhub/ui";
+import { useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
 
-interface InvitePageProps {
-  params: { token: string };
-}
+export default function InvitePage() {
+	// Next 16: route params are async for server components; client pages read
+	// them with useParams().
+	const { token } = useParams<{ token: string }>();
+	const router = useRouter();
+	const queryClient = useQueryClient();
+	const { data: preview, isLoading, isError } = useInvitePreview(token);
+	const accept = useAcceptInvite();
+	// useMe() fills the auth store from /auth/me (or clears it on 401).
+	const me = useMe();
+	const authedEmail = useAuthStore((s) => s.user?.email);
 
-export default function InvitePage({ params }: InvitePageProps) {
-  const router = useRouter();
-  const { data: preview, isLoading, isError } = useInvitePreview(params.token);
-  const accept = useAcceptInvite();
-  const user = useAuthStore((s) => s.user);
-  const [authChecked, setAuthChecked] = useState(false);
+	if (isLoading) {
+		return (
+			<div className="grid min-h-screen place-items-center px-4">
+				<p className="text-sm text-pearl/80">Loading invite…</p>
+			</div>
+		);
+	}
 
-  // If the auth store is empty on mount, hit /auth/me to check.
-  useEffect(() => {
-    if (user) {
-      setAuthChecked(true);
-      return;
-    }
-    api
-      .get("/auth/me")
-      .then(() => setAuthChecked(true))
-      .catch(() => setAuthChecked(true));
-  }, [user]);
+	if (isError || !preview) {
+		return (
+			<div className="grid min-h-screen place-items-center px-4">
+				<Card className="w-full max-w-sm">
+					<CardHeader>
+						<CardTitle>Invite not found</CardTitle>
+						<CardDescription>This invite link is invalid or has been revoked.</CardDescription>
+					</CardHeader>
+				</Card>
+			</div>
+		);
+	}
 
-  if (isLoading) {
-    return (
-      <div className="grid min-h-screen place-items-center bg-zinc-50">
-        <div className="text-sm text-zinc-500">Loading…</div>
-      </div>
-    );
-  }
+	const expired = preview.expired;
+	const emailMatch =
+		Boolean(authedEmail) && authedEmail?.toLowerCase() === preview.invitedEmail.toLowerCase();
 
-  if (isError || !preview) {
-    return (
-      <div className="grid min-h-screen place-items-center bg-zinc-50">
-        <Card className="w-96">
-          <CardHeader>
-            <CardTitle>Invite not found</CardTitle>
-            <CardDescription>
-              This invite link is invalid or has been revoked.
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      </div>
-    );
-  }
+	return (
+		<div className="grid min-h-screen place-items-center px-4">
+			<Card className="w-full max-w-sm">
+				<CardHeader>
+					<CardTitle className="break-words">{preview.vendorName}</CardTitle>
+					<CardDescription className="break-words">
+						Invited as <strong className="capitalize">{preview.role}</strong> · Sent to{" "}
+						{preview.invitedEmail}
+					</CardDescription>
+				</CardHeader>
+				<CardContent className="space-y-4">
+					{expired ? (
+						<p className="text-sm text-destructive">
+							This invite has expired. Ask the store owner to resend it.
+						</p>
+					) : me.isLoading ? (
+						<p className="text-sm text-muted-foreground">Checking your sign-in…</p>
+					) : !authedEmail ? (
+						<Button asChild className="w-full">
+							<Link href={loginUrl(`/invite/${token}`)}>Sign in as {preview.invitedEmail}</Link>
+						</Button>
+					) : !emailMatch ? (
+						<p className="text-sm text-destructive">
+							This invite is for {preview.invitedEmail}. You&apos;re signed in as {authedEmail}.
+							Sign out, then open this link again.
+						</p>
+					) : (
+						<Button
+							className="w-full"
+							disabled={accept.isPending}
+							onClick={() => {
+								const before = new Set(getMembershipsFromToken().map((m) => m.vid));
+								accept.mutate(token, {
+									onSuccess: async () => {
+										// Refresh so the JWT carries the new membership (vm claim),
+										// then make the newly joined store the active one.
+										await api.post("/auth/refresh").catch(() => {});
+										const joined = getMembershipsFromToken().find((m) => !before.has(m.vid));
+										if (joined) useActiveVendor.getState().setActiveVendorId(joined.vid);
+										queryClient.clear();
+										router.push("/");
+									},
+								});
+							}}
+						>
+							{accept.isPending ? "Accepting…" : "Accept invite"}
+						</Button>
+					)}
 
-  const expired = preview.expired;
-  const authedEmail = useAuthStore.getState().user?.email;
-  const emailMatch =
-    Boolean(authedEmail) &&
-    authedEmail!.toLowerCase() === preview.invitedEmail.toLowerCase();
+					{accept.isError && (
+						<p role="alert" className="text-xs text-destructive">
+							{(accept.error as { response?: { data?: { message?: string } } })?.response?.data
+								?.message ?? "Failed to accept invite"}
+						</p>
+					)}
 
-  return (
-    <div className="grid min-h-screen place-items-center bg-zinc-50">
-      <Card className="w-96">
-        <CardHeader>
-          <CardTitle>{preview.vendorName}</CardTitle>
-          <CardDescription>
-            Invited as <strong className="capitalize">{preview.role}</strong> · Sent to{" "}
-            {preview.invitedEmail}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {expired ? (
-            <p className="text-sm text-red-600">This invite has expired.</p>
-          ) : !authChecked ? (
-            <p className="text-sm text-zinc-500">Checking auth…</p>
-          ) : !authedEmail ? (
-            <Button asChild className="w-full">
-              <a href={`/login?next=/invite/${params.token}`}>
-                Sign in as {preview.invitedEmail}
-              </a>
-            </Button>
-          ) : !emailMatch ? (
-            <p className="text-sm text-orange-600">
-              This invite is for {preview.invitedEmail}. You&apos;re signed in as{" "}
-              {authedEmail}. Log out to continue.
-            </p>
-          ) : (
-            <Button
-              className="w-full"
-              disabled={accept.isPending}
-              onClick={() =>
-                accept.mutate(params.token, {
-                  onSuccess: async () => {
-                    // Trigger /auth/refresh so the JWT picks up the new vm claim.
-                    await api.post("/auth/refresh").catch(() => {});
-                    router.push("/team");
-                  },
-                })
-              }
-            >
-              {accept.isPending ? "Accepting…" : "Accept invite"}
-            </Button>
-          )}
-
-          {accept.isError && (
-            <div className="text-xs text-red-600">
-              {(accept.error as { response?: { data?: { message?: string } } })?.response
-                ?.data?.message ?? "Failed to accept invite"}
-            </div>
-          )}
-
-          <p className="text-center text-xs text-zinc-400">
-            <a
-              href={`/invite/${params.token}/decline`}
-              className="hover:underline"
-            >
-              Decline this invite
-            </a>
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-  );
+					{!expired && (
+						<p className="text-center text-xs text-muted-foreground">
+							<Link href={`/invite/${token}/decline`} className="hover:underline">
+								Decline this invite
+							</Link>
+						</p>
+					)}
+				</CardContent>
+			</Card>
+		</div>
+	);
 }

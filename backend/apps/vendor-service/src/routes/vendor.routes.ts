@@ -202,10 +202,13 @@ export const vendorRoutes = new Elysia({ prefix: "/vendors" })
         {
           // snake_case like every other vendor/admin body (admin bank routes too).
           body: t.Object({
-            bank_name: t.String({ minLength: 1 }),
-            account_holder_name: t.String({ minLength: 1 }),
-            account_number: t.String({ minLength: 4, maxLength: 34 }),
-            iban: t.String({ minLength: 15, maxLength: 34 }),
+            // Lengths are checked in the service: an Elysia validation error
+            // echoes the request body, which would put the account number in
+            // the response.
+            bank_name: t.String(),
+            account_holder_name: t.String(),
+            account_number: t.String(),
+            iban: t.String(),
             swift_code: t.Optional(t.String()),
             currency: t.Optional(t.String()),
           }),
@@ -228,11 +231,11 @@ export const vendorRoutes = new Elysia({ prefix: "/vendors" })
           params: t.Object({ id: t.String({ format: "uuid" }) }),
           body: t.Partial(
             t.Object({
-              bank_name: t.String({ minLength: 1 }),
-              account_holder_name: t.String({ minLength: 1 }),
+              bank_name: t.String(),
+              account_holder_name: t.String(),
               // Blank = keep the stored (encrypted) value; the UI never has it.
-              account_number: t.String({ maxLength: 34 }),
-              iban: t.String({ maxLength: 34 }),
+              account_number: t.String(),
+              iban: t.String(),
               swift_code: t.String(),
               currency: t.String(),
             }),

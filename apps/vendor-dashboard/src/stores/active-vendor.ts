@@ -1,3 +1,4 @@
+import type { QueryClient } from "@tanstack/react-query";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { VendorMembership } from "../lib/auth";
@@ -35,4 +36,21 @@ export function syncActiveVendorWithMemberships(memberships: VendorMembership[])
   if (!valid) {
     useActiveVendor.setState({ activeVendorId: memberships[0].vid });
   }
+}
+
+/** Query keys that don't depend on the active vendor and survive a switch. */
+const VENDOR_INDEPENDENT_KEYS = new Set(["auth", "vendor-picker:vendors", "invite-preview"]);
+
+/**
+ * Switch the active vendor and drop every cached query that belongs to the
+ * previous one, so pages refetch with the new X-Active-Vendor-Id header
+ * instead of showing the old store's data.
+ */
+export function switchActiveVendor(vid: string, queryClient: QueryClient): void {
+  if (useActiveVendor.getState().activeVendorId === vid) return;
+  useActiveVendor.getState().setActiveVendorId(vid);
+  const vendorScoped = (q: { queryKey: readonly unknown[] }) =>
+    !VENDOR_INDEPENDENT_KEYS.has(String(q.queryKey[0]));
+  queryClient.removeQueries({ predicate: vendorScoped, type: "inactive" });
+  void queryClient.resetQueries({ predicate: vendorScoped, type: "active" });
 }

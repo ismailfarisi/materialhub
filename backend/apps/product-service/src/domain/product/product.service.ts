@@ -585,7 +585,8 @@ export class ProductService {
     const failed: Array<{ id: string; code: string; message: string }> = [];
     const found = new Set(products.map((p) => p.id));
     for (const id of productIds) {
-      if (!found.has(id)) failed.push({ id, code: "PRODUCT_NOT_FOUND", message: "Product not found" });
+      if (!found.has(id))
+        failed.push({ id, code: "PRODUCT_NOT_FOUND", message: "Product not found" });
     }
 
     for (const product of products) {

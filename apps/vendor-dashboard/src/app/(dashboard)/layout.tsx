@@ -2,6 +2,7 @@
 
 import { VendorPicker } from "@/components/header/vendor-picker";
 import { getMembershipsFromToken } from "@/lib/auth";
+import { getBreadcrumbs } from "@/lib/breadcrumbs";
 import { useChangePassword, useLogout, useMe } from "@/lib/queries/auth";
 import { useAuthStore } from "@/stores/auth";
 import {
@@ -136,21 +137,6 @@ const navItems = [
 	settingsGroup,
 ];
 
-function getBreadcrumbs(pathname: string) {
-	const segments = pathname.split("/").filter(Boolean);
-	if (segments.length === 0) return [{ label: "Dashboard" }];
-	return [
-		{ label: "Dashboard", href: "/" },
-		...segments.map((seg, i) => ({
-			label: seg.charAt(0).toUpperCase() + seg.slice(1),
-			href:
-				i < segments.length - 1
-					? `/${segments.slice(0, i + 1).join("/")}`
-					: undefined,
-		})),
-	];
-}
-
 export default function DashboardLayout({
 	children,
 }: { children: React.ReactNode }) {
@@ -198,7 +184,8 @@ export default function DashboardLayout({
 			const isAdminScoped =
 				user.role === "super_admin" || user.role === "admin";
 			if (!isVendorScoped && !isAdminScoped) {
-				router.replace("/login");
+				// The login page explains (no vendor team yet) and offers Apply.
+				router.replace("/login?reason=not-vendor");
 			}
 		}
 	}, [isLoading, isAuthenticated, user, router]);
@@ -257,7 +244,7 @@ export default function DashboardLayout({
 				mobileOpen={mobileOpen}
 				onMobileClose={() => setMobileOpen(false)}
 			/>
-			<div className="flex flex-col flex-1 overflow-hidden">
+			<div className="flex min-w-0 flex-col flex-1 overflow-hidden">
 				<DashboardHeader
 					breadcrumbs={breadcrumbs}
 					user={{ name: userName, avatar: user.avatar_url, role: "Vendor" }}
@@ -267,7 +254,7 @@ export default function DashboardLayout({
 					onChangePassword={() => setPwOpen(true)}
 					onMenuClick={() => setMobileOpen(true)}
 				/>
-				<div className="flex items-center justify-end px-4 lg:px-6 py-2 border-b border-pearl/14 empty:hidden">
+				<div className="flex min-w-0 items-center justify-end px-4 lg:px-6 py-2 border-b border-pearl/14 empty:hidden">
 					<VendorPicker />
 				</div>
 				<main className="flex-1 overflow-y-auto p-4 lg:p-6 -ml-px">

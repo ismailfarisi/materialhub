@@ -324,7 +324,7 @@ export function VariantMatrixEditor({
 					<p className="text-xs text-taupe mt-1">
 						{variantAttributes.length > 0
 							? "Pick the values this product comes in. Variants are generated from every combination."
-							: "This category has no variant attributes — add a custom option below (e.g. Size: 30ml, 50ml)."}
+							: "This category has no variant attributes — add a custom option below (e.g. Sheet size: A1, A2)."}
 					</p>
 				</CardHeader>
 				<CardContent className="space-y-4 p-6 pt-0">
@@ -455,7 +455,7 @@ export function VariantMatrixEditor({
 												addCustomValue(axis.key);
 											}
 										}}
-										placeholder="Type a value and press Enter (e.g. 30ml)"
+										placeholder="Type a value and press Enter (e.g. A1)"
 										className="h-8 text-sm"
 									/>
 									<Button

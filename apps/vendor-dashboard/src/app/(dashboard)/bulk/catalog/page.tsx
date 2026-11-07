@@ -8,7 +8,7 @@ export default function BulkCatalogPage() {
 			<div>
 				<h1 className="text-2xl font-semibold">Bulk catalog import</h1>
 				<p className="text-sm text-gray-500">
-					UploadSimple products, variants, and attributes via CSV/XLSX. Best-effort
+					Upload products, variants, and attributes via CSV/XLSX. Best-effort
 					import: valid rows land immediately; invalid rows appear in the error
 					report. Image URLs process asynchronously.
 				</p>

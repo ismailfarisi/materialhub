@@ -64,7 +64,12 @@ export function importStatusFor(
 ): Product["status"] | undefined {
   if (!requested) return undefined;
   if (requested === "archived") return "archived" as Product["status"];
-  if (current === null || current === "draft" || current === "pending_review" || current === "rejected") {
+  if (
+    current === null ||
+    current === "draft" ||
+    current === "pending_review" ||
+    current === "rejected"
+  ) {
     return requested as Product["status"];
   }
   return undefined;

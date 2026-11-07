@@ -159,6 +159,38 @@ describe("MediaController.getKycSignedUrl", () => {
     await expect(ctl.getKycSignedUrl("admin", "private/kyc/v/x.pdf")).resolves.toBeDefined();
     await expect(ctl.getKycSignedUrl("super_admin", "private/kyc/v/x.pdf")).resolves.toBeDefined();
   });
+
+  test("vendor application documents (private/business/) use the business-doc signer", async () => {
+    // biome-ignore lint/suspicious/noExplicitAny: test fake cast to real service type
+    const media = new FakeMedia() as any;
+    const seen: string[] = [];
+    media.getKycSignedUrl = async () => {
+      throw new Error("Key is not under private/kyc/ prefix");
+    };
+    media.getBusinessDocSignedUrl = async (key: string) => {
+      seen.push(key);
+      return { url: "biz", expiresAt: new Date() };
+    };
+    const ctl = new MediaController(
+      media,
+      // biome-ignore lint/suspicious/noExplicitAny: test fake cast to real repo type
+      new FakeRepo() as any,
+      // biome-ignore lint/suspicious/noExplicitAny: test fake cast to real lookup type
+      new FakeVendorLookup() as any,
+      // biome-ignore lint/suspicious/noExplicitAny: test fake cast to real repo type
+      new FakeVideoRepo() as any,
+      fakeVideoQueue,
+      // biome-ignore lint/suspicious/noExplicitAny: test stub
+      fakeAiEnhance as any,
+      // biome-ignore lint/suspicious/noExplicitAny: test stub
+      fakeAiSettings as any,
+      // biome-ignore lint/suspicious/noExplicitAny: test stub
+      fakeAiUsage as any,
+    );
+    const res = await ctl.getKycSignedUrl("admin", "private/business/u-1/licence.pdf");
+    expect(res.url).toBe("biz");
+    expect(seen).toEqual(["private/business/u-1/licence.pdf"]);
+  });
 });
 
 describe("MediaController.generatePresignedUrl", () => {

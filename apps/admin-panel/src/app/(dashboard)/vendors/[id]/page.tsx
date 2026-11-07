@@ -7,6 +7,7 @@ import {
 import { fetchKycSignedUrl } from "@/lib/queries/vendors";
 import {
 	useApproveVendor,
+	useReactivateVendor,
 	useCreateBankAccount,
 	useDeleteBankAccount,
 	useDeleteDocument,
@@ -167,6 +168,7 @@ export default function VendorDetailPage() {
 		useVendorBankAccounts(id);
 
 	const { mutate: approve, isPending: approving } = useApproveVendor();
+	const { mutate: reactivate, isPending: reactivating } = useReactivateVendor();
 	const { mutate: reject, isPending: rejecting } = useRejectVendor();
 	const { mutate: suspend, isPending: suspending } = useSuspendVendor();
 	const { mutate: updateVendor, isPending: updating } = useUpdateVendor();
@@ -308,6 +310,20 @@ export default function VendorDetailPage() {
 				toast({
 					title: "Error",
 					description: "Failed to approve",
+					variant: "destructive",
+				}),
+		});
+	}
+
+	function handleReactivate() {
+		reactivate(id, {
+			onSuccess: () => toast({ title: "Vendor reactivated" }),
+			onError: (err: unknown) =>
+				toast({
+					title: "Error",
+					description:
+						(err as { response?: { data?: { message?: string } } })?.response?.data
+							?.message ?? "Failed to reactivate",
 					variant: "destructive",
 				}),
 		});
@@ -860,10 +876,10 @@ export default function VendorDetailPage() {
 					{showReactivate && (
 						<Button
 							className="bg-green-600 hover:bg-green-700 text-white"
-							onClick={handleApprove}
-							disabled={approving}
+							onClick={handleReactivate}
+							disabled={reactivating}
 						>
-							{approving ? "Reactivating..." : "Reactivate"}
+							{reactivating ? "Reactivating..." : "Reactivate"}
 						</Button>
 					)}
 				</div>

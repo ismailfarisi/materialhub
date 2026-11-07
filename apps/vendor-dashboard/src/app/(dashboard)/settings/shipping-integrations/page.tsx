@@ -92,7 +92,7 @@ export default function ShippingIntegrationsPage() {
 											</Button>
 											<Link href={`/settings/shipping-integrations/${i.id}/edit`}>
 												<Button size="sm" variant="outline">
-													Pencil
+													Edit
 												</Button>
 											</Link>
 											<Button

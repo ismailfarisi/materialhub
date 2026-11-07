@@ -5,6 +5,7 @@ import {
 	useInitiateBulkUpload,
 	useStartBulkJob,
 } from "@/lib/queries/bulk";
+import { uploadErrorMessage } from "@/lib/upload-error";
 import { useState } from "react";
 
 export type BulkJobType = "inventory_update" | "catalog_import";
@@ -52,7 +53,7 @@ export function UploadPanel({ jobType, strictnessLabel, onStarted }: Props) {
 			onStarted?.(jobId);
 			setFile(null);
 		} catch (e) {
-			setError(e instanceof Error ? e.message : String(e));
+			setError(uploadErrorMessage(e));
 		} finally {
 			setBusy(false);
 		}
@@ -61,7 +62,7 @@ export function UploadPanel({ jobType, strictnessLabel, onStarted }: Props) {
 	return (
 		<div className="rounded-lg border p-4 space-y-4">
 			<div className="flex items-center justify-between">
-				<h3 className="font-semibold">UploadSimple</h3>
+				<h3 className="font-semibold">Upload</h3>
 				<div className="text-sm text-gray-500">
 					Strictness: {strictnessLabel}
 				</div>
@@ -136,14 +137,14 @@ export function UploadPanel({ jobType, strictnessLabel, onStarted }: Props) {
 					onClick={() => downloadTemplate(jobType, "csv")}
 					className="rounded border px-4 py-2 text-sm"
 				>
-					DownloadSimple CSV template
+					Download CSV template
 				</button>
 				<button
 					type="button"
 					onClick={() => downloadTemplate(jobType, "xlsx")}
 					className="rounded border px-4 py-2 text-sm"
 				>
-					DownloadSimple XLSX template
+					Download XLSX template
 				</button>
 			</div>
 
