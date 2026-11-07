@@ -173,6 +173,7 @@ describe("CheckoutService", () => {
       shippingAddress: { city: "Dubai", emirate: "Dubai" },
       shippingMethod: "standard",
       channel: "web",
+      address_id: "addr-1",
     });
     expect(mockCartService.getCart).toHaveBeenCalled();
     // taxService.getRate is no longer called — VAT is extracted from
@@ -229,13 +230,47 @@ describe("CheckoutService", () => {
     expect(mockOrderCreationService.createOrder).not.toHaveBeenCalled();
   });
 
-  it("does not charge shipping when no address is provided (matches the quote)", async () => {
+  it("requires a saved address (a free-form address skipped shipping and the phone check)", async () => {
+    await expect(
+      service.initiateCheckout({
+        userId: "u1",
+        shippingAddress: { city: "Dubai", phone: "+971500000000" },
+        channel: "web",
+      }),
+    ).rejects.toThrow("Choose a saved delivery address");
+    expect(mockOrderCreationService.createOrder).not.toHaveBeenCalled();
+  });
+
+  it("rejects another user's address", async () => {
+    mockUserAddressRepo.findOne.mockResolvedValueOnce(null as any);
+    await expect(
+      service.initiateCheckout({
+        userId: "u1",
+        shippingAddress: { city: "Dubai" },
+        channel: "web",
+        address_id: "addr-of-someone-else",
+      }),
+    ).rejects.toThrow("Delivery address not found");
+  });
+
+  it("ships to the saved address's phone and name, not the client snapshot", async () => {
+    mockUserAddressRepo.findOne.mockResolvedValueOnce({
+      area_id: null,
+      first_name: "Sara",
+      last_name: "K",
+      phone: "+971501234567",
+      city: "Dubai",
+    } as any);
     await service.initiateCheckout({
       userId: "u1",
-      shippingAddress: { city: "Dubai" },
+      shippingAddress: { city: "Abu Dhabi", phone: "+971599999999", area: "Al Quoz" },
       channel: "web",
+      address_id: "addr-1",
     });
-    expect(capturedCreateOrderArgs.shippingTotal).toBe(0);
+    const ship = capturedCreateOrderArgs.shippingAddress;
+    expect(ship.phone).toBe("+971501234567");
+    expect(ship.city).toBe("Dubai");
+    expect(ship.area).toBe("Al Quoz");
   });
 
   it("rejects checkout when cart is empty", async () => {
@@ -381,6 +416,7 @@ describe("CheckoutService", () => {
       userId: "user-1",
       shippingAddress: { city: "Dubai" },
       channel: "web",
+      address_id: "addr-1",
     });
     expect(mockCouponService.validate).toHaveBeenCalled();
     expect(capturedCreateOrderArgs.discountTotal).toBe(1000);

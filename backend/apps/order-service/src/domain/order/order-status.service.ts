@@ -655,7 +655,9 @@ export class OrderStatusService {
               product_id: (oi as any).product_id,
               vendor_id: (oi as any).vendor_id,
             };
-            if ((oi as any).variant_id) where.variant_id = (oi as any).variant_id;
+            // No variant means the product-level row; without IsNull() the lookup
+            // could match a variant row (e.g. the sample SKU).
+            where.variant_id = (oi as any).variant_id ?? IsNull();
             const inv = await inventoryRepo.findOne({ where });
             if (inv) {
               const release = Math.min(inv.quantity_reserved, (oi as any).quantity);

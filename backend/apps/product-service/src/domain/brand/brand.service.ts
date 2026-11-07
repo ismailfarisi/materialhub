@@ -83,7 +83,8 @@ export class BrandService {
          AND b.product_count IS DISTINCT FROM COALESCE(sub.cnt, 0)
       RETURNING b.id;
     `);
-    const updated = Array.isArray(result) ? result.length : 0;
+    // UPDATE ... RETURNING resolves to [rows, rowCount], not rows.
+    const updated = Array.isArray(result) ? Number(result[1] ?? 0) : 0;
     return { updated, total };
   }
 

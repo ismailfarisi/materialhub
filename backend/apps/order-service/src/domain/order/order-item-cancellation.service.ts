@@ -30,6 +30,7 @@ import { BadRequestError, HttpError, NotFoundError } from "@materialhub/plugins"
 import type { EncryptionService } from "@materialhub/utils";
 import type { Queue } from "bullmq";
 import type { Repository } from "typeorm";
+import { IsNull } from "typeorm";
 import type { CommissionReversalService } from "../commission/commission-reversal.service.ts";
 import {
   resolveOriginWarehouse,
@@ -376,7 +377,8 @@ export class OrderItemCancellationService {
 
         // 7c. Release the inventory reservation + audit trail.
         const where: any = { product_id: oi.product_id, vendor_id: oi.vendor_id };
-        if (oi.variant_id) where.variant_id = oi.variant_id;
+        // No variant means the product-level row, never a variant (sample) row.
+        where.variant_id = oi.variant_id ?? IsNull();
         const inv = (await invRepo.findOne({ where })) as any;
         if (inv) {
           const onHand = inv.quantity_on_hand;

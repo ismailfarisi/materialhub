@@ -290,7 +290,11 @@ export class OrderApprovalService {
   ): Promise<string | null> {
     if (!needsApproval(ctx, amountFils)) return null;
     const hash = cartHashFor(cartItems);
-    const [row] = await this.manager.query(
+    // A raw UPDATE ... RETURNING resolves to [rows, rowCount] in TypeORM's
+    // Postgres driver, not to rows. Destructuring `[row]` took the rows
+    // ARRAY, which is truthy even when empty, so the 403 below never fired
+    // and `row.id` was undefined (the approval was never linked to its order).
+    const [rows] = await this.manager.query(
       `UPDATE business_order_approvals SET status = 'used', updated_at = now()
         WHERE id = (
           SELECT id FROM business_order_approvals
@@ -301,6 +305,7 @@ export class OrderApprovalService {
         RETURNING id`,
       [userId, hash],
     );
+    const row = (rows as Array<{ id: string }> | undefined)?.[0];
     if (!row) {
       throw new HttpError(
         403,

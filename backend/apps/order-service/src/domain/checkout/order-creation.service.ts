@@ -350,7 +350,10 @@ export class OrderCreationService {
               product_id: item.product_id,
               vendor_id: vendorId,
             };
-            if (item.variant_id) inventoryWhere.variant_id = item.variant_id;
+            // A line without a variant reserves the product-level row. Without
+            // IsNull() this matched any row of the product, e.g. its sample
+            // SKU, and checked (and reserved) the sample's stock instead.
+            inventoryWhere.variant_id = item.variant_id ?? IsNull();
 
             // Pessimistic lock on inventory row
             const inventory = await inventoryRepo

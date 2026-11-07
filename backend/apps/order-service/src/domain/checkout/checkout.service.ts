@@ -162,6 +162,41 @@ export class CheckoutService {
       }
     }
 
+    // 3b. Ship-to must be one of the buyer's saved addresses. Saving an address
+    // requires a verified phone, and its area drives the shipping rate below;
+    // a free-form address skipped both (no phone check, shipping never
+    // charged). The saved record's fields win over the client snapshot, which
+    // only fills display extras (e.g. the area name).
+    if (!data.address_id) {
+      throw new HttpError(400, "Choose a saved delivery address", "ADDRESS_REQUIRED");
+    }
+    const savedAddress = await this.userAddressRepo.findOne({
+      where: { id: data.address_id, user_id: data.userId },
+    });
+    if (!savedAddress) {
+      throw new HttpError(404, "Delivery address not found", "ADDRESS_NOT_FOUND");
+    }
+    const a = savedAddress as any;
+    data.shippingAddress = {
+      ...(data.shippingAddress ?? {}),
+      first_name: a.first_name,
+      last_name: a.last_name,
+      full_name: [a.first_name, a.last_name].filter(Boolean).join(" "),
+      phone: a.phone,
+      building_name: a.building_name ?? null,
+      apartment: a.apartment ?? null,
+      floor: a.floor ?? null,
+      city: a.city,
+      state: a.state ?? null,
+      emirate: a.state ?? null,
+      postal_code: a.postal_code ?? null,
+      country_code: a.country_code ?? null,
+      area_id: a.area_id ?? null,
+      latitude: a.latitude ?? null,
+      longitude: a.longitude ?? null,
+      delivery_notes: a.delivery_notes ?? null,
+    };
+
     // 4. Tax — product prices are VAT-inclusive. Snapshot the extracted
     // VAT for the order record (informational; not added to grand_total).
     const taxTotal = (cart as any).subtotal - Math.round(((cart as any).subtotal || 0) / 1.05);
@@ -171,12 +206,8 @@ export class CheckoutService {
     // that here so a no-address initiate is never charged shipping.
     const vendorIds = Array.from(new Set(allItems.map((i: any) => i.vendor_id as string)));
     let shippingTotal = 0;
-    if (data.address_id) {
-      let zoneId: string | null = null;
-      const addr = await this.userAddressRepo.findOne({
-        where: { id: data.address_id, user_id: data.userId },
-      });
-      zoneId = addr?.area_id ?? null;
+    {
+      const zoneId: string | null = savedAddress.area_id ?? null;
 
       const rateRows: ShippingRate[] = vendorIds.length
         ? await this.shippingRateRepo
