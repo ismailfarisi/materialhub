@@ -335,3 +335,56 @@ describe("CategoryService.getBySlug (public)", () => {
     expect(applyCategoryTranslation({ name: "A" }, null)).toEqual({ name: "A" });
   });
 });
+
+describe("CategoryService.getTree locale", () => {
+  const rows = [
+    { id: "papers", name: "Papers & Boards", slug: "papers", parent_id: null, is_active: true },
+    { id: "kraft", name: "Kraft paper", slug: "kraft", parent_id: "papers", is_active: true },
+    { id: "foils", name: "Foils", slug: "foils", parent_id: null, is_active: true },
+  ];
+  function build(capture: { locales: string[] }) {
+    const service = new CategoryService();
+    Object.defineProperty(service, "repo", {
+      get: () => ({ find: async () => rows.map((r) => ({ ...r })) }),
+      configurable: true,
+    });
+    Object.defineProperty(service, "translationRepo", {
+      get: () => ({
+        find: async ({ where }: any) => {
+          capture.locales.push(where.locale);
+          return where.locale === "ar"
+            ? [
+                { category_id: "papers", name: "الورق والألواح", description: null },
+                { category_id: "kraft", name: "ورق كرافت", description: null },
+                { category_id: "foils", name: " ", description: null },
+              ]
+            : [];
+        },
+      }),
+      configurable: true,
+    });
+    return service;
+  }
+
+  test("an Arabic tree carries translated names, English where none (or blank)", async () => {
+    const capture = { locales: [] as string[] };
+    const tree: any[] = await build(capture).getTree({ locale: "ar-AE,ar;q=0.9" });
+    expect(capture.locales).toEqual(["ar"]);
+    const papers = tree.find((n) => n.id === "papers");
+    expect(papers.name).toBe("الورق والألواح");
+    expect(papers.children[0].name).toBe("ورق كرافت");
+    expect(papers.slug).toBe("papers");
+    expect(tree.find((n) => n.id === "foils").name).toBe("Foils");
+  });
+
+  test("English and the admin tree never look up locale translations", async () => {
+    const capture = { locales: [] as string[] };
+    const service = build(capture);
+    (service as any).loadTranslations = async () => new Map();
+    const en: any[] = await service.getTree({ locale: "en" });
+    expect(en.find((n) => n.id === "papers").name).toBe("Papers & Boards");
+    const admin: any[] = await service.getTree({ includeInactive: true, locale: "ar" });
+    expect(admin.find((n) => n.id === "papers").name).toBe("Papers & Boards");
+    expect(capture.locales).toEqual([]);
+  });
+});

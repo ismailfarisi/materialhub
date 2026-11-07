@@ -637,6 +637,18 @@
     "ui": {
       "optional": "optional",
       "loadFailed": "This didn't load. Check your connection and try again."
+    },
+    "cancelOrder": {
+      "action": "Cancel order",
+      "title": "Cancel this order?",
+      "body": "Your suppliers haven't started preparing it yet, so it can still be cancelled. This can't be undone.",
+      "reason": "Why are you cancelling?",
+      "reasonRequired": "Tell us why you're cancelling.",
+      "keep": "Keep order",
+      "confirm": "Cancel order",
+      "submitting": "Cancelling…",
+      "success": "Order cancelled.",
+      "failed": "We couldn't cancel this order. Refresh the page and try again, or contact support."
     }
   },
   "emirates": {
@@ -740,8 +752,10 @@
       "magicSent": "If an account exists for {email}, a sign-in link is on its way.",
       "magicVerifying": "Signing you in…",
       "emailLink": "Email me a sign-in link instead",
-      "backToLogin": "Back to sign in"
-    }
+      "backToLogin": "Back to sign in",
+      "sendMagicLink": "Email me a sign-in link"
+    },
+    "passwordChangedSignIn": "Your password was changed and you were signed out everywhere. Sign in with your new password."
   },
   "footer": {
     "about": "About MaterialHub",

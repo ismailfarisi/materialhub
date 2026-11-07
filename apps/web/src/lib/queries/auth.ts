@@ -1,6 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { api, clearGuestSessionToken, getGuestSessionToken, isSessionGoneError, shouldProbeAuthSession } from "../api";
+import {
+  api,
+  clearGuestSessionToken,
+  getGuestSessionToken,
+  isSessionGoneError,
+  markAuthSessionGuest,
+  shouldProbeAuthSession,
+} from "../api";
 import { useAuthStore } from "@/stores/auth";
 
 type QueryClient = ReturnType<typeof useQueryClient>;
@@ -197,6 +204,32 @@ export function useRegister() {
       return data.data;
     },
   });
+}
+
+/** Where to send someone whose session just ended because their password changed. */
+export function passwordChangedLoginPath(locale: string): string {
+  return `/${locale}/auth/login?method=email&notice=password_changed`;
+}
+
+/**
+ * End the session after a password change. The backend revokes every refresh
+ * token on change-password, so the tab's session is dead (the next refresh
+ * gets TOKEN_REVOKED / TOKEN_REUSE_DETECTED). Same server call as useLogout,
+ * but failure is tolerated: the cookies are already worthless, and the user
+ * must land on the sign-in page either way.
+ *
+ * Deliberately does not flip the auth store: a store logout re-renders the
+ * account guard, which would replace the URL with a plain login redirect
+ * before ours lands. The caller does a full navigation, which drops the
+ * store and query cache with the page.
+ */
+export async function endSessionAfterPasswordChange(): Promise<void> {
+  try {
+    await api.post("/auth/logout", {});
+  } catch {
+    // Revoked tokens can make logout fail; the session is gone regardless.
+  }
+  markAuthSessionGuest();
 }
 
 export function useLogout() {

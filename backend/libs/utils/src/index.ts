@@ -24,6 +24,7 @@ export { normalizePhoneE164 } from "./phone.ts";
 export { getS3Client, getCloudFrontClient } from "./s3-client.ts";
 export { EncryptionService } from "./encryption.service.ts";
 export { maxCommissionForNet } from "./commission-cap.ts";
+export { revalidateStorefrontTags } from "./storefront-revalidate.ts";
 export { encodeCursor, decodeCursor, type CursorData, type PaginatedResult } from "./pagination.ts";
 
 /**

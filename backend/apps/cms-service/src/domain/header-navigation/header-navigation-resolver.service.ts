@@ -3,6 +3,7 @@ import {
   Brand,
   BrandStatus,
   Category,
+  CategoryTranslation,
   type HeaderNavLocaleField,
   type HeaderNavPromoTile,
   type HeaderNavTab,
@@ -76,12 +77,38 @@ export class HeaderNavigationResolverService {
     at: number;
     data: Array<Category & { children: Category[] }>;
   } | null = null;
+  /** category_id → translated name, one entry per locale (cache key = locale). */
+  private nameCache = new Map<Locale, { at: number; data: Map<string, string> }>();
   private static readonly CACHE_TTL_MS = 5 * 60 * 1000;
 
   clearCaches(): void {
     this.categoryCache = null;
     this.brandCache = null;
     this.topLevelCache = null;
+    this.nameCache.clear();
+  }
+
+  /**
+   * Translated category names for a locale, from `category_translations`.
+   * English is the base copy on `categories` itself, so it needs no lookup;
+   * a category without a (non-blank) translation keeps its English name.
+   */
+  private async loadCategoryNames(locale: Locale): Promise<Map<string, string>> {
+    if (locale === DEFAULT_LOCALE) return new Map();
+    const cached = this.nameCache.get(locale);
+    if (cached && Date.now() - cached.at < HeaderNavigationResolverService.CACHE_TTL_MS) {
+      return cached.data;
+    }
+    const rows = await AppDataSource.getRepository(CategoryTranslation).find({
+      where: { locale },
+      select: { category_id: true, name: true },
+    });
+    const data = new Map<string, string>();
+    for (const r of rows) {
+      if (typeof r.name === "string" && r.name.trim()) data.set(r.category_id, r.name);
+    }
+    this.nameCache.set(locale, { at: Date.now(), data });
+    return data;
   }
 
   async resolve(locale: string): Promise<ResolvedHeaderNavigation> {
@@ -95,7 +122,8 @@ export class HeaderNavigationResolverService {
     if (!published) {
       // No CMS config published (e.g. fresh environment): fall back to the
       // live category tree so the storefront never renders an empty menu.
-      const tabs = await this.fallbackTabsFromCategories(localeKey);
+      const names = await this.loadCategoryNames(localeKey);
+      const tabs = await this.fallbackTabsFromCategories(localeKey, names);
       return { tabs, version: 0, generated_at: new Date().toISOString() };
     }
 
@@ -104,15 +132,16 @@ export class HeaderNavigationResolverService {
       .map((t) => t.category_id);
     const allBrandIds = published.config.tabs.flatMap((t) => t.brand_list.brand_ids);
 
-    const [categoryMap, brandMap] = await Promise.all([
+    const [categoryMap, brandMap, names] = await Promise.all([
       this.loadCategories(allCategoryIds),
       this.loadBrands(allBrandIds),
+      this.loadCategoryNames(localeKey),
     ]);
 
     const tabs: ResolvedTab[] = [];
     for (const tab of published.config.tabs) {
       if (!tab.enabled) continue;
-      const resolved = this.resolveTab(tab, localeKey, categoryMap, brandMap);
+      const resolved = this.resolveTab(tab, localeKey, categoryMap, brandMap, names);
       if (resolved) tabs.push(resolved);
     }
 
@@ -128,8 +157,9 @@ export class HeaderNavigationResolverService {
     locale: Locale,
     categoryMap: Map<string, Category & { children: Category[] }>,
     brandMap: Map<string, Brand>,
+    names: Map<string, string>,
   ): ResolvedTab | null {
-    const label = this.locale(tab.label, locale);
+    let label = this.locale(tab.label, locale);
 
     let href: string;
     let subcategories: ResolvedSubcategory[] = [];
@@ -138,16 +168,19 @@ export class HeaderNavigationResolverService {
       const cat = tab.category_id ? categoryMap.get(tab.category_id) : null;
       if (!cat) return null;
       href = `/c/${cat.slug}`;
+      // A category tab without its own label for this locale shows the
+      // category's translated name before falling back to the English label.
+      if (!tab.label[locale]?.trim()) label = names.get(cat.id) ?? label;
       if (tab.show_subcategories) {
         subcategories = [
           { label: VIEW_ALL_LABEL[locale], href, highlight: true },
           {
-            label: NEW_IN_LABEL[locale](cat.name),
+            label: NEW_IN_LABEL[locale](names.get(cat.id) ?? cat.name),
             href: `/search?category=${cat.slug}&sort=newest`,
           },
           ...cat.children
             .filter((c) => c.is_active)
-            .map((c) => ({ label: c.name, href: `/c/${c.slug}` })),
+            .map((c) => ({ label: names.get(c.id) ?? c.name, href: `/c/${c.slug}` })),
         ];
       }
     } else {
@@ -182,22 +215,26 @@ export class HeaderNavigationResolverService {
     };
   }
 
-  private async fallbackTabsFromCategories(locale: Locale): Promise<ResolvedTab[]> {
+  private async fallbackTabsFromCategories(
+    locale: Locale,
+    names: Map<string, string>,
+  ): Promise<ResolvedTab[]> {
     const topLevel = await this.loadTopLevelCategories();
+    const name = (c: Category) => names.get(c.id) ?? c.name;
     return topLevel.map((cat) => ({
       id: cat.id,
       kind: "category" as const,
-      label: cat.name,
+      label: name(cat),
       href: `/c/${cat.slug}`,
       subcategories: [
         { label: VIEW_ALL_LABEL[locale], href: `/c/${cat.slug}`, highlight: true },
         {
-          label: NEW_IN_LABEL[locale](cat.name),
+          label: NEW_IN_LABEL[locale](name(cat)),
           href: `/search?category=${cat.slug}&sort=newest`,
         },
         ...cat.children
           .filter((c) => c.is_active)
-          .map((c) => ({ label: c.name, href: `/c/${c.slug}` })),
+          .map((c) => ({ label: name(c), href: `/c/${c.slug}` })),
       ],
       brand_list: { title: "", see_all_href: "/brands", brands: [] },
       promo_tiles: [],

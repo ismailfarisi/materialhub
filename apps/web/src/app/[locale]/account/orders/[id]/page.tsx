@@ -12,6 +12,7 @@ import {
 	StatusBadge,
 	ValueRow,
 } from "@/components/account/account-ui";
+import { OrderCancel } from "@/components/account/order-cancel";
 import { OrderDisputes } from "@/components/account/order-disputes";
 import { OrderLine, ReorderButton } from "@/components/account/order-parts";
 import { OrderTimeline } from "@/components/account/order-timeline";
@@ -132,7 +133,17 @@ export default function OrderDetailPage() {
 						<StatusBadge tone={orderTone(order.status)}>{statusLabel(tOrderStatus, order.status)}</StatusBadge>
 					</span>
 				}
-				action={<ReorderButton items={allItems} />}
+				action={
+					<div className="flex flex-wrap items-center gap-2">
+						<OrderCancel
+							orderId={order.id}
+							orderStatus={order.status}
+							vendorOrders={vendorOrders}
+							onCancelled={() => refetch()}
+						/>
+						<ReorderButton items={allItems} />
+					</div>
+				}
 			/>
 
 			<div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-6">

@@ -10,24 +10,9 @@ import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 import { headers } from "next/headers";
 import { notFound, permanentRedirect } from "next/navigation";
-
-const UUID_RE =
-	/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { UUID_RE, fetchVendor } from "./data";
 
 export const revalidate = 300;
-
-async function fetchVendor(slugOrId: string) {
-	const server = await apiServer();
-	const path = UUID_RE.test(slugOrId)
-		? `/vendors/${encodeURIComponent(slugOrId)}/profile`
-		: `/vendors/by-slug/${encodeURIComponent(slugOrId)}`;
-	try {
-		const res = await server.get(path);
-		return res.data?.data ?? null;
-	} catch {
-		return null;
-	}
-}
 
 async function fetchLayout(
 	vendorId: string,

@@ -260,6 +260,7 @@ export class CategoryService {
       throw new HttpError(409, "Cannot delete category with active products", "HAS_PRODUCTS");
     }
     await this.repo.softRemove(category);
+    return category;
   }
 
   async listForAdmin(page = 1, limit = 20, search?: string) {
@@ -271,11 +272,26 @@ export class CategoryService {
     return { data, total, page, limit };
   }
 
-  async getTree(opts: { vendorId?: string; includeInactive?: boolean } = {}): Promise<Category[]> {
-    const all = await this.repo.find({
+  async getTree(
+    opts: { vendorId?: string; includeInactive?: boolean; locale?: string | null } = {},
+  ): Promise<Category[]> {
+    const found = await this.repo.find({
       where: opts.includeInactive ? {} : { is_active: true },
       order: { sort_order: "ASC", name: "ASC" },
     });
+
+    // Public trees for a non-English locale carry translated names (the
+    // storefront breadcrumb and category menus read them), English fallback.
+    // The admin tree keeps the base English copy plus every translation.
+    const locale = opts.includeInactive ? "en" : categoryLocale(opts.locale);
+    let all = found;
+    if (locale !== "en" && found.length > 0) {
+      const localized = await this.loadLocaleTranslations(
+        found.map((c) => c.id),
+        locale,
+      );
+      all = found.map((c) => applyCategoryTranslation(c, localized.get(c.id)));
+    }
 
     // Admin trees carry translations so the editor can prefill them.
     const translations = opts.includeInactive

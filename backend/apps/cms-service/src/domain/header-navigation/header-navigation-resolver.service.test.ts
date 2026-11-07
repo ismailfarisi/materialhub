@@ -3,6 +3,7 @@ import {
   AppDataSource,
   Brand,
   Category,
+  CategoryTranslation,
   type HeaderNavConfig,
   HeaderNavigationConfig,
 } from "@materialhub/database";
@@ -16,6 +17,8 @@ const moonglazeId = "00000000-0000-0000-0000-000000000201";
 describe("HeaderNavigationResolverService", () => {
   let resolver: HeaderNavigationResolverService;
   let publishedConfig: HeaderNavConfig | null;
+  let translations: Array<{ category_id: string; locale: string; name: string }>;
+  let translationQueries: string[];
   let getRepositorySpy: ReturnType<typeof spyOn>;
   type RepositoryMock = ReturnType<typeof AppDataSource.getRepository>;
 
@@ -45,6 +48,8 @@ describe("HeaderNavigationResolverService", () => {
 
   beforeEach(() => {
     publishedConfig = null;
+    translations = [];
+    translationQueries = [];
     resolver = new HeaderNavigationResolverService();
     getRepositorySpy = spyOn(AppDataSource, "getRepository").mockImplementation(((
       entity: unknown,
@@ -73,6 +78,15 @@ describe("HeaderNavigationResolverService", () => {
             return publishedConfig?.tabs.some((tab) => tab.category_id === makeupId)
               ? [makeup]
               : [];
+          },
+        } as unknown as RepositoryMock;
+      }
+
+      if (entity === CategoryTranslation) {
+        return {
+          find: async (options: { where: { locale: string } }) => {
+            translationQueries.push(options.where.locale);
+            return translations.filter((t) => t.locale === options.where.locale);
           },
         } as unknown as RepositoryMock;
       }
@@ -313,5 +327,89 @@ describe("HeaderNavigationResolverService", () => {
     const result = await resolver.resolve("en");
     expect(result.tabs[0]?.href).toBe("/promotions/new");
     expect(result.tabs[0]?.subcategories).toEqual([]);
+  });
+
+  describe("category names per locale", () => {
+    const arNames = () => {
+      translations = [
+        { category_id: makeupId, locale: "ar", name: "الورق والألواح" },
+        { category_id: lipstickId, locale: "ar", name: "ورق كرافت" },
+      ];
+    };
+
+    it("fallback tree uses Arabic category names, including the New in label", async () => {
+      arNames();
+      const tab = (await resolver.resolve("ar")).tabs[0];
+      if (!tab) throw new Error("Expected fallback tab");
+      expect(tab.label).toBe("الورق والألواح");
+      expect(tab.subcategories[1]?.label).toBe("جديد في الورق والألواح");
+      expect(tab.subcategories[2]).toEqual({ label: "ورق كرافت", href: "/c/lipstick" });
+    });
+
+    it("keeps English names when a category has no translation (or a blank one)", async () => {
+      translations = [{ category_id: lipstickId, locale: "ar", name: "  " }];
+      const tab = (await resolver.resolve("ar")).tabs[0];
+      expect(tab?.label).toBe("Makeup");
+      expect(tab?.subcategories[2]?.label).toBe("Lipstick");
+    });
+
+    it("published category tabs use translated child names and the category name when the tab has no ar label", async () => {
+      arNames();
+      publishedConfig = {
+        tabs: [
+          {
+            id: "tab-papers",
+            kind: "category",
+            category_id: makeupId,
+            label: { en: "Papers & Boards" },
+            enabled: true,
+            sort_order: 0,
+            show_subcategories: true,
+            brand_list: { title: { en: "Suppliers" }, see_all_href: "/brands", brand_ids: [] },
+            promo_tiles: [],
+          },
+        ],
+      } as unknown as HeaderNavConfig;
+      const tab = (await resolver.resolve("ar")).tabs[0];
+      expect(tab?.label).toBe("الورق والألواح");
+      expect(tab?.subcategories[1]?.label).toBe("جديد في الورق والألواح");
+      expect(tab?.subcategories[2]?.label).toBe("ورق كرافت");
+
+      const en = (await resolver.resolve("en")).tabs[0];
+      expect(en?.label).toBe("Papers & Boards");
+      expect(en?.subcategories[2]?.label).toBe("Lipstick");
+    });
+
+    it("an explicit CMS ar label still wins over the category translation", async () => {
+      arNames();
+      publishedConfig = {
+        tabs: [
+          {
+            id: "tab-papers",
+            kind: "category",
+            category_id: makeupId,
+            label: { en: "Papers & Boards", ar: "ورق" },
+            enabled: true,
+            sort_order: 0,
+            show_subcategories: false,
+            brand_list: { title: { en: "Suppliers" }, see_all_href: "/brands", brand_ids: [] },
+            promo_tiles: [],
+          },
+        ],
+      } as unknown as HeaderNavConfig;
+      expect((await resolver.resolve("ar")).tabs[0]?.label).toBe("ورق");
+    });
+
+    it("caches names per locale and never looks them up for English", async () => {
+      arNames();
+      await resolver.resolve("en");
+      await resolver.resolve("ar");
+      await resolver.resolve("ar");
+      await resolver.resolve("ur");
+      expect(translationQueries).toEqual(["ar", "ur"]);
+      resolver.clearCaches();
+      await resolver.resolve("ar");
+      expect(translationQueries).toEqual(["ar", "ur", "ar"]);
+    });
   });
 });

@@ -18,6 +18,7 @@ const mockOrderResult: {
 } = { current: { data: undefined, isLoading: true } };
 vi.mock("@/lib/queries/orders", () => ({
   useOrder: () => mockOrderResult.current,
+  useCancelOrder: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock("next/navigation", () => ({

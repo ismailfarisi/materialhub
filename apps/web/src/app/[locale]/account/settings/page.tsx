@@ -4,13 +4,15 @@ import { apiErrorMessage } from "@/components/account/types";
 import { Field, FormMessage, Input, PageHeader, Panel, PanelHead } from "@/components/account/account-ui";
 import { Button } from "@/components/swatch";
 import { useChangePassword, useUpdateProfile } from "@/lib/queries/account";
+import { endSessionAfterPasswordChange, passwordChangedLoginPath } from "@/lib/queries/auth";
 import { useAuthStore } from "@/stores/auth";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 
 export default function SettingsPage() {
 	const t = useTranslations("account");
 	const tCommon = useTranslations("common");
+	const locale = useLocale();
 	const { user } = useAuthStore();
 	const updateProfile = useUpdateProfile();
 	const changePassword = useChangePassword();
@@ -112,11 +114,17 @@ export default function SettingsPage() {
 									current_password: passwords.current_password,
 									new_password: passwords.new_password,
 								});
-								setPasswordMsg({ text: t("passwordChanged"), ok: true });
-								setPasswords({ current_password: "", new_password: "", confirm_password: "" });
 							} catch {
 								setPasswordMsg({ text: t("passwordChangeFailed"), ok: false });
+								return;
 							}
+							// Changing the password revokes every session, this one
+							// included: sign out here and send them to sign in again with
+							// the new password instead of leaving a dead session behind.
+							setPasswordMsg({ text: t("passwordChanged"), ok: true });
+							setPasswords({ current_password: "", new_password: "", confirm_password: "" });
+							await endSessionAfterPasswordChange();
+							window.location.replace(passwordChangedLoginPath(locale));
 						}}
 						className="grid gap-4 p-4 md:p-5"
 					>

@@ -6,13 +6,18 @@ export const categoryRoutes = new Elysia({ prefix: "/categories" })
 
   .get(
     "/tree",
-    async ({ query, categoryController }) => {
-      const data = await categoryController.getTree({ vendorId: query.vendor_id });
+    async ({ query, headers, categoryController }) => {
+      // Category names follow ?locale= or the storefront's Accept-Language.
+      const data = await categoryController.getTree({
+        vendorId: query.vendor_id,
+        locale: query.locale ?? headers["accept-language"],
+      });
       return { statusCode: 200, data, timestamp: new Date().toISOString() };
     },
     {
       query: t.Object({
         vendor_id: t.Optional(t.String({ format: "uuid" })),
+        locale: t.Optional(t.String({ maxLength: 35 })),
       }),
     },
   )

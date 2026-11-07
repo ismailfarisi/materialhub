@@ -38,16 +38,7 @@ interface Props {
 	searchParams: Promise<Record<string, string>>;
 }
 
-// biome-ignore lint/suspicious/noExplicitAny: untyped API response shape
-type Category = any;
-
-function fetchCategory(slug: string, locale: string): Promise<Category | null> {
-	return publicGet<Category>(`/categories/${slug}`, {
-		revalidate: TTL.categoryTree,
-		tags: [`category:${slug}`],
-		locale,
-	});
-}
+import { type Category, fetchCategory } from "./data";
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
 	const { locale, "category-slug": slug } = await params;
