@@ -12,5 +12,9 @@ export function normalizePhoneE164(input: string): string | null {
   const trimmed = input.trim().replace(/[\s()-]/g, "");
   const localMatch = trimmed.match(UAE_LOCAL_MOBILE_RE);
   const normalized = localMatch ? `+971${localMatch[1]}` : trimmed;
-  return E164_RE.test(normalized) ? normalized : null;
+  if (!E164_RE.test(normalized)) return null;
+  // UAE numbers have 8 (landline) or 9 (mobile) digits after +971. A doubled
+  // dial code ("+971971…") is valid E.164 by shape but not a real number.
+  if (normalized.startsWith("+971") && !/^\+971\d{8,9}$/.test(normalized)) return null;
+  return normalized;
 }

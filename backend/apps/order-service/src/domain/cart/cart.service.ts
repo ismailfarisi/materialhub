@@ -235,6 +235,21 @@ export class CartService {
         item.unit_price = resolved.unitPrice;
         item.original_unit_price = resolved.unitPrice;
       }
+      // Same stock check as addItem: raising a line's quantity must not put
+      // more units in the cart than the supplier has (61 of 60 was accepted).
+      if (quantity > item.quantity) {
+        const inventory = await this.inventoryRepo.findOne({
+          where: {
+            product_id: item.product_id,
+            vendor_id: item.vendor_id,
+            variant_id: item.variant_id ?? IsNull(),
+          } as any,
+        });
+        const available = (inventory?.quantity_on_hand ?? 0) - (inventory?.quantity_reserved ?? 0);
+        if (available < quantity) {
+          throw new BadRequestError(`Only ${Math.max(0, available)} units available`);
+        }
+      }
       item.quantity = quantity;
       item.line_total = item.unit_price * quantity;
       await this.cartItemRepo.save(item);

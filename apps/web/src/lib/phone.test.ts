@@ -2,6 +2,14 @@ import { describe, expect, it } from "vitest";
 import { toLocalUaeDigits, toUaeE164 } from "./phone";
 
 describe("toUaeE164", () => {
+  it("does not double the country code for a typed or autofilled full number", () => {
+    expect(toUaeE164("+971 50 123 4567")).toBe("+971501234567");
+    expect(toUaeE164("00971501234567")).toBe("+971501234567");
+    expect(toUaeE164("971501234567")).toBe("+971501234567");
+    // An 8-digit Fujairah landline starting 9-71… is a local number.
+    expect(toUaeE164("97123456")).toBe("+97197123456");
+  });
+
   it("prefixes +971 onto local digits", () => {
     expect(toUaeE164("501234567")).toBe("+971501234567");
   });

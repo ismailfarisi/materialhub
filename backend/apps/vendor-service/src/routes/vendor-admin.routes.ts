@@ -9,11 +9,21 @@ import { HttpError, auditPlugin } from "@materialhub/plugins";
 import { Elysia, t } from "elysia";
 import { container } from "../container.ts";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export const vendorAdminRoutes = new Elysia({ prefix: "/admin/vendors" })
   .use(container)
   .use(jwtAuth)
   .use(requireRole("admin", "super_admin"))
   .use(auditPlugin)
+  // Every /:id here is a vendor uuid; a malformed one (e.g. "undefined" from a
+  // UI bug) reached Postgres and 500ed (22P02). Answer it as not found.
+  .onBeforeHandle(({ params }) => {
+    const id = (params as { id?: string } | undefined)?.id;
+    if (id !== undefined && !UUID_RE.test(id)) {
+      throw new HttpError(404, "Vendor not found", "VENDOR_NOT_FOUND");
+    }
+  })
   .onError({ as: "scoped" }, ({ error, set }) => {
     if (error instanceof HttpError) {
       set.status = error.statusCode;

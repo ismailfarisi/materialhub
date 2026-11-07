@@ -12,6 +12,7 @@ import {
   type VendorOrder,
   Warehouse,
 } from "@materialhub/database";
+import { HttpError } from "@materialhub/plugins";
 import type { Queue } from "bullmq";
 // order-creation.service.ts
 import { type EntityManager, In, IsNull, type Repository } from "typeorm";
@@ -366,7 +367,17 @@ export class OrderCreationService {
               // Verify stock is still available
               const available = inventory.quantity_on_hand - inventory.quantity_reserved;
               if (available < item.quantity) {
-                throw new Error(`Insufficient stock for product ${item.product_id}`);
+                // A clean 409 the checkout can show ("only N left"), not a 500.
+                throw new HttpError(
+                  409,
+                  `Only ${Math.max(0, available)} of this item are available`,
+                  "INSUFFICIENT_STOCK",
+                  {
+                    product_id: item.product_id,
+                    variant_id: item.variant_id ?? null,
+                    available: Math.max(0, available),
+                  },
+                );
               }
 
               // Reserve inventory
