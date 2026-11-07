@@ -8,7 +8,7 @@ import { User } from "../entities/user.entity.ts";
 import { Warehouse } from "../entities/warehouse.entity.ts";
 import { UserRole, UserStatus } from "../enums/user.enums.ts";
 import { seedEcoCatalogue } from "./eco-catalogue.seed.ts";
-import { seedPaymentMethodThresholds, seedRolePermissions } from "./reference-data.seed.ts";
+import { seedReferenceData } from "./reference-data.seed.ts";
 
 async function seed() {
   const ds = await AppDataSource.initialize();
@@ -178,13 +178,11 @@ async function seed() {
     console.log("  – Categories already seeded, skipping");
   }
 
-  // ── Payment method thresholds (Tabby, Tamara, COD) ─────────────
-  // Per provider, so a DB seeded before COD was added still gets its row.
-  await seedPaymentMethodThresholds(ds);
-
-  // ── Vendor role → permission matrix ─────────────────────────────
-  // Without it every vendorMembership(...)-guarded route 403s, owners included.
-  await seedRolePermissions(ds);
+  // ── Reference data (shared with the RestoreReferenceData migration) ─
+  // Permission matrix, payment thresholds incl. COD, sales channels, section
+  // types + vendor storefront template, platform shipping, feature settings.
+  // After the users block: the storefront template is owned by the super_admin.
+  await seedReferenceData(ds);
 
   // ── Tax rates (UAE VAT) ─────────────────────────────────────────
   const taxRepo = ds.getRepository(TaxRate);
