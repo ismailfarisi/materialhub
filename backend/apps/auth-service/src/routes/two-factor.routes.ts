@@ -126,7 +126,7 @@ export const twoFactorRoutes = new Elysia({ prefix: "/auth" })
     "/2fa/login-verify",
     async ({ body, accessJwt, request, cookie, twoFactorController, audit }) => {
       const result = await twoFactorController.loginVerify(
-        body.user_id,
+        body.challenge_token,
         body.code,
         getDeviceInfo(request),
       );
@@ -150,14 +150,14 @@ export const twoFactorRoutes = new Elysia({ prefix: "/auth" })
     },
     {
       body: t.Object({
-        user_id: t.String({ format: "uuid" }),
+        challenge_token: t.String({ minLength: 1 }),
         code: t.String({ minLength: 6, maxLength: 6 }),
       }),
       detail: {
         tags: ["Auth - 2FA"],
         summary: "Verify TOTP code during login",
         description:
-          "Complete login by verifying the TOTP code after password authentication. Returns JWT tokens on success.",
+          "Complete login with the challenge_token returned by /auth/login and a TOTP code. Returns JWT tokens on success.",
       },
     },
   )
@@ -167,7 +167,7 @@ export const twoFactorRoutes = new Elysia({ prefix: "/auth" })
     "/2fa/backup-verify",
     async ({ body, accessJwt, request, cookie, twoFactorController, audit }) => {
       const result = await twoFactorController.backupVerify(
-        body.user_id,
+        body.challenge_token,
         body.code,
         getDeviceInfo(request),
       );
@@ -191,7 +191,7 @@ export const twoFactorRoutes = new Elysia({ prefix: "/auth" })
     },
     {
       body: t.Object({
-        user_id: t.String({ format: "uuid" }),
+        challenge_token: t.String({ minLength: 1 }),
         code: t.String({ minLength: 1 }),
       }),
       detail: {

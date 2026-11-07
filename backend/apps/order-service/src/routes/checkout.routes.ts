@@ -281,7 +281,8 @@ export const checkoutRoutes = new Elysia({ prefix: "/checkout" })
     {
       body: t.Object({
         order_id: t.String({ format: "uuid" }),
-        amount: t.Integer(),
+        // Accepted for older clients and ignored: the order's total is used.
+        amount: t.Optional(t.Integer()),
       }),
     },
   )

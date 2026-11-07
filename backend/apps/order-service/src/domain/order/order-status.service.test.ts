@@ -4,23 +4,52 @@ import { OrderStatus } from "@materialhub/database/src/enums/order.enums.ts";
 import { In } from "typeorm";
 import { OrderStatusService } from "./order-status.service.ts";
 
+/**
+ * cancelOrder locks the order row through a query builder and reads/closes
+ * inventory reservations with raw SQL. Give a test's fake transaction manager
+ * both: the locking `getOne` returns whatever that repo's `findOne` returns,
+ * and `query` returns no reservations (an order created before reservation
+ * rows were recorded, which takes the per-order-item release path).
+ */
+function withLocking(tx: any) {
+  const wrap = (repo: any) => {
+    if (!repo || repo.createQueryBuilder) return repo;
+    const qb: any = {
+      setLock: () => qb,
+      where: () => qb,
+      getOne: () => (repo.findOne ? repo.findOne() : Promise.resolve(null)),
+    };
+    return { ...repo, createQueryBuilder: () => qb };
+  };
+  const getRepository = tx.getRepository;
+  return {
+    ...tx,
+    query:
+      tx.query ??
+      mock((sql: string) => Promise.resolve(sql.includes("count(*)") ? [{ count: 0 }] : [])),
+    getRepository: getRepository ? (name: string) => wrap(getRepository(name)) : undefined,
+  };
+}
+
 describe("OrderStatusService", () => {
   const mockOrderRepo = {
     findOne: mock(() => Promise.resolve(null)),
     save: mock((entity: any) => Promise.resolve(entity)),
     manager: {
       transaction: mock(async (cb: any) =>
-        cb({
-          findOne: mock(() => Promise.resolve(null)),
-          save: mock((entity: any) => Promise.resolve(entity)),
-          create: mock((_Entity: any, data: any) => data),
-          getRepository: mock(() => ({
+        cb(
+          withLocking({
             findOne: mock(() => Promise.resolve(null)),
-            save: mock((e: any) => Promise.resolve(e)),
-            find: mock(() => Promise.resolve([])),
-            create: mock((data: any) => data),
-          })),
-        }),
+            save: mock((entity: any) => Promise.resolve(entity)),
+            create: mock((_Entity: any, data: any) => data),
+            getRepository: mock(() => ({
+              findOne: mock(() => Promise.resolve(null)),
+              save: mock((e: any) => Promise.resolve(e)),
+              find: mock(() => Promise.resolve([])),
+              create: mock((data: any) => data),
+            })),
+          }),
+        ),
       ),
     },
   };
@@ -74,7 +103,7 @@ describe("OrderStatusService", () => {
             findOne: mock(() => Promise.resolve(null)),
           })),
         };
-        return cb(txManager);
+        return cb(withLocking(txManager));
       });
       await expect(
         service.cancelOrder("order-1", { userId: "u1", role: "buyer" as const }, "changed mind"),
@@ -86,14 +115,19 @@ describe("OrderStatusService", () => {
         const txManager = {
           getRepository: mock(() => ({
             findOne: mock(() =>
-              Promise.resolve({ id: "order-1", status: OrderStatus.processing, vendorOrders: [] }),
+              Promise.resolve({
+                id: "order-1",
+                user_id: "u1",
+                status: OrderStatus.processing,
+                vendorOrders: [],
+              }),
             ),
             find: mock(() => Promise.resolve([])),
             save: mock((e: any) => Promise.resolve(e)),
             create: mock((data: any) => data),
           })),
         };
-        return cb(txManager);
+        return cb(withLocking(txManager));
       });
       await expect(
         service.cancelOrder("order-1", { userId: "u1", role: "buyer" as const }, "changed mind"),
@@ -142,7 +176,7 @@ describe("OrderStatusService", () => {
             throw new Error(`Unexpected repo ${name}`);
           }),
         };
-        return cb(txManager);
+        return cb(withLocking(txManager));
       });
 
       await expect(
@@ -171,6 +205,7 @@ describe("OrderStatusService", () => {
                 findOne: mock(() =>
                   Promise.resolve({
                     id: "order-1",
+                    user_id: "u1",
                     status: OrderStatus.confirmed,
                     vendorOrders: [{ id: "vo-1", status: OrderStatus.confirmed }],
                   }),
@@ -197,7 +232,7 @@ describe("OrderStatusService", () => {
             throw new Error(`Unexpected repo ${name}`);
           }),
         };
-        return cb(txManager);
+        return cb(withLocking(txManager));
       });
 
       await service.cancelOrder(
@@ -284,7 +319,7 @@ describe("OrderStatusService", () => {
             throw new Error(`Unexpected repo ${name}`);
           }),
         };
-        return cb(txManager);
+        return cb(withLocking(txManager));
       });
 
       await service.cancelOrder(
@@ -367,7 +402,7 @@ describe("OrderStatusService", () => {
               throw new Error(`Unexpected repo ${name}`);
             }),
           };
-          return cb(txManager);
+          return cb(withLocking(txManager));
         });
 
         await wiredService.cancelOrder(
@@ -463,7 +498,7 @@ describe("OrderStatusService", () => {
               throw new Error(`Unexpected repo ${name}`);
             }),
           };
-          return cb(txManager);
+          return cb(withLocking(txManager));
         });
 
         await expect(
@@ -534,7 +569,7 @@ describe("OrderStatusService", () => {
               throw new Error(`Unexpected repo ${name}`);
             }),
           };
-          return cb(txManager);
+          return cb(withLocking(txManager));
         });
 
         await expect(
@@ -664,7 +699,7 @@ describe("OrderStatusService", () => {
             throw new Error(`Unexpected repo ${name}`);
           }),
         };
-        return cb(txManager);
+        return cb(withLocking(txManager));
       });
 
       await service.transitionVendorOrder(
@@ -1135,7 +1170,7 @@ describe("OrderStatusService", () => {
             throw new Error(`Unexpected repo ${name}`);
           }),
         };
-        return cb(txManager);
+        return cb(withLocking(txManager));
       });
 
       await service.cancelOrder(
@@ -1197,7 +1232,7 @@ describe("OrderStatusService", () => {
             throw new Error(`Unexpected repo ${name}`);
           }),
         };
-        return cb(txManager);
+        return cb(withLocking(txManager));
       });
 
       await service.transitionVendorOrder("vo-1", OrderStatus.shipped, {
@@ -1223,6 +1258,7 @@ describe("OrderStatusService", () => {
                 findOne: mock(() =>
                   Promise.resolve({
                     id: "order-1",
+                    user_id: "11111111-2222-4333-8444-555555555555",
                     status: OrderStatus.pending_payment,
                     vendorOrders: [],
                   }),
@@ -1250,7 +1286,7 @@ describe("OrderStatusService", () => {
             throw new Error(`Unexpected repo ${name}`);
           }),
         };
-        return cb(txManager);
+        return cb(withLocking(txManager));
       });
 
       await service.cancelOrder("order-1", { userId, role: "buyer" as const }, "changed mind");

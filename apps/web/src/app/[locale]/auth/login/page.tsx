@@ -6,13 +6,14 @@ import { PhoneAuthForm } from "@/components/auth/phone-auth-form";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
+import { safeReturnTo } from "@/lib/safe-return-to";
 
 function LoginContent() {
 	const t = useTranslations("auth");
 	const locale = useLocale();
 	const router = useRouter();
 	const searchParams = useSearchParams();
-	const returnTo = searchParams.get("returnTo") || `/${locale}`;
+	const returnTo = safeReturnTo(searchParams.get("returnTo"), `/${locale}`);
 	const [method, setMethod] = useState<AuthMethod>(searchParams.get("method") === "email" ? "email" : "phone");
 
 	const onAuthenticated = () => router.push(returnTo);

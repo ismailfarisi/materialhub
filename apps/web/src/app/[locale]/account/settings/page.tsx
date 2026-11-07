@@ -40,7 +40,10 @@ export default function SettingsPage() {
 							e.preventDefault();
 							setProfileMsg(null);
 							try {
-								await updateProfile.mutateAsync(profile);
+								await updateProfile.mutateAsync({
+									first_name: profile.first_name,
+									last_name: profile.last_name,
+								});
 								setProfileMsg({ text: t("profileSaved"), ok: true });
 							} catch (err) {
 								setProfileMsg({ text: apiErrorMessage(err, tCommon("error")), ok: false });
@@ -77,7 +80,10 @@ export default function SettingsPage() {
 									type="email"
 									autoComplete="email"
 									value={profile.email}
-									onChange={(e) => setProfile({ ...profile, email: e.target.value })}
+									// Email changes need a verified flow the API doesn't offer yet;
+									// show it, don't pretend it can be saved.
+									readOnly
+									aria-readonly="true"
 								/>
 							)}
 						</Field>

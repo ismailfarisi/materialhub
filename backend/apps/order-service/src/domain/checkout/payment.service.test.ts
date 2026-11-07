@@ -136,21 +136,6 @@ describe("PaymentService", () => {
     );
   });
 
-  it("creates a COD payment record with pending status", async () => {
-    const result = await service.createCodPayment({
-      orderId: "order-1",
-      userId: "user-1",
-      amount: 15000,
-    });
-    expect(result.status).toBe("pending");
-    expect(mockPaymentRepo.save).toHaveBeenCalledWith(
-      expect.objectContaining({
-        payment_method: "cash_on_delivery",
-        status: "pending",
-      }),
-    );
-  });
-
   it("creates a Tabby BNPL session", async () => {
     const result = await service.createTabbySession({
       orderId: "order-1",

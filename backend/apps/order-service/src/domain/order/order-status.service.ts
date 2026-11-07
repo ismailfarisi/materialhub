@@ -4,6 +4,7 @@ import type { VendorOrder } from "@materialhub/database";
 import type { OrderStatusHistory } from "@materialhub/database";
 import { CommissionStatus } from "@materialhub/database";
 import { OrderStatus } from "@materialhub/database/src/enums/order.enums.ts";
+import { HttpError } from "@materialhub/plugins";
 import type { Queue } from "bullmq";
 import { In, IsNull, Not, type Repository } from "typeorm";
 import type { DraftInvalidator } from "../commission/commission-reversal.service.ts";
@@ -452,13 +453,32 @@ export class OrderStatusService {
         "OrderStatusHistory" as any,
       ) as Repository<OrderStatusHistory>;
 
-      const order = await orderRepo.findOne({
+      // Lock the order row first: two concurrent cancels must not both pass
+      // the status check and release the same stock twice. (FOR UPDATE can't
+      // be combined with the outer join `relations` would add.)
+      const locked = await orderRepo
+        .createQueryBuilder("o")
+        .setLock("pessimistic_write")
+        .where("o.id = :orderId", { orderId })
+        .getOne();
+      // A buyer may only cancel their own order; anything else is the same
+      // 404 as an unknown id (no existence oracle).
+      if (!locked || (actor.role === "buyer" && (locked as any).user_id !== actor.userId)) {
+        throw new HttpError(404, "Order not found", "ORDER_NOT_FOUND");
+      }
+      const order = (await orderRepo.findOne({
         where: { id: orderId } as any,
         relations: ["vendorOrders"],
-      });
-      if (!order) throw new Error("Order not found");
+      })) as Order;
 
-      this.stateMachine.validateMasterTransition(order.status, OrderStatus.cancelled, actor.role);
+      const transition = this.stateMachine.validateMasterTransition(
+        order.status,
+        OrderStatus.cancelled,
+        actor.role,
+      );
+      // Already cancelled: nothing to do. Releasing again would decrement
+      // reserved stock a second time and write a cancelled→cancelled row.
+      if (transition.noop) return null;
 
       const fromStatus = order.status;
       order.status = OrderStatus.cancelled;
@@ -591,25 +611,57 @@ export class OrderStatusService {
         }
       }
 
-      // Release reserved inventory for each order_item.
+      // Release the stock this order still holds. The reservation rows are the
+      // ledger: release what is `active`/`committed` and close those rows. Rows
+      // already `expired` were released by the reservation-expiry job (e.g. an
+      // abandoned checkout the reaper cancels later), so releasing per order
+      // item would free the same stock twice.
       if (this.inventoryRepo) {
-        const orderItemRepo = tx.getRepository("OrderItem" as any) as Repository<OrderItem>;
-        const orderItems = await orderItemRepo.find({
-          where: { order_id: orderId } as any,
-        });
-
         const inventoryRepo = tx.getRepository("Inventory" as any) as Repository<Inventory>;
-        for (const oi of orderItems) {
-          const where: any = {
-            product_id: (oi as any).product_id,
-            vendor_id: (oi as any).vendor_id,
-          };
-          if ((oi as any).variant_id) where.variant_id = (oi as any).variant_id;
-          const inv = await inventoryRepo.findOne({ where });
-          if (inv) {
-            const release = Math.min(inv.quantity_reserved, (oi as any).quantity);
-            inv.quantity_reserved = Math.max(0, inv.quantity_reserved - release);
-            await inventoryRepo.save(inv);
+        const held: Array<{ id: string; inventory_id: string; quantity: number }> = await tx.query(
+          `SELECT id, inventory_id, quantity FROM inventory_reservations
+            WHERE order_id = $1 AND status IN ('active', 'committed') FOR UPDATE`,
+          [orderId],
+        );
+        const [{ count: anyReservation }] = await tx.query(
+          "SELECT count(*)::int AS count FROM inventory_reservations WHERE order_id = $1",
+          [orderId],
+        );
+
+        if (held.length > 0) {
+          for (const r of held) {
+            const inv = await inventoryRepo
+              .createQueryBuilder("inv")
+              .setLock("pessimistic_write")
+              .where("inv.id = :id", { id: r.inventory_id })
+              .getOne();
+            if (inv) {
+              inv.quantity_reserved = Math.max(0, inv.quantity_reserved - Number(r.quantity));
+              await inventoryRepo.save(inv);
+            }
+          }
+          await tx.query(
+            `UPDATE inventory_reservations SET status = 'released', released_at = now()
+              WHERE id = ANY($1::uuid[])`,
+            [held.map((r) => r.id)],
+          );
+        } else if (anyReservation === 0) {
+          // Orders without reservation rows (created before reservations were
+          // recorded): fall back to releasing per order item.
+          const orderItemRepo = tx.getRepository("OrderItem" as any) as Repository<OrderItem>;
+          const orderItems = await orderItemRepo.find({ where: { order_id: orderId } as any });
+          for (const oi of orderItems) {
+            const where: any = {
+              product_id: (oi as any).product_id,
+              vendor_id: (oi as any).vendor_id,
+            };
+            if ((oi as any).variant_id) where.variant_id = (oi as any).variant_id;
+            const inv = await inventoryRepo.findOne({ where });
+            if (inv) {
+              const release = Math.min(inv.quantity_reserved, (oi as any).quantity);
+              inv.quantity_reserved = Math.max(0, inv.quantity_reserved - release);
+              await inventoryRepo.save(inv);
+            }
           }
         }
       }
@@ -640,6 +692,10 @@ export class OrderStatusService {
 
       return order;
     });
+    // Repeat cancel: return the order as it is, and run no hooks.
+    if (!cancelled) {
+      return (await this.orderRepo.findOne({ where: { id: orderId } as any })) as Order;
+    }
     // Post-commit hooks (workstream 3: release net-terms credit held by an
     // unpaid order). Best-effort; never undoes the committed cancellation.
     for (const hook of this.cancellationHooks) {

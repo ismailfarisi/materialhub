@@ -102,22 +102,65 @@ export class PaymentService {
     return { clientSecret: pi.client_secret!, paymentIntentId: pi.id };
   }
 
+  /**
+   * Commit a pending order to cash on delivery.
+   *
+   * Runs in one transaction with the order row locked, so it is safe to call
+   * twice (double click, retry): the second call finds the COD payment row and
+   * returns `idempotent: true`, and the caller skips the side effects.
+   * - Another user's order is a 404 (no existence oracle), like net terms.
+   * - The amount comes from the order's grand_total; a client-supplied amount
+   *   is never trusted.
+   * - The order moves to `confirmed` (cash is collected at delivery, where
+   *   order-status.service captures the payment) and its inventory
+   *   reservations are committed, so the reservation-expiry job cannot release
+   *   stock held by a live COD order.
+   */
   async createCodPayment(data: {
     orderId: string;
     userId: string;
-    amount: number;
-  }): Promise<{ status: string }> {
-    await this.paymentRepo.save({
-      order_id: data.orderId,
-      user_id: data.userId,
-      status: "pending",
-      payment_method: "cash_on_delivery",
-      amount: data.amount,
-      currency: "AED",
-      gateway: "cod",
-    } as any);
+  }): Promise<{ status: string; idempotent: boolean }> {
+    return this.paymentRepo.manager.transaction(async (m) => {
+      const [order] = await m.query(
+        `SELECT id, user_id, status, payment_status, grand_total
+           FROM orders WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
+        [data.orderId],
+      );
+      if (!order || order.user_id !== data.userId) {
+        throw new HttpError(404, "Order not found", "ORDER_NOT_FOUND");
+      }
 
-    return { status: "pending" };
+      const [existing] = await m.query(
+        `SELECT id FROM payments WHERE order_id = $1 AND gateway = 'cod'
+            AND deleted_at IS NULL LIMIT 1`,
+        [data.orderId],
+      );
+      if (existing) return { status: "pending", idempotent: true };
+
+      if (order.status !== OrderStatus.pending_payment || order.payment_status === "captured") {
+        throw new HttpError(409, "This order can no longer be paid", "ORDER_NOT_PAYABLE");
+      }
+
+      await m.query(
+        `INSERT INTO payments (order_id, user_id, status, payment_method, amount, currency, gateway)
+         VALUES ($1, $2, 'pending', 'cash_on_delivery', $3, 'AED', 'cod')`,
+        [data.orderId, data.userId, Number(order.grand_total)],
+      );
+      await m.query(`UPDATE orders SET status = 'confirmed', updated_at = now() WHERE id = $1`, [
+        data.orderId,
+      ]);
+      await m.query(
+        `UPDATE inventory_reservations SET status = 'committed', committed_at = now()
+          WHERE order_id = $1 AND status = 'active'`,
+        [data.orderId],
+      );
+      await m.query(
+        `INSERT INTO order_status_history (order_id, from_status, to_status, changed_by_role, is_customer_visible, comment)
+         VALUES ($1, 'pending_payment', 'confirmed', 'buyer', true, 'Cash on delivery selected')`,
+        [data.orderId],
+      );
+      return { status: "pending", idempotent: false };
+    });
   }
 
   async createTabbySession(data: {

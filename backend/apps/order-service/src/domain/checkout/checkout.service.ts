@@ -387,10 +387,11 @@ export class CheckoutService {
     // `undefined` silently reaching a payment gateway or NOT NULL column.
     switch (paymentMethod) {
       case "cash_on_delivery": {
-        if (amount === undefined) {
-          throw new BadRequestError("amount is required for cash_on_delivery payments");
-        }
-        const result = await this.paymentService.createCodPayment({ orderId, userId, amount });
+        // `amount` is ignored: the order's own grand_total is what the courier
+        // collects (see PaymentService.createCodPayment).
+        const result = await this.paymentService.createCodPayment({ orderId, userId });
+        // A repeat call (double submit, retry) must not redo the side effects.
+        if (result.idempotent) return result;
         // COD has no async webhook; the customer is committed the moment they
         // pick COD. Count the coupon redemption and drain the cart now.
         // Prepaid providers (Stripe today, Tabby / Tamara tomorrow) do both

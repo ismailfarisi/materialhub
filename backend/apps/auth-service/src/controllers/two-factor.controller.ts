@@ -1,7 +1,8 @@
 import { UserStatus } from "@materialhub/database";
-import { BadRequestError, HttpError } from "@materialhub/plugins";
+import { HttpError } from "@materialhub/plugins";
 import type { DeviceInfo } from "../domain/types.ts";
 import type { AuthService } from "../services/auth.service.ts";
+import { verifyWithChallenge } from "../services/two-factor-challenge.ts";
 import type { TwoFactorService } from "../services/two-factor.service.ts";
 
 export class TwoFactorController {
@@ -31,22 +32,20 @@ export class TwoFactorController {
     return { message: "2FA has been disabled successfully." };
   }
 
-  async loginVerify(userId: string, code: string, deviceInfo: DeviceInfo) {
-    const valid = await this.twoFactorService.verifyCode(userId, code);
-    if (!valid) {
-      throw new BadRequestError("Invalid TOTP code");
-    }
+  async loginVerify(challengeToken: string, code: string, deviceInfo: DeviceInfo) {
+    const userId = await verifyWithChallenge(challengeToken, code, (uid, c) =>
+      this.twoFactorService.verifyCode(uid, c),
+    );
     const user = await this.authService.getUserById(userId);
     this.assertNotSuspended(user);
     const session = await this.authService.createSession(user.id as string, deviceInfo);
     return { user, refreshToken: session.refreshToken };
   }
 
-  async backupVerify(userId: string, code: string, deviceInfo: DeviceInfo) {
-    const valid = await this.twoFactorService.verifyBackupCode(userId, code);
-    if (!valid) {
-      throw new BadRequestError("Invalid backup code");
-    }
+  async backupVerify(challengeToken: string, code: string, deviceInfo: DeviceInfo) {
+    const userId = await verifyWithChallenge(challengeToken, code, (uid, c) =>
+      this.twoFactorService.verifyBackupCode(uid, c),
+    );
     const user = await this.authService.getUserById(userId);
     this.assertNotSuspended(user);
     const session = await this.authService.createSession(user.id as string, deviceInfo);

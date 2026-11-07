@@ -62,10 +62,27 @@ describe("OrderCreationService", () => {
     );
   });
 
-  it("generates order number in FKS-YYYY-NNNNNN format", async () => {
-    (mockOrderRepo as any).query = mock(() => Promise.resolve([{ seq: 42 }]));
-    const num = await (service as any).generateOrderNumber();
-    expect(num).toMatch(/^FKS-\d{4}-\d{6}$/);
+  it("generates order number in MH-YYYY-NNNNNN format from order_number_seq", async () => {
+    const original = (mockOrderRepo as any).query;
+    const query = mock(() => Promise.resolve([{ seq: 42 }]));
+    (mockOrderRepo as any).query = query;
+    try {
+      const num = await (service as any).generateOrderNumber();
+      expect(num).toBe(`MH-${new Date().getFullYear()}-000042`);
+      expect((query.mock.calls[0] as unknown as string[])[0]).toContain("order_number_seq");
+    } finally {
+      (mockOrderRepo as any).query = original;
+    }
+  });
+
+  it("fails loudly instead of falling back to a clock-derived number", async () => {
+    const original = (mockOrderRepo as any).query;
+    (mockOrderRepo as any).query = mock(() => Promise.resolve([{ seq: null }]));
+    try {
+      await expect((service as any).generateOrderNumber()).rejects.toThrow();
+    } finally {
+      (mockOrderRepo as any).query = original;
+    }
   });
 
   it("splits cart items by vendor into vendor_orders", async () => {

@@ -7,6 +7,7 @@ import { Elysia, t } from "elysia";
 import { container } from "../container.ts";
 import { getDeviceInfo, requireAuth, tokenResponse } from "../domain/types.ts";
 import { issueAccessToken } from "../services/token-issuance.service.ts";
+import { issueTwoFactorChallenge } from "../services/two-factor-challenge.ts";
 import {
   clearAuthCookies,
   getAccessTokenFromCookie,
@@ -102,7 +103,12 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
         return {
           statusCode: 200,
           message: "2FA verification required",
-          data: { requires_2fa: true, user_id: result.user_id },
+          // The challenge proves the password step; the verify endpoints
+          // require it (a bare user id is not enough to finish a login).
+          data: {
+            requires_2fa: true,
+            challenge_token: issueTwoFactorChallenge(result.user_id as string),
+          },
           timestamp: new Date().toISOString(),
         };
       }
@@ -512,6 +518,44 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
       timestamp: new Date().toISOString(),
     };
   })
+
+  // ─── Update own profile (requires auth) ─────────────────────────
+  // Name only: email and phone change through their own verified flows.
+  .patch(
+    "/me",
+    async ({ bearer: bearerToken, accessJwt, cookie, request, body, authController }) => {
+      const authUser = await requireAuth(
+        bearerToken,
+        accessJwt,
+        getAccessTokenFromCookie(cookie, request),
+      );
+      const patch: { first_name?: string; last_name?: string } = {};
+      if (body.first_name !== undefined) patch.first_name = body.first_name.trim();
+      if (body.last_name !== undefined) patch.last_name = body.last_name.trim();
+      if (patch.first_name === "" || patch.last_name === "") {
+        throw new HttpError(400, "Name can't be empty", "VALIDATION");
+      }
+      if (Object.keys(patch).length > 0) {
+        await AppDataSource.getRepository(User).update({ id: authUser.id }, patch);
+      }
+      const result = await authController.getMe(authUser.id);
+      return {
+        statusCode: 200,
+        message: "Profile updated",
+        data: result,
+        timestamp: new Date().toISOString(),
+      };
+    },
+    {
+      body: t.Object(
+        {
+          first_name: t.Optional(t.String({ maxLength: 100 })),
+          last_name: t.Optional(t.String({ maxLength: 100 })),
+        },
+        { additionalProperties: false },
+      ),
+    },
+  )
 
   // ─── Wallet balance (requires auth) ────────────────────────────
   .get("/me/wallet", async ({ bearer: bearerToken, accessJwt, cookie, request }) => {

@@ -2,6 +2,7 @@
 
 import { Skeleton } from "@/components/account/account-ui";
 import { useRequireAuth } from "@/hooks/use-require-auth";
+import { useLogout } from "@/lib/queries/auth";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth";
 import {
@@ -10,6 +11,7 @@ import {
 	Heart,
 	LayoutGrid,
 	LifeBuoy,
+	LogOut,
 	type LucideIcon,
 	MapPin,
 	Package,
@@ -20,7 +22,7 @@ import {
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 
 interface NavItem {
@@ -60,6 +62,11 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
 	const { user } = useAuthStore();
 	const { isReady } = useRequireAuth();
 	const tabsRef = useRef<HTMLDivElement>(null);
+	const tCommon = useTranslations("common");
+	const router = useRouter();
+	const logout = useLogout();
+	const signOut = () =>
+		logout.mutate(undefined, { onSettled: () => router.push(`/${locale}`) });
 
 	const isActive = (item: NavItem) => {
 		const full = `/${locale}${item.href}`;
@@ -131,6 +138,15 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
 								})}
 							</ul>
 						</nav>
+						<button
+							type="button"
+							onClick={signOut}
+							disabled={logout.isPending}
+							className="flex h-10 items-center gap-3 rounded-md px-3 text-start text-sm text-nl-russet transition-colors hover:bg-nl-cacao/[0.05] hover:text-nl-cacao disabled:opacity-60"
+						>
+							<LogOut className="h-4 w-4 shrink-0 rtl:-scale-x-100" strokeWidth={1.75} aria-hidden="true" />
+							<span className="truncate">{tCommon("logout")}</span>
+						</button>
 					</div>
 				</aside>
 
@@ -157,6 +173,14 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
 									</Link>
 								);
 							})}
+							<button
+								type="button"
+								onClick={signOut}
+								disabled={logout.isPending}
+								className="relative flex h-11 shrink-0 items-center whitespace-nowrap px-3 text-sm text-nl-russet transition-colors hover:text-nl-cacao disabled:opacity-60"
+							>
+								{tCommon("logout")}
+							</button>
 						</div>
 					</nav>
 
