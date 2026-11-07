@@ -131,6 +131,13 @@ export function isPublicRoute(path: string, method: string): boolean {
   // Public open-brief board (GET /reels/briefs/open) — non-sensitive fields only.
   // CMS public routes
   if (path.startsWith("/layouts/")) return true;
+  // Published CMS pages, active banners and allow-listed public settings.
+  // The handlers filter (published / is_active / PUBLIC_SETTING_KEYS); the
+  // admin list (GET /pages/) and /pages/admin/:id stay authenticated.
+  if (isRead && path === "/pages/published") return true;
+  if (isRead && /^\/pages\/(?!admin$)[^/]+$/.test(path)) return true;
+  if (isRead && path === "/banners/active") return true;
+  if (isRead && path === "/settings/public") return true;
   // Header navigation (public mega-menu data)
   if (path === "/navigation/header" || path.startsWith("/navigation/header")) return true;
   // Newsletter — token unsubscribe link from marketing emails (no user context
