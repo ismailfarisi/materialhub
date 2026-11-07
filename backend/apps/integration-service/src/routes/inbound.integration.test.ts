@@ -96,15 +96,18 @@ describe("POST /integrations/inbound/:id/:event_type", () => {
   it("returns 401 on bad signature", async () => {
     const { app } = buildApp();
     const res = await app.handle(
-      new Request("http://localhost/integrations/inbound/5c8e2a14-7b3d-4e9f-a1c6-0d2b4f6e8a13/order.accept", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-signature": "sha256=deadbeef",
-          "x-timestamp": Math.floor(Date.now() / 1000).toString(),
+      new Request(
+        "http://localhost/integrations/inbound/5c8e2a14-7b3d-4e9f-a1c6-0d2b4f6e8a13/order.accept",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-signature": "sha256=deadbeef",
+            "x-timestamp": Math.floor(Date.now() / 1000).toString(),
+          },
+          body: JSON.stringify({ ext_id: "VO-1" }),
         },
-        body: JSON.stringify({ ext_id: "VO-1" }),
-      }),
+      ),
     );
     expect(res.status).toBe(401);
   });
@@ -115,15 +118,18 @@ describe("POST /integrations/inbound/:id/:event_type", () => {
     const ts = Math.floor(Date.now() / 1000).toString();
     const sig = `sha256=${sign(SECRET, ts, body)}`;
     const res = await app.handle(
-      new Request("http://localhost/integrations/inbound/5c8e2a14-7b3d-4e9f-a1c6-0d2b4f6e8a13/order.accept", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-signature": sig,
-          "x-timestamp": ts,
+      new Request(
+        "http://localhost/integrations/inbound/5c8e2a14-7b3d-4e9f-a1c6-0d2b4f6e8a13/order.accept",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-signature": sig,
+            "x-timestamp": ts,
+          },
+          body,
         },
-        body,
-      }),
+      ),
     );
     expect(res.status).toBe(200);
     expect(domainDispatch.call).toHaveBeenCalled();
@@ -132,11 +138,14 @@ describe("POST /integrations/inbound/:id/:event_type", () => {
   it("returns 503 when inbound flag is disabled", async () => {
     const { app } = buildApp({ flagEnabled: false });
     const res = await app.handle(
-      new Request("http://localhost/integrations/inbound/5c8e2a14-7b3d-4e9f-a1c6-0d2b4f6e8a13/order.accept", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ext_id: "VO-1" }),
-      }),
+      new Request(
+        "http://localhost/integrations/inbound/5c8e2a14-7b3d-4e9f-a1c6-0d2b4f6e8a13/order.accept",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ ext_id: "VO-1" }),
+        },
+      ),
     );
     expect(res.status).toBe(503);
   });
