@@ -68,16 +68,32 @@ describe("AiSettingsRepository.update — against real Postgres (skips if unavai
     }
     if (!AppDataSource.isInitialized) return;
 
-    const repo = new AiSettingsRepository();
-    // This call previously threw: "there is no unique or exclusion constraint
-    // matching the ON CONFLICT specification" against the partial-index schema.
-    const next = await repo.update({ enabled: true, prompt: "test prompt" }, USER_ID);
-    expect(next.enabled).toBe(true);
+    // updated_by is a FK to users: use a real user (skip on an empty DB), and
+    // put the setting back afterwards so a local run doesn't change dev data.
+    const [user] = await AppDataSource.query("SELECT id FROM users LIMIT 1");
+    if (!user) return;
+    const settings = AppDataSource.getRepository(SiteSetting);
+    const before = await settings.findOne({ where: { key: "ai_image_enhance" } });
 
-    const row = await AppDataSource.getRepository(SiteSetting).findOne({
-      where: { key: "ai_image_enhance" },
-    });
-    expect(row).not.toBeNull();
-    expect((JSON.parse(row!.value) as { enabled: boolean }).enabled).toBe(true);
+    try {
+      const repo = new AiSettingsRepository();
+      // This call previously threw: "there is no unique or exclusion constraint
+      // matching the ON CONFLICT specification" against the partial-index schema.
+      const next = await repo.update({ enabled: true, prompt: "test prompt" }, user.id);
+      expect(next.enabled).toBe(true);
+
+      const row = await settings.findOne({ where: { key: "ai_image_enhance" } });
+      expect(row).not.toBeNull();
+      expect((JSON.parse(row!.value) as { enabled: boolean }).enabled).toBe(true);
+    } finally {
+      if (before) {
+        await settings.update(
+          { key: "ai_image_enhance" },
+          { value: before.value, updated_by: before.updated_by } as any,
+        );
+      } else {
+        await settings.delete({ key: "ai_image_enhance" });
+      }
+    }
   });
 });

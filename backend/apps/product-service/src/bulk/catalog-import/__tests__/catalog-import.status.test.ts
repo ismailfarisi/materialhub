@@ -1,12 +1,13 @@
 import { describe, expect, test } from "bun:test";
+import { ProductStatus } from "@materialhub/database";
 import { coerceProductRow } from "../catalog-import.coerce.ts";
 import { importStatusFor } from "../catalog-import.write.ts";
 
 describe("catalog import status rules (no moderation bypass)", () => {
   test("new rows may be draft, pending_review or archived; default untouched", () => {
-    expect(importStatusFor(null, "draft")).toBe("draft");
-    expect(importStatusFor(null, "pending_review")).toBe("pending_review");
-    expect(importStatusFor(null, "archived")).toBe("archived");
+    expect(importStatusFor(null, "draft")).toBe(ProductStatus.draft);
+    expect(importStatusFor(null, "pending_review")).toBe(ProductStatus.pending_review);
+    expect(importStatusFor(null, "archived")).toBe(ProductStatus.archived);
     expect(importStatusFor(null, null)).toBeUndefined();
   });
 
@@ -18,8 +19,8 @@ describe("catalog import status rules (no moderation bypass)", () => {
   });
 
   test("a rejected product may be resubmitted; anything may be archived", () => {
-    expect(importStatusFor("rejected", "pending_review")).toBe("pending_review");
-    expect(importStatusFor("published", "archived")).toBe("archived");
+    expect(importStatusFor("rejected", "pending_review")).toBe(ProductStatus.pending_review);
+    expect(importStatusFor("published", "archived")).toBe(ProductStatus.archived);
   });
 
   test("'active' / 'published' are not accepted in the status column", () => {
