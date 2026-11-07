@@ -318,7 +318,7 @@ export class CommissionService {
     page?: number;
     limit?: number;
   }): Promise<{ data: Commission[]; total: number }> {
-    const page = query.page || 1;
+    const page = Math.max(1, Math.trunc(Number(query.page)) || 1);
     const limit = query.limit || 20;
     const where: any = {};
     if (query.vendorId) where.vendor_id = query.vendorId;

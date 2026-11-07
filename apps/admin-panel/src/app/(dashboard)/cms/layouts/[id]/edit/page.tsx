@@ -39,7 +39,10 @@ export default function LayoutEditPage() {
 
 	async function handlePreview(id: string) {
 		const { token, layout_slug } = await previewToken.mutateAsync(id);
-		const params = new URLSearchParams({ preview_token: token });
+		// The storefront resolves the home layout unless told which layout the
+		// token is for; without the slug every non-home layout previewed as
+		// the live homepage (same pattern as the bids page).
+		const params = new URLSearchParams({ preview_token: token, preview_layout_slug: layout_slug });
 		// Vendor-scoped layouts only resolve in vendor storefront context, so
 		// route the preview through /vendor/{slug}. For platform layouts use
 		// the matching storefront page.

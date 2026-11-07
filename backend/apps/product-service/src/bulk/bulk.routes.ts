@@ -146,7 +146,7 @@ export function buildBulkRoutes(
           const bulkAccess = ctx.bulkAccess ?? null;
           if (!bulkAccess) return unauth(set);
           const access = bulkAccess as BulkAccessHelper;
-          const page = query.page ?? 1;
+          const page = Math.max(1, Math.trunc(Number(query.page)) || 1);
           const pageSize = query.pageSize ?? 20;
           let callerVendorIdForScoping: string | null = null;
           if (
@@ -223,7 +223,7 @@ export function buildBulkRoutes(
             return { error: "not_found" };
           }
           await access.assertCanView(job);
-          const page = query.page ?? 1;
+          const page = Math.max(1, Math.trunc(Number(query.page)) || 1);
           const pageSize = query.pageSize ?? 50;
           const { items, total } = await service.getChanges(params.id, page, pageSize);
           return {

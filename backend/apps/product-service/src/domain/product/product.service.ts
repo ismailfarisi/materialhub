@@ -945,7 +945,7 @@ export class ProductService {
     sort?: string;
     order?: "asc" | "desc";
   }) {
-    const page = filters.page ?? 1;
+    const page = Math.max(1, Math.trunc(Number(filters.page)) || 1);
     const limit = Math.min(filters.limit ?? 20, 100);
     const skip = (page - 1) * limit;
     const qb = this.repo

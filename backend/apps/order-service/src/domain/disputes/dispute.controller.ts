@@ -43,7 +43,7 @@ export class DisputeController {
   async listMessages(disputeId: string, actor: Actor, query: PageQuery = {}) {
     await this.disputeService.assertParticipant(disputeId, actor.id, actor.role);
     const messages = await this.disputeService.getMessages(disputeId, actor.role);
-    const page = query.page || 1;
+    const page = Math.max(1, Math.trunc(Number(query.page)) || 1);
     const limit = query.limit || 20;
     const start = (page - 1) * limit;
     return {
@@ -68,7 +68,7 @@ export class DisputeController {
   async listVendorMessages(disputeId: string, vendorId: string, query: PageQuery = {}) {
     await this.disputeService.assertVendorParticipant(disputeId, vendorId);
     const messages = await this.disputeService.getMessages(disputeId, "vendor");
-    const page = query.page || 1;
+    const page = Math.max(1, Math.trunc(Number(query.page)) || 1);
     const limit = query.limit || 20;
     const start = (page - 1) * limit;
     return {

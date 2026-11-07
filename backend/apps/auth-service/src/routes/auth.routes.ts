@@ -587,7 +587,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
         accessJwt,
         getAccessTokenFromCookie(cookie, request),
       );
-      const page = query.page ? Number(query.page) : 1;
+      const page = Math.max(1, Math.trunc(Number(query.page)) || 1);
       const limit = query.limit ? Number(query.limit) : 20;
       const [rows, total] = await AppDataSource.getRepository(WalletTransaction).findAndCount({
         where: { user_id: authUser.id },
@@ -616,7 +616,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
     },
     {
       query: t.Object({
-        page: t.Optional(t.Numeric()),
+        page: t.Optional(t.Numeric({ minimum: 1 })),
         limit: t.Optional(t.Numeric()),
       }),
     },

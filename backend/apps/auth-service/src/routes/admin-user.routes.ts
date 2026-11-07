@@ -105,12 +105,9 @@ export const adminUserRoutes = new Elysia({ prefix: "/admin/users" })
     {
       params: t.Object({ id: t.String({ format: "uuid" }) }),
       body: t.Object({
-        role: t.Union([
-          t.Literal("customer"),
-          t.Literal("vendor"),
-          t.Literal("admin"),
-          t.Literal("super_admin"),
-        ]),
+        // The DB user_role enum is super_admin|admin|customer|guest; "vendor"
+        // (a store membership, not a user role) hit the enum and 500ed.
+        role: t.Union([t.Literal("customer"), t.Literal("admin"), t.Literal("super_admin")]),
       }),
     },
   )

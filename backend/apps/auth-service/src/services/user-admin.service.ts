@@ -17,7 +17,7 @@ export class UserAdminService {
     page?: number;
     limit?: number;
   }) {
-    const page = query.page || 1;
+    const page = Math.max(1, Math.trunc(Number(query.page)) || 1);
     const limit = query.limit || 20;
 
     const qb = this.userRepo

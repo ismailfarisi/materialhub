@@ -620,7 +620,7 @@ export class ReturnService {
     userId: string,
     query: PaginatedQuery,
   ): Promise<{ data: Return[]; total: number }> {
-    const page = query.page || 1;
+    const page = Math.max(1, Math.trunc(Number(query.page)) || 1);
     const limit = query.limit || 20;
 
     const qb = this.returnRepo
@@ -649,7 +649,7 @@ export class ReturnService {
   }
 
   async listForAdmin(query: PaginatedQuery): Promise<{ data: Return[]; total: number }> {
-    const page = query.page || 1;
+    const page = Math.max(1, Math.trunc(Number(query.page)) || 1);
     const limit = query.limit || 20;
 
     const qb = this.returnRepo
@@ -676,7 +676,7 @@ export class ReturnService {
     vendorId: string,
     query: PaginatedQuery,
   ): Promise<{ data: Return[]; total: number }> {
-    const page = query.page || 1;
+    const page = Math.max(1, Math.trunc(Number(query.page)) || 1);
     const limit = query.limit || 20;
 
     const qb = this.returnRepo

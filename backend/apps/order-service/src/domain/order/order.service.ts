@@ -98,7 +98,7 @@ export class OrderQueryService {
     userId: string,
     query: { page?: number; limit?: number; status?: string; from_date?: string; to_date?: string },
   ): Promise<{ data: Order[]; total: number }> {
-    const page = query.page || 1;
+    const page = Math.max(1, Math.trunc(Number(query.page)) || 1);
     const limit = query.limit || 20;
 
     const qb = this.orderRepo
@@ -192,7 +192,7 @@ export class OrderQueryService {
     vendor_id?: string;
     user_id?: string;
   }): Promise<{ data: Order[]; total: number }> {
-    const page = query.page || 1;
+    const page = Math.max(1, Math.trunc(Number(query.page)) || 1);
     const limit = query.limit || 20;
 
     const qb = this.orderRepo

@@ -176,7 +176,7 @@ export class ReviewService {
     productId: string,
     query: ProductReviewsQuery,
   ): Promise<{ data: Review[]; total: number }> {
-    const page = query.page || 1;
+    const page = Math.max(1, Math.trunc(Number(query.page)) || 1);
     const limit = query.limit || 20;
 
     const qb = this.reviewRepo
@@ -403,7 +403,7 @@ export class ReviewService {
   /*  listForAdmin                                                    */
   /* ================================================================ */
   async listForAdmin(query: AdminListQuery): Promise<{ data: AdminReviewRow[]; total: number }> {
-    const page = query.page || 1;
+    const page = Math.max(1, Math.trunc(Number(query.page)) || 1);
     const limit = query.limit || 20;
 
     // Display fields only from the joins — never the whole User row.

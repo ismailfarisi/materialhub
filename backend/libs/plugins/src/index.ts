@@ -132,6 +132,19 @@ export const errorHandler = new Elysia({ name: "error-handler" }).onError(
       };
     }
 
+    // File storage (S3) without credentials is a configuration gap, not a
+    // crash: say so instead of a raw "Internal server error" on every upload.
+    if ((error as { name?: string } | null)?.name === "CredentialsProviderError") {
+      console.error("[storage] AWS credentials are not configured:", (error as Error).message);
+      set.status = 503;
+      return {
+        statusCode: 503,
+        message: "File uploads are not available right now",
+        error: "STORAGE_NOT_CONFIGURED",
+        timestamp: new Date().toISOString(),
+      };
+    }
+
     const statusCode =
       code === "NOT_FOUND" ? 404 : code === "VALIDATION" ? 400 : code === "PARSE" ? 400 : 500;
 

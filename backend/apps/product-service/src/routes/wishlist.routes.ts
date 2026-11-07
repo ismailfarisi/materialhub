@@ -44,7 +44,7 @@ export const wishlistRoutes = new Elysia({ prefix: "/wishlist" })
     },
     {
       query: t.Object({
-        page: t.Optional(t.Integer({ default: 1 })),
+        page: t.Optional(t.Integer({ default: 1, minimum: 1 })),
         limit: t.Optional(t.Integer({ default: 20 })),
       }),
     },

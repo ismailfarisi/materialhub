@@ -66,7 +66,7 @@ export class CouponAdminService {
   async list(
     filters: ListFilters,
   ): Promise<{ items: Coupon[]; total: number; page: number; limit: number }> {
-    const page = filters.page ?? 1;
+    const page = Math.max(1, Math.trunc(Number(filters.page)) || 1);
     const limit = filters.limit ?? 20;
     const now = new Date();
 

@@ -568,7 +568,7 @@ export class DisputeService {
     userId: string,
     query: PaginatedQuery & { order_id?: string },
   ): Promise<{ data: Dispute[]; total: number }> {
-    const page = query.page || 1;
+    const page = Math.max(1, Math.trunc(Number(query.page)) || 1);
     const limit = query.limit || 20;
 
     const qb = this.disputeRepo
@@ -600,7 +600,7 @@ export class DisputeService {
     vendorId: string,
     query: PaginatedQuery & { order_id?: string },
   ): Promise<{ data: DisputeSummary[]; total: number }> {
-    const page = query.page || 1;
+    const page = Math.max(1, Math.trunc(Number(query.page)) || 1);
     const limit = query.limit || 20;
 
     const qb = this.summaryQuery()
@@ -627,7 +627,7 @@ export class DisputeService {
   async listForAdmin(
     query: PaginatedQuery & { assigned_to?: string },
   ): Promise<{ data: DisputeSummary[]; total: number }> {
-    const page = query.page || 1;
+    const page = Math.max(1, Math.trunc(Number(query.page)) || 1);
     const limit = query.limit || 20;
 
     const qb = this.summaryQuery()
