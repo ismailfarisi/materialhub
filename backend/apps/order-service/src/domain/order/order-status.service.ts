@@ -780,6 +780,12 @@ export class OrderStatusService {
           status: "cancelled",
         } as any,
       );
+      // Nothing was collected, so the order itself isn't "payment pending"
+      // any more (the buyer saw "Payment Pending" on a cancelled order).
+      await this.orderRepo.update(
+        { id: orderId, payment_status: "pending" } as any,
+        { payment_status: "cancelled" } as any,
+      );
     } catch (err) {
       console.error("[order-status] voiding COD payment failed", { orderId, error: String(err) });
     }

@@ -29,8 +29,8 @@ export const vendorAdminRoutes = new Elysia({ prefix: "/admin/vendors" })
   .get("/", async ({ query, vendorController }) => {
     const result = await vendorController.listForAdmin(
       query.status,
-      query.page ? Number(query.page) : undefined,
-      query.limit ? Number(query.limit) : undefined,
+      query.page ? Math.max(1, Math.trunc(Number(query.page)) || 1) : undefined,
+      query.limit ? Math.max(1, Math.trunc(Number(query.limit)) || 1) : undefined,
       query.search,
     );
     return { statusCode: 200, data: result, timestamp: new Date().toISOString() };

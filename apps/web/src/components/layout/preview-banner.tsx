@@ -3,7 +3,7 @@
 import { Eye, TriangleAlert } from "lucide-react";
 
 interface PreviewBannerProps {
-	status: "active" | "expired" | "not_found" | "wrong_page";
+	status: "active" | "expired" | "not_found" | "wrong_page" | "layout";
 	bidIdShort?: string;
 	expiresAt?: string;
 }
@@ -19,7 +19,9 @@ export function PreviewBanner({
 	expiresAt,
 }: PreviewBannerProps) {
 	const message =
-		status === "active"
+		status === "layout"
+			? "Previewing a draft layout. Customers still see the published page."
+			: status === "active"
 			? `Viewing bid ${bidIdShort ?? ""}${expiresAt ? ` · token expires ${new Date(expiresAt).toLocaleTimeString("en-AE")}` : ""}`
 			: status === "expired"
 				? "Preview token expired. Refresh it from the vendor dashboard."
@@ -27,7 +29,7 @@ export function PreviewBanner({
 					? "Bid not found. Showing the live page."
 					: "This bid is on a different page. Showing the live page.";
 
-	const Icon = status === "active" ? Eye : TriangleAlert;
+	const Icon = status === "active" || status === "layout" ? Eye : TriangleAlert;
 
 	return (
 		<output className="block bg-nl-espresso text-white">

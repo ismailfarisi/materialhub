@@ -129,10 +129,15 @@ async function HomeSections({
 		(s.data?.items ?? []).some((it: any) => it?.preview === true),
 	);
 
+	// A layout preview (admin "Preview" on a draft layout) carries the layout
+	// slug and injects no bid item; it is not a "bid on a different page".
+	const isLayoutPreview = Boolean(previewToken && previewLayoutSlug && previewLayoutSlug !== "home");
 	const bannerStatus =
 		previewStatus === "expired"
 			? "expired"
-			: previewToken && !previewInjected && previewStatus === "active"
+			: isLayoutPreview && previewStatus === "active"
+				? "layout"
+				: previewToken && !previewInjected && previewStatus === "active"
 				? "wrong_page"
 				: previewToken && previewInjected
 					? "active"

@@ -51,8 +51,8 @@ export const collectionAdminRoutes = new Elysia({ prefix: "/admin/collections" }
     "/",
     async ({ query, collectionController }) => {
       const data = await collectionController.listForAdmin(
-        query.page ? Number(query.page) : undefined,
-        query.limit ? Number(query.limit) : undefined,
+        query.page ? Math.max(1, Math.trunc(Number(query.page)) || 1) : undefined,
+        query.limit ? Math.max(1, Math.trunc(Number(query.limit)) || 1) : undefined,
         query.search,
       );
       return { statusCode: 200, data, timestamp: new Date().toISOString() };

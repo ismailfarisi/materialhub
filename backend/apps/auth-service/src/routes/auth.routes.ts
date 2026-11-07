@@ -617,7 +617,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
     {
       query: t.Object({
         page: t.Optional(t.Numeric({ minimum: 1 })),
-        limit: t.Optional(t.Numeric()),
+        limit: t.Optional(t.Numeric({ minimum: 1 })),
       }),
     },
   )

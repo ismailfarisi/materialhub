@@ -114,8 +114,13 @@ export default function SettingsPage() {
 									current_password: passwords.current_password,
 									new_password: passwords.new_password,
 								});
-							} catch {
-								setPasswordMsg({ text: t("passwordChangeFailed"), ok: false });
+							} catch (err) {
+								// Say which part was wrong; everything else stays generic.
+								const code = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+								setPasswordMsg({
+									text: code === "INVALID_CURRENT_PASSWORD" ? t("currentPasswordWrong") : t("passwordChangeFailed"),
+									ok: false,
+								});
 								return;
 							}
 							// Changing the password revokes every session, this one

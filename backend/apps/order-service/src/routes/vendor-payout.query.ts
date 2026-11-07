@@ -30,5 +30,5 @@ export const VendorPayoutListQuery = t.Object({
     ]),
   ),
   page: t.Optional(t.Integer({ default: 1, minimum: 1 })),
-  limit: t.Optional(t.Integer({ default: 20 })),
+  limit: t.Optional(t.Integer({ default: 20, minimum: 1 })),
 });

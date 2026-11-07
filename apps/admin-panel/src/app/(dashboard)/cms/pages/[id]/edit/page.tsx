@@ -124,7 +124,7 @@ export default function EditCmsPagePage() {
         <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-sm">{error}</div>
       )}
 
-      <div className={`grid gap-6 ${showPreview ? "grid-cols-2" : "grid-cols-1"}`}>
+      <div className={`grid gap-6 grid-cols-1 ${showPreview ? "lg:grid-cols-2" : ""}`}>
         {/* Editor pane */}
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="rounded-xl border border-gray-200 bg-linen p-5 space-y-5">
@@ -155,7 +155,12 @@ export default function EditCmsPagePage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-cacao mb-1">Locale</label>
-                <Select value={locale} onValueChange={setLocale}>
+                <Select
+                  value={locale}
+                  // Radix calls onValueChange("") when the value changes after
+                  // mount (the stored page loads late); never store a blank.
+                  onValueChange={(v) => v && setLocale(v)}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -168,7 +173,11 @@ export default function EditCmsPagePage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-cacao mb-1">Status</label>
-                <Select value={status} onValueChange={setStatus}>
+                <Select
+                  value={status}
+                  // Saving a published page sent status "" (400) without this.
+                  onValueChange={(v) => v && setStatus(v)}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>

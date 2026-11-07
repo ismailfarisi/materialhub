@@ -18,7 +18,6 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it, mock } from "bun:test";
-import { errorHandler } from "@materialhub/plugins";
 import { Elysia, t } from "elysia";
 import { MediaController } from "../../domain/media/media.controller.ts";
 

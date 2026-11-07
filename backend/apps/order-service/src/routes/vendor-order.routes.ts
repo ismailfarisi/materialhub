@@ -154,7 +154,7 @@ export const vendorOrderRoutes = new Elysia()
             {
               query: t.Object({
                 page: t.Optional(t.Integer({ default: 1, minimum: 1 })),
-                limit: t.Optional(t.Integer({ default: 20 })),
+                limit: t.Optional(t.Integer({ default: 20, minimum: 1 })),
                 status: t.Optional(t.Enum(OrderStatus)),
                 from_date: t.Optional(t.String()),
                 to_date: t.Optional(t.String()),

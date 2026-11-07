@@ -31,7 +31,7 @@ export const brandVendorRoutes = new Elysia({ prefix: "/vendor/brands" })
       async ({ query, member, brandController }: any) => {
         const data = await brandController.listForVendor(member.vid, {
           q: query.q,
-          limit: query.limit ? Number(query.limit) : undefined,
+          limit: query.limit ? Math.max(1, Math.trunc(Number(query.limit)) || 1) : undefined,
         });
         return { statusCode: 200, data, timestamp: new Date().toISOString() };
       },

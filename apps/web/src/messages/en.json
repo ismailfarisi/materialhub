@@ -649,7 +649,8 @@
       "submitting": "Cancelling…",
       "success": "Order cancelled.",
       "failed": "We couldn't cancel this order. Refresh the page and try again, or contact support."
-    }
+    },
+    "currentPasswordWrong": "Your current password is incorrect."
   },
   "emirates": {
     "abu_dhabi": "Abu Dhabi",

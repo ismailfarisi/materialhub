@@ -18,8 +18,8 @@ export const attributeRoutes = new Elysia({ prefix: "/attributes" })
 
   .get("/", async ({ query, attributeController }) => {
     const data = await attributeController.list(
-      query.page ? Number(query.page) : undefined,
-      query.limit ? Number(query.limit) : undefined,
+      query.page ? Math.max(1, Math.trunc(Number(query.page)) || 1) : undefined,
+      query.limit ? Math.max(1, Math.trunc(Number(query.limit)) || 1) : undefined,
       query.type,
     );
     return { statusCode: 200, data, timestamp: new Date().toISOString() };
