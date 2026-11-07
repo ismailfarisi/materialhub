@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, Globe } from "lucide-react";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { usePathname, useRouter } from "next/navigation";
 import { routing } from "../../../i18n/routing";
 
@@ -13,6 +13,7 @@ const localeLabels: Record<string, { short: string; name: string }> = {
 /** Language picker for the binder-black utility bar. Native select, styled. */
 export function LocaleSwitcher() {
 	const locale = useLocale();
+	const t = useTranslations("header");
 	const router = useRouter();
 	const pathname = usePathname();
 
@@ -25,7 +26,7 @@ export function LocaleSwitcher() {
 	return (
 		<label className="relative inline-flex items-center gap-1.5 h-7 rounded-sm px-1 text-nl-pearl/80 hover:text-nl-pearl transition-colors focus-within:outline focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-nl-amber">
 			<Globe className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-			<span className="sr-only">Language</span>
+			<span className="sr-only">{t("language")}</span>
 			<select
 				value={locale}
 				onChange={handleChange}

@@ -3,97 +3,71 @@ import {
 	StaticSection,
 	contentsFrom,
 } from "@/components/layout/static-page-layout";
+import { staticRichTags } from "@/components/layout/static-rich-tags";
+import { buildAlternates } from "@/lib/seo/alternates";
 import type { Metadata } from "next";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 
-export const metadata: Metadata = {
-	title: "Careers at MaterialHub",
-	description:
-		"Help build the UAE’s materials marketplace. How we work, what we value and how to get in touch about a role at MaterialHub.",
-};
+interface Props {
+	params: Promise<{ locale: string }>;
+}
 
-const HEADINGS = ["How we work", "What we value", "Open roles", "How we hire"];
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+	const { locale } = await params;
+	const t = await getTranslations({ locale, namespace: "content.careers" });
+	return {
+		title: t("meta.title"),
+		description: t("meta.description"),
+		alternates: buildAlternates(locale, "/careers"),
+	};
+}
 
-const VALUES = [
-	{
-		t: "The buyer’s spec comes first.",
-		d: "A workshop needs the right board at the right thickness, delivered. Accuracy beats cleverness.",
-	},
-	{
-		t: "Suppliers are partners.",
-		d: "Listings, payouts and tools are built so suppliers can sell by the sheet, roll or carton without friction.",
-	},
-	{
-		t: "Built for the UAE.",
-		d: "Arabic and English, priced in AED, and usable on a phone on a workshop floor.",
-	},
-	{
-		t: "Small teams, owned outcomes.",
-		d: "People own a problem from start to finish and ship in small steps.",
-	},
-];
+const VALUES = ["buyer", "suppliers", "uae", "teams"] as const;
+const HIRE_STEPS = ["intro", "working", "team", "decision"] as const;
 
-export default function CareersPage() {
-	const [how, values, roles, hire] = HEADINGS;
+export default async function CareersPage({ params }: Props) {
+	const { locale } = await params;
+	setRequestLocale(locale);
+	const t = await getTranslations({ locale, namespace: "content.careers" });
+	const tags = staticRichTags(locale);
+	const headings = ["how", "values", "roles", "hire"].map((k) => t(`headings.${k}`));
+	const [how, values, roles, hire] = headings;
+
 	return (
 		<StaticPageLayout
-			contentLang="en"
-			eyebrow="Company"
-			title="Build the UAE’s materials marketplace."
-			intro="We’re a small team in Dubai working on product, engineering, category merchandising and supplier partnerships."
-			contents={contentsFrom(HEADINGS)}
+			eyebrow={t("eyebrow")}
+			title={t("title")}
+			intro={t("intro")}
+			contents={contentsFrom(headings)}
 		>
 			<StaticSection heading={how}>
-				<p>
-					Small teams own outcomes from start to finish. Merchandising and
-					supplier partnerships work alongside engineering, so changes to the
-					storefront, the vendor dashboard and the catalogue move together.
-				</p>
+				<p>{t("how.p1")}</p>
 			</StaticSection>
 
 			<StaticSection heading={values}>
 				<dl className="not-prose m-0 grid max-w-[76ch] border-t-2 border-nl-cacao">
 					{VALUES.map((v) => (
 						<div
-							key={v.t}
+							key={v}
 							className="grid gap-1 md:grid-cols-[minmax(0,15rem)_1fr] md:gap-8 py-4 border-b border-nl-cacao/12"
 						>
-							<dt className="font-semibold text-nl-cacao">{v.t}</dt>
-							<dd className="m-0 text-nl-cacao/85">{v.d}</dd>
+							<dt className="font-semibold text-nl-cacao">{t(`values.${v}.t`)}</dt>
+							<dd className="m-0 text-nl-cacao/85">{t(`values.${v}.d`)}</dd>
 						</div>
 					))}
 				</dl>
 			</StaticSection>
 
 			<StaticSection heading={roles}>
-				<p>
-					There are no open roles listed right now. We&rsquo;re always glad to
-					hear from engineers, category merchandisers who know paper, board,
-					leather or packaging, and supplier partnership leads based in the UAE.
-				</p>
-				<p>
-					Send a short note and links to work you&rsquo;ve done to{" "}
-					<a href="mailto:info@materialhubuae.com">info@materialhubuae.com</a>.
-					Tell us which team you&rsquo;d join and why.
-				</p>
+				<p>{t("roles.p1")}</p>
+				<p>{t.rich("roles.p2", tags)}</p>
 			</StaticSection>
 
 			<StaticSection heading={hire}>
 				<ol>
-					<li>
-						<strong>Intro call.</strong> Why MaterialHub, what you&rsquo;re
-						looking for and what we need.
-					</li>
-					<li>
-						<strong>Working conversation.</strong> A real problem from your
-						discipline, talked through together.
-					</li>
-					<li>
-						<strong>Time with the team.</strong> Meet the people you&rsquo;d
-						work with, on a current question.
-					</li>
-					<li>
-						<strong>Decision.</strong> We tell you either way.
-					</li>
+					{HIRE_STEPS.map((k) => (
+						<li key={k}>{t.rich(`hire.${k}`, tags)}</li>
+					))}
 				</ol>
 			</StaticSection>
 		</StaticPageLayout>

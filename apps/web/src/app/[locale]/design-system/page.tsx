@@ -10,12 +10,17 @@ import {
 	SwatchCard,
 } from "@/components/swatch";
 import type { Metadata } from "next";
-import { setRequestLocale } from "next-intl/server";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 
-export const metadata: Metadata = {
-	title: "Design system",
-	robots: { index: false, follow: false },
-};
+export async function generateMetadata({
+	params,
+}: {
+	params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+	const { locale } = await params;
+	const t = await getTranslations({ locale, namespace: "content.designSystem" });
+	return { title: t("meta.title"), robots: { index: false, follow: false } };
+}
 
 /**
  * Living specimen of the Swatch Book system (see /DESIGN.md). Not linked from
@@ -29,30 +34,30 @@ export default async function DesignSystemPage({
 }) {
 	const { locale } = await params;
 	setRequestLocale(locale);
+	const t = await getTranslations({ locale, namespace: "content.designSystem" });
 
 	return (
 		<div className="max-w-[1400px] mx-auto px-4 md:px-8 py-10 md:py-16 grid gap-16">
 			<header className="grid md:grid-cols-[1.1fr_1fr] gap-8 items-center">
 				<div className="grid gap-4">
 										<h1 className="font-display font-bold [font-stretch:112%] text-[clamp(36px,5vw,68px)] leading-[1] tracking-[-0.03em] m-0">
-						Every category is a stock. Every product is a swatch.
+						{t("title")}
 					</h1>
 					<p className="text-nl-russet text-[17px] max-w-[56ch] m-0">
-						Components, colour and type for the storefront. Read DESIGN.md for the rules;
-						this page shows them working.
+						{t("intro")}
 					</p>
 				</div>
 				<FanDeck className="max-w-[520px] justify-self-center" />
 			</header>
 
 			<section className="grid gap-6">
-				<SectionHead title="Category stocks" />
+				<SectionHead title={t("sections.stocks")} />
 				<div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
 					{STOCK_ORDER.map((k) => (
 						<SwatchCard key={k} stock={STOCKS[k]} tabLabel={STOCKS[k].slug}>
 							<div className="h-24" style={{ background: STOCKS[k].color }} />
 							<div className="p-3 grid gap-1">
-								<span className="text-sm font-medium">{STOCKS[k].material}</span>
+								<span className="text-sm font-medium">{t(`stockNames.${k}`)}</span>
 								<code className="font-mono text-[11.5px] text-nl-russet">--stock-{k}</code>
 							</div>
 						</SwatchCard>
@@ -60,17 +65,17 @@ export default async function DesignSystemPage({
 				</div>
 				<div className="flex flex-wrap gap-3">
 					{[
-						["Board", "bg-nl-linen", "--nl-linen"],
-						["Stock", "bg-nl-pearl", "--nl-pearl"],
-						["Binder ink", "bg-nl-cacao", "--nl-cacao"],
-						["Pencil", "bg-nl-russet", "--nl-russet"],
-						["Cutter orange", "bg-nl-amber", "--nl-amber"],
-						["Binder black", "bg-nl-espresso", "--nl-espresso"],
+						["board", "bg-nl-linen", "--nl-linen"],
+						["stock", "bg-nl-pearl", "--nl-pearl"],
+						["binderInk", "bg-nl-cacao", "--nl-cacao"],
+						["pencil", "bg-nl-russet", "--nl-russet"],
+						["cutterOrange", "bg-nl-amber", "--nl-amber"],
+						["binderBlack", "bg-nl-espresso", "--nl-espresso"],
 					].map(([name, cls, token]) => (
 						<div key={name} className="flex items-center gap-2.5 bg-nl-pearl rounded-md shadow-card p-2 pe-4">
 							<span className={`h-10 w-10 rounded-sm ring-1 ring-inset ring-black/10 ${cls}`} />
 							<span className="grid">
-								<span className="text-sm font-medium">{name}</span>
+								<span className="text-sm font-medium">{t(`tokens.${name}`)}</span>
 								<code className="font-mono text-[11.5px] text-nl-russet">{token}</code>
 							</span>
 						</div>
@@ -79,59 +84,58 @@ export default async function DesignSystemPage({
 			</section>
 
 			<section className="grid gap-6">
-				<SectionHead title="Archivo, Geist, Geist Mono" />
+				<SectionHead title={t("sections.type")} />
 				<div className="bg-nl-pearl rounded-md shadow-card p-6 grid gap-5">
-					<p className="font-display font-bold [font-stretch:112%] text-[56px] leading-none tracking-[-0.03em] m-0">Greyboard 2.0 mm</p>
-					<p className="font-display font-semibold text-[28px] leading-tight tracking-[-0.015em] m-0">Rigid box materials, sheet to carton</p>
+					<p className="font-display font-bold [font-stretch:112%] text-[56px] leading-none tracking-[-0.03em] m-0">{t("specimen.display")}</p>
+					<p className="font-display font-semibold text-[28px] leading-tight tracking-[-0.015em] m-0">{t("specimen.headline")}</p>
 					<p className="text-[15px] max-w-[65ch] m-0">
-						Geist carries the interface and running text. Order a sample pack before a production run;
-						every listing names its supplier, unit of measure and price per unit.
+						{t("specimen.body")}
 					</p>
 					<div className="flex flex-wrap items-center gap-4">
-						<span className="mill-label">Mill label · condensed caps</span>
+						<span className="mill-label">{t("specimen.millLabel")}</span>
 						<span className="font-mono text-[13.5px] tabular-nums">350 gsm · 70×100 cm · 0.9 mm</span>
 					</div>
 				</div>
 			</section>
 
 			<section className="grid gap-6">
-				<SectionHead title="Buttons, specs and prices" />
+				<SectionHead title={t("sections.buttons")} />
 				<div className="grid md:grid-cols-3 gap-4">
 					<div className="bg-nl-pearl rounded-md shadow-card p-5 grid gap-3 content-start">
-						<span className="mill-label text-nl-russet">Buttons</span>
+						<span className="mill-label text-nl-russet">{t("labels.buttons")}</span>
 						<div className="flex flex-wrap gap-2">
-							<Button variant="signal">Add to cart</Button>
-							<Button>Request quote</Button>
-							<Button variant="outline">Order sample</Button>
-							<Button variant="ghost">Compare</Button>
+							<Button variant="signal">{t("buttons.addToCart")}</Button>
+							<Button>{t("buttons.requestQuote")}</Button>
+							<Button variant="outline">{t("buttons.orderSample")}</Button>
+							<Button variant="ghost">{t("buttons.compare")}</Button>
 						</div>
-						<span className="mill-label text-nl-russet pt-2">Stock chips</span>
+						<span className="mill-label text-nl-russet pt-2">{t("labels.stockChips")}</span>
 						<div className="flex flex-wrap gap-3">
 							{STOCK_ORDER.slice(0, 4).map((k) => (
-								<StockChip key={k} stock={STOCKS[k]} label={STOCKS[k].material} />
+								<StockChip key={k} stock={STOCKS[k]} label={t(`stockNames.${k}`)} />
 							))}
 						</div>
 					</div>
 					<div className="bg-nl-pearl rounded-md shadow-card p-5 grid gap-3 content-start">
-						<span className="mill-label text-nl-russet">Mill label</span>
+						<span className="mill-label text-nl-russet">{t("labels.millLabel")}</span>
 						<MillLabel
 							specs={[
-								{ label: "Grammage", value: "1250 gsm" },
-								{ label: "Thickness", value: "2.0 mm" },
-								{ label: "Sheet", value: "70 × 100 cm" },
-								{ label: "Finish", value: "Uncoated" },
+								{ label: t("specs.grammage"), value: "1250 gsm" },
+								{ label: t("specs.thickness"), value: "2.0 mm" },
+								{ label: t("specs.sheet"), value: "70 × 100 cm" },
+								{ label: t("specs.finish"), value: t("specs.uncoated") },
 							]}
 						/>
 						<MillLabel
 							variant="inline"
 							specs={[
-								{ label: "Grammage", value: "350 gsm" },
-								{ label: "Sheet", value: "70×100" },
+								{ label: t("specs.grammage"), value: "350 gsm" },
+								{ label: t("specs.sheet"), value: "70×100" },
 							]}
 						/>
 					</div>
 					<div className="bg-nl-pearl rounded-md shadow-card p-5 grid gap-3 content-start">
-						<span className="mill-label text-nl-russet">Price tags</span>
+						<span className="mill-label text-nl-russet">{t("labels.priceTags")}</span>
 						<PriceTag amount={480} locale={locale} unit="sheet" size="lg" />
 						<PriceTag amount={410} locale={locale} unit="sheet" from />
 						<PriceTag amount={9600} locale={locale} unit="roll" compareAt={11200} />
@@ -140,7 +144,7 @@ export default async function DesignSystemPage({
 			</section>
 
 			<section className="grid gap-6">
-				<SectionHead title="Swatch cards" action={{ href: `/${locale}`, label: "Back to the store" }} />
+				<SectionHead title={t("sections.cards")} action={{ href: `/${locale}`, label: t("backToStore") }} />
 				<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
 					{(
 						[

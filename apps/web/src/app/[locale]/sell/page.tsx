@@ -1,19 +1,28 @@
 import { CategoryStocks } from "@/components/content/category-stocks";
 import { Button, FanDeck } from "@/components/swatch";
 import { ArrowRight } from "lucide-react";
+import { buildAlternates } from "@/lib/seo/alternates";
 import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
 
-export const metadata: Metadata = {
-	title: "Sell on MaterialHub",
-	description:
-		"Sell papers, boards, leather, fittings, adhesives, packaging and trims to UAE trade buyers and craft shoppers. Card, Tabby, Tamara and cash on delivery, scheduled payouts and one vendor dashboard.",
-};
+export async function generateMetadata({
+	params,
+}: {
+	params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+	const { locale } = await params;
+	const t = await getTranslations({ locale, namespace: "content.sell" });
+	return {
+		title: t("meta.title"),
+		description: t("meta.description"),
+		alternates: buildAlternates(locale, "/sell"),
+	};
+}
 
-/** Supplier application (vendor onboarding). */
-const APPLY_URL = process.env.NEXT_PUBLIC_SELLER_APPLY_URL || "https://sellers.materialhubuae.com";
 /** Vendor dashboard sign-in for existing suppliers. */
 const DASHBOARD_URL = process.env.NEXT_PUBLIC_VENDOR_DASHBOARD_URL || "https://vendor.materialhubuae.com";
+/** Supplier application (vendor onboarding): the in-app form in the vendor dashboard. */
+const APPLY_URL = process.env.NEXT_PUBLIC_SELLER_APPLY_URL || `${DASHBOARD_URL.replace(/\/$/, "")}/apply`;
 
 const WHY = ["payments", "payouts", "shipping", "dashboard", "integrations", "bilingual"] as const;
 const STEPS = ["apply", "verify", "setup", "list"] as const;

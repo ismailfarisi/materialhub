@@ -4,89 +4,76 @@ import {
 	StaticSection,
 	contentsFrom,
 } from "@/components/layout/static-page-layout";
+import { staticRichTags } from "@/components/layout/static-rich-tags";
+import { buildAlternates } from "@/lib/seo/alternates";
 import type { Metadata } from "next";
-import { getLocale } from "next-intl/server";
-import Link from "next/link";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 
-export const metadata: Metadata = {
-	title: "Shipping and delivery",
-	description:
-		"How MaterialHub delivers across the UAE: delivery options, free standard shipping over AED 150, multi-supplier orders and tracking.",
-};
+interface Props {
+	params: Promise<{ locale: string }>;
+}
 
-const HEADINGS = [
-	"Delivery options",
-	"Free standard shipping",
-	"Orders from several suppliers",
-	"Tracking",
-	"Where we deliver",
-];
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+	const { locale } = await params;
+	const t = await getTranslations({ locale, namespace: "content.shipping" });
+	return {
+		title: t("meta.title"),
+		description: t("meta.description"),
+		alternates: buildAlternates(locale, "/shipping"),
+	};
+}
 
-export default async function ShippingPage() {
-	const locale = await getLocale();
-	const [options, free, multi, tracking, where] = HEADINGS;
+const OPTIONS = ["standard", "express", "sameDay", "pickup"] as const;
+
+export default async function ShippingPage({ params }: Props) {
+	const { locale } = await params;
+	setRequestLocale(locale);
+	const t = await getTranslations({ locale, namespace: "content.shipping" });
+	const tags = staticRichTags(locale);
+	const headings = ["options", "free", "multi", "tracking", "where"].map((k) => t(`headings.${k}`));
+	const [options, free, multi, tracking, where] = headings;
+
 	return (
 		<StaticPageLayout
-			contentLang="en"
-			eyebrow="Help"
-			title="Shipping and delivery"
-			intro="Every supplier ships its own part of your order. You see the delivery options and the price for each shipment at checkout, before you pay."
+			eyebrow={t("eyebrow")}
+			title={t("title")}
+			intro={t("intro")}
 			label={[
-				{ label: "Delivers to", value: "UAE addresses" },
-				{ label: "Free standard", value: "Over AED 150" },
-				{ label: "Tracking", value: "Per shipment" },
+				{ label: t("label.deliversTo"), value: t("label.deliversToValue") },
+				{ label: t("label.freeStandard"), value: t("label.freeStandardValue") },
+				{ label: t("label.tracking"), value: t("label.trackingValue") },
 			]}
-			contents={contentsFrom(HEADINGS)}
+			contents={contentsFrom(headings)}
 		>
 			<StaticSection heading={options}>
-				<p>
-					Which options you get depends on the supplier and your address.
-					Checkout only offers the ones available for each shipment.
-				</p>
+				<p>{t("options.p1")}</p>
 				<div className="mt-6">
 					<SpecTable
-						caption="Delivery options and the payment methods they accept"
-						columns={["Option", "What it is", "Pay with"]}
-						rows={[
-							["Standard", "Delivery to your address.", "Card, Tabby, Tamara, cash on delivery"],
-							["Express", "Faster delivery, where the supplier offers it.", "Card, Tabby, Tamara"],
-							["Same day", "Delivered the day you order, where the supplier offers it.", "Card, Tabby, Tamara"],
-							["Pickup", "Collect from the supplier, where offered.", "Card, Tabby, Tamara, cash on delivery"],
-						]}
+						caption={t("options.caption")}
+						columns={[t("options.colOption"), t("options.colWhat"), t("options.colPay")]}
+						rows={OPTIONS.map((k) => [
+							t(`options.${k}.name`),
+							t(`options.${k}.what`),
+							t(`options.${k}.pay`),
+						])}
 					/>
 				</div>
 			</StaticSection>
 
 			<StaticSection heading={free}>
-				<p>
-					Standard shipping is free on orders over AED 150. Below that, the
-					standard rate for each shipment is shown at checkout. Express and
-					same-day delivery are charged at the rate shown.
-				</p>
+				<p>{t("free.p1")}</p>
 			</StaticSection>
 
 			<StaticSection heading={multi}>
-				<p>
-					MaterialHub is a marketplace, so a cart can hold material from
-					several suppliers. You pay once, and each supplier sends its items
-					as a separate shipment, priced separately at checkout and arriving
-					on its own schedule.
-				</p>
+				<p>{t("multi.p1")}</p>
 			</StaticSection>
 
 			<StaticSection heading={tracking}>
-				<p>
-					Each shipment has its own status and tracking in{" "}
-					<Link href={`/${locale}/account/orders`}>My orders</Link>.
-				</p>
+				<p>{t.rich("tracking.p1", tags)}</p>
 			</StaticSection>
 
 			<StaticSection heading={where}>
-				<p>
-					We deliver to addresses in the United Arab Emirates. For a large or
-					regular trade delivery, <Link href={`/${locale}/contact`}>contact us</Link>{" "}
-					with the material, quantity and address.
-				</p>
+				<p>{t.rich("where.p1", tags)}</p>
 			</StaticSection>
 		</StaticPageLayout>
 	);

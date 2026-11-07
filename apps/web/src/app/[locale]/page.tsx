@@ -11,17 +11,21 @@ import { unstable_noStore as noStore } from "next/cache";
 import { headers } from "next/headers";
 import { Suspense } from "react";
 
-export const metadata: Metadata = {
-	title: "MaterialHub — UAE Materials Marketplace",
-	description:
-		"Shop packaging papers, boards, PU leather, hinges, adhesives, ribbons and decoration materials from trusted local and international vendors across the UAE.",
-	openGraph: {
-		title: "MaterialHub — UAE Materials Marketplace",
-		description:
-			"Shop packaging papers, boards, PU leather, hinges, adhesives, ribbons and decoration materials from trusted local and international vendors across the UAE.",
-		type: "website",
-	},
-};
+export async function generateMetadata({
+	params,
+}: {
+	params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+	const { locale } = await params;
+	const t = await getTranslations({ locale, namespace: "home" });
+	const title = t("title");
+	const description = t("description");
+	return {
+		title: { absolute: title },
+		description,
+		openGraph: { title, description, type: "website" },
+	};
+}
 
 type PreviewStatus = "active" | "expired" | null;
 

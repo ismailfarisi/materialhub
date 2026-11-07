@@ -9,7 +9,7 @@ import { GclidCapture } from "@/components/tracking/gclid-capture";
 import { PageViewFire } from "@/components/tracking/page-view-fire";
 import type { Metadata, Viewport } from "next";
 import { NextIntlClientProvider } from "next-intl";
-import { getMessages, setRequestLocale } from "next-intl/server";
+import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
 import { Archivo, Geist, Geist_Mono, Readex_Pro } from "next/font/google";
 import { notFound } from "next/navigation";
 import Script from "next/script";
@@ -46,16 +46,23 @@ const arabic = Readex_Pro({
 	display: "swap",
 });
 
-export const metadata: Metadata = {
-	metadataBase: new URL(SITE_URL),
-	title: {
-		default: "MaterialHub — UAE Materials Marketplace",
-		template: "%s | MaterialHub",
-	},
-	description:
-		"Shop packaging papers, boards, PU leather, hinges, adhesives, ribbons and decoration materials from trusted local and international vendors across the UAE.",
-	manifest: "/manifest.webmanifest",
-};
+export async function generateMetadata({
+	params,
+}: {
+	params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+	const { locale } = await params;
+	const t = await getTranslations({ locale, namespace: "home" });
+	return {
+		metadataBase: new URL(SITE_URL),
+		title: {
+			default: t("title"),
+			template: "%s | MaterialHub",
+		},
+		description: t("description"),
+		manifest: "/manifest.webmanifest",
+	};
+}
 
 export const viewport: Viewport = {
 	width: "device-width",

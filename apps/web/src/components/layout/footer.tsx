@@ -31,44 +31,63 @@ function TikTokIcon(props: SVGProps<SVGSVGElement>) {
 	);
 }
 
+type LinkKey =
+	| "about"
+	| "careers"
+	| "contact"
+	| "press"
+	| "faq"
+	| "shipping"
+	| "returns"
+	| "trackOrder"
+	| "becomeVendor"
+	| "privacy"
+	| "terms"
+	| "brands"
+	| "packagingPapers"
+	| "boxesPackaging"
+	| "puLeather"
+	| "hingesHardware";
+
+/** Footer columns; labels live in `footer.links`. */
 const COLUMNS: Array<{
 	headingKey: "about" | "help" | "sell" | "categories";
-	items: Array<{ label: string; href: string }>;
+	items: Array<{ key: LinkKey; href: string }>;
 }> = [
 	{
 		headingKey: "about",
 		items: [
-			{ label: "About Us", href: "/about" },
-			{ label: "Careers", href: "/careers" },
-			{ label: "Contact", href: "/contact" },
-			{ label: "Press", href: "/press" },
+			{ key: "about", href: "/about" },
+			{ key: "careers", href: "/careers" },
+			{ key: "contact", href: "/contact" },
+			{ key: "press", href: "/press" },
 		],
 	},
 	{
 		headingKey: "help",
 		items: [
-			{ label: "FAQ", href: "/faq" },
-			{ label: "Shipping Info", href: "/shipping" },
-			{ label: "Returns", href: "/returns" },
-			{ label: "Track order", href: "/account/orders" },
+			{ key: "faq", href: "/faq" },
+			{ key: "shipping", href: "/shipping" },
+			{ key: "returns", href: "/returns" },
+			{ key: "trackOrder", href: "/account/orders" },
 		],
 	},
 	{
 		headingKey: "sell",
 		items: [
-			{ label: "Become a Vendor", href: "/sell" },
-			{ label: "Privacy Policy", href: "/privacy" },
-			{ label: "Terms of Service", href: "/terms" },
-			{ label: "Brand directory", href: "/brands" },
+			{ key: "becomeVendor", href: "/sell" },
+			{ key: "privacy", href: "/privacy" },
+			{ key: "terms", href: "/terms" },
+			{ key: "brands", href: "/brands" },
 		],
 	},
 	{
 		headingKey: "categories",
 		items: [
-			{ label: "Packaging papers", href: "/c/papers-boards" },
-			{ label: "Boxes & packaging", href: "/c/boxes-packaging" },
-			{ label: "PU leather", href: "/c/pu-leather" },
-			{ label: "Hinges & hardware", href: "/c/hardware-fittings" },
+			{ key: "packagingPapers", href: "/c/papers-boards" },
+			{ key: "boxesPackaging", href: "/c/boxes-packaging" },
+			{ key: "puLeather", href: "/c/pu-leather" },
+			{ key: "hingesHardware", href: "/c/hardware-fittings" },
 		],
 	},
 ];
@@ -95,7 +114,7 @@ const SOCIALS = [
 	{
 		Icon: XIcon,
 		href: "https://x.com/MaterialHubUae",
-		label: "X (formerly Twitter)",
+		label: null, // localised: footer.socialX
 	},
 	{
 		Icon: Linkedin,
@@ -104,30 +123,16 @@ const SOCIALS = [
 	},
 ];
 
-const PAYMENT_METHODS = ["Visa", "Mastercard", "Amex", "Apple Pay", "Tabby", "Tamara", "COD"];
+/** Card networks and providers keep their own names; cash on delivery is localised. */
+const PAYMENT_METHODS = ["Visa", "Mastercard", "Amex", "Apple Pay", "Tabby", "Tamara"];
 
+/** Value strip; copy lives in `footer.values`. */
 const VALUE_PROPS = [
-	{
-		Icon: BadgeCheck,
-		title: "Verified suppliers",
-		body: "Every vendor is KYC-checked before listing.",
-	},
-	{
-		Icon: Layers,
-		title: "Sheet to carton",
-		body: "Buy a sample pack or a full production run.",
-	},
-	{
-		Icon: Truck,
-		title: "UAE-wide delivery",
-		body: "Free shipping on orders over AED 150.",
-	},
-	{
-		Icon: Wallet,
-		title: "Flexible payment",
-		body: "Card, Tabby, Tamara or cash on delivery.",
-	},
-];
+	{ Icon: BadgeCheck, key: "verified" },
+	{ Icon: Layers, key: "sheetToCarton" },
+	{ Icon: Truck, key: "delivery" },
+	{ Icon: Wallet, key: "payment" },
+] as const;
 
 export async function Footer() {
 	const t = await getTranslations("footer");
@@ -145,17 +150,17 @@ export async function Footer() {
 			<div className="max-w-[1400px] mx-auto px-4 md:px-8">
 				{/* Value strip — what makes buying materials here different */}
 				<ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-nl-pearl/10 border-b border-nl-pearl/10 -mx-4 md:mx-0 list-none p-0 m-0">
-					{VALUE_PROPS.map(({ Icon, title, body }) => (
+					{VALUE_PROPS.map(({ Icon, key }) => (
 						<li
-							key={title}
+							key={key}
 							className="bg-nl-espresso px-4 md:px-6 py-5 md:py-8 flex items-start gap-3.5"
 						>
 							<span className="h-9 w-9 shrink-0 rounded-md bg-nl-amber/15 text-nl-amber inline-flex items-center justify-center">
 								<Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
 							</span>
 							<span>
-								<span className="block text-sm font-medium text-nl-pearl">{title}</span>
-								<span className="block text-[13px] leading-snug mt-0.5">{body}</span>
+								<span className="block text-sm font-medium text-nl-pearl">{t(`values.${key}.title`)}</span>
+								<span className="block text-[13px] leading-snug mt-0.5">{t(`values.${key}.body`)}</span>
 							</span>
 						</li>
 					))}
@@ -171,16 +176,16 @@ export async function Footer() {
 							<Logo className="text-nl-pearl" />
 						</Link>
 						<p className="font-display text-xl md:text-2xl font-semibold leading-[1.2] tracking-[-0.015em] text-white max-w-[340px] mb-6">
-							Papers, boards, leathers and fittings from UAE suppliers, in one place.
+							{t("tagline")}
 						</p>
 						<div className="flex gap-2">
 							{SOCIALS.map(({ Icon, href, label }) => (
 								<a
-									key={label}
+									key={href}
 									href={href}
 									target="_blank"
 									rel="noreferrer noopener"
-									aria-label={label}
+									aria-label={label ?? t("socialX")}
 									className="w-10 h-10 rounded-md bg-white/[0.07] flex items-center justify-center hover:bg-nl-amber hover:text-white text-nl-pearl/80 transition-colors"
 								>
 									<Icon className="h-4 w-4" strokeWidth={1.75} />
@@ -196,12 +201,12 @@ export async function Footer() {
 							</h3>
 							<ul className="flex flex-col gap-3 text-sm leading-[1.4]">
 								{col.items.map((item) => (
-									<li key={item.label}>
+									<li key={item.key}>
 										<Link
 											href={`/${locale}${item.href}`}
 											className="hover:text-nl-pearl transition-colors"
 										>
-											{item.label}
+											{t(`links.${item.key}`)}
 										</Link>
 									</li>
 								))}
@@ -213,7 +218,7 @@ export async function Footer() {
 				<div className="py-6 border-t border-nl-pearl/10 flex flex-col md:flex-row md:items-center md:justify-between gap-4 text-[13px]">
 					<span>{t("copyright", { year })}</span>
 					<div className="flex flex-wrap items-center gap-1.5">
-						<span className="me-1.5">We accept</span>
+						<span className="me-1.5">{t("weAccept")}</span>
 						{PAYMENT_METHODS.map((p) => (
 							<span
 								key={p}
@@ -222,8 +227,11 @@ export async function Footer() {
 								{p}
 							</span>
 						))}
+						<span className="h-7 px-2.5 inline-flex items-center rounded-md bg-nl-pearl/[0.06] text-[12px] font-medium text-nl-pearl/85">
+							{t("cod")}
+						</span>
 					</div>
-					<span>Dubai · Abu Dhabi · Sharjah</span>
+					<span>{t("cities")}</span>
 				</div>
 			</div>
 		</footer>

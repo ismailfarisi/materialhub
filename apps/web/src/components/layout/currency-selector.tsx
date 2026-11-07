@@ -1,6 +1,7 @@
 "use client";
 
 import { usePreferencesStore } from "@/stores/preferences";
+import { useTranslations } from "next-intl";
 
 const currencies = ["AED"];
 
@@ -10,12 +11,13 @@ const currencies = ["AED"];
  * inside the select rather than a picker with nothing to pick.
  */
 export function CurrencySelector() {
+	const t = useTranslations("header");
 	const { currency, setCurrency } = usePreferencesStore();
 	const single = currencies.length === 1;
 
 	return (
 		<label className="relative inline-flex items-center h-7 rounded-sm px-1 text-nl-pearl/80 focus-within:outline focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-nl-amber">
-			<span className="sr-only">Currency</span>
+			<span className="sr-only">{t("currency")}</span>
 			<select
 				value={currency}
 				onChange={(e) => setCurrency(e.target.value)}

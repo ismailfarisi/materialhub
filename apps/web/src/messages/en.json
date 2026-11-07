@@ -74,11 +74,19 @@
     "easyReturns": "Easy Returns",
     "securePayment": "Secure Payment",
     "close": "Close",
-    "from": "from"
+    "from": "from",
+    "new": "New",
+    "menu": "Menu",
+    "searchLabel": "Search",
+    "addToWishlist": "Add to wishlist",
+    "removeFromWishlist": "Remove from wishlist",
+    "selectOptions": "Select options",
+    "mobileNavigation": "Mobile navigation",
+    "categories": "Categories"
   },
   "home": {
     "title": "MaterialHub — UAE Materials Marketplace",
-    "description": "Shop packaging papers, boards, PU leather, hinges, adhesives, ribbons and decoration materials from trusted vendors across the UAE",
+    "description": "Shop packaging papers, boards, PU leather, hinges, adhesives, ribbons and decoration materials from trusted local and international vendors across the UAE.",
     "featuredVendors": "Featured suppliers",
     "recentProducts": "Recently added",
     "brands": "Top brands",
@@ -228,7 +236,7 @@
     "remove": "Remove item",
     "decrease": "Decrease quantity",
     "increase": "Increase quantity",
-    "emptyDek": "Nothing here yet — your future ritual begins with a single object.",
+    "emptyDek": "Your cart is empty. Search for a material or open a category to start.",
     "browseCta": "Browse the marketplace",
     "pageTitle": "Cart",
     "itemsCount": "{count, plural, one {# item} other {# items}}",
@@ -702,7 +710,48 @@
     "categories": "Categories",
     "privacy": "Privacy Policy",
     "terms": "Terms of Service",
-    "copyright": "© {year} MaterialHub. All rights reserved."
+    "copyright": "© {year} MaterialHub. All rights reserved.",
+    "tagline": "Papers, boards, leathers and fittings from UAE suppliers, in one place.",
+    "weAccept": "We accept",
+    "cities": "Dubai · Abu Dhabi · Sharjah",
+    "cod": "COD",
+    "socialX": "X (formerly Twitter)",
+    "links": {
+      "about": "About Us",
+      "careers": "Careers",
+      "contact": "Contact",
+      "press": "Press",
+      "faq": "FAQ",
+      "shipping": "Shipping Info",
+      "returns": "Returns",
+      "trackOrder": "Track order",
+      "becomeVendor": "Become a Vendor",
+      "privacy": "Privacy Policy",
+      "terms": "Terms of Service",
+      "brands": "Brand directory",
+      "packagingPapers": "Packaging papers",
+      "boxesPackaging": "Boxes & packaging",
+      "puLeather": "PU leather",
+      "hingesHardware": "Hinges & hardware"
+    },
+    "values": {
+      "verified": {
+        "title": "Verified suppliers",
+        "body": "Every vendor is KYC-checked before listing."
+      },
+      "sheetToCarton": {
+        "title": "Sheet to carton",
+        "body": "Buy a sample pack or a full production run."
+      },
+      "delivery": {
+        "title": "UAE-wide delivery",
+        "body": "Free shipping on orders over AED 150."
+      },
+      "payment": {
+        "title": "Flexible payment",
+        "body": "Card, Tabby, Tamara or cash on delivery."
+      }
+    }
   },
   "vendor": {
     "authorized_retailer": "Authorized Retailer",
@@ -909,7 +958,11 @@
       "press": "Press and partnerships",
       "sellers": "Selling on MaterialHub",
       "sellersLink": "See how to sell with us",
-      "languages": "We answer in Arabic and English."
+      "languages": "We answer in Arabic and English.",
+      "meta": {
+        "title": "Contact MaterialHub",
+        "description": "Contact MaterialHub customer care about an order, a material spec or a trade enquiry, by message, phone, WhatsApp or email."
+      }
     },
     "sell": {
       "crumb": "Sell on MaterialHub",
@@ -966,7 +1019,11 @@
         }
       },
       "closingTitle": "Ready to list your range?",
-      "closingBody": "Applications are reviewed by the MaterialHub team. Your commission and payout schedule are set out in your vendor agreement before you go live."
+      "closingBody": "Applications are reviewed by the MaterialHub team. Your commission and payout schedule are set out in your vendor agreement before you go live.",
+      "meta": {
+        "title": "Sell on MaterialHub",
+        "description": "Sell papers, boards, leather, fittings, adhesives, packaging and trims to UAE trade buyers and craft shoppers. Card, Tabby, Tamara and cash on delivery, scheduled payouts and one vendor dashboard."
+      }
     },
     "newsletter": {
       "label": "Email address",
@@ -977,6 +1034,569 @@
       "subscribed": "You’re subscribed.",
       "subscribedNote": "Check your inbox to confirm.",
       "promise": "New materials and supplier news. Unsubscribe any time."
+    },
+    "about": {
+      "meta": {
+        "title": "About MaterialHub: the UAE materials marketplace",
+        "description": "MaterialHub is a multi-vendor marketplace where UAE buyers source papers, boards, leather, hardware, adhesives, packaging and trims from verified suppliers in one catalogue."
+      },
+      "eyebrow": "About",
+      "title": "One catalogue for the whole materials chain.",
+      "intro": "MaterialHub brings the papers, boards, leathers, fittings, adhesives, packaging and trims that UAE workshops and makers rely on into one marketplace, sold by the suppliers who stock them.",
+      "label": {
+        "basedIn": "Based in",
+        "basedInValue": "Dubai, UAE",
+        "categories": "Categories",
+        "categoriesValue": "7",
+        "languages": "Languages",
+        "languagesValue": "English · العربية",
+        "pricesIn": "Prices in",
+        "pricesInValue": "AED"
+      },
+      "headings": {
+        "why": "Why MaterialHub exists",
+        "categories": "The seven categories",
+        "buying": "How buying works",
+        "who": "Who we build for",
+        "where": "Where we are"
+      },
+      "why": {
+        "p1": "Sourcing materials in the UAE is fragmented. The greyboard for a rigid box comes from one supplier, the book cloth from another, the magnets and hot-melt glue from a third. Each has its own price list, its own minimums and its own way of taking an order.",
+        "p2": "MaterialHub puts those suppliers in one catalogue. Every listing names its supplier, its specs and the unit it sells by, so you can compare like for like, order in one checkout and track each supplier’s shipment from your account."
+      },
+      "categories": {
+        "p1": "The catalogue follows the way the trade already sorts material. Each category has its own stock colour across the store, like the tabs in a swatch book."
+      },
+      "buying": {
+        "specs": "<strong>Specs first.</strong> Grammage, thickness, sheet size, roll width and finish sit on the listing, not in the small print.",
+        "suppliers": "<strong>Suppliers you can see.</strong> Every product shows who sells it, with a storefront for each supplier.",
+        "pay": "<strong>Pay the way that suits you.</strong> Card, Tabby and Tamara instalments, or cash on delivery.",
+        "delivery": "<strong>Delivery across the UAE.</strong> Standard shipping is free on orders over AED 150. See <shipping>shipping</shipping> for the options."
+      },
+      "who": {
+        "p1": "Trade buyers come first: packaging, print-finishing, rigid-box, bookbinding and leather-goods workshops, and the procurement teams at manufacturers who buy for them. Craft and decoration shoppers are welcome too, for sample packs, decorative papers, party decor, craft kits and stationery.",
+        "p2": "Suppliers sell on MaterialHub without running their own storefront. If you stock materials, read <sell>how to sell with us</sell>."
+      },
+      "where": {
+        "p1": "MaterialHub is based in Dubai and serves buyers across the United Arab Emirates. Questions go to <contact>customer care</contact>, in Arabic or English."
+      }
+    },
+    "careers": {
+      "meta": {
+        "title": "Careers at MaterialHub",
+        "description": "Help build the UAE’s materials marketplace. How we work, what we value and how to get in touch about a role at MaterialHub."
+      },
+      "eyebrow": "Company",
+      "title": "Build the UAE’s materials marketplace.",
+      "intro": "We’re a small team in Dubai working on product, engineering, category merchandising and supplier partnerships.",
+      "headings": {
+        "how": "How we work",
+        "values": "What we value",
+        "roles": "Open roles",
+        "hire": "How we hire"
+      },
+      "how": {
+        "p1": "Small teams own outcomes from start to finish. Merchandising and supplier partnerships work alongside engineering, so changes to the storefront, the vendor dashboard and the catalogue move together."
+      },
+      "values": {
+        "buyer": {
+          "t": "The buyer’s spec comes first.",
+          "d": "A workshop needs the right board at the right thickness, delivered. Accuracy beats cleverness."
+        },
+        "suppliers": {
+          "t": "Suppliers are partners.",
+          "d": "Listings, payouts and tools are built so suppliers can sell by the sheet, roll or carton without friction."
+        },
+        "uae": {
+          "t": "Built for the UAE.",
+          "d": "Arabic and English, priced in AED, and usable on a phone on a workshop floor."
+        },
+        "teams": {
+          "t": "Small teams, owned outcomes.",
+          "d": "People own a problem from start to finish and ship in small steps."
+        }
+      },
+      "roles": {
+        "p1": "There are no open roles listed right now. We’re always glad to hear from engineers, category merchandisers who know paper, board, leather or packaging, and supplier partnership leads based in the UAE.",
+        "p2": "Send a short note and links to work you’ve done to <mail>info@materialhubuae.com</mail>. Tell us which team you’d join and why."
+      },
+      "hire": {
+        "intro": "<strong>Intro call.</strong> Why MaterialHub, what you’re looking for and what we need.",
+        "working": "<strong>Working conversation.</strong> A real problem from your discipline, talked through together.",
+        "team": "<strong>Time with the team.</strong> Meet the people you’d work with, on a current question.",
+        "decision": "<strong>Decision.</strong> We tell you either way."
+      }
+    },
+    "press": {
+      "meta": {
+        "title": "Press and media",
+        "description": "Press contact, fact sheet and brand assets for journalists and partners writing about MaterialHub."
+      },
+      "eyebrow": "Company",
+      "title": "Press and media",
+      "intro": "For interviews, fact checks, brand assets or partnership enquiries, email us and tell us your outlet and deadline.",
+      "headings": {
+        "short": "The short version",
+        "facts": "Fact sheet",
+        "contact": "Press contact",
+        "assets": "Brand assets"
+      },
+      "short": {
+        "p1": "MaterialHub is a UAE marketplace for packaging, manufacturing, finishing and craft materials. Suppliers list papers and boards, PU and bonded leather, book cloth, hinges and magnets, adhesives, foils, boxes and cartons, and ribbons and trims in one catalogue, by spec and unit of measure. Trade buyers and craft shoppers compare suppliers and order in one checkout."
+      },
+      "facts": {
+        "company": "Company",
+        "companyValue": "MaterialHub FZ-LLC",
+        "basedIn": "Based in",
+        "basedInValue": "Dubai, UAE",
+        "market": "Market",
+        "marketValue": "United Arab Emirates",
+        "model": "Model",
+        "modelValue": "Multi-vendor marketplace, trade and retail",
+        "categories": "Categories",
+        "categoriesValue": "7",
+        "languages": "Languages",
+        "languagesValue": "English, Arabic",
+        "payments": "Payments",
+        "paymentsValue": "Card, Tabby, Tamara, cash on delivery"
+      },
+      "contact": {
+        "p1": "Press, interviews, industry commentary and partnerships: <mail>info@materialhubuae.com</mail>"
+      },
+      "assets": {
+        "p1": "The MaterialHub wordmark and approved imagery are available on request. Email <mail>info@materialhubuae.com</mail> with your outlet and how you plan to use them."
+      }
+    },
+    "faq": {
+      "meta": {
+        "title": "Frequently asked questions",
+        "description": "Answers to common MaterialHub questions: ordering materials, delivery, returns, payment, accounts and selling on the marketplace."
+      },
+      "eyebrow": "Help",
+      "title": "Frequently asked questions",
+      "intro": "Ordering, delivery, returns, payment and selling. If your question isn’t here, <contact>send us a message</contact>.",
+      "groups": {
+        "ordering": {
+          "heading": "Ordering",
+          "items": {
+            "whoFrom": {
+              "q": "Who am I buying from?",
+              "a": "Each listing is sold by the supplier named on it. MaterialHub runs the marketplace, takes payment and handles customer care. If your cart has items from several suppliers, you pay once and each supplier ships its part."
+            },
+            "bySpec": {
+              "q": "How do I find a material by spec?",
+              "a": "Search by material or by spec, for example “greyboard 2 mm” or “kraft paper 120 gsm”, then filter the results. Specs such as grammage, thickness and sheet size are shown on each listing."
+            },
+            "account": {
+              "q": "Do I need an account to order?",
+              "a": "You can browse without one. Checkout needs an account so we can send order updates and you can track, reorder and return from <orders>My orders</orders>."
+            },
+            "samples": {
+              "q": "Can I order samples, get quantity pricing or request a quote?",
+              "a": "Sample ordering, quantity-break pricing and requests for quotation are on the way and not available yet. For a large run today, <contact>contact us</contact> with the spec and quantity."
+            }
+          }
+        },
+        "delivery": {
+          "heading": "Delivery",
+          "items": {
+            "where": {
+              "q": "Where do you deliver?",
+              "a": "To addresses in the United Arab Emirates. Delivery options and times depend on the supplier and are shown at checkout before you pay."
+            },
+            "cost": {
+              "q": "How much is shipping?",
+              "a": "Standard shipping is free on orders over AED 150. Below that, and for faster options, the price for each supplier’s shipment is shown at checkout. More on the <shipping>shipping page</shipping>."
+            },
+            "tracking": {
+              "q": "Can I track my order?",
+              "a": "Yes. Each shipment has its own tracking under <orders>My orders</orders>."
+            }
+          }
+        },
+        "returns": {
+          "heading": "Returns and refunds",
+          "items": {
+            "what": {
+              "q": "What can I return?",
+              "a": "You can request a return within 7 days of delivery. Unopened material in its original packaging qualifies, as does anything that arrived damaged, faulty or wrong. Cut-to-size, made-to-order and opened material does not. See <returns>returns</returns>."
+            },
+            "refund": {
+              "q": "When will I get my refund?",
+              "a": "Once the supplier receives and checks the return, the refund goes back to your original payment method. How long it takes to show depends on your bank or payment provider."
+            }
+          }
+        },
+        "payment": {
+          "heading": "Payment",
+          "items": {
+            "methods": {
+              "q": "Which payment methods do you accept?",
+              "a": "Card payments through Stripe, instalments with Tabby or Tamara, and cash on delivery. Cash on delivery is available with standard delivery and pickup. Instalment eligibility is decided by Tabby or Tamara at checkout."
+            },
+            "card": {
+              "q": "Are my card details stored?",
+              "a": "No. Card details go straight to the payment provider. MaterialHub never stores your card number."
+            },
+            "currency": {
+              "q": "Which currency am I charged in?",
+              "a": "All prices are in UAE dirhams (AED), and you are charged in AED."
+            }
+          }
+        },
+        "selling": {
+          "heading": "Selling on MaterialHub",
+          "items": {
+            "become": {
+              "q": "How do I become a supplier?",
+              "a": "Apply from the <sell>Sell on MaterialHub</sell> page. The team reviews your business details and documents before your account goes live."
+            },
+            "paid": {
+              "q": "How are suppliers paid?",
+              "a": "Sales are paid out to the supplier’s bank account on a set schedule, minus the platform commission agreed in the vendor agreement."
+            }
+          }
+        }
+      }
+    },
+    "privacy": {
+      "meta": {
+        "title": "Privacy policy",
+        "description": "How MaterialHub collects, uses, stores and protects your personal data, in line with UAE Federal Decree-Law No. 45 of 2021."
+      },
+      "eyebrow": "Legal",
+      "title": "Privacy policy",
+      "intro": "How MaterialHub collects, uses and protects your personal data, in plain language.",
+      "label": {
+        "updated": "Updated",
+        "updatedValue": "25 May 2026",
+        "operator": "Operator",
+        "operatorValue": "MaterialHub FZ-LLC",
+        "law": "Governing law",
+        "lawValue": "UAE"
+      },
+      "headings": {
+        "who": "1. Who we are",
+        "collect": "2. What we collect",
+        "use": "3. Why we use it",
+        "sharing": "4. Sharing",
+        "transfers": "5. International transfers",
+        "retention": "6. How long we keep it",
+        "rights": "7. Your rights",
+        "cookies": "8. Cookies",
+        "children": "9. Children",
+        "changes": "10. Changes"
+      },
+      "who": {
+        "p1": "MaterialHub FZ-LLC (“MaterialHub”, “we”, “us”) is registered in Dubai, United Arab Emirates, and operates the materialhubuae.com storefront and mobile apps. We are the data controller for personal data processed in connection with your shopping account and orders."
+      },
+      "collect": {
+        "account": "<strong>Account data</strong> — name, email, mobile number, password hash, language and currency preferences.",
+        "order": "<strong>Order data</strong> — items purchased, prices, shipping address, billing address, delivery instructions.",
+        "payment": "<strong>Payment data</strong> — card brand and last four digits only; full card details are processed by our PCI-compliant payment providers and never stored on our servers.",
+        "usage": "<strong>Usage data</strong> — pages viewed, search terms, device and browser, IP address, approximate location.",
+        "comms": "<strong>Communications</strong> — messages with customer care, reviews you publish, questions you post on product pages."
+      },
+      "use": {
+        "orders": "To process orders, payments, shipping and returns.",
+        "account": "To run your account: login, addresses, wishlists and saved searches.",
+        "personalise": "To personalise the storefront — recommendations, recently viewed, what to show on the home page.",
+        "messages": "To send transactional messages (order updates, password resets) and, with your consent, marketing emails and push notifications.",
+        "fraud": "To prevent fraud, abuse and to comply with UAE consumer protection and tax law."
+      },
+      "sharing": {
+        "p1": "We share personal data only where necessary, with categories of recipients including: vendors (for orders they fulfil), payment providers (Stripe, Tabby, Tamara), logistics providers, cloud infrastructure (Amazon Web Services), analytics and crash reporting tools, and authorities where required by law.",
+        "p2": "We do not sell your personal data. Vendors receive only the data needed to fulfil and support your order from them."
+      },
+      "transfers": {
+        "p1": "Some personal data is processed outside the UAE by our cloud infrastructure and payment providers. Transfers outside the UAE rely on adequacy decisions or standard contractual clauses as recognised under UAE Federal Decree-Law No. 45 of 2021 on the Protection of Personal Data."
+      },
+      "retention": {
+        "p1": "Account data is kept while your account is open and for 24 months after closure, except where longer retention is required by tax, accounting or fraud-prevention law (up to seven years for invoices). Marketing data is kept until you withdraw consent."
+      },
+      "rights": {
+        "p1": "You have the right to access, correct, delete, restrict or port your personal data, and to withdraw consent at any time. Email <mail>info@materialhubuae.com</mail> with your request — we respond within 30 days.",
+        "p2": "You also have the right to complain to the UAE Data Office if you believe your rights have been breached."
+      },
+      "cookies": {
+        "p1": "We use strictly-necessary cookies to keep you signed in and your cart safe. Analytics and marketing cookies are loaded only after you accept them in the consent banner. You can change your choice any time in account settings."
+      },
+      "children": {
+        "p1": "MaterialHub is intended for users aged 18 and over. We do not knowingly collect data from children. If you believe a minor has created an account, email <mail>info@materialhubuae.com</mail> and we will remove it."
+      },
+      "changes": {
+        "p1": "When we update this policy, we change the date at the top and, for material changes, notify you by email. Continuing to use MaterialHub after the effective date means you accept the updated policy."
+      }
+    },
+    "returns": {
+      "meta": {
+        "title": "Returns and refunds",
+        "description": "Request a return within 7 days of delivery: what qualifies, how to start a return, what happens next and how refunds are paid."
+      },
+      "eyebrow": "Help",
+      "title": "Returns and refunds",
+      "intro": "You have 7 days from delivery to request a return. Start it from your order, and the supplier who sold the item handles it with us.",
+      "label": {
+        "window": "Return window",
+        "windowValue": "7 days",
+        "countedFrom": "Counted from",
+        "countedFromValue": "Delivery",
+        "startFrom": "Start from",
+        "startFromValue": "My orders",
+        "refundTo": "Refund to",
+        "refundToValue": "Original payment"
+      },
+      "headings": {
+        "can": "What you can return",
+        "cannot": "What can’t be returned",
+        "start": "How to start a return",
+        "next": "What happens next",
+        "refunds": "Refunds",
+        "damaged": "Damaged or wrong items"
+      },
+      "can": {
+        "unopened": "Unopened material in its original packaging, with seals and wrappers intact.",
+        "damaged": "Anything that arrived damaged, faulty or not as described, opened or not.",
+        "wrong": "The wrong item, colour, size or quantity."
+      },
+      "cannot": {
+        "cut": "Material that has been cut to size, opened or partly used: sheets, rolls, cloth and leather once unwrapped, adhesives once the seal is broken.",
+        "custom": "Made-to-order, printed or personalised items.",
+        "finalSale": "Items marked “final sale” on the product page."
+      },
+      "start": {
+        "open": "Open <orders>My orders</orders> and choose the order.",
+        "select": "Select the items to return and the reason. Add details and photos if something arrived damaged.",
+        "submit": "Submit the request. You’ll see its status on the order and in <accountReturns>Returns</accountReturns>."
+      },
+      "statuses": {
+        "caption": "Return statuses",
+        "colStatus": "Status",
+        "colMeaning": "What it means",
+        "requested": {
+          "s": "Requested",
+          "d": "Your request is with the supplier and MaterialHub."
+        },
+        "approved": {
+          "s": "Approved",
+          "d": "The return is accepted. You’ll get instructions to send it back."
+        },
+        "rejected": {
+          "s": "Rejected",
+          "d": "The return doesn’t qualify. The reason is shown on the request."
+        },
+        "shippedBack": {
+          "s": "Shipped back",
+          "d": "The item is on its way back to the supplier."
+        },
+        "received": {
+          "s": "Received",
+          "d": "The supplier has the item and is checking its condition."
+        },
+        "refunded": {
+          "s": "Refunded",
+          "d": "The refund has been issued to your original payment method."
+        }
+      },
+      "refunds": {
+        "p1": "Refunds go back to the payment method you used: your card, or your Tabby or Tamara plan. For cash-on-delivery orders, the refund method is shown on your return. How long a refund takes to show depends on your bank or provider.",
+        "p2": "We don’t swap items directly. Return the original and place a new order for the one you need."
+      },
+      "damaged": {
+        "p1": "Tell us as soon as you can, with your order number and a photo of the problem, by starting a return or through <contact>customer care</contact>. You won’t pay to send back an item that arrived damaged, faulty or wrong."
+      }
+    },
+    "shipping": {
+      "meta": {
+        "title": "Shipping and delivery",
+        "description": "How MaterialHub delivers across the UAE: delivery options, free standard shipping over AED 150, multi-supplier orders and tracking."
+      },
+      "eyebrow": "Help",
+      "title": "Shipping and delivery",
+      "intro": "Every supplier ships its own part of your order. You see the delivery options and the price for each shipment at checkout, before you pay.",
+      "label": {
+        "deliversTo": "Delivers to",
+        "deliversToValue": "UAE addresses",
+        "freeStandard": "Free standard",
+        "freeStandardValue": "Over AED 150",
+        "tracking": "Tracking",
+        "trackingValue": "Per shipment"
+      },
+      "headings": {
+        "options": "Delivery options",
+        "free": "Free standard shipping",
+        "multi": "Orders from several suppliers",
+        "tracking": "Tracking",
+        "where": "Where we deliver"
+      },
+      "options": {
+        "p1": "Which options you get depends on the supplier and your address. Checkout only offers the ones available for each shipment.",
+        "caption": "Delivery options and the payment methods they accept",
+        "colOption": "Option",
+        "colWhat": "What it is",
+        "colPay": "Pay with",
+        "standard": {
+          "name": "Standard",
+          "what": "Delivery to your address.",
+          "pay": "Card, Tabby, Tamara, cash on delivery"
+        },
+        "express": {
+          "name": "Express",
+          "what": "Faster delivery, where the supplier offers it.",
+          "pay": "Card, Tabby, Tamara"
+        },
+        "sameDay": {
+          "name": "Same day",
+          "what": "Delivered the day you order, where the supplier offers it.",
+          "pay": "Card, Tabby, Tamara"
+        },
+        "pickup": {
+          "name": "Pickup",
+          "what": "Collect from the supplier, where offered.",
+          "pay": "Card, Tabby, Tamara, cash on delivery"
+        }
+      },
+      "free": {
+        "p1": "Standard shipping is free on orders over AED 150. Below that, the standard rate for each shipment is shown at checkout. Express and same-day delivery are charged at the rate shown."
+      },
+      "multi": {
+        "p1": "MaterialHub is a marketplace, so a cart can hold material from several suppliers. You pay once, and each supplier sends its items as a separate shipment, priced separately at checkout and arriving on its own schedule."
+      },
+      "tracking": {
+        "p1": "Each shipment has its own status and tracking in <orders>My orders</orders>."
+      },
+      "where": {
+        "p1": "We deliver to addresses in the United Arab Emirates. For a large or regular trade delivery, <contact>contact us</contact> with the material, quantity and address."
+      }
+    },
+    "terms": {
+      "meta": {
+        "title": "Terms of service",
+        "description": "The terms that govern your use of MaterialHub — orders, payments, vendor responsibilities, intellectual property and dispute resolution."
+      },
+      "eyebrow": "Legal",
+      "title": "Terms of service",
+      "intro": "The rules for using MaterialHub. Opening an account means you accept these terms, so please read them.",
+      "label": {
+        "updated": "Updated",
+        "updatedValue": "25 May 2026",
+        "operator": "Operator",
+        "operatorValue": "MaterialHub FZ-LLC",
+        "law": "Governing law",
+        "lawValue": "UAE"
+      },
+      "headings": {
+        "contract": "1. Who you contract with",
+        "eligibility": "2. Eligibility",
+        "orders": "3. Orders & pricing",
+        "payment": "4. Payment",
+        "shipping": "5. Shipping, returns and refunds",
+        "vendors": "6. Vendor responsibilities",
+        "ugc": "7. User-generated content",
+        "ip": "8. Intellectual property",
+        "suspension": "9. Account suspension",
+        "liability": "10. Liability",
+        "law": "11. Governing law",
+        "changes": "12. Changes",
+        "contact": "13. Contact"
+      },
+      "contract": {
+        "p1": "MaterialHub is operated by MaterialHub FZ-LLC, registered in Dubai, United Arab Emirates. When you buy a product, your sales contract is with the <strong>vendor</strong> listed on the product page; MaterialHub acts as the marketplace, collects payment, and provides customer support and dispute resolution."
+      },
+      "eligibility": {
+        "p1": "You must be at least 18 years old and able to enter a binding contract under UAE law to open an account and place orders. Accounts are personal — you may not transfer them or share credentials."
+      },
+      "orders": {
+        "p1": "Listings are an invitation to buy, not an offer. Your order is accepted only when we send the shipment confirmation. We may decline orders for stock, pricing or fraud reasons; in that case, payment is fully refunded.",
+        "p2": "Prices are in AED and include 5% VAT where applicable. The price you see at checkout is the price you pay. Other display currencies are indicative only — your card is charged in AED."
+      },
+      "payment": {
+        "p1": "Payment is taken when you place an order, by card, by instalments with Tabby or Tamara, or in cash on delivery where offered. Instalment eligibility is decided by Tabby or Tamara. Cash-on-delivery orders are paid to the courier on delivery. We do not store full card details."
+      },
+      "shipping": {
+        "p1": "Shipping timelines, charges and zones are described on the <shipping>Shipping</shipping> page. Returns and refund eligibility are described on the <returns>Returns</returns> page. Both pages form part of these terms."
+      },
+      "vendors": {
+        "p1": "Vendors are responsible for accurate product information, stock availability, packaging and fulfilment to the standard described in their MaterialHub vendor agreement. Counterfeit, mislabelled or unsafe products are removed and the vendor offboarded."
+      },
+      "ugc": {
+        "p1": "Reviews, questions and photos you publish on MaterialHub must be your own work, truthful, and free of unlawful or offensive content. You grant MaterialHub a non-exclusive, royalty-free, worldwide licence to display, reproduce and promote your content in connection with the marketplace.",
+        "p2": "We may moderate, edit or remove content that breaches these terms or our community guidelines."
+      },
+      "ip": {
+        "p1": "MaterialHub, the MaterialHub logo, and the storefront design are owned by MaterialHub FZ-LLC. Brand names and product photography belong to the respective vendors and rights holders. You may not scrape, mirror, or reuse any of this content without written permission."
+      },
+      "suspension": {
+        "p1": "We may suspend or close accounts engaged in fraud, chargeback abuse, harassment of vendors or customer-care staff, or systematic violation of these terms. Pending orders may be cancelled and refunded."
+      },
+      "liability": {
+        "p1": "Where permitted by UAE law, MaterialHub’s aggregate liability for any claim relating to an order is capped at the value of that order. We are not liable for indirect or consequential losses, or for vendor performance beyond the marketplace guarantees expressly stated in these terms."
+      },
+      "law": {
+        "p1": "These terms are governed by the laws of the United Arab Emirates. Disputes are subject to the exclusive jurisdiction of the Dubai Courts, without prejudice to any non-waivable consumer rights in your emirate of residence."
+      },
+      "changes": {
+        "p1": "We may update these terms from time to time. The current version is always on this page, with the date updated. For material changes we will email you at least 14 days before they take effect."
+      },
+      "contact": {
+        "p1": "Questions on these terms: <mail>info@materialhubuae.com</mail>."
+      }
+    },
+    "designSystem": {
+      "meta": {
+        "title": "Design system"
+      },
+      "title": "Every category is a stock. Every product is a swatch.",
+      "intro": "Components, colour and type for the storefront. Read DESIGN.md for the rules; this page shows them working.",
+      "sections": {
+        "stocks": "Category stocks",
+        "type": "Archivo, Geist, Geist Mono",
+        "buttons": "Buttons, specs and prices",
+        "cards": "Swatch cards"
+      },
+      "stockNames": {
+        "paper": "Paper blue",
+        "leather": "Oxblood",
+        "hardware": "Brass",
+        "finishing": "Laminate green",
+        "packaging": "Kraft",
+        "trims": "Grosgrain red",
+        "craft": "Tissue violet"
+      },
+      "tokens": {
+        "board": "Board",
+        "stock": "Stock",
+        "binderInk": "Binder ink",
+        "pencil": "Pencil",
+        "cutterOrange": "Cutter orange",
+        "binderBlack": "Binder black"
+      },
+      "specimen": {
+        "display": "Greyboard 2.0 mm",
+        "headline": "Rigid box materials, sheet to carton",
+        "body": "Geist carries the interface and running text. Order a sample pack before a production run; every listing names its supplier, unit of measure and price per unit.",
+        "millLabel": "Mill label · condensed caps"
+      },
+      "labels": {
+        "buttons": "Buttons",
+        "stockChips": "Stock chips",
+        "millLabel": "Mill label",
+        "priceTags": "Price tags"
+      },
+      "buttons": {
+        "addToCart": "Add to cart",
+        "requestQuote": "Request quote",
+        "orderSample": "Order sample",
+        "compare": "Compare"
+      },
+      "specs": {
+        "grammage": "Grammage",
+        "thickness": "Thickness",
+        "sheet": "Sheet",
+        "finish": "Finish",
+        "uncoated": "Uncoated"
+      },
+      "backToStore": "Back to the store"
     }
   },
   "pdp": {
@@ -1167,7 +1787,11 @@
     "listingsCount": "{count, plural, one {{formatted} listing} other {{formatted} listings}}",
     "viewing": "Viewing",
     "scrollBack": "Scroll back",
-    "scrollForward": "Scroll forward"
+    "scrollForward": "Scroll forward",
+    "brandsMeta": {
+      "title": "Brands",
+      "description": "Every brand on MaterialHub, A to Z: papers and boards, leather and book cloth, hardware and fittings, adhesives and finishing, boxes and packaging, ribbons and trims, decoration and craft."
+    }
   },
   "eco": {
     "badge": "Plastic-ban ready",
@@ -1880,5 +2504,14 @@
       "admin": "MaterialHub",
       "super_admin": "MaterialHub"
     }
+  },
+  "header": {
+    "deliveringAcross": "Delivering across the",
+    "uae": "UAE",
+    "freeShipping": "· free shipping over <b>AED 150</b>",
+    "bulkTrade": "Bulk & trade orders",
+    "sell": "Sell",
+    "currency": "Currency",
+    "language": "Language"
   }
 }
