@@ -38,6 +38,7 @@ import {
   Return,
   ReturnItem,
   Review,
+  ReviewFlag,
   ReviewVote,
   RulesEpoch,
   Shipment,
@@ -547,8 +548,19 @@ const _orderEventBridge = new BullWorker(
       await autoShipmentQueue.add("auto-shipment", {
         orderId: job.data.orderId,
         vendorOrderId: job.data.vendorOrderId,
-        vendorId: job.data.actorId,
+        // actorId is the acting USER (or "system"), not the vendor.
+        vendorId: job.data.vendorId ?? job.data.actorId,
       });
+    }
+    // The master order just became delivered: a cash-on-delivery order's
+    // tax invoices are issued now that the cash is collected (see
+    // taxInvoiceDeferral). Idempotent for orders already invoiced.
+    if (job.data?.parentOrderStatus === "delivered" && job.data.orderId) {
+      await invoiceQueue.add(
+        "generate",
+        { orderId: job.data.orderId },
+        { jobId: `invoice_delivered_${job.data.orderId}` },
+      );
     }
     await notificationEventsQueue.add("notification-event", job.data);
   },
@@ -624,6 +636,7 @@ const reviewService = new ReviewService(
   productRepo,
   vendorRepo,
   reviewRatingQueue,
+  AppDataSource.getRepository(ReviewFlag),
 );
 const reviewController = new ReviewController(reviewService);
 

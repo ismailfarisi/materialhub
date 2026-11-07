@@ -471,7 +471,9 @@
     "tax": "Tax (VAT)",
     "total": "Total",
     "refunded": "Refunded",
-    "cancelledOutOfStock": "Cancelled (out of stock)",
+    "cancelledLine": "Cancelled",
+    "cancelledWithReason": "Cancelled ({reason})",
+    "returnedLine": "Returned",
     "refundedShort": "refunded",
     "shippingAddress": "Shipping address",
     "referredUsers": "Referred Users",
@@ -516,7 +518,15 @@
       "cancelled": "Cancelled",
       "refunded": "Refunded",
       "returned": "Returned",
-      "on_hold": "On hold"
+      "on_hold": "On hold",
+      "draft": "Draft",
+      "payment_failed": "Payment failed",
+      "ready_to_ship": "Ready to ship",
+      "partially_shipped": "Partly shipped",
+      "partially_delivered": "Partly delivered",
+      "refund_requested": "Return requested",
+      "partially_refunded": "Partly refunded",
+      "disputed": "Disputed"
     },
     "paymentStatus": {
       "pending": "Pending",
@@ -1036,6 +1046,13 @@
     "supplierReply": "Supplier reply",
     "helpful": "{count, plural, one {# buyer found this helpful} other {# buyers found this helpful}}",
     "reviewsUnavailable": "Individual reviews couldn't load. The rating above is up to date.",
+    "reviewWasHelpful": "Helpful",
+    "reviewNotHelpful": "Not helpful",
+    "reviewReport": "Report",
+    "reviewThanks": "Thanks for the feedback.",
+    "reviewReported": "Reported. Our team will take a look.",
+    "reviewOwn": "This is your review.",
+    "reviewActionFailed": "That didn't go through. Try again.",
     "qaTitle": "Questions and answers",
     "askLabel": "Ask the supplier about this material",
     "askPlaceholder": "e.g. Is this available in a 1.5 mm thickness?",
@@ -1807,6 +1824,61 @@
         "failed": "Couldn't send for approval. Try again.",
         "viewRequests": "View your requests"
       }
+    }
+  },
+  "disputes": {
+    "title": "Problems with this order",
+    "intro": "Something wrong that a return won't fix? Open a dispute and the MaterialHub team will review it with the supplier.",
+    "open": "Report a problem",
+    "openTitle": "Open a dispute",
+    "category": "What went wrong",
+    "categories": {
+      "item_not_received": "The order hasn't arrived",
+      "not_as_described": "Not as described (size, grade, finish)",
+      "counterfeit": "Not the genuine material",
+      "seller_unresponsive": "The supplier isn't responding",
+      "other": "Something else"
+    },
+    "supplier": "Supplier",
+    "description": "Describe the problem",
+    "descriptionHint": "Say what you ordered, what arrived and what you'd like done. You can add more on the thread later.",
+    "descriptionRequired": "Describe the problem so the team can review it.",
+    "submit": "Open dispute",
+    "submitting": "Opening…",
+    "cancel": "Cancel",
+    "openFailed": "The dispute couldn't be opened. Try again.",
+    "opened": "Dispute opened. We'll reply on the thread.",
+    "none": "No disputes on this order.",
+    "view": "View thread",
+    "loadFailed": "Disputes couldn't load.",
+    "status": {
+      "opened": "Opened",
+      "under_review": "Under review",
+      "escalated": "Escalated",
+      "resolved_buyer": "Resolved in your favour",
+      "resolved_seller": "Resolved for the supplier",
+      "closed": "Closed"
+    },
+    "threadTitle": "Dispute {number}",
+    "backToOrder": "Back to order",
+    "yourComplaint": "Your complaint",
+    "decision": "Decision",
+    "refunded": "Refund: {amount}",
+    "respondBy": "We aim to respond by {date}.",
+    "thread": "Thread",
+    "noMessages": "No replies yet. The MaterialHub team and the supplier will reply here.",
+    "reply": "Your reply",
+    "send": "Send",
+    "sending": "Sending…",
+    "sendFailed": "Your message wasn't sent. Try again.",
+    "closedNote": "This dispute is closed. The thread is read-only.",
+    "notFound": "Dispute not found",
+    "notFoundBody": "It may belong to another account, or the link is wrong.",
+    "sender": {
+      "customer": "You",
+      "vendor": "Supplier",
+      "admin": "MaterialHub",
+      "super_admin": "MaterialHub"
     }
   }
 }

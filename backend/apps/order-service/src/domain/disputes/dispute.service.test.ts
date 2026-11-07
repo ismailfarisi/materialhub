@@ -9,6 +9,8 @@ import { DisputeService } from "./dispute.service.ts";
 const makeQb = (resolvedValue: [any[], number] = [[], 0]) => {
   const qb: any = {
     leftJoinAndSelect: mock(() => qb),
+    leftJoin: mock(() => qb),
+    addSelect: mock(() => qb),
     innerJoinAndSelect: mock(() => qb),
     where: mock(() => qb),
     andWhere: mock(() => qb),
@@ -74,9 +76,21 @@ describe("DisputeService", () => {
       ),
     };
     orderItemRepo = makeMockRepo();
-    reversalTxManager = { __transactional: true, getRepository: mock(() => makeMockRepo()) };
-    orderItemRepo.manager = {
+    // The resolve transaction: repositories bound to it are the same mocks,
+    // so assertions on them keep working; the manager itself is what
+    // reverseForItems must receive.
+    reversalTxManager = {
+      __transactional: true,
+      getRepository: mock(() => makeMockRepo()),
+      withRepository: mock((repo: any) => repo),
+    };
+    disputeRepo.manager = {
       transaction: mock((cb: any) => cb(reversalTxManager)),
+    };
+    orderItemRepo.manager = {
+      transaction: mock(() => {
+        throw new Error("resolve must not open a second transaction");
+      }),
     };
     commissionReversal = {
       reverseForItems: mock(() => Promise.resolve({ recomputed: 0, cancelled: 0, clawedBack: 0 })),
@@ -236,15 +250,45 @@ describe("DisputeService", () => {
   /*  assignDispute                                                   */
   /* ================================================================ */
   describe("assignDispute", () => {
-    it("throws if status is not opened", async () => {
+    it("throws once the dispute is resolved or closed", async () => {
+      for (const status of [
+        DisputeStatus.resolved_buyer,
+        DisputeStatus.resolved_seller,
+        DisputeStatus.closed,
+      ]) {
+        disputeRepo.findOne.mockResolvedValueOnce({ id: "d-1", status });
+        await expect(service.assignDispute("d-1", "admin-1", "agent-1")).rejects.toThrow(
+          "Only open disputes can be assigned",
+        );
+      }
+    });
+
+    it("re-assigning an under_review dispute changes the owner and keeps the status", async () => {
       disputeRepo.findOne.mockResolvedValueOnce({
         id: "d-1",
         status: DisputeStatus.under_review,
+        assigned_to: "agent-1",
       });
+      userRepo.findOne.mockResolvedValueOnce({ id: "agent-2", role: "super_admin" });
 
-      await expect(service.assignDispute("d-1", "admin-1", "agent-1")).rejects.toThrow(
-        "Only opened disputes can be assigned",
-      );
+      const result = await service.assignDispute("d-1", "admin-1", "agent-2");
+
+      expect(result.assigned_to).toBe("agent-2");
+      expect(result.status).toBe(DisputeStatus.under_review);
+    });
+
+    it("rejects an assignee that is not an admin user (400)", async () => {
+      disputeRepo.findOne.mockResolvedValue({ id: "d-1", status: DisputeStatus.opened });
+      userRepo.findOne.mockResolvedValueOnce({ id: "cust-1", role: "customer" });
+      await expect(service.assignDispute("d-1", "admin-1", "cust-1")).rejects.toMatchObject({
+        statusCode: 400,
+        message: "Assignee must be an admin user",
+      });
+      userRepo.findOne.mockResolvedValueOnce(null);
+      await expect(service.assignDispute("d-1", "admin-1", "ghost")).rejects.toMatchObject({
+        statusCode: 400,
+      });
+      expect(disputeRepo.save).not.toHaveBeenCalled();
     });
 
     it("succeeds: sets assigned_to and transitions to under_review", async () => {
@@ -253,6 +297,7 @@ describe("DisputeService", () => {
         status: DisputeStatus.opened,
       });
 
+      userRepo.findOne.mockResolvedValueOnce({ id: "agent-1", role: "admin" });
       const result = await service.assignDispute("d-1", "admin-1", "agent-1");
 
       expect(result.assigned_to).toBe("agent-1");
@@ -442,8 +487,8 @@ describe("DisputeService", () => {
         const saveOrder = orderItemRepo.save.mock.invocationCallOrder[0];
         const reversalOrder = commissionReversal.reverseForItems.mock.invocationCallOrder[0];
         expect(saveOrder).toBeLessThan(reversalOrder);
-        // R3-C5: ran inside a real transaction, not on the base manager.
-        expect(orderItemRepo.manager.transaction).toHaveBeenCalledTimes(1);
+        // R3-C5: ran inside the single resolve transaction, not on the base manager.
+        expect(disputeRepo.manager.transaction).toHaveBeenCalledTimes(1);
         expect(commissionReversal.reverseForItems.mock.calls[0][0]).not.toBe(orderItemRepo.manager);
       });
 
@@ -686,6 +731,197 @@ describe("DisputeService", () => {
       });
     });
 
+    describe("one transaction, idempotent", () => {
+      const disputeRow = () => ({
+        id: "d-1",
+        dispute_number: "DSP-2026-000001",
+        status: DisputeStatus.under_review,
+        order_id: "order-1",
+        vendor_order_id: "vo-1",
+        opened_by: "user-1",
+      });
+
+      it("locks the dispute row and the buyer row inside the transaction (no lock on the base manager)", async () => {
+        disputeRepo.findOne.mockResolvedValueOnce(disputeRow());
+        orderItemRepo.find.mockResolvedValueOnce([
+          { id: "oi-1", line_total: 5000, refunded_amount: 0 },
+        ]);
+        const userQb = makeQb();
+        userQb.getOne.mockResolvedValueOnce({ id: "user-1", wallet_balance: 0 });
+        userRepo.createQueryBuilder.mockReturnValueOnce(userQb);
+
+        await service.resolveDispute("d-1", "admin-1", {
+          decision: "buyer",
+          resolution: "Crushed corners on the greyboard",
+          resolution_amount: 5000,
+        });
+
+        expect(disputeRepo.manager.transaction).toHaveBeenCalledTimes(1);
+        expect(disputeRepo.findOne.mock.calls[0][0]).toMatchObject({
+          where: { id: "d-1" },
+          lock: { mode: "pessimistic_write" },
+        });
+        expect(userQb.setLock).toHaveBeenCalledWith("pessimistic_write");
+        // Every repository used for writes was bound to the transaction.
+        const bound = reversalTxManager.withRepository.mock.calls.map((c: any[]) => c[0]);
+        for (const repo of [disputeRepo, userRepo, walletTransactionRepo, orderItemRepo]) {
+          expect(bound).toContain(repo);
+        }
+        const walletTxArg = walletTransactionRepo.create.mock.calls[0][0];
+        expect(walletTxArg).toMatchObject({
+          user_id: "user-1",
+          order_id: "order-1",
+          amount: 5000,
+          balance_before: 0,
+          balance_after: 5000,
+          reference_type: "dispute",
+          reference_id: "d-1",
+        });
+      });
+
+      it("a failing step rolls back: the order is not transitioned and the error surfaces", async () => {
+        disputeRepo.findOne.mockResolvedValueOnce(disputeRow());
+        orderItemRepo.find.mockResolvedValueOnce([
+          { id: "oi-1", line_total: 5000, refunded_amount: 0 },
+        ]);
+        commissionReversal.reverseForItems.mockRejectedValueOnce(new Error("draft locked"));
+
+        await expect(
+          service.resolveDispute("d-1", "admin-1", {
+            decision: "buyer",
+            resolution: "Refund",
+            resolution_amount: 5000,
+          }),
+        ).rejects.toThrow("draft locked");
+        expect(walletTransactionRepo.save).not.toHaveBeenCalled();
+        expect(orderStatusService.transitionOrder).not.toHaveBeenCalled();
+      });
+
+      it("issues the card refund last, after the ledger writes and the dispute save", async () => {
+        disputeRepo.findOne.mockResolvedValueOnce(disputeRow());
+        orderItemRepo.find.mockResolvedValueOnce([
+          { id: "oi-1", line_total: 7000, refunded_amount: 0 },
+        ]);
+
+        await service.resolveDispute("d-1", "admin-1", {
+          decision: "buyer",
+          resolution: "Card refund",
+          resolution_amount: 7000,
+          refund_method: "original_payment",
+        });
+
+        const refundAt = refundService.refundToOriginalPayment.mock.invocationCallOrder[0];
+        expect(commissionReversal.reverseForItems.mock.invocationCallOrder[0]).toBeLessThan(
+          refundAt,
+        );
+        expect(disputeRepo.save.mock.invocationCallOrder[0]).toBeLessThan(refundAt);
+      });
+
+      it("a gateway failure rolls the whole resolution back (nothing transitioned)", async () => {
+        disputeRepo.findOne.mockResolvedValueOnce(disputeRow());
+        refundService.refundToOriginalPayment.mockRejectedValueOnce(
+          new Error("Cannot refund COD payment to card — use wallet refund instead"),
+        );
+
+        await expect(
+          service.resolveDispute("d-1", "admin-1", {
+            decision: "buyer",
+            resolution: "Card refund",
+            resolution_amount: 7000,
+            refund_method: "original_payment",
+          }),
+        ).rejects.toThrow("Cannot refund COD payment");
+        expect(orderStatusService.transitionOrder).not.toHaveBeenCalled();
+      });
+
+      it("replaying the same decision returns the dispute without a second credit or refund", async () => {
+        disputeRepo.findOne.mockResolvedValueOnce({
+          ...disputeRow(),
+          status: DisputeStatus.resolved_buyer,
+          resolution_amount: 5000,
+        });
+        orderRepo.findOne.mockResolvedValueOnce({
+          id: "order-1",
+          status: OrderStatus.refund_requested,
+        });
+
+        const result = await service.resolveDispute("d-1", "admin-1", {
+          decision: "buyer",
+          resolution: "Refund",
+          resolution_amount: 5000,
+        });
+
+        expect(result.status).toBe(DisputeStatus.resolved_buyer);
+        expect(walletTransactionRepo.create).not.toHaveBeenCalled();
+        expect(refundService.refundToOriginalPayment).not.toHaveBeenCalled();
+        expect(commissionReversal.reverseForItems).not.toHaveBeenCalled();
+        expect(disputeRepo.save).not.toHaveBeenCalled();
+        // Order already moved on — no transition attempted.
+        expect(orderStatusService.transitionOrder).not.toHaveBeenCalled();
+      });
+
+      it("a replay finishes an order transition that failed after the first commit", async () => {
+        disputeRepo.findOne.mockResolvedValueOnce({
+          ...disputeRow(),
+          status: DisputeStatus.resolved_buyer,
+        });
+        orderRepo.findOne.mockResolvedValueOnce({ id: "order-1", status: OrderStatus.disputed });
+
+        await service.resolveDispute("d-1", "admin-1", {
+          decision: "buyer",
+          resolution: "Refund",
+          resolution_amount: 5000,
+        });
+
+        expect(orderStatusService.transitionOrder).toHaveBeenCalledWith(
+          "order-1",
+          OrderStatus.refund_requested,
+          { userId: "admin-1", role: "admin" },
+        );
+        expect(walletTransactionRepo.create).not.toHaveBeenCalled();
+      });
+
+      it("resolving an already-resolved dispute the other way is a 409", async () => {
+        disputeRepo.findOne.mockResolvedValueOnce({
+          ...disputeRow(),
+          status: DisputeStatus.resolved_seller,
+        });
+        await expect(
+          service.resolveDispute("d-1", "admin-1", {
+            decision: "buyer",
+            resolution: "Refund",
+            resolution_amount: 5000,
+          }),
+        ).rejects.toMatchObject({ statusCode: 409 });
+      });
+
+      it("never credits the wallet twice for the same dispute", async () => {
+        disputeRepo.findOne.mockResolvedValueOnce(disputeRow());
+        walletTransactionRepo.findOne.mockResolvedValueOnce({ id: "wt-1" });
+
+        await service.resolveDispute("d-1", "admin-1", {
+          decision: "buyer",
+          resolution: "Refund",
+          resolution_amount: 5000,
+        });
+
+        expect(walletTransactionRepo.create).not.toHaveBeenCalled();
+        expect(userRepo.save).not.toHaveBeenCalled();
+      });
+
+      it("a seller decision stores no resolution amount", async () => {
+        disputeRepo.findOne.mockResolvedValueOnce(disputeRow());
+        const result = await service.resolveDispute("d-1", "admin-1", {
+          decision: "seller",
+          resolution: "Board was within tolerance",
+          resolution_amount: 5000,
+        });
+        expect(result.resolution_amount).toBeNull();
+        expect(walletTransactionRepo.create).not.toHaveBeenCalled();
+        expect(commissionReversal.reverseForItems).not.toHaveBeenCalled();
+      });
+    });
+
     it("throws if status is not under_review or escalated", async () => {
       disputeRepo.findOne.mockResolvedValueOnce({
         id: "d-1",
@@ -906,6 +1142,124 @@ describe("DisputeService", () => {
       await service.listForAdmin({ status: DisputeStatus.opened });
 
       expect(qb.andWhere).toHaveBeenCalled();
+    });
+  });
+
+  describe("admin / vendor shapes", () => {
+    const joined = {
+      id: "d-1",
+      dispute_number: "DSP-2026-000001",
+      status: DisputeStatus.under_review,
+      category: "item_not_as_described",
+      description: "Kraft rolls arrived water-damaged",
+      evidence_urls: [],
+      order_id: "order-1",
+      vendor_order_id: "vo-1",
+      vendor_id: "vendor-1",
+      opened_by: "user-1",
+      assigned_to: "admin-9",
+      order: { order_number: "MH-1001", status: "disputed", grand_total: 26250, currency: "AED" },
+      vendorOrder: { vendor_order_number: "MH-1001-A", vendor_total: 25000 },
+      vendor: { name: "Gulf Board Supply" },
+      openedByUser: { first_name: "Mariam", last_name: "Haddad", email: "mariam@buyer.test" },
+      assignedToUser: { first_name: "Omar", last_name: "Saeed", email: "omar@materialhub.test" },
+    };
+
+    it("listForAdmin flattens order number, vendor, buyer and assignee names", async () => {
+      const qb = makeQb([[joined], 1]);
+      disputeRepo.createQueryBuilder.mockReturnValueOnce(qb);
+
+      const { data, total } = await service.listForAdmin({ assigned_to: "admin-9" });
+
+      expect(total).toBe(1);
+      expect(data[0]).toMatchObject({
+        order_number: "MH-1001",
+        vendor_name: "Gulf Board Supply",
+        vendor_order_number: "MH-1001-A",
+        buyer_name: "Mariam Haddad",
+        assigned_to_name: "Omar Saeed",
+        order_total: 26250,
+      });
+      expect(qb.andWhere).toHaveBeenCalledWith("dispute.assigned_to = :assignedTo", {
+        assignedTo: "admin-9",
+      });
+      // Only named columns of the joined users are selected.
+      expect(qb.leftJoinAndSelect).not.toHaveBeenCalled();
+    });
+
+    it("getForAdmin returns the case with the full thread, internal notes included", async () => {
+      const qb = makeQb();
+      qb.getOne.mockResolvedValueOnce(joined);
+      disputeRepo.createQueryBuilder.mockReturnValueOnce(qb);
+      const msgQb = makeQb();
+      msgQb.getMany.mockResolvedValueOnce([
+        { id: "m-1", is_internal: false },
+        { id: "m-2", is_internal: true },
+      ]);
+      disputeMessageRepo.createQueryBuilder.mockReturnValueOnce(msgQb);
+
+      const result = await service.getForAdmin("d-1");
+
+      expect(result.dispute_number).toBe("DSP-2026-000001");
+      expect(result.messages).toHaveLength(2);
+    });
+
+    it("getForAdmin answers an unknown id with 404", async () => {
+      disputeRepo.createQueryBuilder.mockReturnValueOnce(makeQb());
+      await expect(service.getForAdmin("missing")).rejects.toMatchObject({ statusCode: 404 });
+    });
+
+    it("the vendor view carries the buyer's first name only, no email or assignee", async () => {
+      const qb = makeQb();
+      qb.getOne.mockResolvedValueOnce(joined);
+      disputeRepo.createQueryBuilder.mockReturnValueOnce(qb);
+
+      const result = await service.getForVendor("d-1", "vendor-1");
+
+      expect(result.buyer_name).toBe("Mariam");
+      expect(result).not.toHaveProperty("buyer_email");
+      expect(result).not.toHaveProperty("assigned_to");
+      expect(result).not.toHaveProperty("opened_by");
+      expect(qb.andWhere).toHaveBeenCalledWith("dispute.vendor_id = :vendorId", {
+        vendorId: "vendor-1",
+      });
+    });
+
+    it("listForBuyer filters by order when order_id is given", async () => {
+      const qb = makeQb([[], 0]);
+      disputeRepo.createQueryBuilder.mockReturnValueOnce(qb);
+      await service.listForBuyer("user-1", { order_id: "order-1" });
+      expect(qb.andWhere).toHaveBeenCalledWith("dispute.order_id = :orderId", {
+        orderId: "order-1",
+      });
+    });
+  });
+
+  describe("assertVendorParticipant", () => {
+    it("lets the supplier the dispute is against through", async () => {
+      disputeRepo.findOne.mockResolvedValueOnce({ id: "d-1", vendor_id: "vendor-1" });
+      await expect(service.assertVendorParticipant("d-1", "vendor-1")).resolves.toMatchObject({
+        id: "d-1",
+      });
+    });
+
+    it("another supplier gets the same 404 as an unknown id", async () => {
+      disputeRepo.findOne.mockResolvedValueOnce({ id: "d-1", vendor_id: "vendor-1" });
+      await expect(service.assertVendorParticipant("d-1", "vendor-2")).rejects.toMatchObject({
+        statusCode: 404,
+        message: "Dispute not found",
+      });
+      disputeRepo.findOne.mockResolvedValueOnce(null);
+      await expect(service.assertVendorParticipant("nope", "vendor-1")).rejects.toMatchObject({
+        statusCode: 404,
+      });
+    });
+
+    it("a vendor message is never internal", async () => {
+      disputeRepo.findOne.mockResolvedValueOnce({ id: "d-1", status: DisputeStatus.under_review });
+      await expect(
+        service.addMessage("d-1", "vendor-user-1", "vendor", { message: "x", is_internal: true }),
+      ).rejects.toThrow("Only admins can send internal messages");
     });
   });
 

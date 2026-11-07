@@ -104,6 +104,8 @@ const serviceRoutes: ServiceRoute[] = [
   { prefix: "/vendor/quotes", target: order },
   { prefix: "/admin/vendor-orders", target: order },
   { prefix: "/vendor/returns", target: order },
+  // Supplier side of a buyer dispute (read the case, post on the thread).
+  { prefix: "/vendor/disputes", target: order },
   { prefix: "/orders", target: order },
   { prefix: "/cart", target: order },
   { prefix: "/checkout", target: order },

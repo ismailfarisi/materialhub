@@ -45,6 +45,32 @@ function toCustomerCancellation(c: OrderItemCancellation) {
   };
 }
 
+/**
+ * Stamp each order line with what was cancelled from it and why, so the
+ * storefront can tell a cancelled line ("Cancelled: <reason>") from a returned
+ * one — `refunded_quantity` counts both.
+ */
+export function annotateCancelledItems(order: any, cancellations: OrderItemCancellation[]): void {
+  const byItem = new Map<string, { quantity: number; amount: number; reason: string | null }>();
+  for (const c of cancellations) {
+    for (const it of (c.items as CancelledItemSnapshot[] | null) ?? []) {
+      const cur = byItem.get(it.order_item_id) ?? { quantity: 0, amount: 0, reason: null };
+      cur.quantity += Number(it.quantity) || 0;
+      cur.amount += Number(it.refund_amount) || 0;
+      cur.reason = c.reason ?? cur.reason;
+      byItem.set(it.order_item_id, cur);
+    }
+  }
+  for (const vo of order?.vendorOrders ?? []) {
+    for (const item of vo.items ?? []) {
+      const hit = byItem.get(item.id);
+      item.cancelled_quantity = hit?.quantity ?? 0;
+      item.cancelled_amount = hit?.amount ?? 0;
+      item.cancellation_reason = hit?.reason ?? null;
+    }
+  }
+}
+
 // Admin-facing shape: the full record.
 function toAdminCancellation(c: OrderItemCancellation) {
   return {
@@ -130,6 +156,7 @@ export class OrderQueryService {
       where: { order_id: orderId, status: "completed" },
     });
     (order as any).cancellations = cancellations.map(toCustomerCancellation);
+    annotateCancelledItems(order, cancellations);
 
     return order;
   }

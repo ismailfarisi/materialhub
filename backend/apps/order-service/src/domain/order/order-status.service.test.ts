@@ -32,10 +32,13 @@ function withLocking(tx: any) {
 }
 
 describe("OrderStatusService", () => {
+  // Post-commit COD void after cancelOrder goes through manager.getRepository.
+  const mockPaymentUpdate = mock((_where: any, _set: any) => Promise.resolve({ affected: 0 }));
   const mockOrderRepo = {
     findOne: mock(() => Promise.resolve(null)),
     save: mock((entity: any) => Promise.resolve(entity)),
     manager: {
+      getRepository: mock(() => ({ update: mockPaymentUpdate })),
       transaction: mock(async (cb: any) =>
         cb(
           withLocking({
@@ -716,6 +719,8 @@ describe("OrderStatusService", () => {
       expect(savedPayments[0].captured_at).toBeInstanceOf(Date);
       // The order's payment_status is captured too.
       expect(savedOrders.some((o) => o.payment_status === "captured")).toBe(true);
+      // The master order's delivered_at is stamped too (return window).
+      expect(savedOrders.some((o) => o.delivered_at instanceof Date)).toBe(true);
     });
 
     it("enqueues a vendor_order.status_changed integration event when flag is on", async () => {
@@ -1289,12 +1294,228 @@ describe("OrderStatusService", () => {
         return cb(withLocking(txManager));
       });
 
+      mockPaymentUpdate.mockClear();
       await service.cancelOrder("order-1", { userId, role: "buyer" as const }, "changed mind");
 
       expect(historyRows.length).toBeGreaterThan(0);
       for (const row of historyRows) {
         expect(row.changed_by).toBe(userId);
       }
+      // A cancelled COD order's pending payment is voided after commit.
+      expect(mockPaymentUpdate).toHaveBeenCalledWith(
+        { order_id: "order-1", gateway: "cod", status: "pending" },
+        { status: "cancelled" },
+      );
+    });
+  });
+  describe("vendor actors and vendor sub-order cancellation", () => {
+    const MEMBER_USER_ID = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+    const VENDOR_ID = "99999999-8888-4777-8666-555555555555";
+
+    function vendorTx(opts: {
+      voStatus: OrderStatus;
+      siblings?: OrderStatus[];
+      reservations?: Array<{ id: string; inventory_id: string; quantity: number }>;
+      codPayment?: any;
+    }) {
+      const history: any[] = [];
+      const commissionUpdates: any[] = [];
+      const inventorySaves: any[] = [];
+      const paymentSaves: any[] = [];
+      const queries: Array<[string, any[]]> = [];
+      const vo: any = {
+        id: "vo-1",
+        order_id: "order-1",
+        vendor_id: VENDOR_ID,
+        status: opts.voStatus,
+        subtotal: 12000,
+        shipping_cost: 1500,
+      };
+      const order: any = { id: "order-1", status: OrderStatus.confirmed };
+      const inv: any = { id: "inv-1", quantity_reserved: 5 };
+      const tx = {
+        query: mock((sql: string, params: any[]) => {
+          queries.push([sql, params]);
+          if (sql.includes("FROM inventory_reservations r")) {
+            return Promise.resolve(opts.reservations ?? []);
+          }
+          if (sql.includes("count(*)")) return Promise.resolve([{ count: 1 }]);
+          return Promise.resolve([]);
+        }),
+        getRepository: mock((name: string) => {
+          if (name === "VendorOrder") {
+            return {
+              findOne: mock(() => Promise.resolve(vo)),
+              find: mock(() =>
+                Promise.resolve([
+                  vo,
+                  ...(opts.siblings ?? []).map((st, i) => ({ id: `vo-s${i}`, status: st })),
+                ]),
+              ),
+              save: mock((e: any) => Promise.resolve(e)),
+            };
+          }
+          if (name === "Order") {
+            return {
+              findOne: mock(() => Promise.resolve(order)),
+              save: mock((e: any) => Promise.resolve(e)),
+            };
+          }
+          if (name === "OrderStatusHistory") {
+            return {
+              create: mock((d: any) => d),
+              save: mock((e: any) => {
+                history.push(e);
+                return Promise.resolve(e);
+              }),
+            };
+          }
+          if (name === "Commission") {
+            return {
+              update: mock((where: any, set: any) => {
+                commissionUpdates.push({ where, set });
+                return Promise.resolve({ affected: 1 });
+              }),
+              find: mock(() => Promise.resolve([])),
+            };
+          }
+          if (name === "Inventory") {
+            const qb: any = {
+              setLock: () => qb,
+              where: () => qb,
+              getOne: () => Promise.resolve(inv),
+            };
+            return {
+              createQueryBuilder: () => qb,
+              save: mock((e: any) => {
+                inventorySaves.push({ ...e });
+                return Promise.resolve(e);
+              }),
+            };
+          }
+          if (name === "Payment") {
+            return {
+              findOne: mock(() => Promise.resolve(opts.codPayment ?? null)),
+              save: mock((e: any) => {
+                paymentSaves.push({ ...e });
+                return Promise.resolve(e);
+              }),
+            };
+          }
+          throw new Error(`Unexpected repo ${name}`);
+        }),
+      };
+      return { tx, history, commissionUpdates, inventorySaves, paymentSaves, queries, order, vo };
+    }
+
+    function serviceWithInventory() {
+      return new OrderStatusService(
+        mockOrderRepo as any,
+        mockVendorOrderRepo as any,
+        mockHistoryRepo as any,
+        mockQueue as any,
+        undefined,
+        undefined,
+        {} as any, // inventoryRepo: enables reservation release
+        mockCommissionService as any,
+      );
+    }
+
+    it("records the acting member's user id, not the vendor id, in changed_by", async () => {
+      const ctx = vendorTx({ voStatus: OrderStatus.confirmed });
+      mockOrderRepo.manager.transaction.mockImplementationOnce(async (cb: any) => cb(ctx.tx));
+
+      await service.transitionVendorOrder("vo-1", OrderStatus.processing, {
+        userId: MEMBER_USER_ID,
+        vendorId: VENDOR_ID,
+        role: "vendor",
+      });
+
+      const voRow = ctx.history.find((h) => h.vendor_order_id === "vo-1");
+      expect(voRow.changed_by).toBe(MEMBER_USER_ID);
+      expect(voRow.changed_by_role).toBe("vendor");
+    });
+
+    it("never writes a vendor id as changed_by for a legacy vendor actor", async () => {
+      const ctx = vendorTx({ voStatus: OrderStatus.confirmed });
+      mockOrderRepo.manager.transaction.mockImplementationOnce(async (cb: any) => cb(ctx.tx));
+
+      await service.transitionVendorOrder("vo-1", OrderStatus.processing, {
+        userId: VENDOR_ID,
+        role: "vendor",
+      });
+
+      const voRow = ctx.history.find((h) => h.vendor_order_id === "vo-1");
+      expect(voRow.changed_by).toBeNull();
+    });
+
+    it("rejects a member acting for another vendor with a 404", async () => {
+      const ctx = vendorTx({ voStatus: OrderStatus.confirmed });
+      mockOrderRepo.manager.transaction.mockImplementationOnce(async (cb: any) => cb(ctx.tx));
+
+      await expect(
+        service.transitionVendorOrder("vo-1", OrderStatus.processing, {
+          userId: MEMBER_USER_ID,
+          vendorId: "11111111-1111-4111-8111-111111111111",
+          role: "vendor",
+        }),
+      ).rejects.toMatchObject({ statusCode: 404 });
+    });
+
+    it("cancelling one sub-order releases its reservations, voids its commissions and trims COD", async () => {
+      const cod = { id: "pay-1", gateway: "cod", status: "pending", amount: 30000 };
+      const ctx = vendorTx({
+        voStatus: OrderStatus.confirmed,
+        siblings: [OrderStatus.confirmed],
+        reservations: [{ id: "res-1", inventory_id: "inv-1", quantity: 2 }],
+        codPayment: cod,
+      });
+      mockOrderRepo.manager.transaction.mockImplementationOnce(async (cb: any) => cb(ctx.tx));
+
+      await serviceWithInventory().transitionVendorOrder(
+        "vo-1",
+        OrderStatus.cancelled,
+        { userId: MEMBER_USER_ID, vendorId: VENDOR_ID, role: "vendor" },
+        "Out of this board grade",
+      );
+
+      // Only this vendor's reservation rows are selected.
+      const select = ctx.queries.find(([sql]) => sql.includes("FROM inventory_reservations r"));
+      expect(select?.[1]).toEqual(["order-1", VENDOR_ID]);
+      expect(ctx.inventorySaves[0].quantity_reserved).toBe(3);
+      const release = ctx.queries.find(([sql]) => sql.includes("SET status = 'released'"));
+      expect(release?.[1]).toEqual([["res-1"]]);
+      expect(ctx.commissionUpdates).toContainEqual({
+        where: expect.objectContaining({ vendor_order_id: "vo-1" }),
+        set: { status: CommissionStatus.cancelled, settle_after: null },
+      });
+      // The other sub-order is still live: COD shrinks by this one's share.
+      expect(ctx.paymentSaves[0]).toMatchObject({ status: "pending", amount: 16500 });
+      expect(ctx.order.status).toBe(OrderStatus.confirmed);
+    });
+
+    it("cancelling the last live sub-order cancels the master and voids the COD payment", async () => {
+      const cod = { id: "pay-1", gateway: "cod", status: "pending", amount: 13500 };
+      const ctx = vendorTx({
+        voStatus: OrderStatus.confirmed,
+        siblings: [OrderStatus.cancelled],
+        reservations: [],
+        codPayment: cod,
+      });
+      mockOrderRepo.manager.transaction.mockImplementationOnce(async (cb: any) => cb(ctx.tx));
+      const svc = serviceWithInventory();
+      const hook = mock(() => Promise.resolve());
+      svc.onOrderCancelled(hook);
+
+      await svc.transitionVendorOrder("vo-1", OrderStatus.cancelled, {
+        userId: MEMBER_USER_ID,
+        vendorId: VENDOR_ID,
+        role: "vendor",
+      });
+
+      expect(ctx.order.status).toBe(OrderStatus.cancelled);
+      expect(ctx.paymentSaves[0]).toMatchObject({ status: "cancelled" });
+      expect(hook).toHaveBeenCalledWith("order-1");
     });
   });
 });

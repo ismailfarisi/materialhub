@@ -20,6 +20,10 @@ export interface OrderItemRow {
 	line_total?: number | null;
 	refunded_quantity?: number;
 	refunded_amount?: number;
+	/** Of refunded_quantity, the units cancelled before shipping (the rest were returned). */
+	cancelled_quantity?: number;
+	cancelled_amount?: number;
+	cancellation_reason?: string | null;
 	is_reviewed?: boolean;
 	status?: string;
 }

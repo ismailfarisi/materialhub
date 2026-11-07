@@ -4,7 +4,7 @@ import {
   OpenDisputeBody,
   ResolveDisputeBody,
 } from "@materialhub/dto";
-import { jwtAuth, requireRole } from "@materialhub/guards";
+import { jwtAuth, requireRole, vendorMembership } from "@materialhub/guards";
 import { NotFoundError, auditPlugin } from "@materialhub/plugins";
 import { Elysia, t } from "elysia";
 import { container } from "../container.ts";
@@ -58,6 +58,7 @@ export const disputeRoutes = new Elysia()
             page: t.Optional(t.Integer({ minimum: 1, default: 1 })),
             limit: t.Optional(t.Integer({ minimum: 1, maximum: 100, default: 20 })),
             status: t.Optional(t.String()),
+            order_id: t.Optional(t.String({ format: "uuid" })),
           }),
         },
       )
@@ -91,6 +92,16 @@ export const disputeRoutes = new Elysia()
             status: t.Optional(t.String()),
             assigned_to: t.Optional(t.String({ format: "uuid" })),
           }),
+        },
+      )
+      .get(
+        "/:id",
+        async ({ params, disputeController }: any) => {
+          const result = await disputeController.getForAdmin(params.id);
+          return { statusCode: 200, data: result, timestamp: ts() };
+        },
+        {
+          params: uuidParam,
         },
       )
       .patch(
@@ -176,5 +187,74 @@ export const disputeRoutes = new Elysia()
           params: uuidParam,
           query: paginationQuery,
         },
+      ),
+  )
+
+  // ── /vendor/disputes — the supplier a dispute is raised against ────────────
+  // Reads use `orders.read` (owner / manager / staff / viewer), posting a
+  // message uses `orders.fulfill` (owner / manager / staff), as on
+  // /vendor/orders. Scoped to `dispute.vendor_id` of the active membership;
+  // internal admin notes are never returned and cannot be posted.
+  .group("/vendor/disputes", (app) =>
+    app
+      .guard({}, (a) =>
+        a
+          .use(vendorMembership("orders.read"))
+          .get(
+            "/",
+            async ({ member, query, disputeController }: any) => {
+              const result = await disputeController.listForVendor(member.vid, query);
+              return { statusCode: 200, ...result, timestamp: ts() };
+            },
+            {
+              query: t.Object({
+                page: t.Optional(t.Integer({ minimum: 1, default: 1 })),
+                limit: t.Optional(t.Integer({ minimum: 1, maximum: 100, default: 20 })),
+                status: t.Optional(t.String()),
+                order_id: t.Optional(t.String({ format: "uuid" })),
+              }),
+            },
+          )
+          .get(
+            "/:id",
+            async ({ member, params, disputeController }: any) => {
+              const result = await disputeController.getForVendor(params.id, member.vid);
+              return { statusCode: 200, data: result, timestamp: ts() };
+            },
+            { params: uuidParam },
+          )
+          .get(
+            "/:id/messages",
+            async ({ member, params, query, disputeController }: any) => {
+              const result = await disputeController.listVendorMessages(
+                params.id,
+                member.vid,
+                query,
+              );
+              return { statusCode: 200, ...result, timestamp: ts() };
+            },
+            { params: uuidParam, query: paginationQuery },
+          ),
+      )
+      .guard({}, (a) =>
+        a.use(vendorMembership("orders.fulfill")).post(
+          "/:id/messages",
+          async ({ member, user, params, body, disputeController }: any) => {
+            const result = await disputeController.addVendorMessage(
+              params.id,
+              member.vid,
+              user.id,
+              body,
+            );
+            return { statusCode: 201, data: result, timestamp: ts() };
+          },
+          {
+            params: uuidParam,
+            body: t.Object({
+              message: t.String({ minLength: 1, maxLength: 5000 }),
+              attachment_urls: t.Optional(t.Array(t.String(), { maxItems: 5 })),
+            }),
+          },
+        ),
       ),
   );

@@ -30,6 +30,9 @@ export interface ReturnRequest {
   reason: string;
   status: string;
   refund_amount?: number | null;
+  refund_method?: string | null;
+  refunded_at?: string | null;
+  received_at?: string | null;
   created_at: string;
   order?: { id: string; order_number: string } | null;
   returnItems?: ReturnItemRow[];
@@ -65,6 +68,8 @@ export function useApproveReturn() {
     }: {
       id: string;
       refund_amount?: number;
+      // Cash-on-delivery orders: the server resolves original_payment to
+      // wallet (there is no card to refund).
       refund_method?: "wallet" | "original_payment" | "manual";
       admin_notes?: string;
     }) => {
@@ -86,6 +91,23 @@ export function useRejectReturn() {
   return useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
       const { data } = await api.patch(`/admin/returns/${id}/reject`, { rejection_reason: reason });
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "returns"] });
+    },
+  });
+}
+
+/**
+ * Retry the refund of a return that was received but whose refund failed
+ * (status `received`, no refunded_at).
+ */
+export function useRetryReturnRefund() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id }: { id: string }) => {
+      const { data } = await api.post(`/admin/returns/${id}/refund`);
       return data.data;
     },
     onSuccess: () => {

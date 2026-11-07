@@ -33,11 +33,17 @@ export class ReviewController {
 
   /** Route passes the already-validated boolean, not the body. */
   async vote(reviewId: string, userId: string, isHelpful: boolean) {
-    return this.reviewService.voteReview(reviewId, userId, isHelpful);
+    const review: any = await this.reviewService.voteReview(reviewId, userId, isHelpful);
+    // The voter only needs the new tallies, not the review row.
+    return {
+      id: review.id,
+      helpful_count: review.helpful_count ?? 0,
+      not_helpful_count: review.not_helpful_count ?? 0,
+    };
   }
 
-  async flag(reviewId: string, userId: string) {
-    return this.reviewService.flagReview(reviewId, userId);
+  async flag(reviewId: string, userId: string, reason?: string) {
+    return this.reviewService.flagReview(reviewId, userId, reason);
   }
 
   async approve(reviewId: string, adminId: string) {

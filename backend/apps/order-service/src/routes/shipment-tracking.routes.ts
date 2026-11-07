@@ -34,13 +34,14 @@ export const shipmentTrackingRoutes = new Elysia()
       .use(vendorMembership("orders.fulfill"))
       .post(
         "/:id/ship",
-        async ({ user, member, params, body, shipmentTrackingController }: any) => {
+        async ({ user, member, params, body, shipmentTrackingController, set }: any) => {
           const result = await shipmentTrackingController.createShipment(
             params.id,
             member.vid,
             body,
             user?.id ?? null,
           );
+          set.status = 201;
           return { statusCode: 201, data: result, timestamp: new Date().toISOString() };
         },
         {

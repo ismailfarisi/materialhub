@@ -2,11 +2,14 @@
 
 import { Button, SectionHead } from "@/components/swatch";
 import { api } from "@/lib/api";
+import { useFlagReview, useVoteReview } from "@/lib/queries/reviews";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/stores/auth";
 import { useQuery } from "@tanstack/react-query";
-import { BadgeCheck, Star } from "lucide-react";
+import { BadgeCheck, Flag, Star, ThumbsDown, ThumbsUp } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
+import { useState } from "react";
 
 export interface ProductReview {
 	id: string;
@@ -51,6 +54,79 @@ function Stars({ value, className }: { value: number; className?: string }) {
 	);
 }
 
+type ActionNote = "thanks" | "reported" | "own" | "failed";
+
+function noteFor(err: unknown): ActionNote {
+	const status = (err as { response?: { status?: number; data?: { statusCode?: number } } })?.response;
+	return status?.status === 403 || status?.data?.statusCode === 403 ? "own" : "failed";
+}
+
+/**
+ * Helpful / not helpful / report, for signed-in buyers only. The API refuses
+ * a vote or report on your own review (403); that shows as a plain note.
+ */
+export function ReviewActions({ reviewId }: { reviewId: string }) {
+	const t = useTranslations("pdp");
+	const vote = useVoteReview();
+	const flag = useFlagReview();
+	const [note, setNote] = useState<ActionNote | null>(null);
+	const [voted, setVoted] = useState<boolean | null>(null);
+	const [reported, setReported] = useState(false);
+	const busy = vote.isPending || flag.isPending;
+
+	function castVote(isHelpful: boolean) {
+		vote.mutate(
+			{ reviewId, isHelpful },
+			{
+				onSuccess: () => {
+					setVoted(isHelpful);
+					setNote("thanks");
+				},
+				onError: (err) => setNote(noteFor(err)),
+			},
+		);
+	}
+
+	function report() {
+		flag.mutate(
+			{ reviewId },
+			{
+				onSuccess: () => {
+					setReported(true);
+					setNote("reported");
+				},
+				onError: (err) => setNote(noteFor(err)),
+			},
+		);
+	}
+
+	const btn =
+		"inline-flex min-h-[36px] items-center gap-1.5 rounded-sm px-2 text-[12.5px] text-nl-russet transition-colors hover:bg-nl-linen hover:text-nl-cacao focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nl-amber disabled:opacity-50 aria-pressed:text-nl-cacao aria-pressed:font-medium";
+
+	return (
+		<div className="-ms-2 flex flex-wrap items-center gap-x-1 gap-y-1">
+			<button type="button" className={btn} aria-pressed={voted === true} disabled={busy} onClick={() => castVote(true)}>
+				<ThumbsUp className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
+				{t("reviewWasHelpful")}
+			</button>
+			<button type="button" className={btn} aria-pressed={voted === false} disabled={busy} onClick={() => castVote(false)}>
+				<ThumbsDown className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
+				{t("reviewNotHelpful")}
+			</button>
+			<button type="button" className={btn} disabled={busy || reported} onClick={report}>
+				<Flag className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
+				{t("reviewReport")}
+			</button>
+			<p className="m-0 min-h-[1em] ps-2 text-[12.5px] text-nl-russet" role="status" aria-live="polite">
+				{note === "thanks" && t("reviewThanks")}
+				{note === "reported" && t("reviewReported")}
+				{note === "own" && t("reviewOwn")}
+				{note === "failed" && t("reviewActionFailed")}
+			</p>
+		</div>
+	);
+}
+
 /**
  * Reviews: the aggregate from the product record on the left, individual
  * reviews on the right. With no reviews it says so plainly and points
@@ -70,6 +146,7 @@ export function ReviewsSection({
 }) {
 	const t = useTranslations("pdp");
 	const locale = useLocale();
+	const signedIn = useAuthStore((s) => s.isAuthenticated);
 	const hasReviews = reviewCount > 0;
 	const query = useProductReviewList(productId, hasReviews && !initialReviews);
 	const reviews = initialReviews ?? query.data ?? [];
@@ -160,6 +237,7 @@ export function ReviewsSection({
 													<p className="m-0 whitespace-pre-line text-[14px] leading-relaxed">{r.vendor_reply}</p>
 												</div>
 											)}
+											{signedIn && <ReviewActions reviewId={r.id} />}
 										</article>
 									</li>
 								))}

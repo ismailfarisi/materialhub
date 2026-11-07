@@ -68,12 +68,13 @@ export const reviewRoutes = new Elysia()
       )
       .post(
         "/:id/flag",
-        async ({ user, params, reviewController }: any) => {
-          const result = await reviewController.flag(params.id, user.id);
+        async ({ user, params, body, reviewController }: any) => {
+          const result = await reviewController.flag(params.id, user.id, body?.reason);
           return { statusCode: 200, data: result, timestamp: new Date().toISOString() };
         },
         {
           params: t.Object({ id: t.String({ format: "uuid" }) }),
+          body: t.Optional(t.Object({ reason: t.Optional(t.String({ maxLength: 500 })) })),
         },
       ),
   )

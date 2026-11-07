@@ -8,10 +8,11 @@
  * controllers over real services whose repositories are in-memory stubs that
  * know no rows.
  */
-import { afterAll, describe, expect, mock, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
 import { createHmac } from "node:crypto";
 import { config } from "@materialhub/config";
 import { AppDataSource } from "@materialhub/database";
+import { permissionMatrix } from "@materialhub/guards";
 import { errorHandler } from "@materialhub/plugins";
 import { Elysia } from "elysia";
 import { AdminPayoutController } from "../domain/commission/admin-payout.controller.ts";
@@ -22,10 +23,14 @@ import { ReviewService } from "../domain/reviews/review.service.ts";
 
 const OWN_DISPUTE = "22222222-2222-4222-8222-222222222222";
 const MISSING = "99999999-9999-4999-8999-999999999999";
+const DISPUTE_VENDOR = "33333333-3333-4333-8333-333333333333";
+const OTHER_VENDOR = "44444444-4444-4444-8444-444444444444";
 
 const emptyRepo = () => ({
   findOne: mock(async ({ where }: any = {}) =>
-    where?.id === OWN_DISPUTE ? { id: OWN_DISPUTE, opened_by: "cust-1", status: "opened" } : null,
+    where?.id === OWN_DISPUTE
+      ? { id: OWN_DISPUTE, opened_by: "cust-1", vendor_id: DISPUTE_VENDOR, status: "opened" }
+      : null,
   ),
   find: mock(async () => []),
   save: mock(async (x: any) => x),
@@ -33,7 +38,9 @@ const emptyRepo = () => ({
   query: mock(async () => []),
   createQueryBuilder: mock(() => {
     const qb: any = {};
-    for (const k of ["where", "andWhere", "orderBy", "skip", "take"]) qb[k] = () => qb;
+    for (const k of ["where", "andWhere", "orderBy", "skip", "take", "leftJoin", "addSelect"])
+      qb[k] = () => qb;
+    qb.getOne = async () => null;
     qb.getMany = async () => [{ id: "m-1", is_internal: false }];
     qb.getManyAndCount = async () => [[], 0];
     return qb;
@@ -94,13 +101,14 @@ function b64url(buf: Buffer | string): string {
   const b = typeof buf === "string" ? Buffer.from(buf) : buf;
   return b.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
-function sign(role: string, userId: string): string {
+function sign(role: string, userId: string, vm?: Array<{ vid: string; r: string }>): string {
   const header = b64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
   const body = b64url(
     JSON.stringify({
       sub: userId,
       email: "buyer@materialhub.test",
       role,
+      ...(vm ? { vm } : {}),
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(Date.now() / 1000) + 3600,
     }),
@@ -118,11 +126,22 @@ const app = new Elysia()
   .use(reviewRoutes as any)
   .use(adminPayoutRoutes as any);
 
-async function call(method: string, path: string, role: string, userId = `${role}-1`) {
+async function call(
+  method: string,
+  path: string,
+  role: string,
+  userId = `${role}-1`,
+  opts: { vm?: Array<{ vid: string; r: string }>; body?: unknown } = {},
+) {
+  const headers: Record<string, string> = {
+    authorization: `Bearer ${sign(role, userId, opts.vm)}`,
+  };
+  if (opts.body !== undefined) headers["content-type"] = "application/json";
   return app.handle(
     new Request(`http://localhost${path}`, {
       method,
-      headers: { authorization: `Bearer ${sign(role, userId)}` },
+      headers,
+      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
     }),
   );
 }
@@ -137,6 +156,7 @@ describe("unknown ids answer 404", () => {
     ["PATCH", `/admin/reviews/${MISSING}/approve`, "admin"],
     ["POST", `/reviews/${MISSING}/flag`, "customer"],
     ["GET", `/buyer/disputes/${MISSING}`, "customer"],
+    ["GET", `/admin/disputes/${MISSING}`, "admin"],
   ])("%s %s (%s) → 404", async (method, path, role) => {
     const res = await call(method, path, role);
     expect(res.status).toBe(404);
@@ -161,5 +181,75 @@ describe("GET /disputes/:id/messages authorization", () => {
   test("a vendor token is still refused by the guards (unchanged)", async () => {
     const res = await call("GET", `/disputes/${OWN_DISPUTE}/messages`, "vendor");
     expect([401, 403]).toContain(res.status);
+  });
+});
+
+// Supplier users are `customer` accounts whose token carries vendor memberships (`vm`).
+describe("/vendor/disputes — the supplier the dispute is raised against", () => {
+  const owner = [{ vid: DISPUTE_VENDOR, r: "owner" }];
+
+  beforeAll(() => {
+    // The default matrix: viewer reads orders, owner also fulfils.
+    permissionMatrix.__setMapForTests([
+      { role: "owner", permission: "orders.read" },
+      { role: "owner", permission: "orders.fulfill" },
+      { role: "viewer", permission: "orders.read" },
+    ]);
+  });
+
+  test("reads the thread (200)", async () => {
+    const res = await call("GET", `/vendor/disputes/${OWN_DISPUTE}/messages`, "customer", "vu-1", {
+      vm: owner,
+    });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as any).data).toHaveLength(1);
+  });
+
+  test("posts a message, stored with sender_role vendor and never internal (201)", async () => {
+    const res = await call("POST", `/vendor/disputes/${OWN_DISPUTE}/messages`, "customer", "vu-1", {
+      vm: owner,
+      body: { message: "We can send replacement sheets of 1.5 mm greyboard this week." },
+    });
+    expect(res.status).toBe(200);
+    const { statusCode, data } = (await res.json()) as any;
+    expect(statusCode).toBe(201);
+    expect(data.sender_role).toBe("vendor");
+    expect(data.sender_id).toBe("vu-1");
+    expect(data.is_internal).toBe(false);
+  });
+
+  test("an is_internal flag in the body is ignored: a supplier never writes an internal note", async () => {
+    const res = await call("POST", `/vendor/disputes/${OWN_DISPUTE}/messages`, "customer", "vu-1", {
+      vm: owner,
+      body: { message: "note", is_internal: true },
+    });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as any).data.is_internal).toBe(false);
+  });
+
+  test("another supplier gets 404 for the same dispute", async () => {
+    const res = await call("GET", `/vendor/disputes/${OWN_DISPUTE}/messages`, "customer", "vu-2", {
+      vm: [{ vid: OTHER_VENDOR, r: "owner" }],
+    });
+    expect(res.status).toBe(404);
+  });
+
+  test("a viewer may read but not post (403)", async () => {
+    const viewer = [{ vid: DISPUTE_VENDOR, r: "viewer" }];
+    const read = await call("GET", `/vendor/disputes/${OWN_DISPUTE}/messages`, "customer", "vu-3", {
+      vm: viewer,
+    });
+    expect(read.status).toBe(200);
+    const post = await call(
+      "POST",
+      `/vendor/disputes/${OWN_DISPUTE}/messages`,
+      "customer",
+      "vu-3",
+      {
+        vm: viewer,
+        body: { message: "hello" },
+      },
+    );
+    expect(post.status).toBe(403);
   });
 });

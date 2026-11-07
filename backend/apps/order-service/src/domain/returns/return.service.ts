@@ -12,10 +12,10 @@ import {
   type ReturnReason,
   ReturnStatus,
 } from "@materialhub/database/src/enums/order.enums.ts";
-import { BadRequestError, NotFoundError } from "@materialhub/plugins";
+import { BadRequestError, HttpError, NotFoundError } from "@materialhub/plugins";
 import type { Queue } from "bullmq";
 // return.service.ts
-import type { Repository } from "typeorm";
+import { IsNull, type Repository } from "typeorm";
 import type { CommissionReversalService } from "../commission/commission-reversal.service.ts";
 import type { OrderStatusService } from "../order/order-status.service.ts";
 import type { RefundService } from "../refund/refund.service.ts";
@@ -40,7 +40,8 @@ interface CreateReturnInput {
 }
 
 interface ApproveReturnInput {
-  refund_amount: number;
+  /** Omitted: the returned lines' paid value (line_total pro rata). */
+  refund_amount?: number | null;
   refund_method: string;
   items: { return_item_id: string; refund_amount: number }[];
 }
@@ -57,6 +58,23 @@ interface PaginatedQuery {
   limit?: number;
   status?: string;
   vendor_id?: string;
+}
+
+/**
+ * Refund methods a return can be settled with.
+ *
+ * - `wallet`: credited to the buyer's MaterialHub wallet (store credit).
+ *   `store_credit` is accepted as an alias (older admin UI sent it).
+ * - `original_payment`: back to the card / BNPL instrument via RefundService.
+ *   Cash on delivery has no instrument, so a COD order resolves to `wallet`.
+ * - `manual`: settled outside the platform; recorded, no money moves here.
+ */
+export type ReturnRefundMethod = "wallet" | "original_payment" | "manual";
+
+export function normalizeRefundMethod(method: string | null | undefined): ReturnRefundMethod {
+  if (method === "wallet" || method === "store_credit") return "wallet";
+  if (method === "manual") return "manual";
+  return "original_payment";
 }
 
 /* ------------------------------------------------------------------ */
@@ -208,8 +226,12 @@ export class ReturnService {
       throw new BadRequestError("Only requested returns can be approved");
     }
 
-    ret.refund_amount = data.refund_amount;
-    ret.refund_method = data.refund_method;
+    // Resolve the method now so what the admin sees is what will happen:
+    // "original payment" on a cash-on-delivery order becomes a wallet credit
+    // (there is no card to refund, and RefundService rejects COD).
+    ret.refund_method = await this.resolveRefundMethod(ret.order_id, data.refund_method);
+    ret.refund_amount =
+      data.refund_amount ?? (await this.defaultRefundAmount((ret as any).returnItems || []));
     ret.approved_at = new Date();
     ret.approved_by = adminId;
     ret.status = ReturnStatus.approved;
@@ -302,6 +324,14 @@ export class ReturnService {
     });
     if (!ret) throw new NotFoundError("Return not found");
     if (ret.vendor_id !== vendorId) throw new NotFoundError("Return not found");
+
+    // Already received but the refund did not go through (gateway outage,
+    // a COD return approved before COD resolved to wallet, ...): receiving
+    // again retries the refund only. Stock was restocked the first time.
+    if (ret.status === ReturnStatus.received && !ret.refunded_at) {
+      return this.retryRefund(returnId);
+    }
+
     if (ret.status !== ReturnStatus.approved && ret.status !== ReturnStatus.shipped_back) {
       throw new BadRequestError("Return must be approved or shipped_back to mark as received");
     }
@@ -310,48 +340,118 @@ export class ReturnService {
     ret.restocked = restock;
     ret.status = ReturnStatus.received;
 
-    // Restock inventory if requested
-    if (restock) {
-      for (const item of (ret as any).returnItems || []) {
-        const orderItem = item.orderItem;
-        if (!orderItem) continue;
+    // Restock and the status change commit together: a half-applied receive
+    // would either restock twice on retry or leave stock missing.
+    const saved = await this.returnRepo.manager.transaction(async (tx) => {
+      const inventoryRepo = tx.getRepository("Inventory" as any) as Repository<Inventory>;
+      const movementRepo = tx.getRepository(
+        "InventoryMovement" as any,
+      ) as Repository<InventoryMovement>;
+      const returnRepo = tx.getRepository("Return" as any) as Repository<Return>;
 
-        const inventory = await this.inventoryRepo.findOne({
-          where: {
-            product_id: orderItem.product_id,
-            variant_id: orderItem.variant_id,
-          } as any,
-        });
+      if (restock) {
+        for (const item of (ret as any).returnItems || []) {
+          const orderItem = item.orderItem;
+          if (!orderItem) continue;
 
-        if (inventory) {
-          const qtyBefore = (inventory as any).quantity_on_hand;
-          const qtyAfter = qtyBefore + item.quantity;
+          // Same row the order reserved from: this vendor's product-level row
+          // when there is no variant (without IsNull() a variant row, e.g. the
+          // sample SKU, could match).
+          const inventory = await inventoryRepo.findOne({
+            where: {
+              product_id: orderItem.product_id,
+              vendor_id: orderItem.vendor_id ?? ret.vendor_id,
+              variant_id: orderItem.variant_id ?? IsNull(),
+            } as any,
+          });
 
-          const movement = this.inventoryMovementRepo.create({
-            inventory_id: (inventory as any).id,
-            product_id: orderItem.product_id,
-            variant_id: orderItem.variant_id,
-            quantity: item.quantity,
-            quantity_before: qtyBefore,
-            quantity_after: qtyAfter,
-            movement_type: "return_restock",
-            reference_type: "return",
-            reference_id: returnId,
-          } as any);
-          await this.inventoryMovementRepo.save(movement);
+          if (inventory) {
+            const qtyBefore = (inventory as any).quantity_on_hand;
+            const qtyAfter = qtyBefore + item.quantity;
 
-          (inventory as any).quantity_on_hand = qtyAfter;
-          await this.inventoryRepo.save(inventory);
+            const movement = movementRepo.create({
+              inventory_id: (inventory as any).id,
+              product_id: orderItem.product_id,
+              variant_id: orderItem.variant_id,
+              quantity: item.quantity,
+              quantity_before: qtyBefore,
+              quantity_after: qtyAfter,
+              movement_type: "return_restock",
+              reference_type: "return",
+              reference_id: returnId,
+            } as any);
+            await movementRepo.save(movement);
+
+            (inventory as any).quantity_on_hand = qtyAfter;
+            await inventoryRepo.save(inventory);
+          }
         }
       }
+
+      return returnRepo.save(ret);
+    });
+
+    // Refund after the receive commits. A refund failure must not undo the
+    // receive (the goods are physically back) nor surface as a 500 to the
+    // vendor: the return stays `received` with no `refunded_at`, which the
+    // admin retries via POST /admin/returns/:id/refund (or the vendor by
+    // marking it received again).
+    try {
+      await this.processRefund(returnId);
+    } catch (err) {
+      console.error("[returns] refund after receive failed; retryable", {
+        returnId,
+        error: String(err),
+      });
+      return saved;
     }
 
-    const saved = await this.returnRepo.save(ret);
+    return (await this.returnRepo.findOne({ where: { id: returnId } as any })) ?? saved;
+  }
 
-    // Process refund automatically after receiving
-    await this.processRefund(returnId);
+  /**
+   * Retry the refund of a received-but-unrefunded return (admin
+   * POST /admin/returns/:id/refund, or the vendor receiving it again). A
+   * gateway failure is reported as 409 REFUND_FAILED rather than a 500.
+   */
+  async retryRefund(returnId: string, vendorId?: string): Promise<Return> {
+    const ret = await this.returnRepo.findOne({ where: { id: returnId } as any });
+    if (!ret || (vendorId && ret.vendor_id !== vendorId)) {
+      throw new NotFoundError("Return not found");
+    }
+    if (!ret.refunded_at) {
+      try {
+        await this.processRefund(returnId);
+      } catch (err) {
+        if (err instanceof HttpError) throw err;
+        throw new HttpError(409, `Refund failed: ${(err as Error).message}`, "REFUND_FAILED");
+      }
+    }
+    return (await this.returnRepo.findOne({ where: { id: returnId } as any })) ?? ret;
+  }
 
-    return saved;
+  /** Refund method actually used for this order (COD → wallet). */
+  async resolveRefundMethod(
+    orderId: string,
+    requested: string | null | undefined,
+  ): Promise<ReturnRefundMethod> {
+    const method = normalizeRefundMethod(requested);
+    if (method !== "original_payment") return method;
+    const gateway = await this.refundService.getCapturedGateway(orderId);
+    return gateway === "cod" ? "wallet" : "original_payment";
+  }
+
+  /** What the buyer paid for the returned units (line_total pro rata). */
+  private async defaultRefundAmount(returnItems: any[]): Promise<number> {
+    let total = 0;
+    for (const ri of returnItems) {
+      const oi =
+        ri.orderItem ??
+        (await this.orderItemRepo.findOne({ where: { id: ri.order_item_id } as any }));
+      if (!oi || !oi.quantity) continue;
+      total += Math.round((Number(oi.line_total) * Number(ri.quantity)) / Number(oi.quantity));
+    }
+    return total;
   }
 
   /* ================================================================ */
@@ -366,10 +466,28 @@ export class ReturnService {
 
     // Idempotency: skip if already refunded
     if (ret.refunded_at) return;
+    if (ret.status !== ReturnStatus.received) {
+      throw new BadRequestError("Only received returns can be refunded");
+    }
 
     const refundAmount = ret.refund_amount || 0;
+    const method = await this.resolveRefundMethod(ret.order_id, ret.refund_method);
+    ret.refund_method = method;
 
-    if (ret.refund_method === "wallet") {
+    // A retry after a crash between the wallet credit and the return update
+    // must not credit twice: the wallet ledger row is keyed by the return.
+    const alreadyCredited =
+      method === "wallet"
+        ? await this.walletTransactionRepo.findOne({
+            where: { reference_type: "return", reference_id: returnId } as any,
+          })
+        : null;
+
+    if (method === "manual") {
+      // Settled outside the platform: record it, move no money.
+    } else if (method === "wallet" && alreadyCredited) {
+      // Credited by an earlier attempt.
+    } else if (method === "wallet") {
       // SELECT FOR UPDATE on user
       const qb = this.userRepo.createQueryBuilder("user");
       const user = await qb

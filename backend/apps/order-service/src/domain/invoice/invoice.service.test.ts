@@ -1,5 +1,6 @@
 import { describe, expect, mock, test } from "bun:test";
 import { InvoiceService, receiptKey } from "./invoice.service.ts";
+import { taxInvoiceDeferral } from "./tax-invoice/tax-invoice.service.ts";
 
 function makeOrder(overrides: any = {}) {
   return {
@@ -164,5 +165,78 @@ describe("InvoiceService.resolveDownload", () => {
     const result = await svc.resolveDownload("ord-1", "admin-1", "admin");
 
     expect(result).toEqual({ url: "https://signed/x.pdf" });
+  });
+  test("serves the PDF inline when storage is unavailable instead of a 404", async () => {
+    const order = makeOrder({ status: "confirmed" });
+    const repo = { findOne: mock(async () => order), save: mock(async (o: any) => o) } as any;
+    const media = {
+      uploadBuffer: mock(async () => {
+        throw new Error("Could not load credentials from any providers");
+      }),
+      getReceiptSignedUrl: mock(async () => ({ url: "never", expiresAt: new Date() })),
+    } as any;
+    const svc = new InvoiceService(repo, media);
+
+    const result: any = await svc.resolveDownload("ord-1", "user-1");
+
+    expect(result.pdf).toBeInstanceOf(Buffer);
+    expect(result.pdf.subarray(0, 5).toString()).toBe("%PDF-");
+    expect(result.filename).toBe("receipt-NL-1.pdf");
+    expect(media.getReceiptSignedUrl).not.toHaveBeenCalled();
+  });
+
+  test("serves inline when signing the stored key fails", async () => {
+    const order = makeOrder({
+      status: "delivered",
+      invoice_s3_key: "private/receipts/ord-1.pdf",
+      invoice_generated_at: new Date("2026-07-28T00:00:00Z"),
+    });
+    const repo = { findOne: mock(async () => order), save: mock(async (o: any) => o) } as any;
+    const media = {
+      uploadBuffer: mock(async () => {}),
+      getReceiptSignedUrl: mock(async () => {
+        throw new Error("no credentials");
+      }),
+    } as any;
+    const result: any = await new InvoiceService(repo, media).resolveDownload("ord-1", "user-1");
+    expect(result.pdf).toBeInstanceOf(Buffer);
+  });
+
+  test("no receipt for an order that was never placed", async () => {
+    const order = makeOrder({ status: "pending_payment" });
+    const repo = { findOne: mock(async () => order), save: mock(async (o: any) => o) } as any;
+    const media = makeMedia();
+    expect(await new InvoiceService(repo, media).resolveDownload("ord-1", "user-1")).toEqual({
+      notFound: true,
+    });
+    expect(media.uploadBuffer).not.toHaveBeenCalled();
+  });
+});
+
+describe("taxInvoiceDeferral", () => {
+  test("never invoices unconfirmed or cancelled orders", () => {
+    expect(taxInvoiceDeferral({ status: "pending_payment" }, null)).toBe("not_confirmed");
+    expect(taxInvoiceDeferral({ status: "payment_failed" }, null)).toBe("not_confirmed");
+    expect(
+      taxInvoiceDeferral({ status: "cancelled" }, { gateway: "stripe", status: "captured" }),
+    ).toBe("cancelled");
+  });
+
+  test("defers cash on delivery until the cash is collected", () => {
+    expect(taxInvoiceDeferral({ status: "confirmed" }, { gateway: "cod", status: "pending" })).toBe(
+      "cod_not_collected",
+    );
+    expect(
+      taxInvoiceDeferral({ status: "delivered" }, { gateway: "cod", status: "captured" }),
+    ).toBeNull();
+  });
+
+  test("invoices prepaid and net-terms orders at confirmation", () => {
+    expect(
+      taxInvoiceDeferral({ status: "confirmed" }, { gateway: "stripe", status: "captured" }),
+    ).toBeNull();
+    expect(
+      taxInvoiceDeferral({ status: "confirmed" }, { gateway: "net_terms", status: "authorized" }),
+    ).toBeNull();
   });
 });

@@ -73,6 +73,16 @@ export const orderRoutes = new Elysia()
               timestamp: new Date().toISOString(),
             };
           }
+          if ("pdf" in result) {
+            return new Response(new Uint8Array(result.pdf), {
+              status: 200,
+              headers: {
+                "content-type": "application/pdf",
+                "content-disposition": `inline; filename="${result.filename}"`,
+                "cache-control": "private, no-store",
+              },
+            });
+          }
           set.status = 302;
           set.headers.location = result.url;
           return null;
@@ -181,6 +191,16 @@ export const orderRoutes = new Elysia()
               message: "Forbidden",
               timestamp: new Date().toISOString(),
             };
+          }
+          if ("pdf" in result) {
+            return new Response(new Uint8Array(result.pdf), {
+              status: 200,
+              headers: {
+                "content-type": "application/pdf",
+                "content-disposition": `inline; filename="${result.filename}"`,
+                "cache-control": "private, no-store",
+              },
+            });
           }
           set.status = 302;
           set.headers.location = result.url;

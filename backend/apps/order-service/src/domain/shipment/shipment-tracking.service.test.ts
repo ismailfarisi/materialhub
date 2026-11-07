@@ -2,6 +2,9 @@ import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { OrderStatus, ShipmentStatus } from "@materialhub/database/src/enums/order.enums.ts";
 import { ShipmentTrackingService } from "./shipment-tracking.service.ts";
 
+const ADMIN_USER_ID = "0b8f5c1e-3a8e-4f63-9a51-6d9d2b0c7a11";
+const MEMBER_USER_ID = "5d2c7a90-1b4e-4c8a-8f3d-2e6b9a0c4d22";
+
 describe("ShipmentTrackingService", () => {
   const mockShipmentQueryBuilder: any = {
     innerJoin: mock(() => mockShipmentQueryBuilder),
@@ -124,7 +127,7 @@ describe("ShipmentTrackingService", () => {
         id: "vo-1",
         vendor_id: "vendor-1",
         order_id: "order-1",
-        status: OrderStatus.confirmed,
+        status: OrderStatus.delivered,
         items: [{ id: "oi-1", quantity: 2 }],
       });
 
@@ -135,6 +138,95 @@ describe("ShipmentTrackingService", () => {
           items: [{ order_item_id: "oi-1", quantity: 1 }],
         }),
       ).rejects.toThrow("Vendor order is not in a shippable status");
+    });
+
+    it("ships every unshipped unit when items are omitted (dashboard Create Shipment)", async () => {
+      mockVendorOrderRepo.findOne.mockResolvedValueOnce({
+        id: "vo-1",
+        vendor_id: "vendor-1",
+        order_id: "order-1",
+        status: OrderStatus.processing,
+        items: [
+          { id: "oi-1", quantity: 5, status: OrderStatus.processing },
+          { id: "oi-2", quantity: 2, status: OrderStatus.processing },
+          { id: "oi-3", quantity: 4, status: OrderStatus.cancelled },
+        ],
+      });
+      // 2 of oi-1 and all of oi-2 already went out in an earlier shipment.
+      mockShipmentQueryBuilder.getMany.mockResolvedValueOnce([
+        { order_item_id: "oi-1", quantity: 2 },
+        { order_item_id: "oi-2", quantity: 2 },
+      ]);
+
+      await service.createShipment(
+        "vo-1",
+        "vendor-1",
+        { tracking_number: "TRK-9", carrier: "aramex" },
+        MEMBER_USER_ID,
+      );
+
+      const created = mockShipmentItemRepo.create.mock.calls.map((c: any) => c[0]);
+      expect(created).toEqual([{ shipment_id: "shipment-1", order_item_id: "oi-1", quantity: 3 }]);
+      // The member's user id is the history actor; the vendor id is ownership.
+      expect(mockOrderStatusService.transitionVendorOrder).toHaveBeenCalledWith(
+        "vo-1",
+        OrderStatus.shipped,
+        { userId: MEMBER_USER_ID, vendorId: "vendor-1", role: "vendor" },
+        "Shipment created",
+      );
+    });
+
+    it("refuses when items are omitted and nothing is left to ship", async () => {
+      mockVendorOrderRepo.findOne.mockResolvedValueOnce({
+        id: "vo-1",
+        vendor_id: "vendor-1",
+        order_id: "order-1",
+        status: OrderStatus.shipped,
+        items: [{ id: "oi-1", quantity: 1 }],
+      });
+      mockShipmentQueryBuilder.getMany.mockResolvedValueOnce([
+        { order_item_id: "oi-1", quantity: 1 },
+      ]);
+
+      await expect(
+        service.createShipment("vo-1", "vendor-1", { tracking_number: "T", carrier: "aramex" }),
+      ).rejects.toMatchObject({ statusCode: 409, code: "NOTHING_TO_SHIP" });
+    });
+
+    it("rejects a line that is not on this vendor order", async () => {
+      mockVendorOrderRepo.findOne.mockResolvedValueOnce({
+        id: "vo-1",
+        vendor_id: "vendor-1",
+        order_id: "order-1",
+        status: OrderStatus.processing,
+        items: [{ id: "oi-1", quantity: 1 }],
+      });
+      await expect(
+        service.createShipment("vo-1", "vendor-1", {
+          tracking_number: "T",
+          carrier: "aramex",
+          items: [{ order_item_id: "oi-other", quantity: 1 }],
+        }),
+      ).rejects.toMatchObject({ statusCode: 400 });
+    });
+
+    it("accepts a confirmed order on the way to shipped", async () => {
+      mockVendorOrderRepo.findOne.mockResolvedValueOnce({
+        id: "vo-1",
+        vendor_id: "vendor-1",
+        order_id: "order-1",
+        status: OrderStatus.confirmed,
+        items: [{ id: "oi-1", quantity: 1 }],
+      });
+
+      await service.createShipment("vo-1", "vendor-1", { tracking_number: "T", carrier: "x" });
+
+      const targets = mockOrderStatusService.transitionVendorOrder.mock.calls.map((c: any) => c[1]);
+      expect(targets).toEqual([
+        OrderStatus.processing,
+        OrderStatus.ready_to_ship,
+        OrderStatus.shipped,
+      ]);
     });
 
     it("throws if shipped qty exceeds ordered qty", async () => {
@@ -185,13 +277,13 @@ describe("ShipmentTrackingService", () => {
       expect(mockOrderStatusService.transitionVendorOrder).toHaveBeenCalledWith(
         "vo-1",
         OrderStatus.ready_to_ship,
-        { userId: "vendor-1", role: "vendor" },
+        { userId: null, vendorId: "vendor-1", role: "vendor" },
         "Shipment created",
       );
       expect(mockOrderStatusService.transitionVendorOrder).toHaveBeenCalledWith(
         "vo-1",
         OrderStatus.shipped,
-        { userId: "vendor-1", role: "vendor" },
+        { userId: null, vendorId: "vendor-1", role: "vendor" },
         "Shipment created",
       );
     });
@@ -348,7 +440,7 @@ describe("ShipmentTrackingService", () => {
       expect(mockOrderStatusService.transitionVendorOrder).toHaveBeenCalledWith(
         "vo-1",
         OrderStatus.shipped,
-        { userId: "vendor-1", role: "vendor" },
+        { userId: null, vendorId: "vendor-1", role: "vendor" },
         "Shipment created",
       );
     });
@@ -481,7 +573,7 @@ describe("ShipmentTrackingService", () => {
       expect(mockOrderStatusService.transitionVendorOrder).toHaveBeenCalledWith(
         "vo-1",
         OrderStatus.delivered,
-        { userId: "system", role: "system" },
+        { userId: null, role: "system" },
         "Shipment delivered",
         undefined,
       );
@@ -571,7 +663,7 @@ describe("ShipmentTrackingService", () => {
       expect(mockOrderStatusService.transitionVendorOrder).toHaveBeenCalledWith(
         "vo-1",
         OrderStatus.out_for_delivery,
-        { userId: "system", role: "system" },
+        { userId: null, role: "system" },
         "Shipment out for delivery",
         undefined,
       );
@@ -600,7 +692,7 @@ describe("ShipmentTrackingService", () => {
       expect(mockOrderStatusService.transitionVendorOrder).toHaveBeenCalledWith(
         "vo-1",
         OrderStatus.shipped,
-        { userId: "system", role: "system" },
+        { userId: null, role: "system" },
         "Shipment picked up by carrier",
         undefined,
       );
@@ -749,7 +841,7 @@ describe("ShipmentTrackingService", () => {
       await service.transitionShipmentStatus(
         "shipment-1",
         {
-          userId: "admin-1",
+          userId: ADMIN_USER_ID,
           role: "admin" as const,
         },
         ShipmentStatus.cancelled,
@@ -764,7 +856,7 @@ describe("ShipmentTrackingService", () => {
         vendor_order_id: "vo-1",
         from_status: ShipmentStatus.pending,
         to_status: ShipmentStatus.cancelled,
-        changed_by: "admin-1",
+        changed_by: ADMIN_USER_ID,
         changed_by_role: "admin",
         is_customer_visible: true,
         reason: "Order cancelled by admin",
@@ -805,8 +897,10 @@ describe("ShipmentTrackingService", () => {
 
       await service.transitionShipmentStatus(
         "shipment-1",
+        // The acting member's USER id; the vendor it acts for in vendorId.
         {
-          userId: "vendor-1",
+          userId: MEMBER_USER_ID,
+          vendorId: "vendor-1",
           role: "vendor" as const,
         },
         ShipmentStatus.picked_up,
@@ -822,7 +916,7 @@ describe("ShipmentTrackingService", () => {
         vendor_order_id: "vo-1",
         from_status: ShipmentStatus.pending,
         to_status: ShipmentStatus.picked_up,
-        changed_by: "vendor-1",
+        changed_by: MEMBER_USER_ID,
         changed_by_role: "vendor",
         is_customer_visible: false,
         reason: "Picked up from warehouse",

@@ -153,9 +153,13 @@ export const returnRoutes = new Elysia()
         {
           params: t.Object({ id: t.String({ format: "uuid" }) }),
           body: t.Object({
-            refund_amount: t.Integer({ minimum: 0 }),
+            // Omitted: the returned lines' paid value.
+            refund_amount: t.Optional(t.Integer({ minimum: 0 })),
+            // `store_credit` is an alias of `wallet`. `original_payment` on a
+            // cash-on-delivery order resolves to `wallet` (no card to refund).
             refund_method: t.Union([
               t.Literal("wallet"),
+              t.Literal("store_credit"),
               t.Literal("original_payment"),
               t.Literal("manual"),
             ]),
@@ -169,6 +173,21 @@ export const returnRoutes = new Elysia()
             ),
             admin_notes: t.Optional(t.String({ maxLength: 2000 })),
           }),
+        },
+      )
+      // Retry the refund of a return that was received but whose refund
+      // failed (it stays `received` with no refunded_at).
+      .post(
+        "/:id/refund",
+        async ({ params, returnController, audit }: any) => {
+          const result = await returnController.retryRefund(params.id);
+          audit.action = "return.refund_retry";
+          audit.entity_type = "return";
+          audit.entity_id = params.id;
+          return { statusCode: 200, data: result, timestamp: new Date().toISOString() };
+        },
+        {
+          params: t.Object({ id: t.String({ format: "uuid" }) }),
         },
       )
       .patch(

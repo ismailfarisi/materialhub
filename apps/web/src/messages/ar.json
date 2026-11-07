@@ -992,6 +992,13 @@
     "supplierReply": "رد المورّد",
     "helpful": "{count, plural, one {وجدها مشترٍ واحد مفيدة} other {وجدها # مشترين مفيدة}}",
     "reviewsUnavailable": "تعذّر تحميل التقييمات الفردية. التقييم أعلاه محدّث.",
+    "reviewWasHelpful": "مفيدة",
+    "reviewNotHelpful": "غير مفيدة",
+    "reviewReport": "إبلاغ",
+    "reviewThanks": "شكرًا على ملاحظتك.",
+    "reviewReported": "تم الإبلاغ. سيراجعها فريقنا.",
+    "reviewOwn": "هذه مراجعتك.",
+    "reviewActionFailed": "لم يتم ذلك. حاول مرة أخرى.",
     "qaTitle": "الأسئلة والأجوبة",
     "askLabel": "اسأل المورّد عن هذه الخامة",
     "askPlaceholder": "مثال: هل تتوفر بسماكة 1.5 مم؟",
@@ -1763,6 +1770,61 @@
         "failed": "تعذّر الإرسال للموافقة. حاول مرة أخرى.",
         "viewRequests": "عرض طلباتك"
       }
+    }
+  },
+  "disputes": {
+    "title": "مشكلات في هذا الطلب",
+    "intro": "هل هناك مشكلة لا يحلها الإرجاع؟ افتح نزاعًا وسيراجعه فريق MaterialHub مع المورّد.",
+    "open": "الإبلاغ عن مشكلة",
+    "openTitle": "فتح نزاع",
+    "category": "ما المشكلة",
+    "categories": {
+      "item_not_received": "لم يصل الطلب",
+      "not_as_described": "غير مطابق للوصف (المقاس أو الدرجة أو التشطيب)",
+      "counterfeit": "ليست المادة الأصلية",
+      "seller_unresponsive": "المورّد لا يرد",
+      "other": "شيء آخر"
+    },
+    "supplier": "المورّد",
+    "description": "صف المشكلة",
+    "descriptionHint": "اذكر ما طلبته وما وصل وما تريده. يمكنك إضافة المزيد في المحادثة لاحقًا.",
+    "descriptionRequired": "صف المشكلة ليتمكن الفريق من مراجعتها.",
+    "submit": "فتح النزاع",
+    "submitting": "جارٍ الفتح…",
+    "cancel": "إلغاء",
+    "openFailed": "تعذّر فتح النزاع. حاول مرة أخرى.",
+    "opened": "تم فتح النزاع. سنرد في المحادثة.",
+    "none": "لا توجد نزاعات على هذا الطلب.",
+    "view": "عرض المحادثة",
+    "loadFailed": "تعذّر تحميل النزاعات.",
+    "status": {
+      "opened": "مفتوح",
+      "under_review": "قيد المراجعة",
+      "escalated": "مُصعّد",
+      "resolved_buyer": "حُسم لصالحك",
+      "resolved_seller": "حُسم لصالح المورّد",
+      "closed": "مغلق"
+    },
+    "threadTitle": "النزاع {number}",
+    "backToOrder": "العودة إلى الطلب",
+    "yourComplaint": "شكواك",
+    "decision": "القرار",
+    "refunded": "المبلغ المسترد: {amount}",
+    "respondBy": "نهدف إلى الرد بحلول {date}.",
+    "thread": "المحادثة",
+    "noMessages": "لا توجد ردود بعد. سيرد فريق MaterialHub والمورّد هنا.",
+    "reply": "ردّك",
+    "send": "إرسال",
+    "sending": "جارٍ الإرسال…",
+    "sendFailed": "لم تُرسل رسالتك. حاول مرة أخرى.",
+    "closedNote": "هذا النزاع مغلق. المحادثة للقراءة فقط.",
+    "notFound": "النزاع غير موجود",
+    "notFoundBody": "قد يكون تابعًا لحساب آخر، أو الرابط غير صحيح.",
+    "sender": {
+      "customer": "أنت",
+      "vendor": "المورّد",
+      "admin": "MaterialHub",
+      "super_admin": "MaterialHub"
     }
   }
 }

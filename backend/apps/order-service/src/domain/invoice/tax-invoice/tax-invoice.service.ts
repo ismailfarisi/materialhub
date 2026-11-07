@@ -69,6 +69,38 @@ const ORDER_RELATIONS = ["vendorOrders", "vendorOrders.vendor", "vendorOrders.it
 type Json = Record<string, unknown>;
 const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 
+const NOT_INVOICEABLE_STATUSES = new Set([
+  "draft",
+  "pending_payment",
+  "payment_failed",
+  "cancelled",
+]);
+
+/**
+ * Why an order gets no tax invoice yet, or null when it should get one now.
+ *
+ * - Never for an order that was not confirmed (abandoned / failed checkout)
+ *   or that was cancelled: there is no supply to invoice, and there is no
+ *   credit-note flow yet to reverse an invoice issued in error.
+ * - Cash on delivery: deferred until the cash is collected at delivery
+ *   (the payment is `captured` then). Under UAE VAT the tax point is the
+ *   earlier of supply and payment, both of which happen at delivery for
+ *   COD, so issuing at checkout created invoices for orders that were then
+ *   cancelled before anything was supplied. The delivery aggregation
+ *   re-enqueues the invoice job (container.ts order-event bridge).
+ * - Prepaid and net-terms orders are invoiced at confirmation as before.
+ */
+export function taxInvoiceDeferral(
+  order: { status?: string | null } | null,
+  payment: { gateway?: string | null; status?: string | null } | null | undefined,
+): "not_confirmed" | "cancelled" | "cod_not_collected" | null {
+  const status = String(order?.status ?? "");
+  if (status === "cancelled") return "cancelled";
+  if (NOT_INVOICEABLE_STATUSES.has(status)) return "not_confirmed";
+  if (payment?.gateway === "cod" && payment.status !== "captured") return "cod_not_collected";
+  return null;
+}
+
 /** The order graph generateForOrder loads (relations in ORDER_RELATIONS). */
 type InvoiceOrder = Order & { user?: { email?: string | null } | null };
 
@@ -141,11 +173,13 @@ export class TaxInvoiceService {
     if (!order) return [];
     const existing = await this.invoiceRepo.find({ where: { order_id: orderId } });
     const [payment] = await this.orderRepo.manager.query(
-      `SELECT payment_method FROM payments WHERE order_id = $1 AND deleted_at IS NULL
+      `SELECT payment_method, gateway, status FROM payments WHERE order_id = $1 AND deleted_at IS NULL
          AND status IN ('authorized', 'captured', 'pending')
        ORDER BY (status = 'captured') DESC, created_at DESC LIMIT 1`,
       [orderId],
     );
+
+    if (taxInvoiceDeferral(order as any, payment)) return [];
 
     const sellers: Record<string, InvoiceParty> = {};
     for (const vo of order.vendorOrders ?? []) sellers[vo.vendor_id] = this.sellerParty(vo.vendor);

@@ -46,6 +46,56 @@ describe("CommissionService", () => {
     );
   });
 
+  it("getCommissionConfig reports rates in percent with the vendor's type and snake_case tiers", async () => {
+    const qb = (rows: any[]) => {
+      const q: any = {};
+      for (const k of ["select", "where", "andWhere"]) q[k] = () => q;
+      q.getMany = async () => rows;
+      return q;
+    };
+    const svc = new CommissionService(
+      mockCommissionRepo as any,
+      {
+        ...mockVendorRepo,
+        createQueryBuilder: () =>
+          qb([
+            {
+              id: "v1",
+              name: "Gulf Board Supply",
+              commission_type: "percentage",
+              commission_value: "10.0000",
+            },
+            {
+              id: "v2",
+              name: "Kraft & Co",
+              commission_type: "tiered",
+              commission_value: "0",
+              commission_tiers: [
+                { minAmount: 0, maxAmount: 100000, rate: 12 },
+                { minAmount: 100001, rate: 8 },
+              ],
+            },
+          ]),
+      } as any,
+      {
+        ...mockCategoryRepo,
+        createQueryBuilder: () => qb([{ id: "c1", name: "Greyboard", commission_rate: "7.50" }]),
+      } as any,
+      mockSiteSettingRepo as any,
+    );
+
+    const config = await svc.getCommissionConfig();
+
+    // Stored 10 means 10% (calculateAmount divides by 100) — not a fraction.
+    expect(config.vendor_overrides[0]).toMatchObject({ rate: 10, commission_type: "percentage" });
+    expect(config.vendor_overrides[1]!.tiers).toEqual([
+      { min_amount: 0, max_amount: 100000, rate: 12 },
+      { min_amount: 100001, max_amount: null, rate: 8 },
+    ]);
+    expect(config.category_overrides[0]!.rate).toBe(7.5);
+    expect(service.calculateAmount(10000, 10, "percentage")).toBe(1000);
+  });
+
   it("uses vendor-specific commission rate when set", async () => {
     const result = await service.resolveRate(
       { commission_type: "percentage", commission_value: 12, commission_tiers: null } as any,

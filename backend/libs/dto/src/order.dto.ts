@@ -275,7 +275,12 @@ export type AssignDisputeBody = Static<typeof AssignDisputeBody>;
 export const ResolveDisputeBody = Type.Object({
   decision: Type.Union([Type.Literal("buyer"), Type.Literal("seller")]),
   resolution: Type.String({ minLength: 1, maxLength: 5000 }),
+  /** Fils. Only applies to a buyer-favour decision. */
   resolution_amount: Type.Optional(Type.Integer({ minimum: 0 })),
+  /** Where a buyer-favour amount goes; defaults to the buyer's wallet. */
+  refund_method: Type.Optional(
+    Type.Union([Type.Literal("wallet"), Type.Literal("original_payment")]),
+  ),
 });
 export type ResolveDisputeBody = Static<typeof ResolveDisputeBody>;
 

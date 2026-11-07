@@ -12,6 +12,7 @@ import {
 	StatusBadge,
 	ValueRow,
 } from "@/components/account/account-ui";
+import { OrderDisputes } from "@/components/account/order-disputes";
 import { OrderLine, ReorderButton } from "@/components/account/order-parts";
 import { OrderTimeline } from "@/components/account/order-timeline";
 import { ReviewForm } from "@/components/account/review-form";
@@ -178,7 +179,9 @@ export default function OrderDetailPage() {
 								</ul>
 							</div>
 							{(vo.tracking_number || vo.status === "delivered") && (
-								<div className="flex flex-wrap items-center justify-between gap-3 border-t border-dashed border-nl-cacao/15 px-4 py-3 md:px-5">
+								// pe-[4.5rem] below sm keeps "Request a return" clear of the
+								// floating support-chat launcher (fixed, end-4, 48px wide).
+								<div className="flex flex-wrap items-center justify-between gap-3 border-t border-dashed border-nl-cacao/15 px-4 py-3 pe-[4.5rem] sm:pe-4 md:px-5">
 									{vo.tracking_number ? (
 										<p className="m-0 flex min-w-0 items-center gap-2 text-[13px] text-nl-russet">
 											<Truck className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
@@ -272,6 +275,8 @@ export default function OrderDetailPage() {
 							)}
 						</address>
 					</Panel>
+
+					<OrderDisputes orderId={order.id} orderStatus={order.status} vendorOrders={vendorOrders} />
 				</div>
 			</div>
 		</div>

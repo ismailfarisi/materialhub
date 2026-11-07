@@ -84,6 +84,12 @@ export function OrderLine({
 	const cancelled = item.status === "cancelled";
 	const specs = lineSpecs(item);
 	const name = item.product_name ?? item.title ?? "";
+	// refunded_quantity counts cancelled AND returned units; the order API
+	// says how many of them were cancelled (and why).
+	const cancelledQty = Math.min(item.cancelled_quantity ?? 0, item.refunded_quantity ?? 0);
+	const cancelledAmount = Math.min(item.cancelled_amount ?? 0, item.refunded_amount ?? 0);
+	const returnedQty = Math.max(0, (item.refunded_quantity ?? 0) - cancelledQty);
+	const returnedAmount = Math.max(0, (item.refunded_amount ?? 0) - cancelledAmount);
 
 	return (
 		<li className={cn("grid gap-3 py-4 first:pt-0 last:pb-0", cancelled && "opacity-60")}>
@@ -105,11 +111,22 @@ export function OrderLine({
 						<span className="sr-only">{tCommon("qty")}: </span>
 						<bdi>{item.quantity} × {formatPrice(item.unit_price ?? 0, currency, locale)}</bdi>
 					</p>
-					{(item.refunded_quantity ?? 0) > 0 && (
+					{cancelledQty > 0 && (
 						<p className="m-0 text-[13px] text-nl-russet">
-							{t("cancelledOutOfStock")}:{" "}
+							{item.cancellation_reason
+								? t("cancelledWithReason", { reason: item.cancellation_reason })
+								: t("cancelledLine")}
+							:{" "}
 							<span className="font-mono tabular-nums">
-								{item.refunded_quantity} · −{formatPrice(item.refunded_amount ?? 0, currency, locale)}
+								{cancelledQty} · −{formatPrice(cancelledAmount, currency, locale)}
+							</span>
+						</p>
+					)}
+					{returnedQty > 0 && (
+						<p className="m-0 text-[13px] text-nl-russet">
+							{t("returnedLine")}:{" "}
+							<span className="font-mono tabular-nums">
+								{returnedQty} · −{formatPrice(returnedAmount, currency, locale)}
 							</span>{" "}
 							{t("refundedShort")}
 						</p>

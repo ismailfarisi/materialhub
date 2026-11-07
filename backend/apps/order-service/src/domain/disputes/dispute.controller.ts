@@ -54,6 +54,43 @@ export class DisputeController {
     };
   }
 
+  /** Vendor of the disputed order. Unknown/foreign id → 404. Never internal. */
+  async addVendorMessage(disputeId: string, vendorId: string, userId: string, body: any) {
+    await this.disputeService.assertVendorParticipant(disputeId, vendorId);
+    return this.disputeService.addMessage(disputeId, userId, "vendor", {
+      message: body.message,
+      attachment_urls: body.attachment_urls,
+      is_internal: false,
+    });
+  }
+
+  /** Vendor of the disputed order: the thread without internal notes. */
+  async listVendorMessages(disputeId: string, vendorId: string, query: PageQuery = {}) {
+    await this.disputeService.assertVendorParticipant(disputeId, vendorId);
+    const messages = await this.disputeService.getMessages(disputeId, "vendor");
+    const page = query.page || 1;
+    const limit = query.limit || 20;
+    const start = (page - 1) * limit;
+    return {
+      data: messages.slice(start, start + limit),
+      total: messages.length,
+      page,
+      limit,
+    };
+  }
+
+  async listForVendor(vendorId: string, query: any) {
+    return this.disputeService.listForVendor(vendorId, query);
+  }
+
+  async getForVendor(disputeId: string, vendorId: string) {
+    return this.disputeService.getForVendor(disputeId, vendorId);
+  }
+
+  async getForAdmin(disputeId: string) {
+    return this.disputeService.getForAdmin(disputeId);
+  }
+
   async getMessages(disputeId: string, role: string) {
     return this.disputeService.getMessages(disputeId, role);
   }

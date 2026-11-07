@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { OrderStatus } from "@materialhub/database/src/enums/order.enums.ts";
 import { ReviewStatus } from "@materialhub/database/src/enums/product.enums.ts";
-import { ReviewService } from "./review.service.ts";
+import { REVIEW_FLAG_HIDE_THRESHOLD, ReviewService } from "./review.service.ts";
 
 /* ------------------------------------------------------------------ */
 /*  Helper: chainable query-builder mock                              */
@@ -21,6 +21,13 @@ const makeQb = (resolvedValue: [any[], number] = [[], 0]) => {
     getOne: mock(() => Promise.resolve(null)),
     getMany: mock(() => Promise.resolve([])),
     getManyAndCount: mock(() => Promise.resolve(resolvedValue)),
+    select: mock(() => qb),
+    groupBy: mock(() => qb),
+    getRawMany: mock(() => Promise.resolve([])),
+    insert: mock(() => qb),
+    values: mock(() => qb),
+    orIgnore: mock(() => qb),
+    execute: mock(() => Promise.resolve({})),
   };
   return qb;
 };
@@ -35,6 +42,7 @@ const makeMockRepo = (extras: Record<string, any> = {}) => ({
   create: mock((data: any) => ({ ...data })),
   save: mock((entity: any) => Promise.resolve({ id: "new-id", ...entity })),
   update: mock(() => Promise.resolve({})),
+  delete: mock(() => Promise.resolve({})),
   createQueryBuilder: mock(() => makeQb()),
   query: mock(() => Promise.resolve([])),
   ...extras,
@@ -50,6 +58,7 @@ describe("ReviewService", () => {
   let productRepo: any;
   let vendorRepo: any;
   let reviewRatingQueue: any;
+  let reviewFlagRepo: any;
   let service: ReviewService;
 
   beforeEach(() => {
@@ -61,6 +70,7 @@ describe("ReviewService", () => {
     reviewRatingQueue = {
       add: mock(() => Promise.resolve()),
     };
+    reviewFlagRepo = makeMockRepo();
 
     service = new ReviewService(
       reviewRepo,
@@ -69,6 +79,7 @@ describe("ReviewService", () => {
       productRepo,
       vendorRepo,
       reviewRatingQueue,
+      reviewFlagRepo,
     );
   });
 
@@ -223,21 +234,85 @@ describe("ReviewService", () => {
       expect(result.helpful_count).toBe(3);
       expect(result.not_helpful_count).toBe(1);
     });
+
+    it("forbids the author from voting on their own review (403, nothing written)", async () => {
+      reviewRepo.findOne.mockResolvedValueOnce({ id: "r-1", user_id: "user-1" });
+      await expect(service.voteReview("r-1", "user-1", true)).rejects.toMatchObject({
+        statusCode: 403,
+        message: "You cannot vote on your own review",
+      });
+      expect(reviewVoteRepo.query).not.toHaveBeenCalled();
+    });
   });
 
   /* ================================================================ */
   /*  flagReview                                                      */
   /* ================================================================ */
   describe("flagReview", () => {
-    it("transitions approved to flagged", async () => {
-      reviewRepo.findOne.mockResolvedValueOnce({
+    const approved = () => ({
+      id: "r-1",
+      user_id: "author-1",
+      product_id: "p-1",
+      vendor_id: "v-1",
+      status: ReviewStatus.approved,
+    });
+
+    it("a single report records the flag but keeps the review published", async () => {
+      reviewRepo.findOne.mockResolvedValueOnce(approved());
+      const flagQb = makeQb();
+      reviewFlagRepo.createQueryBuilder.mockReturnValueOnce(flagQb);
+      reviewFlagRepo.count.mockResolvedValueOnce(1);
+
+      const result = await service.flagReview("r-1", "user-1", "Mentions a competitor");
+
+      expect(result).toEqual({
         id: "r-1",
         status: ReviewStatus.approved,
+        flag_count: 1,
+        hidden: false,
       });
+      expect(flagQb.values).toHaveBeenCalledWith({
+        review_id: "r-1",
+        user_id: "user-1",
+        reason: "Mentions a competitor",
+      });
+      // Duplicate reports from the same buyer are ignored, not double counted.
+      expect(flagQb.orIgnore).toHaveBeenCalled();
+      expect(reviewRepo.save).not.toHaveBeenCalled();
+      expect(reviewRatingQueue.add).not.toHaveBeenCalled();
+    });
 
-      const result = await service.flagReview("r-1", "user-1");
+    it(`hides the review once ${REVIEW_FLAG_HIDE_THRESHOLD} distinct buyers report it`, async () => {
+      reviewRepo.findOne.mockResolvedValueOnce(approved());
+      reviewFlagRepo.count.mockResolvedValueOnce(REVIEW_FLAG_HIDE_THRESHOLD);
+
+      const result = await service.flagReview("r-1", "user-3");
 
       expect(result.status).toBe(ReviewStatus.flagged);
+      expect(result.hidden).toBe(true);
+      expect(reviewRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ status: ReviewStatus.flagged }),
+      );
+      // Hidden reviews leave the averages.
+      expect(reviewRatingQueue.add).toHaveBeenCalledWith(
+        "review.flagged",
+        expect.objectContaining({ productId: "p-1", vendorId: "v-1" }),
+      );
+    });
+
+    it("the author cannot flag their own review", async () => {
+      reviewRepo.findOne.mockResolvedValueOnce(approved());
+      await expect(service.flagReview("r-1", "author-1")).rejects.toMatchObject({
+        statusCode: 403,
+      });
+    });
+
+    it("flagging an already hidden review is a no-op", async () => {
+      reviewRepo.findOne.mockResolvedValueOnce({ ...approved(), status: ReviewStatus.flagged });
+      reviewFlagRepo.count.mockResolvedValueOnce(4);
+      const result = await service.flagReview("r-1", "user-9");
+      expect(result).toMatchObject({ status: ReviewStatus.flagged, hidden: true, flag_count: 4 });
+      expect(reviewFlagRepo.createQueryBuilder).not.toHaveBeenCalled();
     });
 
     it("throws if review is not approved", async () => {
@@ -291,16 +366,29 @@ describe("ReviewService", () => {
       const result = await service.approveReview("r-1", "admin-1");
 
       expect(result.status).toBe(ReviewStatus.approved);
+      // Restoring a hidden review clears its reports.
+      expect(reviewFlagRepo.delete).toHaveBeenCalledWith({ review_id: "r-1" });
     });
 
-    it("throws if review is already approved", async () => {
+    it("approving a published review with reports keeps it and dismisses the reports", async () => {
+      reviewRepo.findOne.mockResolvedValueOnce({ id: "r-1", status: ReviewStatus.approved });
+      reviewFlagRepo.count.mockResolvedValueOnce(2);
+
+      const result = await service.approveReview("r-1", "admin-1");
+
+      expect(result.status).toBe(ReviewStatus.approved);
+      expect(reviewFlagRepo.delete).toHaveBeenCalledWith({ review_id: "r-1" });
+      expect(reviewRepo.save).not.toHaveBeenCalled();
+    });
+
+    it("throws if review is already approved and nobody reported it", async () => {
       reviewRepo.findOne.mockResolvedValueOnce({
         id: "r-1",
         status: ReviewStatus.approved,
       });
 
       await expect(service.approveReview("r-1", "admin-1")).rejects.toThrow(
-        "Only pending or flagged reviews can be approved",
+        "Review is already approved",
       );
     });
   });
@@ -339,8 +427,42 @@ describe("ReviewService", () => {
       });
 
       await expect(service.rejectReview("r-1", "admin-1", "reason")).rejects.toThrow(
-        "Only pending or flagged reviews can be rejected",
+        "Only pending, flagged or reported reviews can be rejected",
       );
+    });
+
+    it("requires a non-blank reason (400)", async () => {
+      reviewRepo.findOne.mockResolvedValueOnce({ id: "r-1", status: ReviewStatus.pending });
+      await expect(service.rejectReview("r-1", "admin-1", "   ")).rejects.toMatchObject({
+        statusCode: 400,
+        message: "A rejection reason is required",
+      });
+    });
+
+    it("takes down a reported published review and recalculates ratings", async () => {
+      reviewRepo.findOne.mockResolvedValueOnce({
+        id: "r-1",
+        status: ReviewStatus.approved,
+        product_id: "p-1",
+        vendor_id: "v-1",
+      });
+      reviewFlagRepo.count.mockResolvedValueOnce(1);
+
+      const result = await service.rejectReview("r-1", "admin-1", "Off-topic: about a courier");
+
+      expect(result.status).toBe(ReviewStatus.rejected);
+      expect(reviewRatingQueue.add).toHaveBeenCalledWith(
+        "review.rejected",
+        expect.objectContaining({ productId: "p-1" }),
+      );
+    });
+
+    it("cannot reject a published review nobody reported", async () => {
+      reviewRepo.findOne.mockResolvedValueOnce({ id: "r-1", status: ReviewStatus.approved });
+      reviewFlagRepo.count.mockResolvedValueOnce(0);
+      await expect(service.rejectReview("r-1", "admin-1", "x")).rejects.toMatchObject({
+        statusCode: 400,
+      });
     });
   });
 
@@ -418,6 +540,56 @@ describe("ReviewService", () => {
 
       expect(result.data).toHaveLength(2);
       expect(result.total).toBe(2);
+    });
+
+    it("returns product, vendor and reviewer names plus the report count", async () => {
+      const qb = makeQb([
+        [
+          {
+            id: "r-1",
+            product_id: "p-1",
+            vendor_id: "v-1",
+            user_id: "u-1",
+            rating: 2,
+            body: "Lids pop off 80 mm cups",
+            status: ReviewStatus.approved,
+            created_at: new Date("2026-11-07"),
+            product: { name: "Paperboard sip lid, 80 mm", slug: "paperboard-sip-lid-80mm" },
+            vendor: { name: "Gulf Board Supply" },
+            user: { first_name: "Mariam", last_name: "Haddad", email: "m@buyer.test" },
+          },
+        ],
+        1,
+      ]);
+      reviewRepo.createQueryBuilder.mockReturnValueOnce(qb);
+      const flagQb = makeQb();
+      flagQb.getRawMany.mockResolvedValueOnce([{ review_id: "r-1", count: "2" }]);
+      reviewFlagRepo.createQueryBuilder.mockReturnValueOnce(flagQb);
+
+      const { data, total } = await service.listForAdmin({});
+
+      expect(total).toBe(1);
+      expect(data[0]).toMatchObject({
+        product_name: "Paperboard sip lid, 80 mm",
+        vendor_name: "Gulf Board Supply",
+        reviewer_name: "Mariam Haddad",
+        flag_count: 2,
+      });
+      expect(qb.leftJoinAndSelect).not.toHaveBeenCalled();
+    });
+
+    it("needs_moderation = pending + flagged + published-but-reported", async () => {
+      const qb = makeQb([[], 0]);
+      reviewRepo.createQueryBuilder.mockReturnValueOnce(qb);
+
+      await service.listForAdmin({ status: "needs_moderation" });
+
+      const [clause, params] = qb.andWhere.mock.calls[0];
+      expect(clause).toContain("review_flags");
+      expect(params).toEqual({
+        queue: [ReviewStatus.pending, ReviewStatus.flagged],
+        approved: ReviewStatus.approved,
+      });
     });
 
     it("filters by status when provided", async () => {

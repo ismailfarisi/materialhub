@@ -49,19 +49,6 @@ export function useProduct(slug: string) {
 	});
 }
 
-export function useProductReviews(productId: string, page = 1) {
-	return useQuery({
-		queryKey: ["product-reviews", productId, page],
-		queryFn: async () => {
-			const { data } = await api.get(`/reviews/product/${productId}`, {
-				params: { page },
-			});
-			return data.data;
-		},
-		enabled: !!productId,
-	});
-}
-
 export function useProductQuestions(productId: string, page = 1) {
 	return useQuery({
 		queryKey: ["product-questions", productId, page],
@@ -69,28 +56,6 @@ export function useProductQuestions(productId: string, page = 1) {
 			const { data } = await api.get(`/products/${productId}/questions`, {
 				params: { page },
 			});
-			return data.data;
-		},
-		enabled: !!productId,
-	});
-}
-
-export function useReviewSummary(productId: string) {
-	return useQuery({
-		queryKey: ["review-summary", productId],
-		queryFn: async () => {
-			const { data } = await api.get(`/reviews/product/${productId}/summary`);
-			return data.data;
-		},
-		enabled: !!productId,
-	});
-}
-
-export function useRitualProducts(productId: string) {
-	return useQuery({
-		queryKey: ["ritual-products", productId],
-		queryFn: async () => {
-			const { data } = await api.get(`/products/${productId}/ritual`);
 			return data.data;
 		},
 		enabled: !!productId,

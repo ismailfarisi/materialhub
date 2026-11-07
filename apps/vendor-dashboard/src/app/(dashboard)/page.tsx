@@ -40,6 +40,23 @@ function WarehouseSetupBanner() {
   );
 }
 
+/**
+ * Chart dates arrive as ISO strings ("2026-11-07T00:00:00.000Z" or
+ * "2026-11-07"); show "7 Nov". A calendar date is read as UTC so it never
+ * slips a day in the viewer's time zone.
+ */
+function formatChartDate(value: unknown, withYear = false) {
+  if (typeof value !== "string" && !(value instanceof Date)) return String(value ?? "");
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString("en-AE", {
+    day: "numeric",
+    month: "short",
+    ...(withYear ? { year: "numeric" } : {}),
+    timeZone: "UTC",
+  });
+}
+
 function formatCurrency(fils: number) {
   return `AED ${(fils / 100).toLocaleString("en-AE", { minimumFractionDigits: 2 })}`;
 }
@@ -128,6 +145,8 @@ export default function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis
                   dataKey="date"
+                  tickFormatter={(v) => formatChartDate(v)}
+                  minTickGap={16}
                   tick={{ fontSize: 12 }}
                   tickLine={false}
                   axisLine={false}
@@ -141,6 +160,7 @@ export default function DashboardPage() {
                 />
                 <Tooltip
                   formatter={(value: number) => [formatCurrency(value), "Revenue"]}
+                  labelFormatter={(label) => formatChartDate(label, true)}
                   contentStyle={{ fontSize: 12, borderRadius: 8 }}
                 />
                 <Line
