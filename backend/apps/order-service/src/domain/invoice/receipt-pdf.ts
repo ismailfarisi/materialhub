@@ -48,8 +48,8 @@ export function renderReceiptPdf(vm: ReceiptViewModel): Promise<Buffer> {
 
     // Vendor groups + items
     for (const group of vm.vendorGroups) {
-      doc.fillColor(MUTED).fontSize(9).text(group.vendorName.toUpperCase());
-      if (group.vendorTrn) doc.fontSize(8).text(`Seller TRN: ${group.vendorTrn}`);
+      doc.fillColor(MUTED).fontSize(9).text(group.vendorName.toUpperCase(), 50);
+      if (group.vendorTrn) doc.fontSize(8).text(`Seller TRN: ${group.vendorTrn}`, 50);
       doc.fillColor(INK).fontSize(10);
       for (const it of group.items) {
         const label = it.variant ? `${it.name} — ${it.variant}` : it.name;

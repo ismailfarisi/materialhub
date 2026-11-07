@@ -2,6 +2,7 @@
 
 import type { CreateIntegrationResult } from "@/lib/integrations/api";
 import { useCreateIntegration } from "@/lib/integrations/hooks";
+import { inboundIntegrationUrl } from "@/lib/urls";
 import {
   Button,
   Dialog,
@@ -156,7 +157,7 @@ function SecretsPanel({ result, onDone }: SecretsPanelProps) {
         </p>
       </div>
 
-      <CopyRow label="Inbound URL" value={result.inbound_url} />
+      <CopyRow label="Inbound URL" value={inboundIntegrationUrl(result.id)} />
       <CopyRow label="Inbound secret" value={result.inbound_secret_plaintext} />
       <CopyRow label="Outbound secret" value={result.outbound_secret_plaintext} />
 

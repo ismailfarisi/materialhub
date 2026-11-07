@@ -29,6 +29,15 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
+// A delivered shipment can be returned while some unit is neither refunded
+// nor cancelled; once every line is fully refunded there is nothing left.
+function canReturn(vo: VendorOrderRow): boolean {
+	if (vo.status !== "delivered") return false;
+	return (vo.items ?? []).some(
+		(i) => i.status !== "cancelled" && (i.quantity ?? 0) > (i.refunded_quantity ?? 0),
+	);
+}
+
 export default function OrderDetailPage() {
 	const t = useTranslations("account");
 	const tCommon = useTranslations("common");
@@ -193,7 +202,7 @@ export default function OrderDetailPage() {
 									})}
 								</ul>
 							</div>
-							{(vo.tracking_number || vo.status === "delivered") && (
+							{(vo.tracking_number || canReturn(vo)) && (
 								// pe-[4.5rem] below sm keeps "Request a return" clear of the
 								// floating support-chat launcher (fixed, end-4, 48px wide).
 								<div className="flex flex-wrap items-center justify-between gap-3 border-t border-dashed border-nl-cacao/15 px-4 py-3 pe-[4.5rem] sm:pe-4 md:px-5">
@@ -211,7 +220,7 @@ export default function OrderDetailPage() {
 									) : (
 										<span />
 									)}
-									{vo.status === "delivered" && (
+									{canReturn(vo) && (
 										<Button asChild variant="outline" size="sm">
 											<Link href={`/${locale}/account/orders/${id}/return`}>{t("requestReturn")}</Link>
 										</Button>

@@ -375,7 +375,7 @@ export class OrderCreationService {
                 // A clean 409 the checkout can show ("only N left"), not a 500.
                 throw new HttpError(
                   409,
-                  `Only ${Math.max(0, available)} of this item are available`,
+                  `Only ${Math.max(0, available)} left in stock for this item`,
                   "INSUFFICIENT_STOCK",
                   {
                     product_id: item.product_id,

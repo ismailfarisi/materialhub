@@ -64,7 +64,7 @@ function buildApp({
             ...result.integration,
             inbound_secret_plaintext: result.inbound_secret_plaintext,
             outbound_secret_plaintext: result.outbound_secret_plaintext,
-            inbound_url: `/integrations/inbound/${result.integration.id}`,
+            inbound_url: `/integrations/inbound/${result.integration.id}/{event_type}`,
           },
           201,
         );
@@ -97,7 +97,7 @@ describe("POST /vendor/integrations", () => {
     expect(res.statusCode).toBe(201);
     expect(res.data.inbound_secret_plaintext).toMatch(/^[a-f0-9]{64}$/);
     expect(res.data.outbound_secret_plaintext).toMatch(/^[a-f0-9]{64}$/);
-    expect(res.data.inbound_url).toBe(`/integrations/inbound/${res.data.id}`);
+    expect(res.data.inbound_url).toBe(`/integrations/inbound/${res.data.id}/{event_type}`);
     expect(res.data.name).toBe("test-int");
   });
 });

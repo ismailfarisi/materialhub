@@ -122,7 +122,7 @@ export default function InvitePage() {
 						</p>
 					)}
 
-					{!expired && (
+					{!expired && !closed && (
 						<p className="text-center text-xs text-muted-foreground">
 							<Link href={`/invite/${token}/decline`} className="hover:underline">
 								Decline this invite
