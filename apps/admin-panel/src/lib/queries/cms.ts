@@ -54,14 +54,15 @@ export function usePages(filters: PageFilters = {}) {
   });
 }
 
-export function usePage(slug: string) {
+/** Admin read by id (drafts included); the public `/pages/:slug` route only serves published pages. */
+export function usePage(id: string) {
   return useQuery({
-    queryKey: ["admin", "cms", "pages", slug],
+    queryKey: ["admin", "cms", "pages", "by-id", id],
     queryFn: async () => {
-      const { data } = await api.get(`/pages/${slug}`);
+      const { data } = await api.get(`/pages/admin/${id}`);
       return data.data;
     },
-    enabled: !!slug,
+    enabled: !!id,
   });
 }
 

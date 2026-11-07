@@ -65,3 +65,24 @@ describe("clearAuthSession", () => {
     expect(document.cookie).not.toContain("vendor_access_token");
   });
 });
+
+describe("2FA login helpers", () => {
+  test("TOTP and backup codes go to their verify endpoints", async () => {
+    const { twoFactorVerifyPath } = await import("./auth");
+    expect(twoFactorVerifyPath("totp")).toBe("/auth/2fa/login-verify");
+    expect(twoFactorVerifyPath("backup")).toBe("/auth/2fa/backup-verify");
+  });
+
+  test("an expired challenge is detected by its error code", async () => {
+    const { isExpiredTwoFactorChallenge } = await import("./auth");
+    expect(isExpiredTwoFactorChallenge({ response: { data: { code: "INVALID_2FA_CHALLENGE" } } })).toBe(true);
+    expect(isExpiredTwoFactorChallenge({ response: { data: { code: "INVALID_2FA_CODE" } } })).toBe(false);
+  });
+
+  test("credential checks are excluded from the 401 refresh-retry", async () => {
+    const { isNoRefreshUrl } = await import("../api");
+    expect(isNoRefreshUrl("/auth/2fa/login-verify")).toBe(true);
+    expect(isNoRefreshUrl("/auth/change-password")).toBe(true);
+    expect(isNoRefreshUrl("/vendor/products")).toBe(false);
+  });
+});

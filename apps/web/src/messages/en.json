@@ -701,6 +701,19 @@
       "registerTitle": "Create your MaterialHub account",
       "registerDescription": "Verify your phone, add your name, and start ordering.",
       "useEmail": "Use email and password instead"
+    },
+    "twoFactor": {
+      "title": "Two-step verification",
+      "totpDescription": "Enter the 6-digit code from your authenticator app.",
+      "backupDescription": "Enter one of the backup codes you saved when you turned on two-step verification. Each code works once.",
+      "codeLabel": "Authentication code",
+      "backupLabel": "Backup code",
+      "verify": "Verify and log in",
+      "useBackup": "Use a backup code",
+      "useApp": "Use your authenticator app",
+      "back": "Back to log in",
+      "invalidCode": "That code didn't work. Try again.",
+      "expired": "Your sign-in timed out. Log in again."
     }
   },
   "footer": {

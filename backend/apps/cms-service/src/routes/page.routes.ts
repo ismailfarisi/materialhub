@@ -48,6 +48,17 @@ export const pageRoutes = new Elysia({ prefix: "/pages" })
     },
   )
 
+  // Admin read by id (drafts included). Two segments, so it never collides
+  // with the public `/:slug` route above.
+  .get(
+    "/admin/:id",
+    async ({ params, pageController }) => {
+      const data = await pageController.getById(params.id);
+      return { statusCode: 200, data, timestamp: new Date().toISOString() };
+    },
+    { params: t.Object({ id: t.String({ format: "uuid" }) }) },
+  )
+
   .post(
     "/",
     async ({ body, user, pageController, set }) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -23,9 +23,15 @@ import {
   FormLabel,
   FormMessage,
   Input,
+  TwoFactorChallengeForm,
 } from "@materialhub/ui";
 import { getMembershipsFromToken } from "@/lib/auth";
-import { useLogin, useLogout } from "@/lib/queries/auth";
+import {
+  isExpiredTwoFactorChallenge,
+  useLogin,
+  useLogout,
+  useVerifyTwoFactor,
+} from "@/lib/queries/auth";
 import { safeReturnTo } from "@/lib/return-to";
 import { useAuthStore } from "@/stores/auth";
 
@@ -76,6 +82,9 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const returnTo = safeReturnTo(searchParams);
   const { mutate: login, isPending, error } = useLogin();
+  const verify = useVerifyTwoFactor();
+  const [challengeToken, setChallengeToken] = useState<string | null>(null);
+  const [stepNotice, setStepNotice] = useState<string | null>(null);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const user = useAuthStore((s) => s.user);
   // Signed in, but with no vendor membership (a customer account, or an
@@ -100,7 +109,19 @@ function LoginForm() {
   function onSubmit(values: LoginFormValues) {
     // Redirect happens in the effect above once the session is known, and
     // only when the account can actually use the dashboard.
-    login(values);
+    verify.reset();
+    setStepNotice(null);
+    login(values, {
+      onSuccess: (data) => {
+        // Accounts with 2FA get a challenge instead of a session.
+        if (data?.requires_2fa && data.challenge_token) setChallengeToken(data.challenge_token);
+      },
+    });
+  }
+
+  function apiMessage(err: unknown): string | undefined {
+    const m = (err as { response?: { data?: { message?: unknown } } })?.response?.data?.message;
+    return typeof m === "string" && m ? m : undefined;
   }
 
   return (
@@ -236,6 +257,34 @@ function LoginForm() {
             </div>
           ) : null}
 
+          {challengeToken ? (
+            <TwoFactorChallengeForm
+              isPending={verify.isPending}
+              error={
+                verify.error
+                  ? (apiMessage(verify.error) ?? "That code didn't work. Please try again.")
+                  : null
+              }
+              onVerify={(code, method) =>
+                verify.mutate(
+                  { challenge_token: challengeToken, code, method },
+                  {
+                    onError: (err) => {
+                      // Expired or out of attempts: back to the password step.
+                      if (isExpiredTwoFactorChallenge(err)) {
+                        setStepNotice(apiMessage(err) ?? "Please sign in again.");
+                        setChallengeToken(null);
+                      }
+                    },
+                  },
+                )
+              }
+              onCancel={() => {
+                verify.reset();
+                setChallengeToken(null);
+              }}
+            />
+          ) : (
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
@@ -275,10 +324,14 @@ function LoginForm() {
                 )}
               />
 
-              {error && (
-                <p className="border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                  {(error as any)?.response?.data?.message ??
-                    "Invalid email or password. Please try again."}
+              {(error || stepNotice) && (
+                <p
+                  role="alert"
+                  className="border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                >
+                  {error
+                    ? (apiMessage(error) ?? "Invalid email or password. Please try again.")
+                    : stepNotice}
                 </p>
               )}
 
@@ -287,6 +340,7 @@ function LoginForm() {
               </Button>
             </form>
           </Form>
+          )}
 
           <div className="mt-6 grid gap-3 border-t border-pearl/70 pt-5 text-xs leading-5 text-taupe">
             <div className="flex items-start gap-2">

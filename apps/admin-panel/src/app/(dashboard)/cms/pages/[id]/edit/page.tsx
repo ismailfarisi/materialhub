@@ -56,6 +56,8 @@ export default function EditCmsPagePage() {
       setContent(page.content ?? "");
       setMetaTitle(page.meta_title ?? "");
       setMetaDescription(page.meta_description ?? "");
+      // An existing page keeps its stored slug; don't re-derive it from the title.
+      setSlugManual(true);
       setHydrated(true);
     }
   }, [page, hydrated]);

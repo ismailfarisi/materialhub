@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -20,8 +20,16 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  TwoFactorChallengeForm,
 } from "@materialhub/ui";
-import { useLogin } from "@/lib/queries/auth";
+import {
+  NO_ADMIN_ACCESS_MESSAGE,
+  isAdminRole,
+  isExpiredTwoFactorChallenge,
+  loginErrorMessage,
+  useLogin,
+  useVerifyTwoFactor,
+} from "@/lib/queries/auth";
 import { useAuthStore } from "@/stores/auth";
 
 const loginSchema = z.object({
@@ -42,15 +50,27 @@ export default function LoginPage() {
 function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const returnTo = searchParams.get("returnTo") || "/";
+  const rawReturnTo = searchParams.get("returnTo") || "/";
+  // Only same-app paths; never bounce back to /login itself.
+  const returnTo =
+    rawReturnTo.startsWith("/") && !rawReturnTo.startsWith("//") && !rawReturnTo.startsWith("/login")
+      ? rawReturnTo
+      : "/";
   const { mutate: login, isPending, error } = useLogin();
+  const verify = useVerifyTwoFactor();
+  const [challengeToken, setChallengeToken] = useState<string | null>(null);
+  const [stepNotice, setStepNotice] = useState<string | null>(null);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const role = useAuthStore((s) => s.user?.role);
+  const noAdminRedirect = searchParams.get("reason") === "no-admin";
 
+  // Only staff are sent on: redirecting any signed-in account made a
+  // customer bounce between /login and the dashboard guard forever.
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && isAdminRole(role)) {
       router.replace(returnTo);
     }
-  }, [isAuthenticated, returnTo, router]);
+  }, [isAuthenticated, role, returnTo, router]);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -58,12 +78,26 @@ function LoginPageInner() {
   });
 
   function onSubmit(values: LoginFormValues) {
+    verify.reset();
+    setStepNotice(null);
     login(values, {
-      onSuccess: () => {
+      onSuccess: (result) => {
+        if (result.requires_2fa) {
+          setChallengeToken(result.challenge_token);
+          return;
+        }
         router.replace(returnTo);
       },
     });
   }
+
+  const loginError = error
+    ? loginErrorMessage(error, "Invalid email or password. Please try again.")
+    : stepNotice
+      ? stepNotice
+      : noAdminRedirect
+      ? NO_ADMIN_ACCESS_MESSAGE
+      : null;
 
   return (
     <Card>
@@ -80,6 +114,35 @@ function LoginPageInner() {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {challengeToken ? (
+          <TwoFactorChallengeForm
+            isPending={verify.isPending}
+            error={
+              verify.error
+                ? loginErrorMessage(verify.error, "That code didn't work. Please try again.")
+                : null
+            }
+            onVerify={(code, method) =>
+              verify.mutate(
+                { challenge_token: challengeToken, code, method },
+                {
+                  onSuccess: () => router.replace(returnTo),
+                  onError: (err) => {
+                    // The challenge expired or ran out of attempts: start over.
+                    if (isExpiredTwoFactorChallenge(err)) {
+                      setStepNotice(loginErrorMessage(err, "Please sign in again."));
+                      setChallengeToken(null);
+                    }
+                  },
+                },
+              )
+            }
+            onCancel={() => {
+              verify.reset();
+              setChallengeToken(null);
+            }}
+          />
+        ) : (
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -119,10 +182,9 @@ function LoginPageInner() {
               )}
             />
 
-            {error && (
-              <p className="text-sm text-destructive">
-                {(error as any)?.response?.data?.message ??
-                  "Invalid email or password. Please try again."}
+            {loginError && (
+              <p role="alert" className="text-sm text-destructive">
+                {loginError}
               </p>
             )}
 
@@ -131,6 +193,7 @@ function LoginPageInner() {
             </Button>
           </form>
         </Form>
+        )}
       </CardContent>
     </Card>
   );

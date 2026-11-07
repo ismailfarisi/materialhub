@@ -50,6 +50,12 @@ export class PageService {
     return page;
   }
 
+  async getById(id: string) {
+    const page = await this.repo.findOne({ where: { id } });
+    if (!page) throw new HttpError(404, "Page not found", "PAGE_NOT_FOUND");
+    return page;
+  }
+
   async create(data: CreatePageBody, authorId: string) {
     const existing = await this.repo.findOne({ where: { slug: data.slug } });
     if (existing) throw new HttpError(409, "Slug already in use", "SLUG_CONFLICT");

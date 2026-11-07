@@ -80,12 +80,54 @@ export function useLogin() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (credentials: { email: string; password: string }) => {
+    mutationFn: async (credentials: { email: string; password: string }): Promise<LoginResult> => {
       const { data } = await api.post("/auth/login", credentials);
       return data.data;
     },
     onSuccess: async (data) => {
+      // Accounts with two-step verification get a challenge, not a session:
+      // the cart merge and /auth/me refetch wait for useVerifyTwoFactor.
+      if (data?.requires_2fa) return;
       await runPostAuthEffects(queryClient, setUser, data?.user);
+    },
+  });
+}
+
+export type LoginResult =
+  | { requires_2fa: true; challenge_token: string; user?: undefined }
+  | { requires_2fa?: false; user: any };
+
+export type TwoFactorMethod = "totp" | "backup";
+
+export function twoFactorVerifyPath(method: TwoFactorMethod): string {
+  return method === "backup" ? "/auth/2fa/backup-verify" : "/auth/2fa/login-verify";
+}
+
+/** The challenge is single-use and short-lived; once it's gone the user logs in again. */
+export function isExpiredTwoFactorChallenge(error: unknown): boolean {
+  return (
+    (error as { response?: { data?: { code?: unknown } } })?.response?.data?.code ===
+    "INVALID_2FA_CHALLENGE"
+  );
+}
+
+/** Second login step: a TOTP or backup code for the challenge returned by /auth/login. */
+export function useVerifyTwoFactor() {
+  const setUser = useAuthStore((s) => s.setUser);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (vals: { challenge_token: string; code: string; method: TwoFactorMethod }) => {
+      await api.post(twoFactorVerifyPath(vals.method), {
+        challenge_token: vals.challenge_token,
+        code: vals.code,
+      });
+      // The verify endpoints set the session cookies but don't return the user.
+      const { data } = await api.get("/auth/me");
+      return data.data.user;
+    },
+    onSuccess: async (user) => {
+      await runPostAuthEffects(queryClient, setUser, user);
     },
   });
 }

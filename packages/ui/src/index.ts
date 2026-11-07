@@ -184,6 +184,14 @@ export type {
   S3FileFieldProps,
 } from "./components/forms/s3-file-field";
 export { RichEditor } from "./components/forms/rich-editor";
+export {
+  TwoFactorChallengeForm,
+  normaliseTwoFactorCode,
+} from "./components/forms/two-factor-challenge";
+export type {
+  TwoFactorChallengeFormProps,
+  TwoFactorMethod,
+} from "./components/forms/two-factor-challenge";
 
 // Product editors
 export { EditorialEditor } from "./components/products/editorial-editor";

@@ -50,6 +50,40 @@ export function useLogin() {
   });
 }
 
+/** The 2FA challenge is single-use and short-lived; once it's gone the user must sign in again. */
+export function isExpiredTwoFactorChallenge(error: unknown): boolean {
+  return (
+    (error as { response?: { data?: { code?: unknown } } })?.response?.data?.code ===
+    "INVALID_2FA_CHALLENGE"
+  );
+}
+
+export function twoFactorVerifyPath(method: "totp" | "backup"): string {
+  return method === "backup" ? "/auth/2fa/backup-verify" : "/auth/2fa/login-verify";
+}
+
+/** Second login step: a TOTP code or a backup code for the challenge from /auth/login. */
+export function useVerifyTwoFactor() {
+  const setUser = useAuthStore((s) => s.setUser);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (vals: { challenge_token: string; code: string; method: "totp" | "backup" }) => {
+      await api.post(twoFactorVerifyPath(vals.method), {
+        challenge_token: vals.challenge_token,
+        code: vals.code,
+      });
+      // The verify endpoints set the session cookies but don't return the user.
+      const { data } = await api.get("/auth/me");
+      return data.data.user;
+    },
+    onSuccess: (user) => {
+      setUser(user);
+      queryClient.setQueryData(["auth", "me"], user);
+    },
+  });
+}
+
 export function useLogout() {
   const queryClient = useQueryClient();
 

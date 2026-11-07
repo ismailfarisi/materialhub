@@ -67,7 +67,7 @@ export default function CmsPagesPage() {
   });
   const { mutate: deletePage } = useDeletePage();
 
-  const pages: Page[] = data?.pages ?? data?.items ?? [];
+  const pages: Page[] = data?.data ?? data?.pages ?? data?.items ?? [];
   const total: number = data?.total ?? 0;
   const pageCount = Math.ceil(total / pagination.pageSize) || 1;
 

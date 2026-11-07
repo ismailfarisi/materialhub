@@ -142,6 +142,11 @@ export function shouldAttemptAuthRefresh(url?: string): boolean {
   const publicAuthEndpoints = [
     "/auth/refresh",
     "/auth/login",
+    // 2FA login step and password change: a 401 here is about the code or
+    // password the user typed, so refreshing and resending would be wrong.
+    "/auth/2fa/login-verify",
+    "/auth/2fa/backup-verify",
+    "/auth/change-password",
     "/auth/register",
     "/auth/phone/start",
     "/auth/phone/verify",
