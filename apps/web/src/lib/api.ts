@@ -176,6 +176,22 @@ export function isInvalidOtpError(error: unknown): boolean {
   return (data as { error?: unknown }).error === "INVALID_OTP";
 }
 
+/**
+ * Whether a failed request means "this browser has no usable session": a
+ * 401/403, or the refresh endpoint itself refusing (400 MISSING_REFRESH_TOKEN
+ * when there is no refresh cookie at all, 401 TOKEN_REVOKED / reuse when it is
+ * dead). Network errors and 5xx are transient and do not count.
+ */
+export function isSessionGoneError(error: unknown): boolean {
+  const e = error as { response?: { status?: number }; config?: { url?: string } } | null;
+  const status = e?.response?.status;
+  if (status === 401 || status === 403) return true;
+  if (status !== 400) return false;
+  const url = e?.config?.url ?? "";
+  const path = url.startsWith("http") ? new URL(url).pathname : url.split("?")[0];
+  return path === "/auth/refresh";
+}
+
 function processQueue(error: unknown) {
   failedQueue.forEach(({ resolve, reject }) => {
     if (error) reject(error);
@@ -215,6 +231,11 @@ api.interceptors.response.use(
         // Retry the original request — new access_token cookie is now set
         return api(originalRequest);
       } catch (refreshError) {
+        // No refresh cookie (400) or a dead one (401): this browser is a
+        // guest until it logs in again. Record it so later page views skip
+        // the /auth/me 401 + /auth/refresh 400 probe; a real login sets the
+        // access cookie and the "1" hint, which re-enables probing.
+        if (isSessionGoneError(refreshError)) markAuthSessionGuest();
         processQueue(refreshError);
         return Promise.reject(refreshError);
       } finally {

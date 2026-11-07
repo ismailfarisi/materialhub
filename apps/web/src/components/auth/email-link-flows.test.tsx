@@ -22,7 +22,7 @@ vi.mock("./auth-shell", () => ({
 	),
 }));
 
-import { MagicLinkVerifyFlow, VerifyEmailFlow } from "./email-link-flows";
+import { ForgotPasswordFlow, MagicLinkRequestFlow, MagicLinkVerifyFlow, VerifyEmailFlow } from "./email-link-flows";
 
 describe("email link pages", () => {
 	beforeEach(() => {
@@ -50,5 +50,16 @@ describe("email link pages", () => {
 		render(<MagicLinkVerifyFlow />);
 		await waitFor(() => expect(screen.getByText("backToLogin")).toBeTruthy());
 		expect(post).toHaveBeenCalledWith("/auth/magic-link/verify", { token: "tok_123" });
+	});
+
+	it("labels the magic-link request button as a sign-in link, not a reset link", () => {
+		render(<MagicLinkRequestFlow />);
+		expect(screen.getByRole("button", { name: "sendMagicLink" })).toBeTruthy();
+		expect(screen.queryByRole("button", { name: "sendLink" })).toBeNull();
+	});
+
+	it("keeps the reset label on the forgot-password form", () => {
+		render(<ForgotPasswordFlow />);
+		expect(screen.getByRole("button", { name: "sendLink" })).toBeTruthy();
 	});
 });

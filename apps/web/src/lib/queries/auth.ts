@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { api, clearGuestSessionToken, getGuestSessionToken, shouldProbeAuthSession } from "../api";
+import { api, clearGuestSessionToken, getGuestSessionToken, isSessionGoneError, shouldProbeAuthSession } from "../api";
 import { useAuthStore } from "@/stores/auth";
 
 type QueryClient = ReturnType<typeof useQueryClient>;
@@ -57,9 +57,10 @@ export function useMe(enabled = true) {
         setUser(data.data.user);
         return data.data.user;
       } catch (error) {
-        const status = (error as { response?: { status?: number } }).response?.status;
-        if (status === 401 || status === 403) {
-          // Definitive: the interceptor's refresh failed too.
+        if (isSessionGoneError(error)) {
+          // Definitive: /auth/me 401'd and the interceptor's refresh failed
+          // too (400 MISSING_REFRESH_TOKEN for a guest, 401 for a dead
+          // session). logout() writes the guest hint so later views skip this.
           logout();
         } else {
           // Transient (network/5xx): resolve loading but keep the session

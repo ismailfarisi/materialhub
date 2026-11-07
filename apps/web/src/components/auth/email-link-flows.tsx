@@ -84,7 +84,7 @@ function EmailRequestForm({ kind }: { kind: "reset" | "magic" }) {
 			</Field>
 			{error && <FieldError>{error}</FieldError>}
 			<Button type="submit" size="lg" disabled={pending} className="w-full">
-				{pending ? t("sending") : t("sendLink")}
+				{pending ? t("sending") : t(kind === "reset" ? "sendLink" : "sendMagicLink")}
 			</Button>
 			<BackToLogin />
 		</form>
