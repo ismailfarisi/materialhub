@@ -23,6 +23,7 @@ import { enqueueSearchSync } from "../search/search-sync.job.ts";
 import type { SearchService } from "../search/search.interface.ts";
 import type { TrendingSearchService } from "../search/trending.service.ts";
 import { parseAttributeParams } from "./filter-param-parser.ts";
+import { toPublicProductDetail } from "./public-product.ts";
 
 const WAREHOUSE_FULFILLMENT_PERMISSION = "fulfillment_origin";
 
@@ -650,12 +651,14 @@ export class ProductService {
     (product as any).in_stock = totalAvailable > 0;
     (product as any).quantity_available = totalAvailable;
 
-    return product;
+    return toPublicProductDetail(product);
   }
 
+  /** Public detail by id: published products only (drafts, products under
+   * review and rejected listings are not public), storefront-safe shape. */
   async getById(id: string) {
     const product = await this.repo.findOne({
-      where: { id },
+      where: { id, status: "published" as any },
       relations: [
         "images",
         "variants",
@@ -673,8 +676,15 @@ export class ProductService {
     if (!product) throw new HttpError(404, "Product not found", "PRODUCT_NOT_FOUND");
     (product as any).ecoDeclaration = toPublicEcoDeclaration(product.ecoDeclaration);
     attachPriceTiers(product);
+    const available = ((product as any).inventoryRecords || []).reduce(
+      (sum: number, inv: any) =>
+        sum + Math.max(0, (inv.quantity_on_hand || 0) - (inv.quantity_reserved || 0)),
+      0,
+    );
+    (product as any).in_stock = available > 0;
+    (product as any).quantity_available = available;
 
-    return product;
+    return toPublicProductDetail(product);
   }
 
   /** The vendor's own product, with translations, for the edit form. */
