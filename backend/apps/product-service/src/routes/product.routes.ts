@@ -7,6 +7,7 @@ import { container } from "../container.ts";
 import {
   ProductCreateInventoryInput,
   ProductSeoInput,
+  VendorTranslationsInput,
   SampleInput,
   TradePricingInput,
   VariantTradeTermsInput,
@@ -126,18 +127,37 @@ export const productRoutes = new Elysia({ prefix: "/products" })
       .get("/mine", async ({ query, member, productController }: any) => {
         const data = await productController.listByVendor(member.vid, query);
         return { statusCode: 200, data, timestamp: new Date().toISOString() };
-      }),
+      })
+      // The vendor's own product including its translations (edit form).
+      .get(
+        "/mine/:id",
+        async ({ params, member, productController }: any) => {
+          const data = await productController.getByIdForVendor(params.id, member.vid);
+          return { statusCode: 200, data, timestamp: new Date().toISOString() };
+        },
+        { params: t.Object({ id: t.String({ format: "uuid" }) }) },
+      ),
   )
 
   .guard({}, (app) =>
-    app.use(vendorMembership("products.publish")).patch(
-      "/:id/publish",
-      async ({ params, member, productController }: any) => {
-        const data = await productController.publish(params.id, member.vid);
-        return { statusCode: 200, data, timestamp: new Date().toISOString() };
-      },
-      { params: t.Object({ id: t.String({ format: "uuid" }) }) },
-    ),
+    app
+      .use(vendorMembership("products.publish"))
+      .patch(
+        "/:id/publish",
+        async ({ params, member, productController }: any) => {
+          const data = await productController.publish(params.id, member.vid);
+          return { statusCode: 200, data, timestamp: new Date().toISOString() };
+        },
+        { params: t.Object({ id: t.String({ format: "uuid" }) }) },
+      )
+      .patch(
+        "/:id/unpublish",
+        async ({ params, member, productController }: any) => {
+          const data = await productController.unpublish(params.id, member.vid);
+          return { statusCode: 200, data, timestamp: new Date().toISOString() };
+        },
+        { params: t.Object({ id: t.String({ format: "uuid" }) }) },
+      ),
   )
 
   .guard({}, (app) =>
@@ -186,6 +206,7 @@ export const productRoutes = new Elysia({ prefix: "/products" })
             attributes: t.Optional(t.Array(ProductAttributeInput)),
             editorial: t.Optional(t.Union([ProductEditorial, t.Null()])),
             status: VendorStatusInput,
+            translations: VendorTranslationsInput,
             ...ProductSeoInput,
             ...ProductCreateInventoryInput,
           }),
@@ -238,6 +259,7 @@ export const productRoutes = new Elysia({ prefix: "/products" })
             attributes: t.Optional(t.Array(ProductAttributeInput)),
             editorial: t.Optional(t.Union([ProductEditorial, t.Null()])),
             status: VendorStatusInput,
+            translations: VendorTranslationsInput,
             ...ProductSeoInput,
           }),
         },
@@ -261,7 +283,7 @@ export const productRoutes = new Elysia({ prefix: "/products" })
         async ({ body, member, productController, set }: any) => {
           // Outer guard is products.write; publish-bulk still requires products.publish.
           if (
-            body.action === "publish" &&
+            (body.action === "publish" || body.action === "unpublish") &&
             !permissionMatrix.has(member.r as VendorMemberRole, "products.publish")
           ) {
             set.status = 403;
@@ -277,7 +299,12 @@ export const productRoutes = new Elysia({ prefix: "/products" })
         },
         {
           body: t.Object({
-            action: t.Union([t.Literal("archive"), t.Literal("publish"), t.Literal("delete")]),
+            action: t.Union([
+              t.Literal("archive"),
+              t.Literal("publish"),
+              t.Literal("unpublish"),
+              t.Literal("delete"),
+            ]),
             ids: t.Array(t.String({ format: "uuid" }), { minItems: 1 }),
           }),
         },

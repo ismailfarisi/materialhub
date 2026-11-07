@@ -488,3 +488,50 @@ describe("VendorService.createByAdmin", () => {
     }
   });
 });
+
+// ── apply() — documents ───────────────────────────────────────────────────────
+
+describe("VendorService.apply — documents", () => {
+  const baseData = {
+    userId: USER_ID,
+    businessName: "E2E fix Gulf Board Supplies",
+    businessEmail: "sales@gulfboard.example",
+    businessPhone: "+971501234567",
+    businessAddress: {
+      street: "Al Quoz 3",
+      city: "Dubai",
+      state: "Dubai",
+      country: "AE",
+      postalCode: "",
+    },
+  };
+
+  function applyService() {
+    return makeService({
+      vendorRepo: { findOne: mock(async () => null) },
+      userRepo: { findOne: mock(async () => ({ id: USER_ID, email: APPLICANT_EMAIL })) },
+    });
+  }
+
+  test("saves each document with its s3 key and file name (no 500 on mapped input)", async () => {
+    clearCalls();
+    const vendor = await applyService().apply({
+      ...baseData,
+      documents: [
+        { type: "trade_license", s3Key: "vendor-docs/u/licence.pdf", fileName: "licence.pdf" },
+      ],
+    });
+    expect(vendor.id).toBe("generated-id");
+    expect((vendor as any).status).toBe("pending");
+  });
+
+  test("rejects an unknown document type with 400 instead of a DB enum error", async () => {
+    clearCalls();
+    await expect(
+      applyService().apply({
+        ...baseData,
+        documents: [{ type: "selfie", s3Key: "k", fileName: "k" }],
+      }),
+    ).rejects.toMatchObject({ statusCode: 400, code: "INVALID_DOCUMENT" });
+  });
+});

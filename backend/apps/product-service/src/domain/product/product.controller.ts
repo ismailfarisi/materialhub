@@ -27,6 +27,12 @@ export class ProductController {
   async publish(productId: string, vendorId: string) {
     return this.productService.publish(productId, vendorId);
   }
+  async unpublish(productId: string, vendorId: string) {
+    return this.productService.unpublish(productId, vendorId);
+  }
+  async getByIdForVendor(id: string, vendorId: string) {
+    return this.productService.getByIdForVendor(id, vendorId);
+  }
   async bulkAction(vendorId: string, data: any) {
     return this.productService.bulkAction(vendorId, data.action, data.ids);
   }

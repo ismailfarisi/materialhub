@@ -53,6 +53,24 @@ function deferred(
 }
 
 /**
+ * The status an import row may set, mirroring the vendor product API: a vendor
+ * moves products between draft and review (or resubmits a rejected one) and
+ * may archive; going live is only via moderation + publish. Returns undefined
+ * to leave the current status alone.
+ */
+export function importStatusFor(
+  current: string | null,
+  requested: CoercedProductRow["status"] | undefined,
+): Product["status"] | undefined {
+  if (!requested) return undefined;
+  if (requested === "archived") return "archived" as Product["status"];
+  if (current === null || current === "draft" || current === "pending_review" || current === "rejected") {
+    return requested as Product["status"];
+  }
+  return undefined;
+}
+
+/**
  * Process a batch of products (and their variants from the parsed file) into the database.
  *
  * Concurrency model: the worker base wraps `writeBatch` in ONE Postgres transaction.
@@ -92,6 +110,8 @@ export async function writeProductsBatch(
     let productOk = false;
     try {
       const productId = await writeProductRow(p, ctx, productScope.ctx);
+      // Keep search in step (an archived/edited product must not linger).
+      productScope.ctx.pushFollowUp({ queue: "search-reindex", payload: { productId } });
       productIdByKey.set(p.externalId ?? `sku:${p.sku}`, productId);
       recordGroupLink(p, productId, ctx, writeCtx);
 
@@ -297,7 +317,7 @@ async function writeProductRow(
       ["meta_title", p.metaTitle],
       ["meta_description", p.metaDescription],
       ["meta_keywords", p.metaKeywords],
-      ["status", p.status ?? current.status],
+      ["status", importStatusFor(current.status, p.status)],
       ["category_id", category?.id],
       ["brand_id", brandId],
       ["external_id", p.externalId],
@@ -337,7 +357,7 @@ async function writeProductRow(
       description: p.description,
       ingredients: p.ingredients,
       usage_instructions: p.usageInstructions,
-      status: (p.status ?? "draft") as Product["status"],
+      status: (importStatusFor(null, p.status) ?? "draft") as Product["status"],
       price: p.price!,
       compare_at_price: p.compareAtPrice,
       cost_price: p.costPrice,

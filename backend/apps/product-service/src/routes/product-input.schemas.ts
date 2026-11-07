@@ -22,6 +22,24 @@ export const VendorStatusInput = t.Optional(
 );
 
 /**
+ * Vendor-authored translations (Arabic). Same fields the admin product routes
+ * accept; an entry with a blank name removes that locale's translation.
+ */
+export const VendorTranslationsInput = t.Optional(
+  t.Array(
+    t.Object({
+      locale: t.Literal("ar"),
+      name: t.String({ maxLength: 255 }),
+      short_description: t.Optional(t.Nullable(t.String())),
+      description: t.Optional(t.Nullable(t.String())),
+      meta_title: t.Optional(t.Nullable(t.String({ maxLength: 255 }))),
+      meta_description: t.Optional(t.Nullable(t.String({ maxLength: 500 }))),
+    }),
+    { maxItems: 1 },
+  ),
+);
+
+/**
  * Create-only. `has_variants` decides whether a product-level inventory row is
  * seeded at all, and `quantity_on_hand` is that row's opening stock. On edit,
  * stock moves through /inventory/restock and /inventory/adjust instead, and

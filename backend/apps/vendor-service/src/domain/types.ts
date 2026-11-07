@@ -30,7 +30,7 @@ export interface VendorApplyData {
     s3Key: string;
     fileName: string;
   }>;
-  bankAccount: {
+  bankAccount?: {
     bankName: string;
     accountHolderName: string;
     accountNumber: string;

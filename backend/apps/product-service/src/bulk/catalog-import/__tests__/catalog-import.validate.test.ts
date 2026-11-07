@@ -60,7 +60,7 @@ function mkProd(over: Partial<CoercedProductRow>): CoercedProductRow {
     usageInstructions: null,
     categorySlug: "men",
     brandSlug: null,
-    status: "active",
+    status: "draft",
     price: 1000,
     compareAtPrice: null,
     costPrice: null,

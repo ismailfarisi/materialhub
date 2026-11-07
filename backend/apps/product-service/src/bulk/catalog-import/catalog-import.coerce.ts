@@ -74,7 +74,8 @@ export function coerceProductRow(
     err(BulkErrorCodes.INVALID_PRICE, "price must be >= 0", "price");
 
   const statusRaw = (v.status ?? "").trim() || null;
-  const allowedStatuses = ["draft", "pending_review", "active", "archived"] as const;
+  // No "active"/"published": going live needs admin approval, then Publish.
+  const allowedStatuses = ["draft", "pending_review", "archived"] as const;
   let status: CoercedProductRow["status"] = null;
   if (statusRaw) {
     if ((allowedStatuses as readonly string[]).includes(statusRaw)) {

@@ -5,6 +5,7 @@ import {
   UserStatus,
   Vendor,
   VendorDocument,
+  VendorDocumentType,
   VendorStatus,
   VendorTranslation,
   Warehouse,
@@ -66,6 +67,16 @@ export class VendorService {
           [data.userId],
         )) as Array<{ id: string }>);
     const reuseVendorId = rejectedRows[0]?.id ?? null;
+
+    const validDocTypes = new Set<string>(Object.values(VendorDocumentType));
+    const badDoc = data.documents.find((d) => !validDocTypes.has(d.type) || !d.s3Key);
+    if (badDoc) {
+      throw new HttpError(
+        400,
+        `Invalid document: type must be one of ${[...validDocTypes].join(", ")} and s3_key is required`,
+        "INVALID_DOCUMENT",
+      );
+    }
 
     // Generate unique slug
     let slug = generateSlug(data.businessName);
@@ -139,7 +150,7 @@ export class VendorService {
             vendor_id: vendor.id,
             type: doc.type as any,
             file_url: doc.s3Key,
-            file_name: doc.s3Key.split("/").pop() ?? "document",
+            file_name: doc.fileName || (doc.s3Key.split("/").pop() ?? "document"),
             is_verified: false,
           }),
         );

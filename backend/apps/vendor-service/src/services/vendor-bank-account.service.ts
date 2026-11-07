@@ -36,7 +36,7 @@ export class VendorBankAccountService {
       is_primary: isPrimary,
     });
 
-    return this.repo.save(account);
+    return this.toView(await this.repo.save(account));
   }
 
   async list(vendorId: string) {
@@ -45,20 +45,33 @@ export class VendorBankAccountService {
       order: { is_primary: "DESC", created_at: "ASC" },
     });
 
-    return accounts.map((a) => ({
+    return accounts.map((a) => this.toView(a));
+  }
+
+  /**
+   * The only shape a bank account leaves this service in: account number and
+   * IBAN masked to their last 4 characters, ciphertext never included.
+   */
+  toView(a: VendorBankAccount) {
+    return {
       id: a.id,
       bankName: a.bank_name,
       accountHolderName: a.account_holder_name,
-      accountNumberMasked: this.encryption.mask(
-        this.encryption.decrypt(a.account_number_encrypted),
-      ),
-      ibanMasked: a.iban_encrypted
-        ? this.encryption.mask(this.encryption.decrypt(a.iban_encrypted))
-        : null,
+      accountNumberMasked: this.safeMask(a.account_number_encrypted),
+      ibanMasked: a.iban_encrypted ? this.safeMask(a.iban_encrypted) : null,
       swiftCode: a.swift_code,
       currency: a.currency,
       isPrimary: a.is_primary,
-    }));
+    };
+  }
+
+  private safeMask(ciphertext: string): string {
+    try {
+      return this.encryption.mask(this.encryption.decrypt(ciphertext));
+    } catch {
+      // Undecryptable (rotated key / corrupt row): never echo the ciphertext.
+      return "****";
+    }
   }
 
   async update(
@@ -86,7 +99,7 @@ export class VendorBankAccountService {
     if (data.swiftCode !== undefined) account.swift_code = data.swiftCode;
     if (data.currency) account.currency = data.currency;
 
-    return this.repo.save(account);
+    return this.toView(await this.repo.save(account));
   }
 
   async setPrimary(vendorId: string, accountId: string) {
@@ -100,7 +113,7 @@ export class VendorBankAccountService {
       await manager.update(VendorBankAccount, { id: accountId }, { is_primary: true });
     });
 
-    return { ...account, is_primary: true };
+    return this.toView({ ...account, is_primary: true } as VendorBankAccount);
   }
 
   async remove(vendorId: string, accountId: string) {

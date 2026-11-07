@@ -74,7 +74,7 @@ export interface CoercedProductRow {
   usageInstructions: string | null;
   categorySlug: string | null;
   brandSlug: string | null;
-  status: "draft" | "pending_review" | "active" | "archived" | null;
+  status: "draft" | "pending_review" | "archived" | null;
   price: number | null;
   compareAtPrice: number | null;
   costPrice: number | null;

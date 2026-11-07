@@ -126,6 +126,20 @@ export const vendorAdminRoutes = new Elysia({ prefix: "/admin/vendors" })
     { body: t.Object({ reason: t.String({ minLength: 1 }) }) },
   )
 
+  .patch("/:id/reactivate", async ({ params, user, vendorController, audit }) => {
+    const vendor = await vendorController.reactivate(params.id, user!.id);
+    audit.action = "vendor.reactivate";
+    audit.entity_type = "vendor";
+    audit.entity_id = params.id;
+    audit.changes = { status: { old: "suspended", new: vendor.status } };
+    return {
+      statusCode: 200,
+      message: "Vendor reactivated",
+      data: vendor,
+      timestamp: new Date().toISOString(),
+    };
+  })
+
   .patch(
     "/:id/use-platform-shipping",
     async ({ params, vendorController, audit }) => {

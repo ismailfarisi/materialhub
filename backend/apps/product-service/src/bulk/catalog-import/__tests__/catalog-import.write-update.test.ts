@@ -102,7 +102,7 @@ const currentProduct = {
   meta_title: null,
   meta_description: null,
   meta_keywords: null,
-  status: "active",
+  status: "draft",
   category_id: null,
   brand_id: null,
 } as const;
