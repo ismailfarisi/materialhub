@@ -513,11 +513,7 @@ export class AuthService {
     if (!user.password_hash || !user.password_hash.startsWith("$2")) {
       // 400: the caller is authenticated (OAuth/phone-only accounts have no
       // password to change); a 401 would trigger the clients' refresh-retry.
-      throw new HttpError(
-        400,
-        "This account signs in without a password",
-        "PASSWORD_NOT_SET",
-      );
+      throw new HttpError(400, "This account signs in without a password", "PASSWORD_NOT_SET");
     }
 
     const ok = await Bun.password.verify(currentPassword, user.password_hash);
