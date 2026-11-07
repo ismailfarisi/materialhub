@@ -1183,7 +1183,7 @@ export class PayoutService {
     vendorId: string,
     query: { page?: number; limit?: number; status?: PayoutStatus },
   ): Promise<{ data: VendorPayout[]; total: number }> {
-    const page = query.page || 1;
+    const page = Math.max(1, Math.trunc(Number(query.page)) || 1);
     const limit = query.limit || 20;
     // Falsy check, not `!= null`: `?status=` reaches here as "" and matching
     // on that returns zero rows, which the page renders as "no payouts yet".
@@ -1213,7 +1213,7 @@ export class PayoutService {
     items: Array<VendorPayout & { vendor_name: string }>;
     total: number;
   }> {
-    const page = filters.page || 1;
+    const page = Math.max(1, Math.trunc(Number(filters.page)) || 1);
     const limit = filters.limit || 20;
 
     const qb = this.payoutRepo

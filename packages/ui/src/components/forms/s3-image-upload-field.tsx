@@ -5,6 +5,8 @@ import {
 	type S3UploadClient,
 	useS3Upload,
 } from "../../hooks/use-s3-upload";
+import { useState } from "react";
+import { mediaErrorMessage } from "../products/media-manager/MediaManager";
 import { ImageUploader } from "./image-uploader";
 
 export interface S3ImageUploadFieldProps {
@@ -25,6 +27,7 @@ export function S3ImageUploadField({
 	label,
 }: S3ImageUploadFieldProps) {
 	const { upload, isUploading } = useS3Upload({ assetType, client, vendorId });
+	const [error, setError] = useState<string | null>(null);
 
 	const images = value ? [{ id: "current", url: value }] : [];
 
@@ -36,14 +39,24 @@ export function S3ImageUploadField({
 				onUpload={async (files) => {
 					const file = files[0];
 					if (!file) return;
-					const result = await upload(file);
-					if ("url" in result) onChange(result.url);
+					setError(null);
+					try {
+						const result = await upload(file);
+						if ("url" in result) onChange(result.url);
+					} catch (err) {
+						setError(mediaErrorMessage(err));
+					}
 				}}
 				onRemove={() => onChange(null)}
 				onReorder={() => {}}
 				maxImages={1}
 				isUploading={isUploading}
 			/>
+			{error ? (
+				<p role="alert" className="text-xs text-destructive">
+					{error}
+				</p>
+			) : null}
 		</div>
 	);
 }

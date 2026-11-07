@@ -3,6 +3,7 @@ import { User } from "@materialhub/database";
 import { UserSession } from "@materialhub/database";
 import { UserToken } from "@materialhub/database";
 import { GuestSession } from "@materialhub/database";
+import { bumpTokenVersion } from "@materialhub/guards";
 import { HttpError } from "@materialhub/plugins";
 import { IsNull, MoreThan } from "typeorm";
 import type {
@@ -510,16 +511,16 @@ export class AuthService {
     }
 
     if (!user.password_hash || !user.password_hash.startsWith("$2")) {
-      throw new HttpError(
-        401,
-        "Password change not allowed for this account",
-        "INVALID_CREDENTIALS",
-      );
+      // 400: the caller is authenticated (OAuth/phone-only accounts have no
+      // password to change); a 401 would trigger the clients' refresh-retry.
+      throw new HttpError(400, "This account signs in without a password", "PASSWORD_NOT_SET");
     }
 
     const ok = await Bun.password.verify(currentPassword, user.password_hash);
     if (!ok) {
-      throw new HttpError(401, "Current password is incorrect", "INVALID_CURRENT_PASSWORD");
+      // 400, not 401: the caller IS authenticated; a 401 made the frontends'
+      // axios interceptors refresh the token and resend the request.
+      throw new HttpError(400, "Current password is incorrect", "INVALID_CURRENT_PASSWORD");
     }
 
     const newHash = await Bun.password.hash(newPassword, { algorithm: "bcrypt", cost: 12 });
@@ -534,6 +535,9 @@ export class AuthService {
         .getRepository(UserSession)
         .update({ user_id: userId, is_revoked: false }, { is_revoked: true });
     });
+    // Revoking refresh sessions alone left every issued access token valid
+    // for up to 15 minutes; bumping the token version rejects them now.
+    await bumpTokenVersion(userId);
 
     return { success: true };
   }

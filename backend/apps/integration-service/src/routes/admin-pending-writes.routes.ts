@@ -20,7 +20,16 @@ export const adminPendingWritesRoutes = new Elysia({ prefix: "/admin/integration
     },
     {
       params: t.Object({ id: t.String() }),
-      query: t.Object({ status: t.Optional(t.String()) }),
+      query: t.Object({
+        status: t.Optional(
+          t.Union([
+            t.Literal("pending"),
+            t.Literal("approved"),
+            t.Literal("rejected"),
+            t.Literal("applied"),
+          ]),
+        ),
+      }),
     },
   )
   .post(

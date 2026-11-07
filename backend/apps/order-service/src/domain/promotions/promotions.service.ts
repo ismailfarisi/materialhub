@@ -25,6 +25,15 @@ function computeStatus(
   return "active";
 }
 
+/** The vendor that owns a coupon, or null for a platform coupon. */
+export function couponOwnerName(c: {
+  vendor_id?: string | null;
+  vendor?: { name?: string | null; business_name?: string | null } | null;
+}): string | null {
+  if (!c.vendor_id) return null;
+  return c.vendor?.name || c.vendor?.business_name || "Vendor";
+}
+
 export class PromotionsService {
   constructor(private couponAdminService: CouponAdminService) {}
 
@@ -54,7 +63,7 @@ export class PromotionsService {
           expires_at: c.expires_at ? new Date(c.expires_at).toISOString() : null,
           discount_display: discountDisplay,
           usage: c.usage_limit ? `${c.usage_count}/${c.usage_limit} used` : `${c.usage_count} used`,
-          vendor_name: c.vendor?.name ?? null,
+          vendor_name: couponOwnerName(c),
           created_at: new Date(c.created_at).toISOString(),
         });
       }

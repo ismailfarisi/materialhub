@@ -1,6 +1,8 @@
 import { describe, expect, it, mock } from "bun:test";
 import { IntegrationService } from "./integration.service.ts";
 
+const INT_ID = "0d9a3b7e-5c21-4f64-8a1e-2b7c9d4e6f10";
+
 const repoStub = () => ({
   findOne: mock(() => Promise.resolve(null)),
   find: mock(() => Promise.resolve([])),
@@ -33,15 +35,32 @@ describe("IntegrationService.rotateSecret", () => {
     const integrationRepo = repoStub();
     integrationRepo.findOne = mock(() =>
       Promise.resolve({
-        id: "i1",
+        id: INT_ID,
         vendor_id: "v1",
         outbound_secret_encrypted: "enc(old)",
       } as any),
     );
     const encryption = encryptionStub();
     const svc = new IntegrationService(integrationRepo as any, encryption as any);
-    const result = await svc.rotateSecret("i1", "v1", "outbound");
+    const result = await svc.rotateSecret(INT_ID, "v1", "outbound");
     expect(result.plaintext).toMatch(/^[a-f0-9]{64}$/);
     expect(integrationRepo.save).toHaveBeenCalled();
+  });
+});
+
+describe("IntegrationService lookups by id", () => {
+  it("treats a malformed id as not found without querying", async () => {
+    const integrationRepo = repoStub();
+    const svc = new IntegrationService(integrationRepo as any, encryptionStub() as any);
+    expect(await svc.getById("i1", "v1")).toBeNull();
+    expect(integrationRepo.findOne).not.toHaveBeenCalled();
+  });
+
+  it("rotateSecret on an unknown integration is a 404", async () => {
+    const integrationRepo = repoStub();
+    const svc = new IntegrationService(integrationRepo as any, encryptionStub() as any);
+    await expect(svc.rotateSecret(INT_ID, "v1", "inbound")).rejects.toMatchObject({
+      statusCode: 404,
+    });
   });
 });

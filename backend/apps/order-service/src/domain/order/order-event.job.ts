@@ -7,6 +7,8 @@ export interface OrderStatusChangedEvent {
   type: "order.status.changed";
   orderId: string;
   vendorOrderId?: string;
+  /** Vendor of the sub-order, on vendor-order events. */
+  vendorId?: string;
   orderItemId?: string;
   fromStatus: string;
   toStatus: string;

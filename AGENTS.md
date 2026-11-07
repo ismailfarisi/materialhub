@@ -9,7 +9,7 @@ Vendors (suppliers) run their listings, inventory, orders, shipments, coupons an
 
 ## Stack
 
-- **Backend:** ElysiaJS services with a NestJS-style structure (modules, DI in `container.ts`, lifecycle hooks). PostgreSQL 16 + PostGIS via TypeORM (migrations), Redis, BullMQ, Typesense for search.
+- **Backend:** one ElysiaJS process, `backend/apps/api` (:3000, one Docker image), that mounts the modules in `backend/apps/<x>-service` (auth, product, order, vendor, notification, cms, integration) in-process; modules keep a NestJS-style structure (DI in `container.ts`, lifecycle hooks) and call each other via `serviceFetch`. PostgreSQL 16 + PostGIS via TypeORM (migrations), Redis, BullMQ, Typesense for search.
 - **Payments:** Stripe (PaymentIntents + Connect payouts), Tabby, Tamara, COD. The `payments`, `commissions`, `vendor_payouts` and `webhook_events` tables are the ledger.
 
 ## Commands
@@ -19,10 +19,11 @@ bun install
 cp backend/.env.example backend/.env             # then set DB_PORT/REDIS_PORT/TYPESENSE_PORT if the defaults are taken
 docker compose -f backend/docker-compose.yml up -d postgres redis typesense
 cd backend/libs/database && bun run migrate && bun run seed
-bun run dev:local                                 # docker infra + migrate + seed + search index + all services + apps
-bun run dev                                       # all services + apps (turbo), infra already running
+bun run dev:local                                 # docker infra + migrate + seed + search index + API + apps
+bun run dev                                       # API + apps (turbo), infra already running
+cd backend/apps/api && bun run src/index.ts       # the whole backend alone (one process, :3000)
 cd backend && bunx --bun @biomejs/biome@1.9.4 check .   # lint before push
-cd backend/apps/<service> && bun test             # unit tests; integration tests need a live DB
+cd backend/apps/<module> && bun test              # unit tests per module (api, auth-service, ...); integration tests need a live DB
 ```
 
 ## Rules

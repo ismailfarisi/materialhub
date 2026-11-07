@@ -59,7 +59,7 @@ export class VendorOrderService {
     vendorId: string,
     filters: ListFilters,
   ): Promise<{ data: VendorOrder[]; total: number }> {
-    const page = filters.page || 1;
+    const page = Math.max(1, Math.trunc(Number(filters.page)) || 1);
     const limit = filters.limit || 20;
 
     const qb = this.vendorOrderRepo

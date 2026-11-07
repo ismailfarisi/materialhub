@@ -14,8 +14,8 @@ export const brandAdminRoutes = new Elysia({ prefix: "/admin/brands" })
     "/",
     async ({ query, brandController }) => {
       const data = await brandController.listForAdmin(
-        query.page ? Number(query.page) : undefined,
-        query.limit ? Number(query.limit) : undefined,
+        query.page ? Math.max(1, Math.trunc(Number(query.page)) || 1) : undefined,
+        query.limit ? Math.max(1, Math.trunc(Number(query.limit)) || 1) : undefined,
         query.search,
       );
       return { statusCode: 200, data, timestamp: new Date().toISOString() };
@@ -87,8 +87,8 @@ export const brandAdminRoutes = new Elysia({ prefix: "/admin/brands" })
     async ({ query, brandController }) => {
       const data = await brandController.listSubmissions({
         status: query.status as BrandStatus | undefined,
-        page: query.page ? Number(query.page) : undefined,
-        limit: query.limit ? Number(query.limit) : undefined,
+        page: query.page ? Math.max(1, Math.trunc(Number(query.page)) || 1) : undefined,
+        limit: query.limit ? Math.max(1, Math.trunc(Number(query.limit)) || 1) : undefined,
       });
       return { statusCode: 200, data, timestamp: new Date().toISOString() };
     },

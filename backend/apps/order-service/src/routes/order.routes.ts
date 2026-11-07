@@ -1,3 +1,4 @@
+import { OrderStatus } from "@materialhub/database";
 import { jwtAuth, requireRole } from "@materialhub/guards";
 import { auditPlugin } from "@materialhub/plugins";
 import { Elysia, t } from "elysia";
@@ -29,9 +30,9 @@ export const orderRoutes = new Elysia()
         },
         {
           query: t.Object({
-            page: t.Optional(t.Integer({ default: 1 })),
-            limit: t.Optional(t.Integer({ default: 20 })),
-            status: t.Optional(t.String()),
+            page: t.Optional(t.Integer({ default: 1, minimum: 1 })),
+            limit: t.Optional(t.Integer({ default: 20, minimum: 1 })),
+            status: t.Optional(t.Enum(OrderStatus)),
             from_date: t.Optional(t.String()),
             to_date: t.Optional(t.String()),
           }),
@@ -73,6 +74,16 @@ export const orderRoutes = new Elysia()
               timestamp: new Date().toISOString(),
             };
           }
+          if ("pdf" in result) {
+            return new Response(new Uint8Array(result.pdf), {
+              status: 200,
+              headers: {
+                "content-type": "application/pdf",
+                "content-disposition": `inline; filename="${result.filename}"`,
+                "cache-control": "private, no-store",
+              },
+            });
+          }
           set.status = 302;
           set.headers.location = result.url;
           return null;
@@ -113,9 +124,9 @@ export const orderRoutes = new Elysia()
         },
         {
           query: t.Object({
-            page: t.Optional(t.Integer({ default: 1 })),
-            limit: t.Optional(t.Integer({ default: 20 })),
-            status: t.Optional(t.String()),
+            page: t.Optional(t.Integer({ default: 1, minimum: 1 })),
+            limit: t.Optional(t.Integer({ default: 20, minimum: 1 })),
+            status: t.Optional(t.Enum(OrderStatus)),
             vendor_id: t.Optional(t.String({ format: "uuid" })),
             user_id: t.Optional(t.String({ format: "uuid" })),
             from_date: t.Optional(t.String()),
@@ -138,7 +149,7 @@ export const orderRoutes = new Elysia()
         },
         {
           query: t.Object({
-            status: t.Optional(t.String()),
+            status: t.Optional(t.Enum(OrderStatus)),
             vendor_id: t.Optional(t.String({ format: "uuid" })),
             user_id: t.Optional(t.String({ format: "uuid" })),
             from_date: t.Optional(t.String()),
@@ -181,6 +192,16 @@ export const orderRoutes = new Elysia()
               message: "Forbidden",
               timestamp: new Date().toISOString(),
             };
+          }
+          if ("pdf" in result) {
+            return new Response(new Uint8Array(result.pdf), {
+              status: 200,
+              headers: {
+                "content-type": "application/pdf",
+                "content-disposition": `inline; filename="${result.filename}"`,
+                "cache-control": "private, no-store",
+              },
+            });
           }
           set.status = 302;
           set.headers.location = result.url;

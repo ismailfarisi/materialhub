@@ -364,6 +364,237 @@ function BlockCard({
 	);
 }
 
+const PRODUCT_QUERY_DEFAULTS = { sort: "newest" };
+const NO_QUERY_DEFAULTS = {};
+
+/**
+ * Query-mode sections need `data_source.type` (and any defaults the selects
+ * display) stored, not just shown. Writes once when they're missing.
+ */
+function useQueryDataSourceDefaults(
+	sourceMode: string,
+	dataSource: Record<string, unknown>,
+	onDataSourceChange: (dataSource: Record<string, unknown>) => void,
+	type: string,
+	queryDefaults: Record<string, unknown> = NO_QUERY_DEFAULTS,
+) {
+	useEffect(() => {
+		if (sourceMode !== "query") return;
+		const next = withQueryDefaults(dataSource, type, queryDefaults);
+		if (next !== dataSource) onDataSourceChange(next);
+	}, [sourceMode, dataSource, onDataSourceChange, type, queryDefaults]);
+}
+
+/** `dataSource` with `type` and missing query keys filled in; the same object when nothing is missing. */
+export function withQueryDefaults(
+	dataSource: Record<string, unknown>,
+	type: string,
+	queryDefaults: Record<string, unknown> = {},
+): Record<string, unknown> {
+	const query = (dataSource.query as Record<string, unknown>) ?? {};
+	const missing = Object.keys(queryDefaults).filter((k) => query[k] === undefined);
+	if (dataSource.type && missing.length === 0) return dataSource;
+	const filled = { ...query };
+	for (const k of missing) filled[k] = queryDefaults[k];
+	return { ...dataSource, type: (dataSource.type as string) || type, query: filled };
+}
+
+// ─── Manual product picker (product_carousel in manual mode) ─────────────────
+
+/**
+ * A hand-picked product. The resolver turns `data.product_id` into the live
+ * product card; `name`/`slug` are only for showing the pick in the editor.
+ */
+export type ManualProductBlock = {
+	id: string;
+	type: "product";
+	data: { product_id: string; name?: string; slug?: string };
+};
+
+type ProductLookupItem = { id: string; name: string; slug?: string; status?: string; sku?: string };
+
+function ManualProductList({
+	apiClient,
+	vendorId,
+	blocks,
+	onBlocksChange,
+}: {
+	apiClient: AxiosInstance;
+	vendorId?: string;
+	blocks: ManualProductBlock[];
+	onBlocksChange: (blocks: unknown[]) => void;
+}) {
+	const picked = new Set(blocks.map((b) => b.data?.product_id));
+
+	function move(i: number, delta: number) {
+		const j = i + delta;
+		if (j < 0 || j >= blocks.length) return;
+		const next = [...blocks];
+		[next[i], next[j]] = [next[j], next[i]];
+		onBlocksChange(next);
+	}
+
+	return (
+		<div className="space-y-3">
+			{blocks.length === 0 ? (
+				<p className="text-xs text-taupe">No products picked yet. Search below to add some.</p>
+			) : (
+				<ol className="space-y-1.5">
+					{blocks.map((b, i) => (
+						<li
+							key={b.id ?? b.data?.product_id ?? i}
+							className="flex items-center gap-2 rounded-xs border border-pearl/28 bg-linen px-2 py-1.5 text-sm"
+						>
+							<span className="w-5 text-xs text-taupe">{i + 1}</span>
+							<span className="min-w-0 flex-1 truncate text-cacao">
+								{b.data?.name || b.data?.slug || b.data?.product_id}
+							</span>
+							<button
+								type="button"
+								className="px-1 text-xs text-taupe hover:text-cacao disabled:opacity-40"
+								onClick={() => move(i, -1)}
+								disabled={i === 0}
+								aria-label={`Move ${b.data?.name ?? "product"} up`}
+							>
+								↑
+							</button>
+							<button
+								type="button"
+								className="px-1 text-xs text-taupe hover:text-cacao disabled:opacity-40"
+								onClick={() => move(i, 1)}
+								disabled={i === blocks.length - 1}
+								aria-label={`Move ${b.data?.name ?? "product"} down`}
+							>
+								↓
+							</button>
+							<button
+								type="button"
+								className="p-1 text-taupe hover:text-destructive"
+								onClick={() => onBlocksChange(blocks.filter((_, j) => j !== i))}
+								aria-label={`Remove ${b.data?.name ?? "product"}`}
+							>
+								<Trash2 size={14} />
+							</button>
+						</li>
+					))}
+				</ol>
+			)}
+			<ProductSearchPicker
+				apiClient={apiClient}
+				vendorId={vendorId}
+				exclude={picked}
+				onPick={(p) =>
+					onBlocksChange([
+						...blocks,
+						{
+							id: `product-${p.id}`,
+							type: "product",
+							data: { product_id: p.id, name: p.name, slug: p.slug },
+						},
+					])
+				}
+			/>
+		</div>
+	);
+}
+
+/** Search the catalogue (admin) or the vendor's own products and pick one. */
+export function ProductSearchPicker({
+	apiClient,
+	vendorId,
+	exclude,
+	onPick,
+}: {
+	apiClient: AxiosInstance;
+	vendorId?: string;
+	exclude?: Set<string | undefined>;
+	onPick: (product: ProductLookupItem) => void;
+}) {
+	const [query, setQuery] = useState("");
+	const [items, setItems] = useState<ProductLookupItem[]>([]);
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+	const inputId = useRef(`product-search-${Math.random().toString(36).slice(2, 8)}`).current;
+
+	useEffect(() => {
+		if (debounceRef.current) clearTimeout(debounceRef.current);
+		const q = query.trim();
+		if (q.length < 2) {
+			setItems([]);
+			setLoading(false);
+			return;
+		}
+		setLoading(true);
+		debounceRef.current = setTimeout(async () => {
+			try {
+				// Admin search covers every vendor; a vendor only picks its own products.
+				const { data } = vendorId
+					? await apiClient.get("/products/mine", { params: { search: q, limit: 20 } })
+					: await apiClient.get("/admin/products", { params: { search: q, limit: 20 } });
+				const list = (data?.data?.items ?? data?.data?.data ?? []) as ProductLookupItem[];
+				setItems(list);
+				setError(null);
+			} catch {
+				setItems([]);
+				setError("Couldn't search products. Try again.");
+			} finally {
+				setLoading(false);
+			}
+		}, 250);
+		return () => {
+			if (debounceRef.current) clearTimeout(debounceRef.current);
+		};
+	}, [apiClient, query, vendorId]);
+
+	const visible = items.filter((p) => !exclude?.has(p.id));
+
+	return (
+		<div className="space-y-1.5">
+			<Label htmlFor={inputId} className="text-xs text-taupe">
+				Add product
+			</Label>
+			<Input
+				id={inputId}
+				value={query}
+				onChange={(e) => setQuery(e.target.value)}
+				placeholder="Search by product name or SKU"
+				className="h-9 text-sm"
+			/>
+			{query.trim().length >= 2 && (
+				<div className="max-h-56 overflow-y-auto rounded-xs border border-pearl/28 bg-linen p-1">
+					{loading ? (
+						<div className="flex items-center justify-center py-4 text-taupe">
+							<Loader2 size={16} className="animate-spin" />
+						</div>
+					) : error ? (
+						<p className="px-2 py-3 text-xs text-destructive">{error}</p>
+					) : visible.length === 0 ? (
+						<p className="px-2 py-3 text-xs text-taupe">No matching products.</p>
+					) : (
+						visible.map((p) => (
+							<button
+								key={p.id}
+								type="button"
+								onClick={() => {
+									onPick(p);
+									setQuery("");
+								}}
+								className="flex w-full items-center justify-between gap-2 rounded-xs px-2 py-1.5 text-left text-sm hover:bg-pearl/60"
+							>
+								<span className="min-w-0 truncate text-cacao">{p.name}</span>
+								{p.status && p.status !== "published" && (
+									<span className="shrink-0 text-xs text-taupe">{p.status.replace(/_/g, " ")}</span>
+								)}
+							</button>
+						))
+					)}
+				</div>
+			)}
+		</div>
+	);
+}
+
 // ─── Bid Config (shared between product_carousel and vendor_showcase) ────────
 
 function BidConfigEditor({
@@ -955,24 +1186,39 @@ function CategoryGridEditor({
 function ProductCarouselEditor({
 	apiClient,
 	settings,
+	blocks,
 	dataSource,
 	bidConfig,
 	sourceMode,
 	onSettingsChange,
+	onBlocksChange,
 	onDataSourceChange,
 	onBidConfigChange,
 }: Pick<
 	SectionConfigEditorProps,
 	| "apiClient"
 	| "settings"
+	| "blocks"
 	| "dataSource"
 	| "bidConfig"
 	| "sourceMode"
 	| "onSettingsChange"
+	| "onBlocksChange"
 	| "onDataSourceChange"
 	| "onBidConfigChange"
 >) {
 	const title = (settings.title as Record<string, unknown>) ?? {};
+	const { vendorId } = useContext(UploadContext);
+
+	// The Type/Sort selects show "Products"/"Newest" by default; store them too,
+	// or a query section saves without data_source.type and resolves to nothing.
+	useQueryDataSourceDefaults(
+		sourceMode,
+		dataSource,
+		onDataSourceChange,
+		"products",
+		PRODUCT_QUERY_DEFAULTS,
+	);
 
 	return (
 		<div className="space-y-5">
@@ -1032,6 +1278,7 @@ function ProductCarouselEditor({
 						function setDsQuery(key: string, value: unknown) {
 							onDataSourceChange({
 								...dataSource,
+								type: dataSourceType,
 								query: { ...dsQuery, [key]: value },
 							});
 						}
@@ -1109,6 +1356,20 @@ function ProductCarouselEditor({
 				</FieldGroup>
 			)}
 
+			{sourceMode === "manual" && (
+				<FieldGroup>
+					<SectionLabel>
+						Products ({(blocks as Record<string, unknown>[]).length})
+					</SectionLabel>
+					<ManualProductList
+						apiClient={apiClient}
+						vendorId={vendorId}
+						blocks={blocks as ManualProductBlock[]}
+						onBlocksChange={onBlocksChange}
+					/>
+				</FieldGroup>
+			)}
+
 			{sourceMode === "bidded" && (
 				<BidConfigEditor
 					bidConfig={bidConfig}
@@ -1140,6 +1401,8 @@ function VendorShowcaseEditor({
 	| "onBidConfigChange"
 >) {
 	const title = (settings.title as Record<string, unknown>) ?? {};
+	// Query mode lists vendors; store the type so the resolver can dispatch.
+	useQueryDataSourceDefaults(sourceMode, dataSource, onDataSourceChange, "vendors");
 
 	return (
 		<div className="space-y-5">
@@ -1194,6 +1457,7 @@ function VendorShowcaseEditor({
 						function setDsQuery(key: string, value: unknown) {
 							onDataSourceChange({
 								...dataSource,
+								type: (dataSource.type as string) ?? "vendors",
 								query: { ...dsQuery, [key]: value },
 							});
 						}
@@ -1739,6 +2003,8 @@ function SectionConfigEditorBody(
 				<ProductCarouselEditor
 					apiClient={apiClient}
 					settings={settings}
+					blocks={blocks}
+					onBlocksChange={onBlocksChange}
 					dataSource={dataSource}
 					bidConfig={bidConfig}
 					sourceMode={sourceMode}

@@ -1,6 +1,7 @@
 // webhook.service.test.ts
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import jwt from "jsonwebtoken";
+import Stripe from "stripe";
 import { WebhookService } from "./webhook.service.ts";
 
 describe("WebhookService", () => {
@@ -15,7 +16,10 @@ describe("WebhookService", () => {
     save: mock((o: any) => Promise.resolve(o)),
   };
   const mockPaymentRepo = {
-    findOne: mock((_args?: any): Promise<any> => Promise.resolve({ id: "pay-1", order_id: "o1" })),
+    findOne: mock(
+      (_args?: any): Promise<any> =>
+        Promise.resolve({ id: "pay-1", order_id: "o1", amount: 15000 }),
+    ),
     save: mock((p: any) => Promise.resolve(p)),
   };
   const mockOrderConfirmation = {
@@ -58,11 +62,12 @@ describe("WebhookService", () => {
 
   it("processes payment_intent.succeeded by delegating to OrderConfirmationService", async () => {
     mockWebhookRepo.findOne.mockResolvedValueOnce(null); // not processed yet
-    mockPaymentRepo.findOne.mockResolvedValueOnce({ id: "pay-1", order_id: "o1" });
+    mockPaymentRepo.findOne.mockResolvedValueOnce({ id: "pay-1", order_id: "o1", amount: 15000 });
 
     const payload = {
       id: "pi_test",
       metadata: { order_id: "o1" },
+      amount_received: 15000,
     };
     const result = await service.handleStripeWebhook("evt_1", "payment_intent.succeeded", payload);
 
@@ -73,11 +78,12 @@ describe("WebhookService", () => {
 
   it("updates Stripe-specific payment row with captured_at on success", async () => {
     mockWebhookRepo.findOne.mockResolvedValueOnce(null);
-    mockPaymentRepo.findOne.mockResolvedValueOnce({ id: "pay-1", order_id: "o1" });
+    mockPaymentRepo.findOne.mockResolvedValueOnce({ id: "pay-1", order_id: "o1", amount: 15000 });
 
     await service.handleStripeWebhook("evt_1", "payment_intent.succeeded", {
       id: "pi_test",
       metadata: { order_id: "o1" },
+      amount_received: 15000,
     });
 
     expect(mockPaymentRepo.save).toHaveBeenCalledWith(
@@ -107,6 +113,7 @@ describe("WebhookService", () => {
     await service.handleStripeWebhook("evt_fail", "payment_intent.payment_failed", {
       id: "pi_order_failed",
       metadata: { order_id: "o1" },
+      amount_received: 15000,
     });
 
     expect(mockOrderStatusService.cancelOrder).toHaveBeenCalledWith(
@@ -134,12 +141,16 @@ describe("WebhookService", () => {
       },
     );
     mockWebhookRepo.findOne.mockResolvedValueOnce(null);
-    mockPaymentRepo.findOne.mockResolvedValueOnce({ id: "pay-1", order_id: "order-1" });
+    mockPaymentRepo.findOne.mockResolvedValueOnce({
+      id: "pay-1",
+      order_id: "order-1",
+      amount: 15000,
+    });
 
     const result = await service.handleTamaraWebhook(tamaraToken, `Bearer ${tamaraToken}`, {
       order_id: "tamara-order-1",
       order_reference_id: "order-1",
-      order_number: "NL-1001",
+      order_number: "MH-1001",
       event_type: "order_approved",
       data: [],
     });
@@ -371,5 +382,220 @@ describe("WebhookService", () => {
 
     expect(result.skipped).toBe(false);
     expect(mockPaymentRepo.save).not.toHaveBeenCalled();
+  });
+
+  describe("Tamara payload validation and token policy", () => {
+    function tamaraService(cfg: Record<string, unknown>) {
+      return new WebhookService(
+        mockWebhookRepo as any,
+        mockPaymentRepo as any,
+        mockOrderConfirmation as any,
+        mockOrderStatusService as any,
+        {
+          apiToken: "tamara-api-token",
+          apiBaseUrl: "https://api-sandbox.tamara.co",
+          fetch: mockTamaraFetch as any,
+          ...cfg,
+        } as any,
+      );
+    }
+
+    it.each([
+      ["an empty object", {}],
+      ["a missing order_id", { event_type: "order_approved" }],
+      ["a missing event_type", { order_id: "tamara-order-1" }],
+      ["a non-string event_type", { event_type: 42, order_id: "tamara-order-1" }],
+      ["a non-string order_id", { event_type: "order_approved", order_id: { x: 1 } }],
+      ["no body at all", undefined],
+    ])("rejects %s with 400 before any DB write", async (_label, payload) => {
+      const svc = tamaraService({});
+      await expect(svc.handleTamaraWebhook(null, null, payload as any)).rejects.toMatchObject({
+        statusCode: 400,
+      });
+      expect(mockWebhookRepo.findOne).not.toHaveBeenCalled();
+      expect(mockWebhookRepo.save).not.toHaveBeenCalled();
+    });
+
+    it("verifies the token before validating the payload", async () => {
+      const svc = tamaraService({ notificationToken: "notification-secret" });
+      await expect(svc.handleTamaraWebhook("bad", null, {})).rejects.toMatchObject({
+        statusCode: 401,
+      });
+      expect(mockWebhookRepo.save).not.toHaveBeenCalled();
+    });
+
+    it("fails closed (503) when the notification token is required but unset", async () => {
+      const errSpy = mock(() => {});
+      const origError = console.error;
+      console.error = errSpy as any;
+      try {
+        const svc = tamaraService({ notificationToken: "", requireNotificationToken: true });
+        await expect(
+          svc.handleTamaraWebhook(null, null, {
+            event_type: "order_approved",
+            order_id: "tamara-order-1",
+            order_reference_id: "order-1",
+          }),
+        ).rejects.toMatchObject({ statusCode: 503, code: "TAMARA_WEBHOOK_NOT_CONFIGURED" });
+      } finally {
+        console.error = origError;
+      }
+      expect(errSpy).toHaveBeenCalled();
+      expect(mockWebhookRepo.save).not.toHaveBeenCalled();
+      expect(mockOrderConfirmation.markOrderPaid).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Stripe signature verification (handleStripeWebhookRequest)", () => {
+    const SECRET = "whsec_materialhub_test_secret";
+    const stripeWebhooks = Stripe.webhooks;
+
+    function stripeService(secret: string) {
+      return new WebhookService(
+        mockWebhookRepo as any,
+        mockPaymentRepo as any,
+        mockOrderConfirmation as any,
+        mockOrderStatusService as any,
+        undefined,
+        { webhooks: stripeWebhooks, secret },
+      );
+    }
+
+    async function signedEvent(event: Record<string, unknown>, secret = SECRET) {
+      const payload = JSON.stringify(event);
+      const header = await stripeWebhooks.generateTestHeaderStringAsync({ payload, secret });
+      return { payload, header };
+    }
+
+    const succeededEvent = {
+      id: "evt_signed_1",
+      object: "event",
+      type: "payment_intent.succeeded",
+      data: {
+        object: {
+          id: "pi_signed",
+          object: "payment_intent",
+          metadata: { order_id: "o1" },
+          amount_received: 15000,
+        },
+      },
+    };
+
+    it("processes an event with a valid signature using the verified event fields", async () => {
+      const { payload, header } = await signedEvent(succeededEvent);
+      const result = await stripeService(SECRET).handleStripeWebhookRequest(payload, header);
+
+      expect(result.skipped).toBe(false);
+      expect(mockOrderConfirmation.markOrderPaid).toHaveBeenCalledWith("o1");
+      expect(mockWebhookRepo.save.mock.calls[0]?.[0]).toMatchObject({
+        gateway: "stripe",
+        event_id: "evt_signed_1",
+        event_type: "payment_intent.succeeded",
+        payload: succeededEvent.data.object,
+      });
+    });
+
+    it("rejects a bad signature with 400 and writes nothing", async () => {
+      const { payload, header } = await signedEvent(succeededEvent, "whsec_someone_else");
+      await expect(
+        stripeService(SECRET).handleStripeWebhookRequest(payload, header),
+      ).rejects.toMatchObject({ statusCode: 400, code: "INVALID_SIGNATURE" });
+      expect(mockWebhookRepo.findOne).not.toHaveBeenCalled();
+      expect(mockWebhookRepo.save).not.toHaveBeenCalled();
+      expect(mockOrderConfirmation.markOrderPaid).not.toHaveBeenCalled();
+    });
+
+    it("rejects a body tampered with after signing", async () => {
+      const { header } = await signedEvent(succeededEvent);
+      const forged = JSON.stringify({
+        ...succeededEvent,
+        data: { object: { id: "pi_x", metadata: { order_id: "someone-elses-order" } } },
+      });
+      await expect(
+        stripeService(SECRET).handleStripeWebhookRequest(forged, header),
+      ).rejects.toMatchObject({ statusCode: 400, code: "INVALID_SIGNATURE" });
+      expect(mockWebhookRepo.save).not.toHaveBeenCalled();
+    });
+
+    it("rejects a missing stripe-signature header with 400", async () => {
+      const { payload } = await signedEvent(succeededEvent);
+      await expect(
+        stripeService(SECRET).handleStripeWebhookRequest(payload, null),
+      ).rejects.toMatchObject({ statusCode: 400, code: "INVALID_SIGNATURE" });
+      expect(mockWebhookRepo.save).not.toHaveBeenCalled();
+    });
+
+    it("fails closed with 503 when the signing secret is unset", async () => {
+      const errSpy = mock(() => {});
+      const origError = console.error;
+      console.error = errSpy as any;
+      const { payload, header } = await signedEvent(succeededEvent);
+      try {
+        await expect(
+          stripeService("").handleStripeWebhookRequest(payload, header),
+        ).rejects.toMatchObject({ statusCode: 503, code: "STRIPE_WEBHOOK_NOT_CONFIGURED" });
+      } finally {
+        console.error = origError;
+      }
+      expect(errSpy).toHaveBeenCalled();
+      expect(mockWebhookRepo.findOne).not.toHaveBeenCalled();
+      expect(mockWebhookRepo.save).not.toHaveBeenCalled();
+    });
+
+    it("fails closed with 503 when no Stripe config is wired at all", async () => {
+      const origError = console.error;
+      console.error = (() => {}) as any;
+      try {
+        await expect(service.handleStripeWebhookRequest("{}", "t=1,v1=x")).rejects.toMatchObject({
+          statusCode: 503,
+        });
+      } finally {
+        console.error = origError;
+      }
+      expect(mockWebhookRepo.save).not.toHaveBeenCalled();
+    });
+
+    it("skips a replay of an already-processed event id", async () => {
+      const svc = stripeService(SECRET);
+      const { payload, header } = await signedEvent(succeededEvent);
+
+      await svc.handleStripeWebhookRequest(payload, header);
+      expect(mockOrderConfirmation.markOrderPaid).toHaveBeenCalledTimes(1);
+
+      // The ledger now holds the processed row for evt_signed_1.
+      mockWebhookRepo.findOne.mockResolvedValueOnce({ id: "wh1", status: "processed" });
+      const replay = await signedEvent(succeededEvent);
+      const result = await svc.handleStripeWebhookRequest(replay.payload, replay.header);
+
+      expect(result.skipped).toBe(true);
+      expect(mockWebhookRepo.findOne).toHaveBeenLastCalledWith({
+        where: { gateway: "stripe", event_id: "evt_signed_1" },
+      });
+      expect(mockOrderConfirmation.markOrderPaid).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("does not confirm an order when Stripe received less than the order's payment amount", async () => {
+    mockWebhookRepo.findOne.mockResolvedValueOnce(null);
+    mockPaymentRepo.findOne.mockResolvedValueOnce({ id: "pay-1", order_id: "o1", amount: 15000 });
+    (mockOrderConfirmation.markOrderPaid as any).mockClear?.();
+    await service.handleStripeWebhook("evt_underpaid", "payment_intent.succeeded", {
+      id: "pi_underpaid",
+      metadata: { order_id: "o1" },
+      amount_received: 1,
+    });
+    expect(mockOrderConfirmation.markOrderPaid).not.toHaveBeenCalled();
+  });
+
+  it("does not confirm an order from a PaymentIntent created for another order", async () => {
+    mockWebhookRepo.findOne.mockResolvedValueOnce(null);
+    mockPaymentRepo.findOne.mockResolvedValueOnce({ id: "pay-9", order_id: "other", amount: 100 });
+    (mockOrderConfirmation.markOrderPaid as any).mockClear?.();
+    await service.handleStripeWebhook("evt_mismatch", "payment_intent.succeeded", {
+      id: "pi_other",
+      metadata: { order_id: "o1" },
+      amount_received: 15000,
+    });
+    expect(mockOrderConfirmation.markOrderPaid).not.toHaveBeenCalled();
   });
 });

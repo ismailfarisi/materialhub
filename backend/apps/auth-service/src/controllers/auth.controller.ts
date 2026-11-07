@@ -1,6 +1,7 @@
 import { config } from "@materialhub/config";
 import { BadRequestError, HttpError } from "@materialhub/plugins";
 import type { EmailService } from "@materialhub/utils";
+import { serviceFetch } from "@materialhub/utils/src/service-fetch.ts";
 import type { DeviceInfo, GuestInfo, RegisterData } from "../domain/types.ts";
 import type { AuthService } from "../services/auth.service.ts";
 import type { TwoFactorService } from "../services/two-factor.service.ts";
@@ -20,14 +21,17 @@ export class AuthController {
     this.emailService.sendVerificationEmail(data.email, result.emailVerifyToken).catch(() => {});
 
     // Seed default notification preferences (fire-and-forget to notification-service)
-    fetch(`${config.internal.notificationServiceUrl}/notifications/preferences/seed-internal`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Internal-Secret": config.internal.serviceSecret,
+    serviceFetch(
+      `${config.internal.notificationServiceUrl}/notifications/preferences/seed-internal`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Secret": config.internal.serviceSecret,
+        },
+        body: JSON.stringify({ user_id: result.user.id }),
       },
-      body: JSON.stringify({ user_id: result.user.id }),
-    }).catch(() => {
+    ).catch(() => {
       // Non-critical: preferences can be seeded later via POST /notifications/preferences/seed
     });
 

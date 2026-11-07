@@ -9,11 +9,21 @@ import { HttpError, auditPlugin } from "@materialhub/plugins";
 import { Elysia, t } from "elysia";
 import { container } from "../container.ts";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export const vendorAdminRoutes = new Elysia({ prefix: "/admin/vendors" })
   .use(container)
   .use(jwtAuth)
   .use(requireRole("admin", "super_admin"))
   .use(auditPlugin)
+  // Every /:id here is a vendor uuid; a malformed one (e.g. "undefined" from a
+  // UI bug) reached Postgres and 500ed (22P02). Answer it as not found.
+  .onBeforeHandle(({ params }) => {
+    const id = (params as { id?: string } | undefined)?.id;
+    if (id !== undefined && !UUID_RE.test(id)) {
+      throw new HttpError(404, "Vendor not found", "VENDOR_NOT_FOUND");
+    }
+  })
   .onError({ as: "scoped" }, ({ error, set }) => {
     if (error instanceof HttpError) {
       set.status = error.statusCode;
@@ -29,8 +39,8 @@ export const vendorAdminRoutes = new Elysia({ prefix: "/admin/vendors" })
   .get("/", async ({ query, vendorController }) => {
     const result = await vendorController.listForAdmin(
       query.status,
-      query.page ? Number(query.page) : undefined,
-      query.limit ? Number(query.limit) : undefined,
+      query.page ? Math.max(1, Math.trunc(Number(query.page)) || 1) : undefined,
+      query.limit ? Math.max(1, Math.trunc(Number(query.limit)) || 1) : undefined,
       query.search,
     );
     return { statusCode: 200, data: result, timestamp: new Date().toISOString() };
@@ -125,6 +135,20 @@ export const vendorAdminRoutes = new Elysia({ prefix: "/admin/vendors" })
     },
     { body: t.Object({ reason: t.String({ minLength: 1 }) }) },
   )
+
+  .patch("/:id/reactivate", async ({ params, user, vendorController, audit }) => {
+    const vendor = await vendorController.reactivate(params.id, user!.id);
+    audit.action = "vendor.reactivate";
+    audit.entity_type = "vendor";
+    audit.entity_id = params.id;
+    audit.changes = { status: { old: "suspended", new: vendor.status } };
+    return {
+      statusCode: 200,
+      message: "Vendor reactivated",
+      data: vendor,
+      timestamp: new Date().toISOString(),
+    };
+  })
 
   .patch(
     "/:id/use-platform-shipping",

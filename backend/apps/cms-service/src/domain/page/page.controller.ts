@@ -13,6 +13,9 @@ export class PageController {
   async getPublishedBySlug(slug: string) {
     return this.pageService.getPublishedBySlug(slug);
   }
+  async getById(id: string) {
+    return this.pageService.getById(id);
+  }
   async create(data: CreatePageBody, authorId: string) {
     return this.pageService.create(data, authorId);
   }

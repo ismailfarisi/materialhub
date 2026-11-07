@@ -19,7 +19,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 const STATUS_OPTIONS = [
 	{ label: "All Statuses", value: "" },
-	{ label: "Pending", value: "pending" },
 	{ label: "Confirmed", value: "confirmed" },
 	{ label: "Processing", value: "processing" },
 	{ label: "Ready to Ship", value: "ready_to_ship" },

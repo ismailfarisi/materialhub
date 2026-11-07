@@ -1,5 +1,6 @@
 import { AppDataSource } from "@materialhub/database";
 import { Queue, Worker } from "bullmq";
+import { returningRows } from "../lib/returning-rows.ts";
 
 const QUEUE_NAME = "vendor-expire-pending-invites";
 
@@ -57,14 +58,16 @@ export class ExpirePendingInvitesJob {
   static async run(
     ds: { query: (sql: string, params?: unknown[]) => Promise<unknown> } = AppDataSource as any,
   ): Promise<{ count: number }> {
-    const result = (await ds.query(
-      `UPDATE vendor_members
+    const result = returningRows<{ id: string }>(
+      await ds.query(
+        `UPDATE vendor_members
           SET deleted_at = NOW(), updated_at = NOW()
         WHERE status = 'pending'
           AND deleted_at IS NULL
           AND invite_expires_at < NOW() - INTERVAL '30 days'
         RETURNING id`,
-    )) as Array<{ id: string }>;
+      ),
+    );
     return { count: result.length };
   }
 }

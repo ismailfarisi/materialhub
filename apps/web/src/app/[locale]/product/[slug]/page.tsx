@@ -8,6 +8,7 @@ import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { ProductDetailClient } from "./client";
+import { fetchProduct } from "./data";
 
 /**
  * Statically rendered, revalidated on a 10-minute cycle (the product-detail
@@ -41,26 +42,10 @@ interface Props {
 	params: Promise<{ locale: string; slug: string }>;
 }
 
-/**
- * Shared by `generateMetadata` and the page body, which therefore resolve from
- * one cached upstream call rather than fetching the same product twice.
- *
- * No locale is forwarded, matching the previous `apiServer()` call that sent no
- * `Accept-Language` header — so one cache entry serves every locale instead of
- * five entries holding identical payloads.
- */
-// biome-ignore lint/suspicious/noExplicitAny: untyped API response shape
-function fetchProduct(slug: string): Promise<any | null> {
-	return publicGet(`/products/by-slug/${slug}`, {
-		revalidate: TTL.productDetail,
-		tags: [`product:${slug}`],
-	});
-}
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
 	const { locale, slug } = await params;
 
-	const product = await fetchProduct(slug);
+	const product = await fetchProduct(slug, locale);
 	if (!product) return { title: "Product" };
 
 	return {
@@ -78,7 +63,7 @@ export default async function ProductDetailPage({ params }: Props) {
 	const { locale, slug } = await params;
 	setRequestLocale(locale);
 
-	const raw = await fetchProduct(slug);
+	const raw = await fetchProduct(slug, locale);
 
 	if (!raw) notFound();
 

@@ -1,4 +1,5 @@
 import { jwtAuth, requireRole } from "@materialhub/guards";
+import { auditPlugin } from "@materialhub/plugins";
 import { Elysia, t } from "elysia";
 import { container } from "../container.ts";
 
@@ -32,6 +33,7 @@ export const shippingContributionAdminRoutes = new Elysia({
   .use(container)
   .use(jwtAuth)
   .use(requireRole("admin", "super_admin"))
+  .use(auditPlugin)
   // BASE COST — read
   .get("/base-cost", async ({ siteSettingRepo }: any) => {
     const row = await siteSettingRepo.findOne({ where: { key: BASE_COST_KEY } });

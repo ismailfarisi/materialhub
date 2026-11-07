@@ -28,6 +28,7 @@ vi.mock("next/link", () => ({
 
 vi.mock("next/navigation", () => ({
 	useRouter: () => ({ push: vi.fn() }),
+	usePathname: () => "/en",
 }));
 
 vi.mock("@/stores/preferences", () => ({

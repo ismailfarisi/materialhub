@@ -3,7 +3,12 @@ import { NotFoundError } from "@materialhub/plugins";
 import type { Queue } from "bullmq";
 import type { Repository } from "typeorm";
 import type { CategoryMapService } from "./category-map.service.ts";
-import type { ChannelService } from "./channel.service.ts";
+import { type ChannelService, isSalesChannelCode } from "./channel.service.ts";
+
+/** Unknown channel codes are a 404, checked before any query touches the enum column. */
+function assertChannelCode(code: string): void {
+  if (!isSalesChannelCode(code)) throw new NotFoundError("Sales channel not found");
+}
 
 export class ChannelController {
   constructor(
@@ -16,24 +21,28 @@ export class ChannelController {
   }
 
   async get(code: string) {
+    assertChannelCode(code);
     const row = await this.svc.getByCode(code);
     if (!row) throw new NotFoundError("Sales channel not found");
     return row;
   }
 
   async update(code: string, body: Partial<SalesChannel>) {
+    assertChannelCode(code);
     const updated = await this.svc.update(code, body);
     if (!updated) throw new NotFoundError("Sales channel not found");
     return updated;
   }
 
   async setCredentials(code: string, creds: Record<string, unknown>) {
+    assertChannelCode(code);
     const ok = await this.svc.setCredentials(code, creds);
     if (!ok) throw new NotFoundError("Sales channel not found");
     return { code, credentials_set: true };
   }
 
   private async resolveChannelId(code: string): Promise<string> {
+    assertChannelCode(code);
     const row = await this.svc.getByCode(code);
     if (!row) throw new NotFoundError("Sales channel not found");
     return row.id;
@@ -66,10 +75,12 @@ export class ChannelController {
   }
 
   async listRuns(code: string, limit: number, runRepo: Repository<ChannelFeedRun>) {
+    assertChannelCode(code);
     return this.svc.listRecentRuns(code, limit, runRepo);
   }
 
   async listDeliveries(code: string, limit: number, deliveryRepo: Repository<ChannelDelivery>) {
+    assertChannelCode(code);
     return this.svc.listRecentDeliveries(code, limit, deliveryRepo);
   }
 
@@ -78,10 +89,12 @@ export class ChannelController {
     runRepo: Repository<ChannelFeedRun>,
     deliveryRepo: Repository<ChannelDelivery>,
   ) {
+    assertChannelCode(code);
     return this.svc.stats24h(code, runRepo, deliveryRepo);
   }
 
   async rebuild(code: string, queue: Queue) {
+    assertChannelCode(code);
     return this.svc.enqueueRebuild(code, queue);
   }
 }

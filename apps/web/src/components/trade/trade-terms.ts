@@ -229,10 +229,7 @@ export function sampleOffer(product: AnyRecord): SampleOffer | null {
 	for (const inv of (product.inventoryRecords as AnyRecord[] | undefined) ??
 		[]) {
 		if (inv?.variant_id !== v.id) continue;
-		available += Math.max(
-			0,
-			Number(inv.quantity_on_hand ?? 0) - Number(inv.quantity_reserved ?? 0),
-		);
+		available += rowAvailable(inv);
 	}
 	if (product.track_inventory === false) available = Number.POSITIVE_INFINITY;
 	return {
@@ -267,15 +264,17 @@ export function simpleProductAvailable(product: AnyRecord): number | null {
 	if (!rows.some((r) => r?.variant_id)) return null; // no variant rows: the product total is right
 	return rows
 		.filter((r) => !r?.variant_id)
-		.reduce(
-			(sum, r) =>
-				sum +
-				Math.max(
-					0,
-					Number(r.quantity_on_hand ?? 0) - Number(r.quantity_reserved ?? 0),
-				),
-			0,
-		);
+		.reduce((sum, r) => sum + rowAvailable(r), 0);
+}
+
+/**
+ * Units a stock row can sell. The public product API sends
+ * `quantity_available` per row (no on-hand/reserved split); older payloads
+ * carried on-hand and reserved.
+ */
+function rowAvailable(row: AnyRecord): number {
+	if (row?.quantity_available != null) return Math.max(0, Number(row.quantity_available) || 0);
+	return Math.max(0, Number(row?.quantity_on_hand ?? 0) - Number(row?.quantity_reserved ?? 0));
 }
 
 export type TradeViolationCode =

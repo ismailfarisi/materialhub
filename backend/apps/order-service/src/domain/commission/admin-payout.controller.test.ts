@@ -85,7 +85,18 @@ describe("AdminPayoutController", () => {
   });
 
   it("get returns 404 shape when missing", async () => {
-    await expect(controller.get("nope")).rejects.toThrow(/not found/i);
+    // Must be an HttpError (errorHandler ignores a plain Error's statusCode → 500).
+    await expect(controller.get("nope")).rejects.toMatchObject({
+      statusCode: 404,
+      code: "NOT_FOUND",
+    });
+  });
+
+  it("addNote translates 'Payout not found' to a 404", async () => {
+    payoutService.appendNote = mock(() => Promise.reject(new Error("Payout not found")));
+    await expect(controller.addNote("nope", "admin1", "hi")).rejects.toMatchObject({
+      statusCode: 404,
+    });
   });
 
   it("status maps 'paid' to markPaid and 'failed' to markFailed", async () => {

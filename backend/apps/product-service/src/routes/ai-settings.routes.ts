@@ -1,4 +1,5 @@
 import { jwtAuth, requireRole } from "@materialhub/guards";
+import { auditPlugin } from "@materialhub/plugins";
 import { Elysia, t } from "elysia";
 import { container } from "../container.ts";
 
@@ -6,6 +7,7 @@ export const aiSettingsRoutes = new Elysia({ prefix: "/admin/settings/ai/image-e
   .use(container)
   .use(jwtAuth)
   .use(requireRole("admin", "super_admin"))
+  .use(auditPlugin)
 
   // GET — read current settings (masked api_key)
   .get("/", async ({ aiSettings }) => ({

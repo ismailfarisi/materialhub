@@ -69,9 +69,37 @@ class WhatsAppOtpProvider implements PhoneVerificationProvider {
   }
 }
 
+/**
+ * Local development only (SMS_OTP_PROVIDER=console): issues codes through the
+ * same single-use, TTL'd Redis store as WhatsApp and prints them to the server
+ * log instead of sending anything. Without a provider, nobody can verify a
+ * phone locally, so no address can be saved and checkout can't be tested.
+ * Refused in production (see createPhoneVerificationProvider).
+ */
+class ConsoleOtpProvider implements PhoneVerificationProvider {
+  constructor(private readonly store: WhatsAppOtpStore) {}
+
+  async sendCode(phone: string): Promise<void> {
+    const code = await this.store.issue(phone);
+    console.log(`[auth-service] DEV phone OTP for ${phone}: ${code}`);
+  }
+
+  async checkCode(phone: string, code: string): Promise<boolean> {
+    return this.store.verify(phone, code.trim());
+  }
+}
+
 export function createPhoneVerificationProvider(
   env: NodeJS.ProcessEnv = process.env,
 ): PhoneVerificationProvider {
+  if (env.SMS_OTP_PROVIDER === "console") {
+    if (env.NODE_ENV === "production") {
+      logOtpMisconfig("console", "the console provider is for local development only");
+      return new DisabledPhoneVerificationProvider();
+    }
+    return new ConsoleOtpProvider(createWhatsAppOtpStore(redisOtpKv));
+  }
+
   if (env.SMS_OTP_PROVIDER === "whatsapp") {
     // Same graceful-degradation contract as the Twilio path below: a
     // misconfigured provider must NOT crash auth-service at boot — phone-OTP

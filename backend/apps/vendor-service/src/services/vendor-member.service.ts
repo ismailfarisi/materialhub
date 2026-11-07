@@ -93,7 +93,7 @@ export class VendorMemberService {
 
     // Build email context
     const ctx = (await this.dataSource.query(
-      `SELECT v.business_name AS vendor_name,
+      `SELECT COALESCE(NULLIF(v.name, ''), v.business_name) AS vendor_name,
               COALESCE(u.first_name || ' ' || u.last_name, u.email) AS inviter_name
          FROM vendors v, users u
         WHERE v.id = $1 AND u.id = $2`,
@@ -246,7 +246,7 @@ export class VendorMemberService {
   }): Promise<{ expiresAt: Date }> {
     const rows = (await this.dataSource.query(
       `SELECT vm.id, vm.email, vm.role, vm.status,
-              v.business_name AS vendor_name,
+              COALESCE(NULLIF(v.name, ''), v.business_name) AS vendor_name,
               COALESCE(u.first_name || ' ' || u.last_name, u.email) AS inviter_name
          FROM vendor_members vm
          JOIN vendors v ON v.id = vm.vendor_id
@@ -387,7 +387,7 @@ export class VendorMemberService {
   } | null> {
     const rows = (await this.dataSource.query(
       `SELECT vm.email, vm.role, vm.status, vm.invite_expires_at,
-              v.business_name AS vendor_name
+              COALESCE(NULLIF(v.name, ''), v.business_name) AS vendor_name
          FROM vendor_members vm
          JOIN vendors v ON v.id = vm.vendor_id
         WHERE vm.invite_token = $1 AND vm.deleted_at IS NULL`,

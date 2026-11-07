@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, EyeOff, GripVertical, Link as LinkIcon } from "lucide-react";
+import { Eye, EyeOff, GripVertical, Link as LinkIcon, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { HeaderNavTab } from "./types";
 
@@ -10,6 +10,8 @@ interface Props {
 	onSelect: (id: string) => void;
 	onToggleEnabled: (id: string) => void;
 	onReorder: (next: HeaderNavTab[]) => void;
+	/** Remove a tab (asks for confirmation first). */
+	onDelete?: (id: string) => void;
 }
 
 export function TabList({
@@ -18,6 +20,7 @@ export function TabList({
 	onSelect,
 	onToggleEnabled,
 	onReorder,
+	onDelete,
 }: Props) {
 	const [draggedId, setDraggedId] = useState<string | null>(null);
 
@@ -67,6 +70,21 @@ export function TabList({
 							<EyeOff className="h-4 w-4 opacity-50" />
 						)}
 					</button>
+					{onDelete && (
+						<button
+							type="button"
+							aria-label={`Delete tab ${tab.label.en || "(unnamed)"}`}
+							onClick={(e) => {
+								e.stopPropagation();
+								if (window.confirm(`Delete the "${tab.label.en || "unnamed"}" tab?`)) {
+									onDelete(tab.id);
+								}
+							}}
+							className="text-nl-russet hover:text-destructive"
+						>
+							<Trash2 className="h-4 w-4" />
+						</button>
+					)}
 				</li>
 			))}
 		</ul>

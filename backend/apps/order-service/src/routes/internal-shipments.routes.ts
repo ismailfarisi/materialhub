@@ -71,7 +71,7 @@ export const internalShipmentsRoutes = new Elysia({ prefix: "/internal/shipments
       try {
         const r = await shipmentTrackingService.transitionShipmentStatus(
           params.id,
-          { userId: body.vendor_id, role: "vendor" },
+          { userId: null, vendorId: body.vendor_id, role: "vendor" },
           body.status as ShipmentStatus,
           body.reason ?? "vendor system update",
           body.metadata,

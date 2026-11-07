@@ -1,40 +1,21 @@
 import { jwtAuth, requireRole } from "@materialhub/guards";
+import { auditPlugin } from "@materialhub/plugins";
 import { Elysia, t } from "elysia";
 import { container } from "../container.ts";
+import { buildPaymentMethodPatch } from "../domain/payment-method/payment-method-patch.ts";
 
 export const paymentMethodAdminRoutes = new Elysia({ prefix: "/admin/payment-methods" })
   .use(container)
   .use(jwtAuth)
   .use(requireRole("admin", "super_admin"))
+  .use(auditPlugin)
   .get("/", async ({ paymentMethodThresholdRepo }: any) => {
     const rows = await paymentMethodThresholdRepo.find({});
     return { statusCode: 200, data: rows, timestamp: new Date().toISOString() };
   })
   .patch(
     "/:provider",
-    async ({ params, body, paymentMethodThresholdRepo, set }: any) => {
-      const { is_active, surcharge_fils } = body;
-
-      if (is_active === undefined && surcharge_fils === undefined) {
-        set.status = 400;
-        return {
-          statusCode: 400,
-          error: "NO_FIELDS",
-          message: "At least one of is_active or surcharge_fils must be provided",
-          timestamp: new Date().toISOString(),
-        };
-      }
-
-      if (surcharge_fils !== undefined && params.provider !== "cod") {
-        set.status = 400;
-        return {
-          statusCode: 400,
-          error: "INVALID_FIELD",
-          message: "surcharge_fils is only editable for COD",
-          timestamp: new Date().toISOString(),
-        };
-      }
-
+    async ({ params, body, paymentMethodThresholdRepo, set, audit }: any) => {
       const row = await paymentMethodThresholdRepo.findOne({
         where: { provider: params.provider },
       });
@@ -48,19 +29,27 @@ export const paymentMethodAdminRoutes = new Elysia({ prefix: "/admin/payment-met
         };
       }
 
-      const patch: Record<string, unknown> = {};
-      if (is_active !== undefined) patch.is_active = is_active;
-      if (surcharge_fils !== undefined) patch.surcharge_fils = surcharge_fils;
+      const result = buildPaymentMethodPatch(row, body);
+      if (!result.ok) {
+        set.status = result.status;
+        return {
+          statusCode: result.status,
+          error: result.error,
+          message: result.message,
+          timestamp: new Date().toISOString(),
+        };
+      }
 
-      await paymentMethodThresholdRepo.update({ provider: params.provider }, patch);
+      await paymentMethodThresholdRepo.update({ provider: params.provider }, result.patch);
+
+      audit.action = "payment_method.update";
+      audit.entity_type = "payment_method";
+      audit.entity_id = params.provider;
+      audit.changes = result.changes;
 
       return {
         statusCode: 200,
-        data: {
-          provider: params.provider,
-          ...(is_active !== undefined ? { is_active } : {}),
-          ...(surcharge_fils !== undefined ? { surcharge_fils } : {}),
-        },
+        data: { ...row, ...result.patch, provider: params.provider },
         timestamp: new Date().toISOString(),
       };
     },
@@ -69,6 +58,8 @@ export const paymentMethodAdminRoutes = new Elysia({ prefix: "/admin/payment-met
       body: t.Object({
         is_active: t.Optional(t.Boolean()),
         surcharge_fils: t.Optional(t.Integer({ minimum: 0 })),
+        min_amount_fils: t.Optional(t.Integer({ minimum: 0 })),
+        max_amount_fils: t.Optional(t.Integer({ minimum: 0 })),
       }),
     },
   );

@@ -8,12 +8,13 @@ import {
   ProductCategory,
   ProductGroupMember,
   ProductImage,
+  ProductStatus,
   ProductTranslation,
   Vendor,
   Warehouse,
   WarehouseVendorPermission,
 } from "@materialhub/database";
-import { HttpError } from "@materialhub/plugins";
+import { HttpError, assertEnumFilter } from "@materialhub/plugins";
 import { generateSlug } from "@materialhub/utils";
 import { type EntityManager, In, IsNull, Not, type Repository } from "typeorm";
 import { categoryDescendantPredicate } from "../category/category-descendant.sql.ts";
@@ -23,6 +24,7 @@ import { enqueueSearchSync } from "../search/search-sync.job.ts";
 import type { SearchService } from "../search/search.interface.ts";
 import type { TrendingSearchService } from "../search/trending.service.ts";
 import { parseAttributeParams } from "./filter-param-parser.ts";
+import { applyProductTranslation, toPublicProductDetail } from "./public-product.ts";
 
 const WAREHOUSE_FULFILLMENT_PERMISSION = "fulfillment_origin";
 
@@ -313,6 +315,14 @@ export class ProductService {
         await this.replaceProductAttributes(manager, product.id, data.attributes);
       }
 
+      if (data.translations?.length) {
+        await this.upsertProductTranslations(
+          manager.getRepository(ProductTranslation),
+          product.id,
+          data.translations,
+        );
+      }
+
       if (!data.has_variants) {
         const Inventory = manager.getRepository("Inventory");
         const warehouseId = await this.resolveWarehouseId(
@@ -436,16 +446,26 @@ export class ProductService {
       // A vendor may shuttle a product between draft and review, but must never
       // demote one that admin already moved past review — leaving/entering
       // `published` goes through publish()/adminUnpublish().
+      // A rejected product may be fixed and resubmitted.
       if (
         "status" in data &&
         (data.status === "draft" || data.status === "pending_review") &&
-        (product.status === "draft" || product.status === "pending_review")
+        (product.status === "draft" ||
+          product.status === "pending_review" ||
+          product.status === "rejected")
       ) {
         product.status = data.status as any;
       }
       const next = await manager.save(Product, product);
       if ("attributes" in data) {
         await this.replaceProductAttributes(manager, product.id, data.attributes ?? []);
+      }
+      if ("translations" in data) {
+        await this.upsertProductTranslations(
+          manager.getRepository(ProductTranslation),
+          product.id,
+          data.translations ?? [],
+        );
       }
       return next;
     });
@@ -463,6 +483,13 @@ export class ProductService {
     await enqueueSearchSync({ type: "delete", productId });
   }
 
+  /**
+   * Vendor publish. Going live requires the admin moderation verdict: only an
+   * `approved` product (admin approved it out of `pending_review`, or the
+   * vendor took it offline again) can be published. Drafts must be submitted
+   * for review first; `unpublished` is an admin takedown and only admin can
+   * republish it. Then the content gates (image, price, stock) apply.
+   */
   async publish(productId: string, vendorId: string) {
     const product = await this.repo.findOne({
       where: { id: productId, vendor_id: vendorId },
@@ -471,9 +498,35 @@ export class ProductService {
     if (!product) throw new HttpError(404, "Product not found", "PRODUCT_NOT_FOUND");
     if (product.status === "published") return product;
 
-    // Validation
+    await this.assertVendorPublishable(product);
+
+    product.status = "published" as any;
+    product.published_at = new Date();
+    const saved = await this.repo.save(product);
+    await this.reindexProduct(saved.id);
+    return saved;
+  }
+
+  /** Throws the HttpError that explains why this product cannot go live yet. */
+  private async assertVendorPublishable(product: Product): Promise<void> {
+    const status = product.status as string;
+    if (status !== "approved") {
+      const why: Record<string, string> = {
+        draft: "Submit the product for review before publishing",
+        pending_review: "The product is waiting for admin review",
+        rejected: "The product was rejected; fix it and resubmit for review",
+        unpublished: "The product was taken offline by MaterialHub; contact support",
+        archived: "Archived products cannot be published",
+      };
+      throw new HttpError(
+        422,
+        why[status] ?? `Products in '${status}' cannot be published`,
+        "NOT_APPROVED",
+      );
+    }
+
     const images = await this.imageRepo.count({
-      where: { product_id: productId },
+      where: { product_id: product.id },
     });
     if (images === 0) throw new HttpError(422, "Product must have at least 1 image", "NO_IMAGES");
     if (product.price <= 0)
@@ -485,22 +538,43 @@ export class ProductService {
     const inventoryRepo = AppDataSource.getRepository("Inventory");
     const hasStock = await inventoryRepo
       .createQueryBuilder("i")
-      .where("i.product_id = :pid", { pid: productId })
+      .where("i.product_id = :pid", { pid: product.id })
       .andWhere("i.quantity_on_hand - i.quantity_reserved > 0")
       .getCount();
     if (hasStock === 0)
       throw new HttpError(422, "Product must have inventory to publish", "NO_INVENTORY");
+  }
 
-    product.status = "published" as any;
-    product.published_at = new Date();
+  /**
+   * Vendor unpublish: take a live product offline. It returns to `approved`,
+   * so the vendor can publish it again without another review.
+   */
+  async unpublish(productId: string, vendorId: string) {
+    const product = await this.repo.findOne({
+      where: { id: productId, vendor_id: vendorId },
+    });
+    if (!product) throw new HttpError(404, "Product not found", "PRODUCT_NOT_FOUND");
+    if (product.status !== "published")
+      throw new HttpError(422, "Only published products can be unpublished", "INVALID_STATUS");
+    product.status = "approved" as any;
     const saved = await this.repo.save(product);
-    await this.reindexProduct(saved.id);
+    await this.removeFromSearch(productId);
     return saved;
   }
 
+  private async removeFromSearch(productId: string) {
+    await this.searchService.removeProduct(productId);
+    await enqueueSearchSync({ type: "delete", productId });
+  }
+
+  /**
+   * Vendor bulk action. Each product goes through the same rules as the single
+   * endpoints (publish moderation + content gates, search removal on archive /
+   * unpublish / delete); one failing product does not block the rest.
+   */
   async bulkAction(
     vendorId: string,
-    action: "archive" | "publish" | "delete",
+    action: "archive" | "publish" | "unpublish" | "delete",
     productIds: string[],
   ) {
     const products = await this.repo.find({
@@ -509,28 +583,45 @@ export class ProductService {
 
     if (products.length === 0) throw new HttpError(404, "No matching products found", "NOT_FOUND");
 
-    switch (action) {
-      case "archive":
-        await this.repo.update(
-          products.map((p) => p.id),
-          { status: "archived" as any },
-        );
-        break;
-      case "publish":
-        await this.repo.update(
-          products.map((p) => p.id),
-          { status: "published" as any },
-        );
-        break;
-      case "delete":
-        await this.repo.softRemove(products);
-        break;
+    const succeeded: string[] = [];
+    const failed: Array<{ id: string; code: string; message: string }> = [];
+    const found = new Set(products.map((p) => p.id));
+    for (const id of productIds) {
+      if (!found.has(id))
+        failed.push({ id, code: "PRODUCT_NOT_FOUND", message: "Product not found" });
     }
 
-    return { affected: products.length };
+    for (const product of products) {
+      try {
+        switch (action) {
+          case "publish":
+            await this.publish(product.id, vendorId);
+            break;
+          case "unpublish":
+            await this.unpublish(product.id, vendorId);
+            break;
+          case "archive":
+            if (product.status !== "archived") {
+              await this.repo.update(product.id, { status: "archived" as any });
+              await this.removeFromSearch(product.id);
+            }
+            break;
+          case "delete":
+            await this.repo.softRemove(product);
+            await this.removeFromSearch(product.id);
+            break;
+        }
+        succeeded.push(product.id);
+      } catch (err) {
+        if (!(err instanceof HttpError)) throw err;
+        failed.push({ id: product.id, code: err.code, message: err.message });
+      }
+    }
+
+    return { affected: succeeded.length, succeeded, failed };
   }
 
-  async getBySlug(slug: string) {
+  async getBySlug(slug: string, locale = "en") {
     const product = await this.repo.findOne({
       where: { slug, status: "published" as any },
       relations: [
@@ -561,12 +652,20 @@ export class ProductService {
     (product as any).in_stock = totalAvailable > 0;
     (product as any).quantity_available = totalAvailable;
 
-    return product;
+    if (locale !== "en") {
+      const translation = await this.repo.manager.getRepository("ProductTranslation").findOne({
+        where: { product_id: (product as any).id, locale } as any,
+      });
+      applyProductTranslation(product as any, translation as any);
+    }
+    return toPublicProductDetail(product);
   }
 
+  /** Public detail by id: published products only (drafts, products under
+   * review and rejected listings are not public), storefront-safe shape. */
   async getById(id: string) {
     const product = await this.repo.findOne({
-      where: { id },
+      where: { id, status: "published" as any },
       relations: [
         "images",
         "variants",
@@ -584,7 +683,39 @@ export class ProductService {
     if (!product) throw new HttpError(404, "Product not found", "PRODUCT_NOT_FOUND");
     (product as any).ecoDeclaration = toPublicEcoDeclaration(product.ecoDeclaration);
     attachPriceTiers(product);
+    const available = ((product as any).inventoryRecords || []).reduce(
+      (sum: number, inv: any) =>
+        sum + Math.max(0, (inv.quantity_on_hand || 0) - (inv.quantity_reserved || 0)),
+      0,
+    );
+    (product as any).in_stock = available > 0;
+    (product as any).quantity_available = available;
 
+    return toPublicProductDetail(product);
+  }
+
+  /** The vendor's own product, with translations, for the edit form. */
+  async getByIdForVendor(id: string, vendorId: string) {
+    const product = await this.repo.findOne({
+      where: { id, vendor_id: vendorId },
+      relations: [
+        "images",
+        "variants",
+        "price_tiers",
+        "vendor",
+        "brand",
+        "productCategories",
+        "inventoryRecords",
+        "attributeValues",
+        "attributeValues.attribute",
+        "attributeValues.attributeValue",
+        "ecoDeclaration",
+        "translations",
+      ],
+    });
+    if (!product) throw new HttpError(404, "Product not found", "PRODUCT_NOT_FOUND");
+    (product as any).ecoDeclaration = toPublicEcoDeclaration(product.ecoDeclaration);
+    attachPriceTiers(product);
     return product;
   }
 
@@ -820,7 +951,7 @@ export class ProductService {
     sort?: string;
     order?: "asc" | "desc";
   }) {
-    const page = filters.page ?? 1;
+    const page = Math.max(1, Math.trunc(Number(filters.page)) || 1);
     const limit = Math.min(filters.limit ?? 20, 100);
     const skip = (page - 1) * limit;
     const qb = this.repo
@@ -829,10 +960,11 @@ export class ProductService {
       .leftJoinAndSelect("p.brand", "brand")
       .leftJoinAndSelect("p.images", "images", "images.is_primary = true")
       .where("p.deleted_at IS NULL");
+    assertEnumFilter(filters.status, ProductStatus);
     if (filters.status) qb.andWhere("p.status = :status", { status: filters.status });
     if (filters.vendor_id) qb.andWhere("p.vendor_id = :vendorId", { vendorId: filters.vendor_id });
     // Match the category itself plus its descendants, so picking a parent
-    // ("Skincare") also returns products filed under its children. Shared with
+    // ("Papers") also returns products filed under its children. Shared with
     // the product export so the two can never drift — see the helper.
     if (filters.category_id)
       qb.andWhere(categoryDescendantPredicate(":categoryId"), {

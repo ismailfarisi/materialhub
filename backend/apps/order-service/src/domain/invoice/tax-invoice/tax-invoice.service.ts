@@ -15,6 +15,7 @@ import {
 import { HttpError } from "@materialhub/plugins";
 import { isValidTrn, peppolIdFromTrn } from "@materialhub/utils";
 import type { EntityManager, Repository } from "typeorm";
+import { loadCancelledByItem } from "../cancelled-quantities.ts";
 import { type EInvoiceTransmitter, NoopEInvoiceTransmitter } from "../einvoice/transmitter.ts";
 import { buildUblInvoice } from "../einvoice/ubl.ts";
 import {
@@ -68,6 +69,38 @@ const ORDER_RELATIONS = ["vendorOrders", "vendorOrders.vendor", "vendorOrders.it
 
 type Json = Record<string, unknown>;
 const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
+
+const NOT_INVOICEABLE_STATUSES = new Set([
+  "draft",
+  "pending_payment",
+  "payment_failed",
+  "cancelled",
+]);
+
+/**
+ * Why an order gets no tax invoice yet, or null when it should get one now.
+ *
+ * - Never for an order that was not confirmed (abandoned / failed checkout)
+ *   or that was cancelled: there is no supply to invoice, and there is no
+ *   credit-note flow yet to reverse an invoice issued in error.
+ * - Cash on delivery: deferred until the cash is collected at delivery
+ *   (the payment is `captured` then). Under UAE VAT the tax point is the
+ *   earlier of supply and payment, both of which happen at delivery for
+ *   COD, so issuing at checkout created invoices for orders that were then
+ *   cancelled before anything was supplied. The delivery aggregation
+ *   re-enqueues the invoice job (container.ts order-event bridge).
+ * - Prepaid and net-terms orders are invoiced at confirmation as before.
+ */
+export function taxInvoiceDeferral(
+  order: { status?: string | null } | null,
+  payment: { gateway?: string | null; status?: string | null } | null | undefined,
+): "not_confirmed" | "cancelled" | "cod_not_collected" | null {
+  const status = String(order?.status ?? "");
+  if (status === "cancelled") return "cancelled";
+  if (NOT_INVOICEABLE_STATUSES.has(status)) return "not_confirmed";
+  if (payment?.gateway === "cod" && payment.status !== "captured") return "cod_not_collected";
+  return null;
+}
 
 /** The order graph generateForOrder loads (relations in ORDER_RELATIONS). */
 type InvoiceOrder = Order & { user?: { email?: string | null } | null };
@@ -141,14 +174,19 @@ export class TaxInvoiceService {
     if (!order) return [];
     const existing = await this.invoiceRepo.find({ where: { order_id: orderId } });
     const [payment] = await this.orderRepo.manager.query(
-      `SELECT payment_method FROM payments WHERE order_id = $1 AND deleted_at IS NULL
+      `SELECT payment_method, gateway, status FROM payments WHERE order_id = $1 AND deleted_at IS NULL
          AND status IN ('authorized', 'captured', 'pending')
        ORDER BY (status = 'captured') DESC, created_at DESC LIMIT 1`,
       [orderId],
     );
 
+    if (taxInvoiceDeferral(order as any, payment)) return [];
+
     const sellers: Record<string, InvoiceParty> = {};
     for (const vo of order.vendorOrders ?? []) sellers[vo.vendor_id] = this.sellerParty(vo.vendor);
+    // Item cancellations are never supplied, so never invoiced (returns are,
+    // and stay on the invoice — see cancelled-quantities.ts).
+    const cancelled = await loadCancelledByItem(this.orderRepo.manager, orderId);
     const drafts = buildInvoiceDrafts({
       order,
       sellers,
@@ -156,6 +194,7 @@ export class TaxInvoiceService {
       buyer: this.buyerParty(order),
       paymentMethod: payment?.payment_method ?? null,
       issuedAt: now,
+      cancelled,
     });
     const year = Number(drafts[0]?.issue_date.slice(0, 4) ?? now.getUTCFullYear());
     const paid = order.payment_status === "captured";
@@ -325,21 +364,69 @@ export class TaxInvoiceService {
     return { filename: `${inv.invoice_number}.xml`, xml: this.toXml(inv, inv.order_number) };
   }
 
-  async pdfUrlFor(userId: string, id: string, isAdmin = false) {
+  /**
+   * The invoice PDF: a signed storage URL when object storage works, else the
+   * rendered PDF itself (no S3 credentials locally, an outage, ...). Mirrors
+   * the receipt's no-storage fallback (InvoiceService.resolveDownload): the
+   * PDF is a pure render of the stored invoice row, so serving it inline is
+   * always correct; a storage failure must not 500 the download.
+   */
+  async pdfFor(
+    userId: string,
+    id: string,
+    isAdmin = false,
+  ): Promise<{ url: string } | { pdf: Buffer; filename: string }> {
     const inv = await this.findVisible(userId, id, isAdmin);
     if (!inv) throw new HttpError(404, "Invoice not found", "NOT_FOUND");
+    const filename = `${inv.invoice_number}.pdf`;
     // pdf_s3_key is cleared whenever the payment status changes (net-terms
     // mark-paid / cancellation), so a stored key is always current.
     let key: string | null = inv.pdf_s3_key;
+    let pdf: Buffer | null = null;
     if (!key) {
-      const pdf = await renderTaxInvoicePdf(inv, inv.order_number);
-      key = taxInvoicePdfKey(inv.id);
-      await this.media.uploadBuffer(key, pdf, "application/pdf");
-      await this.invoiceRepo.update({ id: inv.id }, { pdf_s3_key: key });
+      pdf = await renderTaxInvoicePdf(inv, inv.order_number);
+      try {
+        const k = taxInvoicePdfKey(inv.id);
+        await this.media.uploadBuffer(k, pdf, "application/pdf");
+        await this.invoiceRepo.update({ id: inv.id }, { pdf_s3_key: k });
+        key = k;
+      } catch (err) {
+        console.error("[tax-invoice] storing PDF failed; serving inline", {
+          invoiceId: inv.id,
+          error: String(err),
+        });
+      }
     }
-    const { url } = await this.media.getReceiptSignedUrl(key);
-    return { url };
+    if (key) {
+      try {
+        const { url } = await this.media.getReceiptSignedUrl(key);
+        return { url };
+      } catch (err) {
+        console.error("[tax-invoice] signing PDF URL failed; serving inline", {
+          invoiceId: inv.id,
+          error: String(err),
+        });
+      }
+    }
+    return { pdf: pdf ?? (await renderTaxInvoicePdf(inv, inv.order_number)), filename };
   }
+}
+
+/** HTTP answer for `pdfFor`: the JSON `{ url }` envelope, or the PDF bytes. */
+export function taxInvoicePdfResponse(
+  result: { url: string } | { pdf: Buffer; filename: string },
+): Response | { statusCode: number; data: { url: string }; timestamp: string } {
+  if ("pdf" in result) {
+    return new Response(new Uint8Array(result.pdf), {
+      status: 200,
+      headers: {
+        "content-type": "application/pdf",
+        "content-disposition": `inline; filename="${result.filename}"`,
+        "cache-control": "private, no-store",
+      },
+    });
+  }
+  return { statusCode: 200, data: { url: result.url }, timestamp: new Date().toISOString() };
 }
 
 export function toInvoiceRow(t: RawInvoiceRow) {

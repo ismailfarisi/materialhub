@@ -36,6 +36,19 @@ export class RefundService {
     private stripe: Stripe | null,
   ) {}
 
+  /**
+   * Gateway of the order's captured payment ("stripe", "cod", ...), or null
+   * when nothing is captured. Callers use it to route a refund that cannot go
+   * back to an instrument — cash on delivery has none — to the wallet instead
+   * of failing in `refundToOriginalPayment`.
+   */
+  async getCapturedGateway(orderId: string): Promise<string | null> {
+    const payment = await this.paymentRepo.findOne({
+      where: { order_id: orderId, status: "captured" } as any,
+    });
+    return payment ? ((payment as any).gateway as string) : null;
+  }
+
   async refundToOriginalPayment(input: RefundToOriginalPaymentInput): Promise<RefundResult> {
     const payment = await this.paymentRepo.findOne({
       where: { order_id: input.orderId, status: "captured" } as any,

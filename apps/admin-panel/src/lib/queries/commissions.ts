@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 
+/** Bounds in fils of the line total; rate in percent. */
 export interface CommissionTier {
   min_amount: number;
   max_amount: number | null;
@@ -18,6 +19,9 @@ export interface VendorCommission {
   id: string;
   vendor_id: string;
   vendor_name: string;
+  /** percentage | fixed | tiered */
+  commission_type?: string | null;
+  /** Percent for `percentage`; fils per item for `fixed`. */
   rate: number;
   tiers?: CommissionTier[];
 }
@@ -62,11 +66,49 @@ export function useUpdateGlobalCommissionRate() {
   });
 }
 
-export function useUpdateCommission() {
+/** PATCH /admin/categories/:id — category rates live on the category (percent, 0–100). */
+export function useUpdateCategoryCommission() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (body: { type: string; [key: string]: any }) => {
-      const { data } = await api.patch(`/admin/commissions/vendors/${body.vendor_id ?? body.id}/rate`, body);
+    mutationFn: async ({ categoryId, rate }: { categoryId: string; rate: number | null }) => {
+      const { data } = await api.patch(`/admin/categories/${categoryId}`, {
+        commission_rate: rate,
+      });
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "commissions"] });
+    },
+  });
+}
+
+/**
+ * PATCH /admin/commissions/vendors/:vendorId/rate. `value` is percent (or fils
+ * for `fixed`); tiers go back in the camelCase shape the rate resolver reads.
+ */
+export function useUpdateVendorCommission() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      vendorId,
+      type,
+      value,
+      tiers,
+    }: {
+      vendorId: string;
+      type: "percentage" | "fixed" | "tiered";
+      value: number;
+      tiers?: CommissionTier[];
+    }) => {
+      const { data } = await api.patch(`/admin/commissions/vendors/${vendorId}/rate`, {
+        type,
+        value,
+        tiers: tiers?.map((t) => ({
+          minAmount: t.min_amount,
+          ...(t.max_amount != null ? { maxAmount: t.max_amount } : {}),
+          rate: t.rate,
+        })),
+      });
       return data.data;
     },
     onSuccess: () => {

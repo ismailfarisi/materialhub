@@ -42,7 +42,7 @@ export function MobileTabBar() {
 			{/* Spacer so the fixed bar doesn't cover the end of the page/footer */}
 			<div className="h-[calc(3.5rem+env(safe-area-inset-bottom))] lg:hidden" aria-hidden />
 			<nav
-				aria-label="Mobile navigation"
+				aria-label={t("mobileNavigation")}
 				className={`lg:hidden fixed bottom-0 inset-x-0 z-40 bg-nl-linen border-t border-nl-cacao/12 pb-[env(safe-area-inset-bottom)] will-change-transform transition-transform duration-300 ease-out motion-reduce:transition-none ${
 					collapsed ? "translate-y-full" : "translate-y-0"
 				}`}

@@ -1,4 +1,5 @@
 import type { IntegrationEventType } from "@materialhub/database";
+import { serviceFetch } from "@materialhub/utils/src/service-fetch.ts";
 import jwt from "jsonwebtoken";
 
 export interface DomainDispatchInput {
@@ -72,7 +73,7 @@ export class DomainDispatch {
           ? { ...input.payload, action: "reject", vendor_id: input.vendorId }
           : { ...input.payload, vendor_id: input.vendorId };
 
-    const res = await fetch(url, {
+    const res = await serviceFetch(url, {
       method: route.method,
       headers: {
         "Content-Type": "application/json",

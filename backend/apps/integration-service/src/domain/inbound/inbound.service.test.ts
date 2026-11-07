@@ -2,8 +2,10 @@ import { describe, expect, it, mock } from "bun:test";
 import { IntegrationAuthority, IntegrationEventType } from "@materialhub/database";
 import { InboundService } from "./inbound.service.ts";
 
+const INT_ID = "3a7e9c1b-2d4f-4b6a-8c0e-5f1a3b7d9e21";
+
 const integ = {
-  id: "i1",
+  id: INT_ID,
   vendor_id: "v1",
   inbound_secret_encrypted: "enc(secret123)",
   inbound_ip_allowlist: [] as string[],
@@ -48,7 +50,7 @@ describe("InboundService.handle", () => {
     const svc = new InboundService(deps as any);
     const body = '{"ext_id":"VO-1"}';
     const r = await svc.handle({
-      integrationId: "i1",
+      integrationId: INT_ID,
       eventType: IntegrationEventType.order_accept,
       sourceIp: "1.2.3.4",
       headers: {
@@ -67,7 +69,7 @@ describe("InboundService.handle", () => {
     const ts = Math.floor(Date.now() / 1000).toString();
     const sig = `sha256=${sign("secret123", ts, body)}`;
     const r = await svc.handle({
-      integrationId: "i1",
+      integrationId: INT_ID,
       eventType: IntegrationEventType.order_accept,
       sourceIp: "1.2.3.4",
       headers: { "x-signature": sig, "x-timestamp": ts },
@@ -96,7 +98,7 @@ describe("InboundService.handle", () => {
     const ts = Math.floor(Date.now() / 1000).toString();
     const sig = `sha256=${sign("secret123", ts, body)}`;
     const r = await svc.handle({
-      integrationId: "i1",
+      integrationId: INT_ID,
       eventType: IntegrationEventType.inventory_adjust,
       sourceIp: "1.2.3.4",
       headers: { "x-signature": sig, "x-timestamp": ts },

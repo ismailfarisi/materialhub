@@ -8,32 +8,43 @@ import {
 	useStorefrontPreviewToken,
 } from "@/lib/queries/storefront";
 import { s3UploadClient } from "@/lib/s3-upload-client";
-import { LayoutEditor } from "@materialhub/ui";
-import { useEffect, useState } from "react";
+import { WEB_URL } from "@/lib/urls";
+import { Button, LayoutEditor } from "@materialhub/ui";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
 
-const WEB_BASE = process.env.NEXT_PUBLIC_WEB_URL || "http://localhost:3000";
+/** HTTP status of a failed request, if any. */
+function statusOf(err: unknown): number | undefined {
+	return (err as { response?: { status?: number } } | null)?.response?.status;
+}
 
 export default function VendorStorefrontPage() {
 	const init = useInitStorefront();
 	const me = useMyStorefront();
 	const profile = useVendorProfile();
 	const previewToken = useStorefrontPreviewToken();
+	const queryClient = useQueryClient();
 	const [layoutId, setLayoutId] = useState<string | null>(null);
+	// Auto-create the storefront at most once per visit. A failed init (a 4xx
+	// such as a missing permission, or a 5xx) must not re-fire on every render.
+	const initAttempted = useRef(false);
 
-	// Once /me query settles, kick off init if no layout yet — exactly once.
 	useEffect(() => {
 		if (me.isLoading) return;
 		if (me.data) {
 			setLayoutId(me.data.id);
 			return;
 		}
-		if (init.isPending || init.data) return;
+		// /me failed for a reason other than "no storefront yet": don't init.
+		if (me.isError) return;
+		if (initAttempted.current) return;
+		initAttempted.current = true;
 		init.mutate(undefined, {
 			onSuccess: (r) => setLayoutId(r.layout_id),
 		});
-	}, [me.isLoading, me.data, init]);
+	}, [me.isLoading, me.data, me.isError, init]);
 
-	if (me.isLoading || (!layoutId && (init.isPending || !init.isError))) {
+	if (me.isLoading || (!layoutId && !me.isError && !init.isError)) {
 		return (
 			<div className="p-8 text-center text-muted-foreground">
 				Setting up your storefront…
@@ -41,10 +52,37 @@ export default function VendorStorefrontPage() {
 		);
 	}
 
-	if (init.isError && !layoutId) {
+	if (!layoutId && (init.isError || me.isError)) {
+		const err = init.error ?? me.error;
+		const status = statusOf(err);
+		const message =
+			status === 403
+				? "Your role can't set up the storefront. Ask the store owner or a manager."
+				: ((err as { response?: { data?: { message?: string } } } | null)?.response?.data
+						?.message ?? "Failed to set up the storefront.");
+		const retryable = status === undefined || status >= 500;
 		return (
-			<div className="p-8 text-center text-red-600">
-				Failed to set up storefront. Please refresh the page.
+			<div className="space-y-3 p-8 text-center">
+				<p role="alert" className="text-red-600">
+					{message}
+				</p>
+				{retryable ? (
+					<Button
+						type="button"
+						variant="outline"
+						disabled={init.isPending}
+						onClick={() => {
+							if (me.isError) {
+								void me.refetch();
+								initAttempted.current = false;
+								return;
+							}
+							init.mutate(undefined, { onSuccess: (r) => setLayoutId(r.layout_id) });
+						}}
+					>
+						{init.isPending ? "Trying…" : "Try again"}
+					</Button>
+				) : null}
 			</div>
 		);
 	}
@@ -60,7 +98,7 @@ export default function VendorStorefrontPage() {
 			throw new Error("Vendor profile not loaded");
 		}
 		const { token } = await previewToken.mutateAsync(id);
-		const url = `${WEB_BASE}/en/vendor/${vendorSlug}?preview_token=${encodeURIComponent(token)}`;
+		const url = `${WEB_URL}/en/vendor/${vendorSlug}?preview_token=${encodeURIComponent(token)}`;
 		window.open(url, "_blank", "noopener,noreferrer");
 	}
 
@@ -86,6 +124,10 @@ export default function VendorStorefrontPage() {
 				s3Client={s3UploadClient}
 				vendorId={vendorIdForUpload}
 				onPreview={handlePreview}
+				onPublishSuccess={() => {
+					// Clears the "customers see the template" banner.
+					void queryClient.invalidateQueries({ queryKey: ["my-storefront"] });
+				}}
 			/>
 		</div>
 	);

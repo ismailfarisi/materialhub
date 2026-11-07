@@ -4,6 +4,15 @@ import type { CategoryService } from "./category.service.ts";
 
 const CACHE_KEY = "materialhub:product:categories:tree";
 
+/** Locales the public tree is cached for; anything else is served the English tree. */
+export const TREE_CACHE_LOCALES = ["en", "ar", "hi", "ml", "ur"] as const;
+export type TreeCacheLocale = (typeof TREE_CACHE_LOCALES)[number];
+
+/** One Redis entry per locale; English keeps the historical key. */
+export function treeCacheKey(locale: TreeCacheLocale): string {
+  return locale === "en" ? CACHE_KEY : `${CACHE_KEY}:${locale}`;
+}
+
 export class CategoryCacheService {
   private redis: RedisClientType | null = null;
   private readonly categoryService: CategoryService;
@@ -31,17 +40,18 @@ export class CategoryCacheService {
     }
   }
 
-  async getTree(): Promise<any> {
+  async getTree(locale: TreeCacheLocale = "en"): Promise<any> {
+    const key = treeCacheKey(locale);
     const redis = await this.getRedis();
     if (redis) {
-      const cached = await redis.get(CACHE_KEY);
+      const cached = await redis.get(key);
       if (cached) return JSON.parse(cached);
     }
 
-    const tree = await this.categoryService.getTree();
+    const tree = await this.categoryService.getTree({ locale });
 
     if (redis) {
-      await redis.set(CACHE_KEY, JSON.stringify(tree), { EX: config.cache.categoryTreeTtl });
+      await redis.set(key, JSON.stringify(tree), { EX: config.cache.categoryTreeTtl });
     }
 
     return tree;
@@ -49,6 +59,6 @@ export class CategoryCacheService {
 
   async invalidate() {
     const redis = await this.getRedis();
-    if (redis) await redis.del(CACHE_KEY);
+    if (redis) await redis.del(TREE_CACHE_LOCALES.map(treeCacheKey));
   }
 }

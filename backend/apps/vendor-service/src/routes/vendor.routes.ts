@@ -4,6 +4,13 @@ import { container } from "../container.ts";
 
 export const vendorRoutes = new Elysia({ prefix: "/vendors" })
   .use(container)
+  // Health check (polled in-process by the API's /health). Registered before
+  // jwtAuth so it needs no token, like /auth/health.
+  .get("/health", () => ({
+    status: "ok",
+    service: "vendor-service",
+    timestamp: new Date().toISOString(),
+  }))
   .use(jwtAuth)
 
   .get(
@@ -43,40 +50,60 @@ export const vendorRoutes = new Elysia({ prefix: "/vendors" })
         business_email: t.String({ format: "email" }),
         business_phone: t.String(),
         business_address: t.Object({
-          street: t.String(),
-          city: t.String(),
-          state: t.String(),
-          country: t.String(),
-          postal_code: t.String(),
+          street: t.String({ minLength: 1 }),
+          city: t.String({ minLength: 1 }),
+          state: t.String({ minLength: 1 }),
+          country: t.Optional(t.String()),
+          postal_code: t.Optional(t.String()),
         }),
         tax_registration_number: t.Optional(t.String()),
         documents: t.Array(
           t.Object({
             type: t.String(),
-            s3_key: t.String(),
+            s3_key: t.String({ minLength: 1 }),
+            file_name: t.Optional(t.String()),
           }),
           { minItems: 1 },
         ),
-        bank_account: t.Object({
-          bank_name: t.String(),
-          account_holder_name: t.String(),
-          account_number: t.String(),
-          iban: t.String(),
-          swift_code: t.Optional(t.String()),
-          currency: t.Optional(t.String()),
-        }),
+        // Optional: payout bank details can be added later in Settings.
+        bank_account: t.Optional(
+          t.Object({
+            bank_name: t.String(),
+            account_holder_name: t.String(),
+            account_number: t.String(),
+            iban: t.String(),
+            swift_code: t.Optional(t.String()),
+            currency: t.Optional(t.String()),
+          }),
+        ),
       }),
     },
+  )
+
+  // Reading the active vendor's own profile: any member role. There is no
+  // dedicated vendor.profile.read permission, so accept any of the read
+  // permissions every seeded role holds at least one of.
+  .guard({}, (app) =>
+    app
+      .use(
+        vendorMembership(
+          "vendor.profile.write",
+          "team.read",
+          "products.read",
+          "orders.read",
+          "analytics.read",
+        ),
+      )
+      .get("/me", async ({ member, vendorController }) => {
+        const vendor = await vendorController.getById(member.vid);
+        return { statusCode: 200, data: vendor, timestamp: new Date().toISOString() };
+      }),
   )
 
   // vendor.profile.write — vendor profile, settings, deactivation, documents
   .guard({}, (app) =>
     app
       .use(vendorMembership("vendor.profile.write"))
-      .get("/me", async ({ member, vendorController }) => {
-        const vendor = await vendorController.getById(member.vid);
-        return { statusCode: 200, data: vendor, timestamp: new Date().toISOString() };
-      })
       .patch(
         "/me/settings",
         async ({ body, member, vendorController }) => {
@@ -85,6 +112,8 @@ export const vendorRoutes = new Elysia({ prefix: "/vendors" })
         },
         {
           body: t.Object({
+            name: t.Optional(t.String({ minLength: 2, maxLength: 200 })),
+            processing_time_days: t.Optional(t.Integer({ minimum: 0, maximum: 30 })),
             logo_url: t.Optional(t.String()),
             banner_url: t.Optional(t.String()),
             description: t.Optional(t.String()),
@@ -159,25 +188,73 @@ export const vendorRoutes = new Elysia({ prefix: "/vendors" })
       .post(
         "/me/bank-accounts",
         async ({ body, member, vendorController, set }) => {
-          const account = await vendorController.createBankAccount(member.vid, body);
+          const account = await vendorController.createBankAccount(member.vid, {
+            bankName: body.bank_name,
+            accountHolderName: body.account_holder_name,
+            accountNumber: body.account_number,
+            iban: body.iban,
+            swiftCode: body.swift_code || undefined,
+            currency: body.currency,
+          });
           set.status = 201;
           return { statusCode: 201, data: account, timestamp: new Date().toISOString() };
         },
         {
+          // snake_case like every other vendor/admin body (admin bank routes too).
           body: t.Object({
-            bankName: t.String(),
-            accountHolderName: t.String(),
-            accountNumber: t.String(),
+            // Lengths are checked in the service: an Elysia validation error
+            // echoes the request body, which would put the account number in
+            // the response.
+            bank_name: t.String(),
+            account_holder_name: t.String(),
+            account_number: t.String(),
             iban: t.String(),
-            swiftCode: t.Optional(t.String()),
+            swift_code: t.Optional(t.String()),
             currency: t.Optional(t.String()),
           }),
         },
       )
-      .patch("/me/bank-accounts/:id", async ({ params, body, member, vendorController }) => {
-        const updated = await vendorController.updateBankAccount(member.vid, params.id, body);
-        return { statusCode: 200, data: updated, timestamp: new Date().toISOString() };
-      })
+      .patch(
+        "/me/bank-accounts/:id",
+        async ({ params, body, member, vendorController }) => {
+          const updated = await vendorController.updateBankAccount(member.vid, params.id, {
+            bankName: body.bank_name,
+            accountHolderName: body.account_holder_name,
+            accountNumber: body.account_number || undefined,
+            iban: body.iban || undefined,
+            swiftCode: body.swift_code,
+            currency: body.currency,
+          });
+          return { statusCode: 200, data: updated, timestamp: new Date().toISOString() };
+        },
+        {
+          params: t.Object({ id: t.String({ format: "uuid" }) }),
+          body: t.Partial(
+            t.Object({
+              bank_name: t.String(),
+              account_holder_name: t.String(),
+              // Blank = keep the stored (encrypted) value; the UI never has it.
+              account_number: t.String(),
+              iban: t.String(),
+              swift_code: t.String(),
+              currency: t.String(),
+            }),
+          ),
+        },
+      )
+      .patch(
+        "/me/bank-accounts/:id/primary",
+        async ({ params, member, vendorController }) => {
+          const account = await vendorController.setPrimaryBankAccount(member.vid, params.id);
+          return {
+            statusCode: 200,
+            data: account,
+            message: "Primary bank account updated",
+            timestamp: new Date().toISOString(),
+          };
+        },
+        { params: t.Object({ id: t.String({ format: "uuid" }) }) },
+      )
       .delete("/me/bank-accounts/:id", async ({ params, member, vendorController }) => {
         await vendorController.removeBankAccount(member.vid, params.id);
         return {

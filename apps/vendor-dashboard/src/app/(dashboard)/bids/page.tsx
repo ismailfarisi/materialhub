@@ -1,5 +1,6 @@
 "use client";
 
+import { WEB_URL } from "@/lib/urls";
 import {
 	useAvailableSections,
 	useCancelBid,
@@ -103,8 +104,7 @@ const sectionIcons: Record<string, typeof Storefront> = {
 	promotional_banner: Megaphone,
 };
 
-const STOREFRONT_BASE =
-	process.env.NEXT_PUBLIC_WEB_URL || "http://localhost:3000";
+const STOREFRONT_BASE = WEB_URL;
 
 // Banner-type sections that need image content
 const bannerTypes = new Set([
@@ -504,7 +504,7 @@ function AvailableSectionCard({
 									<button
 										onClick={() => onEditBid(bid)}
 										className="p-1 rounded hover:bg-stone-200 text-stone-400 hover:text-stone-700 transition-colors"
-										title="Pencil bid"
+										title="Edit bid"
 									>
 										<Pencil size={13} />
 									</button>
@@ -811,12 +811,12 @@ export default function VendorBidsPage() {
 				<DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
 					<DialogHeader>
 						<DialogTitle>
-							{editingId ? "Pencil Bid" : `Bid on "${form.section_name}"`}
+							{editingId ? "Edit Bid" : `Bid on "${form.section_name}"`}
 						</DialogTitle>
 						{!editingId && (
 							<p className="text-sm text-stone-500 mt-1">
 								{isBannerBid &&
-									"UploadSimple a banner creative for this placement."}
+									"Upload a banner creative for this placement."}
 								{isProductBid &&
 									"Select a product to feature in this placement."}
 								{!isBannerBid &&

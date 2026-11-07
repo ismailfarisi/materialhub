@@ -1,0 +1,36 @@
+{
+  "name": "@materialhub/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "start": "bun run dist/index.js",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@elysiajs/bearer": "^1.2.0",
+    "@elysiajs/cors": "^1.2.0",
+    "@elysiajs/jwt": "^1.2.0",
+    "@elysiajs/swagger": "^1.2.0",
+    "@materialhub/auth-service": "workspace:*",
+    "@materialhub/cms-service": "workspace:*",
+    "@materialhub/config": "workspace:*",
+    "@materialhub/database": "workspace:*",
+    "@materialhub/guards": "workspace:*",
+    "@materialhub/integration-service": "workspace:*",
+    "@materialhub/notification-service": "workspace:*",
+    "@materialhub/order-service": "workspace:*",
+    "@materialhub/plugins": "workspace:*",
+    "@materialhub/product-service": "workspace:*",
+    "@materialhub/utils": "workspace:*",
+    "@materialhub/vendor-service": "workspace:*",
+    "elysia": "^1.2.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.3",
+    "typescript": "^5.7.0"
+  }
+}

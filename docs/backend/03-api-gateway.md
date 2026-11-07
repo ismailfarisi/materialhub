@@ -7,9 +7,9 @@ no database writes, no path rewriting.
 
 | File | Role |
 |---|---|
-| `apps/api-gateway/src/index.ts` | Boot — `ensureDatabase()`, load the permission matrix, listen with `idleTimeout: 255` |
-| `apps/api-gateway/src/app.ts` | The Elysia app: CORS, error handler, logger, rate limiter, Swagger, `jwtAuth`, `/health`, catch-all proxy |
-| `apps/api-gateway/src/proxy.ts` | `serviceRoutes` prefix table, `resolveUpstream()`, `proxyRequest()` |
+| `apps/api/src/index.ts` | Boot for the whole backend — `ensureDatabase()`, load the permission matrix, register every module in-process (`modules.ts`), start every module's jobs (`jobs.ts`), listen on `GATEWAY_PORT` with `idleTimeout: 255` |
+| `apps/api/src/app.ts` | The Elysia app: CORS, error handler, logger, rate limiter, Swagger, `jwtAuth`, `/health`, catch-all proxy |
+| `apps/api/src/proxy.ts` | `serviceRoutes` prefix table, `resolveUpstream()`, `proxyRequest()` |
 
 The gateway needs a database connection only because `permissionMatrix.load()` reads
 `role_permissions`, and `jwtAuth`'s revocation check reads `users.token_version`.

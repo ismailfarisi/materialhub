@@ -1,4 +1,11 @@
 export { generateSlug } from "./slug.ts";
+export {
+  clearInProcessServices,
+  inProcessOrigins,
+  registerInProcessService,
+  serviceFetch,
+  type ServiceHandler,
+} from "./service-fetch.ts";
 export { MediaService, type ProcessedImages } from "./media.service.ts";
 export {
   ASSET_TYPE_CONFIG,
@@ -17,6 +24,7 @@ export { normalizePhoneE164 } from "./phone.ts";
 export { getS3Client, getCloudFrontClient } from "./s3-client.ts";
 export { EncryptionService } from "./encryption.service.ts";
 export { maxCommissionForNet } from "./commission-cap.ts";
+export { revalidateStorefrontTags } from "./storefront-revalidate.ts";
 export { encodeCursor, decodeCursor, type CursorData, type PaginatedResult } from "./pagination.ts";
 
 /**

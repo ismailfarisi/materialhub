@@ -62,10 +62,27 @@ describe("OrderCreationService", () => {
     );
   });
 
-  it("generates order number in FKS-YYYY-NNNNNN format", async () => {
-    (mockOrderRepo as any).query = mock(() => Promise.resolve([{ seq: 42 }]));
-    const num = await (service as any).generateOrderNumber();
-    expect(num).toMatch(/^FKS-\d{4}-\d{6}$/);
+  it("generates order number in MH-YYYY-NNNNNN format from order_number_seq", async () => {
+    const original = (mockOrderRepo as any).query;
+    const query = mock(() => Promise.resolve([{ seq: 42 }]));
+    (mockOrderRepo as any).query = query;
+    try {
+      const num = await (service as any).generateOrderNumber();
+      expect(num).toBe(`MH-${new Date().getFullYear()}-000042`);
+      expect((query.mock.calls[0] as unknown as string[])[0]).toContain("order_number_seq");
+    } finally {
+      (mockOrderRepo as any).query = original;
+    }
+  });
+
+  it("fails loudly instead of falling back to a clock-derived number", async () => {
+    const original = (mockOrderRepo as any).query;
+    (mockOrderRepo as any).query = mock(() => Promise.resolve([{ seq: null }]));
+    try {
+      await expect((service as any).generateOrderNumber()).rejects.toThrow();
+    } finally {
+      (mockOrderRepo as any).query = original;
+    }
   });
 
   it("splits cart items by vendor into vendor_orders", async () => {
@@ -121,6 +138,44 @@ describe("OrderCreationService", () => {
     for (const vo of _result.vendorOrders) {
       expect((vo as any).warehouse_id).toBe("wh-default");
     }
+  });
+
+  it("stores each vendor's share of shipping on its sub-order (was always 0)", async () => {
+    const cartItems = [
+      {
+        product_id: "p1",
+        variant_id: null,
+        vendor_id: "vendor-A",
+        quantity: 1,
+        unit_price: 5000,
+        line_total: 5000,
+      },
+      {
+        product_id: "p2",
+        variant_id: null,
+        vendor_id: "vendor-B",
+        quantity: 1,
+        unit_price: 3000,
+        line_total: 3000,
+      },
+    ];
+    const result = await service.createOrder({
+      userId: "user-1",
+      cartItems: cartItems as any,
+      shippingAddress: { city: "Dubai" },
+      taxTotal: 0,
+      shippingTotal: 3000,
+      shippingByVendor: { "vendor-A": 1500, "vendor-B": 1500 },
+      discountTotal: 0,
+      couponId: null,
+      couponCode: null,
+      couponDiscount: 0,
+      channel: "web",
+    });
+    const byVendor = Object.fromEntries(
+      result.vendorOrders.map((vo: any) => [vo.vendor_id, vo.shipping_cost]),
+    );
+    expect(byVendor).toEqual({ "vendor-A": 1500, "vendor-B": 1500 });
   });
 
   it("snapshots shipping_contribution per vendor sub-order from the tiers", async () => {

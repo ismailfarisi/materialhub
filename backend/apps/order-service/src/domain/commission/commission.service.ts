@@ -318,7 +318,7 @@ export class CommissionService {
     page?: number;
     limit?: number;
   }): Promise<{ data: Commission[]; total: number }> {
-    const page = query.page || 1;
+    const page = Math.max(1, Math.trunc(Number(query.page)) || 1);
     const limit = query.limit || 20;
     const where: any = {};
     if (query.vendorId) where.vendor_id = query.vendorId;
@@ -357,12 +357,22 @@ export class CommissionService {
         category_name: c.name,
         rate: Number(c.commission_rate),
       })),
+      // Units: every `rate` is a PERCENT (10 = 10%, as `calculateAmount`
+      // divides by 100); a `fixed` vendor's `rate` is fils per item; tier
+      // bounds are fils of the line total. Tiers are stored camelCase
+      // (minAmount/maxAmount, what resolveRate reads) and returned snake_case.
       vendor_overrides: vendors.map((v) => ({
         id: v.id,
         vendor_id: v.id,
         vendor_name: v.name,
+        commission_type: v.commission_type,
         rate: Number(v.commission_value) || 0,
-        tiers: (v.commission_tiers as any[]) ?? [],
+        tiers: ((v.commission_tiers as any[]) ?? []).map((t: any) => ({
+          min_amount: Number(t.minAmount ?? t.min_amount ?? 0),
+          max_amount:
+            (t.maxAmount ?? t.max_amount) == null ? null : Number(t.maxAmount ?? t.max_amount),
+          rate: Number(t.rate) || 0,
+        })),
       })),
     };
   }

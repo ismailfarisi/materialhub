@@ -1,5 +1,7 @@
+import { toast } from "@materialhub/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
+import { orderActionError } from "./orders";
 
 export interface ReturnFilters {
   status?: string;
@@ -28,8 +30,21 @@ export function useReceiveReturn() {
       const { data } = await api.patch(`/vendor/returns/${id}/received`, { restock });
       return data.data;
     },
-    onSuccess: () => {
+    onSuccess: (ret: { status?: string } | undefined) => {
       queryClient.invalidateQueries({ queryKey: ["vendor", "returns"] });
+      toast({
+        title: "Return received",
+        description:
+          ret?.status === "refunded"
+            ? "The buyer has been refunded."
+            : "The refund could not be issued yet; MaterialHub will retry it.",
+      });
     },
+    onError: (err) =>
+      toast({
+        variant: "destructive",
+        title: "Could not mark the return received",
+        description: orderActionError(err, "Something went wrong. Try again."),
+      }),
   });
 }

@@ -1,6 +1,8 @@
 // webhook.service.ts
 import type { Payment, WebhookEvent } from "@materialhub/database";
+import { BadRequestError, HttpError, UnauthorizedError } from "@materialhub/plugins";
 import jwt from "jsonwebtoken";
+import type Stripe from "stripe";
 import type { Repository } from "typeorm";
 import type { OrderStatusService } from "../order/order-status.service.ts";
 import type { OrderConfirmationService } from "./order-confirmation.service.ts";
@@ -23,6 +25,31 @@ export interface TamaraWebhookConfig {
   apiBaseUrl: string;
   notificationToken?: string;
   fetch?: FetchLike;
+  /**
+   * When true, a missing notificationToken REJECTS every Tamara webhook
+   * (fail closed). Production sets this; dev/test stay permissive so a local
+   * sandbox without a token can still exercise the flow.
+   */
+  requireNotificationToken?: boolean;
+}
+
+export interface StripeWebhookConfig {
+  /** Stripe's webhook helper (`stripe.webhooks` or the static `Stripe.webhooks`). */
+  webhooks: Pick<Stripe["webhooks"], "constructEventAsync">;
+  /** Endpoint signing secret (`whsec_...`) from the Stripe dashboard. */
+  secret: string;
+}
+
+export class StripeWebhookNotConfiguredError extends HttpError {
+  constructor() {
+    super(503, "Stripe webhook signing secret is not configured", "STRIPE_WEBHOOK_NOT_CONFIGURED");
+  }
+}
+
+export class InvalidStripeSignatureError extends HttpError {
+  constructor(message = "Invalid Stripe webhook signature") {
+    super(400, message, "INVALID_SIGNATURE");
+  }
 }
 
 export class WebhookService {
@@ -32,7 +59,47 @@ export class WebhookService {
     private orderConfirmationService: OrderConfirmationService,
     private orderStatusService?: OrderStatusService,
     private tamaraConfig?: TamaraWebhookConfig,
+    private stripeWebhookConfig?: StripeWebhookConfig,
   ) {}
+
+  /**
+   * Entry point for POST /webhooks/stripe. Verifies the `stripe-signature`
+   * header against the RAW request body before anything is read from it or
+   * written to webhook_events, then hands the VERIFIED event's id/type/object
+   * to handleStripeWebhook (which owns idempotency). Fails closed: no secret
+   * configured → 503; missing/invalid signature → 400.
+   */
+  async handleStripeWebhookRequest(
+    rawBody: string,
+    signature: string | null | undefined,
+  ): Promise<{ skipped: boolean }> {
+    const secret = this.stripeWebhookConfig?.secret;
+    if (!secret || !this.stripeWebhookConfig?.webhooks) {
+      console.error(
+        "[webhook] STRIPE_WEBHOOK_SECRET is not set — rejecting POST /webhooks/stripe (fail closed)",
+      );
+      throw new StripeWebhookNotConfiguredError();
+    }
+    if (!signature) {
+      throw new InvalidStripeSignatureError("Missing stripe-signature header");
+    }
+
+    let event: Stripe.Event;
+    try {
+      // constructEventAsync, not constructEvent: under Bun the stripe package
+      // resolves to its worker build (SubtleCrypto), whose sync variant always
+      // throws — every genuine event would be rejected as a bad signature.
+      event = await this.stripeWebhookConfig.webhooks.constructEventAsync(
+        rawBody,
+        signature,
+        secret,
+      );
+    } catch {
+      throw new InvalidStripeSignatureError();
+    }
+
+    return this.handleStripeWebhook(event.id, event.type, (event.data as any)?.object);
+  }
 
   async handleStripeWebhook(
     eventId: string,
@@ -84,6 +151,19 @@ export class WebhookService {
   ): Promise<{ skipped: boolean }> {
     this.verifyTamaraNotificationToken(tamaraToken, authorizationHeader);
 
+    // Validate before any DB write — webhook_events.event_type is NOT NULL, and
+    // the idempotency key is built from these two fields.
+    if (
+      !payload ||
+      typeof payload !== "object" ||
+      typeof payload.event_type !== "string" ||
+      payload.event_type.length === 0 ||
+      typeof payload.order_id !== "string" ||
+      payload.order_id.length === 0
+    ) {
+      throw new BadRequestError("Tamara webhook requires string event_type and order_id");
+    }
+
     const eventId = `${payload.event_type}:${payload.order_id}`;
     const existing = await this.webhookRepo.findOne({
       where: { gateway: "tamara", event_id: eventId } as any,
@@ -127,6 +207,27 @@ export class WebhookService {
   private async processPaymentSuccess(payload: any): Promise<void> {
     const orderId = payload.metadata?.order_id;
     if (!orderId) return;
+
+    // Only a PaymentIntent we created for this order, for at least the amount
+    // we asked, confirms it. (The event is signature-verified, but amounts and
+    // the order link are checked against our own payment row, not trusted.)
+    const payment = await this.paymentRepo.findOne({
+      where: { gateway_payment_id: payload.id } as any,
+    });
+    const received = Number(payload.amount_received ?? payload.amount ?? 0);
+    if (
+      !payment ||
+      (payment as any).order_id !== orderId ||
+      received < Number((payment as any).amount ?? Number.POSITIVE_INFINITY)
+    ) {
+      console.error("[webhook] stripe payment does not match its order; not confirming", {
+        orderId,
+        paymentIntent: payload.id,
+        received,
+        expected: (payment as any)?.amount ?? null,
+      });
+      return;
+    }
 
     // Update Stripe-specific payment row (lookup by gateway_payment_id is
     // provider-specific, so this stays here rather than in
@@ -172,13 +273,25 @@ export class WebhookService {
     authorizationHeader: string | null | undefined,
   ) {
     const token = queryToken || authorizationHeader?.replace(/^Bearer\s+/i, "").trim() || undefined;
-    if (!this.tamaraConfig?.notificationToken) return;
+    if (!this.tamaraConfig?.notificationToken) {
+      if (this.tamaraConfig?.requireNotificationToken) {
+        console.error(
+          "[webhook] TAMARA_NOTIFICATION_TOKEN is not set — rejecting POST /webhooks/tamara (fail closed)",
+        );
+        throw new HttpError(
+          503,
+          "Tamara notification token is not configured",
+          "TAMARA_WEBHOOK_NOT_CONFIGURED",
+        );
+      }
+      return;
+    }
     try {
       jwt.verify(token ?? "", this.tamaraConfig.notificationToken, {
         algorithms: ["HS256"],
       });
     } catch {
-      throw new Error("Invalid Tamara notification token");
+      throw new UnauthorizedError("Invalid Tamara notification token");
     }
   }
 

@@ -2,13 +2,14 @@ import "reflect-metadata";
 import { IsNull } from "typeorm";
 import { AppDataSource } from "../data-source.ts";
 import { Category } from "../entities/category.entity.ts";
-import { PaymentMethodThreshold } from "../entities/payment-method-threshold.entity.ts";
 import { SiteSetting } from "../entities/site-setting.entity.ts";
 import { TaxRate } from "../entities/tax-rate.entity.ts";
 import { User } from "../entities/user.entity.ts";
 import { Warehouse } from "../entities/warehouse.entity.ts";
 import { UserRole, UserStatus } from "../enums/user.enums.ts";
+import { CATEGORY_TREE, seedCategoryTranslations } from "./category-tree.ts";
 import { seedEcoCatalogue } from "./eco-catalogue.seed.ts";
+import { seedReferenceData } from "./reference-data.seed.ts";
 
 async function seed() {
   const ds = await AppDataSource.initialize();
@@ -59,93 +60,7 @@ async function seed() {
   const catRepo = ds.getRepository(Category);
   const catCount = await catRepo.count();
   if (catCount === 0) {
-    type SeedCat = {
-      name: string;
-      slug: string;
-      featured?: boolean;
-      children: Array<[string, string]>;
-    };
-    const tree: SeedCat[] = [
-      {
-        name: "Papers & Boards",
-        slug: "papers-boards",
-        featured: true,
-        children: [
-          ["Art Papers", "art-papers"],
-          ["Kraft Papers", "kraft-papers"],
-          ["Speciality & Textured Papers", "speciality-papers"],
-          ["Greyboard & Chipboard", "greyboard-chipboard"],
-          ["Corrugated Boards", "corrugated-boards"],
-          ["Paper Sample Books", "paper-sample-books"],
-        ],
-      },
-      {
-        name: "Leather & Fabrics",
-        slug: "leather-fabrics",
-        featured: true,
-        children: [
-          ["PU Leather", "pu-leather"],
-          ["Bonded Leather", "bonded-leather"],
-          ["Linen & Book Cloth", "linen-book-cloth"],
-          ["Velvet & Suede", "velvet-suede"],
-        ],
-      },
-      {
-        name: "Hardware & Fittings",
-        slug: "hardware-fittings",
-        featured: true,
-        children: [
-          ["Hinges", "hinges"],
-          ["Magnets & Closures", "magnets-closures"],
-          ["Handles & Corners", "handles-corners"],
-          ["Rivets, Eyelets & Studs", "rivets-eyelets-studs"],
-        ],
-      },
-      {
-        name: "Adhesives & Finishing",
-        slug: "adhesives-finishing",
-        featured: true,
-        children: [
-          ["Glues & Adhesives", "glues-adhesives"],
-          ["Double-sided Tapes", "double-sided-tapes"],
-          ["Foils & Laminates", "foils-laminates"],
-          ["Inks & Coatings", "inks-coatings"],
-        ],
-      },
-      {
-        name: "Boxes & Packaging",
-        slug: "boxes-packaging",
-        featured: true,
-        children: [
-          ["Rigid Boxes", "rigid-boxes"],
-          ["Folding Cartons", "folding-cartons"],
-          ["Mailer Boxes", "mailer-boxes"],
-          ["Paper Bags", "paper-bags"],
-          ["Inserts & Fillers", "inserts-fillers"],
-        ],
-      },
-      {
-        name: "Ribbons & Trims",
-        slug: "ribbons-trims",
-        children: [
-          ["Satin & Grosgrain Ribbons", "satin-grosgrain-ribbons"],
-          ["Cords & Elastics", "cords-elastics"],
-          ["Tags & Labels", "tags-labels"],
-        ],
-      },
-      {
-        name: "Decoration & Craft",
-        slug: "decoration-craft",
-        featured: true,
-        children: [
-          ["Paper Samples & Swatches", "paper-samples-swatches"],
-          ["Decorative Papers", "decorative-papers"],
-          ["Party & Event Decor", "party-event-decor"],
-          ["Craft Kits", "craft-kits"],
-          ["Stationery", "stationery"],
-        ],
-      },
-    ];
+    const tree = CATEGORY_TREE;
     let created = 0;
     for (const [i, top] of tree.entries()) {
       const parent = await catRepo.save(
@@ -160,7 +75,7 @@ async function seed() {
       );
       created += 1;
       await catRepo.save(
-        top.children.map(([name, slug], j) =>
+        top.children.map(({ name, slug }, j) =>
           catRepo.create({
             name,
             slug,
@@ -177,34 +92,14 @@ async function seed() {
   } else {
     console.log("  – Categories already seeded, skipping");
   }
+  // Arabic names: also back-fills databases seeded before they existed.
+  await seedCategoryTranslations(ds);
 
-  // ── BNPL payment thresholds (checkout quote rules) ──────────────
-  const thresholdRepo = ds.getRepository(PaymentMethodThreshold);
-  const thresholdCount = await thresholdRepo.count();
-  if (thresholdCount === 0) {
-    await thresholdRepo.save([
-      thresholdRepo.create({
-        provider: "tabby",
-        min_amount_fils: 10000,
-        max_amount_fils: 500000,
-        plans: [
-          { installments: 4, interval_days: 30 },
-          { installments: 3, interval_days: 30 },
-        ],
-        is_active: true,
-      }),
-      thresholdRepo.create({
-        provider: "tamara",
-        min_amount_fils: 5000,
-        max_amount_fils: 300000,
-        plans: [{ installments: 3, interval_days: 30 }],
-        is_active: true,
-      }),
-    ]);
-    console.log("  ✓ Created BNPL thresholds (Tabby, Tamara)");
-  } else {
-    console.log("  – BNPL thresholds already seeded, skipping");
-  }
+  // ── Reference data (shared with the RestoreReferenceData migration) ─
+  // Permission matrix, payment thresholds incl. COD, sales channels, section
+  // types + vendor storefront template, platform shipping, feature settings.
+  // After the users block: the storefront template is owned by the super_admin.
+  await seedReferenceData(ds);
 
   // ── Tax rates (UAE VAT) ─────────────────────────────────────────
   const taxRepo = ds.getRepository(TaxRate);

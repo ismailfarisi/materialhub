@@ -7,6 +7,7 @@ import { useLogin } from "@/lib/queries/auth";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import { useState } from "react";
+import { TwoFactorStep } from "./two-factor-step";
 
 interface LoginFormProps {
 	onAuthenticated: () => void;
@@ -25,16 +26,36 @@ export function LoginForm({ onAuthenticated, onSwitchToRegister }: LoginFormProp
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [error, setError] = useState("");
+	const [challengeToken, setChallengeToken] = useState<string | null>(null);
 
 	async function handleSubmit(e: React.FormEvent) {
 		e.preventDefault();
 		setError("");
 		try {
-			await login.mutateAsync({ email, password });
+			const result = await login.mutateAsync({ email, password });
+			if (result?.requires_2fa) {
+				// Password accepted; the account needs its second step.
+				setChallengeToken(result.challenge_token);
+				return;
+			}
 			onAuthenticated();
 		} catch (err) {
 			setError(apiErrorMessage(err, tCommon("error")));
 		}
+	}
+
+	if (challengeToken) {
+		return (
+			<TwoFactorStep
+				challengeToken={challengeToken}
+				onAuthenticated={onAuthenticated}
+				onRestart={(notice) => {
+					setChallengeToken(null);
+					setPassword("");
+					setError(notice ?? "");
+				}}
+			/>
+		);
 	}
 
 	return (
@@ -58,6 +79,14 @@ export function LoginForm({ onAuthenticated, onSwitchToRegister }: LoginFormProp
 			<Button type="submit" size="lg" disabled={login.isPending} className="w-full">
 				{login.isPending ? tCommon("loading") : t("loginTitle")}
 			</Button>
+			<p className="m-0 flex flex-wrap justify-center gap-x-4 gap-y-1 text-sm text-nl-russet">
+				<Link href={`/${locale}/auth/forgot-password`} className={switchClassName}>
+					{t("forgotPassword")}
+				</Link>
+				<Link href={`/${locale}/auth/magic-link`} className={switchClassName}>
+					{t("recovery.emailLink")}
+				</Link>
+			</p>
 			<p className="m-0 text-center text-sm text-nl-russet">
 				{t("noAccount")}{" "}
 				{onSwitchToRegister ? (

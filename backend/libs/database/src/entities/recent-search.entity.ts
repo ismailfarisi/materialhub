@@ -6,11 +6,15 @@ import {
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
+  Unique,
 } from "typeorm";
 import type { User } from "./user.entity.ts";
 
 @Entity("recent_searches")
 @Index(["user_id", "last_used_at"])
+// RecentSearchService.record upserts on (user_id, query); Postgres needs a
+// matching unique constraint for ON CONFLICT.
+@Unique("uq_recent_searches_user_query", ["user_id", "query"])
 export class RecentSearch {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

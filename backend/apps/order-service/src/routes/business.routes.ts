@@ -4,6 +4,7 @@ import { UnauthorizedError, auditPlugin } from "@materialhub/plugins";
 // VAT tax invoices (/invoices) and admin net-terms receivables.
 import { Elysia, t } from "elysia";
 import { container } from "../container.ts";
+import { taxInvoicePdfResponse } from "../domain/invoice/tax-invoice/tax-invoice.service.ts";
 
 /** jwtAuth guarantees a user on these routes; this narrows the type. */
 function uid(user: { id: string } | null | undefined): string {
@@ -93,7 +94,7 @@ export const taxInvoiceRoutes = new Elysia({ prefix: "/invoices" })
   .get(
     "/:id/pdf",
     async ({ user, params, taxInvoiceService }) =>
-      ok(await taxInvoiceService.pdfUrlFor(uid(user), params.id)),
+      taxInvoicePdfResponse(await taxInvoiceService.pdfFor(uid(user), params.id)),
     { params: idParam },
   )
   .get(
@@ -153,7 +154,7 @@ export const adminReceivableRoutes = new Elysia({ prefix: "/admin/receivables" }
     "/invoices/:id/pdf",
     async ({ user, params, audit, taxInvoiceService }) => {
       audit.skip = true;
-      return ok(await taxInvoiceService.pdfUrlFor(uid(user), params.id, true));
+      return taxInvoicePdfResponse(await taxInvoiceService.pdfFor(uid(user), params.id, true));
     },
     { params: idParam },
   );

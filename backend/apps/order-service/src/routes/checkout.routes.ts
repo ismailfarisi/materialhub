@@ -143,9 +143,13 @@ export const checkoutRoutes = new Elysia({ prefix: "/checkout" })
         address_id: t.Optional(t.String({ format: "uuid" })),
         payment_method: t.Optional(t.String()),
       }),
+      // transform runs BEFORE schema validation: bail on a missing/malformed
+      // body or address and let the `body` schema answer 400, instead of
+      // dereferencing undefined (`{}` used to 500 on addr.full_name).
       transform({ body }: any) {
-        const addr = body.shippingAddress;
-        if (addr.full_name && !addr.first_name) {
+        const addr = body?.shippingAddress;
+        if (!addr || typeof addr !== "object" || Array.isArray(addr)) return;
+        if (typeof addr.full_name === "string" && addr.full_name && !addr.first_name) {
           const parts = addr.full_name.trim().split(/\s+/);
           addr.first_name = parts[0] || "";
           addr.last_name = parts.slice(1).join(" ") || "";
@@ -277,7 +281,8 @@ export const checkoutRoutes = new Elysia({ prefix: "/checkout" })
     {
       body: t.Object({
         order_id: t.String({ format: "uuid" }),
-        amount: t.Integer(),
+        // Accepted for older clients and ignored: the order's total is used.
+        amount: t.Optional(t.Integer()),
       }),
     },
   )

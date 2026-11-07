@@ -2,6 +2,7 @@ import { IntegrationDeliveryStatus, IntegrationDirection } from "@materialhub/da
 import { jwtAuth, requireRole } from "@materialhub/guards";
 import { Elysia, t } from "elysia";
 import { container } from "../container.ts";
+import { isUuid } from "../domain/ids.ts";
 
 const ok = (data: unknown, status = 200) => ({
   statusCode: status,
@@ -18,6 +19,8 @@ export const replayRoutes = new Elysia({ prefix: "/admin/integrations" })
   .post(
     "/:id/replay-bulk",
     async ({ params, body, deliveryRepo, eventsQueue, set }: any) => {
+      // No deliveries can match a malformed id; skip the query (22P02 on uuid).
+      if (!isUuid(params.id)) return ok({ replayed: 0 });
       // Fetch ONE MORE than MAX_BULK to detect overflow without recounting.
       const qb = deliveryRepo
         .createQueryBuilder("d")

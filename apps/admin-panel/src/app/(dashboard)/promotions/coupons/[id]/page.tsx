@@ -14,6 +14,7 @@ import {
 } from "@materialhub/ui";
 import { ArrowLeft, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "@materialhub/ui";
+import { couponMoneyFromInput, couponMoneyToInput } from "@/lib/coupon-money";
 import { useAdminCoupon, useUpdateCoupon } from "@/lib/queries/promotions";
 import { EntityMultiCombobox } from "@/components/ui/entity-combobox";
 import {
@@ -47,7 +48,7 @@ export default function EditCouponPage() {
   const params = useParams();
   const id = params.id as string;
 
-  const { data: coupon, isLoading } = useAdminCoupon(id);
+  const { data: coupon, isLoading, isError } = useAdminCoupon(id);
   const { mutate: updateCoupon, isPending } = useUpdateCoupon();
   const [error, setError] = useState("");
   const [hydrated, setHydrated] = useState(false);
@@ -96,8 +97,9 @@ export default function EditCouponPage() {
     setIsActive(coupon.is_active ?? true);
     setIsPublic(coupon.is_public ?? true);
     setType(coupon.type ?? "percentage");
-    setDiscountValue(coupon.discount_value != null ? String(coupon.discount_value) : "");
-    setMaxDiscountAmount(coupon.max_discount_amount != null ? String(coupon.max_discount_amount) : "");
+    const money = couponMoneyToInput(coupon);
+    setDiscountValue(money.discountValue);
+    setMaxDiscountAmount(money.maxDiscountAed);
     setBuyQuantity(coupon.buy_quantity != null ? String(coupon.buy_quantity) : "");
     setGetQuantity(coupon.get_quantity != null ? String(coupon.get_quantity) : "");
     setGetDiscountPercentage(coupon.get_discount_percentage != null ? String(coupon.get_discount_percentage) : "100");
@@ -106,7 +108,7 @@ export default function EditCouponPage() {
     setCategoryIds(Array.isArray(coupon.category_ids) ? coupon.category_ids : []);
     setVendorIds(Array.isArray(coupon.vendor_ids) ? coupon.vendor_ids : []);
     setExcludedProductIds(Array.isArray(coupon.excluded_product_ids) ? coupon.excluded_product_ids : []);
-    setMinimumOrderAmount(coupon.minimum_order_amount != null ? String(coupon.minimum_order_amount) : "");
+    setMinimumOrderAmount(money.minimumOrderAed);
     setMinimumQuantity(coupon.minimum_quantity != null ? String(coupon.minimum_quantity) : "");
     setUsageLimit(coupon.usage_limit != null ? String(coupon.usage_limit) : "");
     setUsageLimitPerUser(coupon.usage_limit_per_user != null ? String(coupon.usage_limit_per_user) : "");
@@ -122,6 +124,13 @@ export default function EditCouponPage() {
     setError("");
     if (!code.trim()) { setError("Coupon code is required."); return; }
     if (!name.trim()) { setError("Coupon name is required."); return; }
+    const money = couponMoneyFromInput({
+      type,
+      discountValue,
+      maxDiscountAed: maxDiscountAmount,
+      minimumOrderAed: minimumOrderAmount,
+    });
+    if (!money.ok) { setError(money.error); return; }
 
     const payload: Record<string, any> = {
       id,
@@ -131,14 +140,14 @@ export default function EditCouponPage() {
       is_active: isActive,
       is_public: isPublic,
       type,
-      discount_value: discountValue ? Number(discountValue) : undefined,
-      max_discount_amount: type === "percentage" && maxDiscountAmount ? Number(maxDiscountAmount) : undefined,
+      discount_value: money.values.discount_value,
+      max_discount_amount: money.values.max_discount_amount,
       applicable_to: applicableTo,
       product_ids: applicableTo === "specific_products" ? productIds : undefined,
       category_ids: applicableTo === "specific_categories" ? categoryIds : undefined,
       vendor_ids: applicableTo === "specific_vendors" ? vendorIds : undefined,
       excluded_product_ids: excludedProductIds.length > 0 ? excludedProductIds : undefined,
-      minimum_order_amount: minimumOrderAmount ? Number(minimumOrderAmount) : undefined,
+      minimum_order_amount: money.values.minimum_order_amount,
       minimum_quantity: minimumQuantity ? Number(minimumQuantity) : undefined,
       usage_limit: usageLimit ? Number(usageLimit) : undefined,
       usage_limit_per_user: usageLimitPerUser ? Number(usageLimitPerUser) : undefined,
@@ -166,6 +175,20 @@ export default function EditCouponPage() {
         toast({ title: "Error", description: msg, variant: "destructive" });
       },
     });
+  }
+
+  if (!isLoading && (isError || !coupon)) {
+    return (
+      <div className="max-w-3xl space-y-4 py-12 text-center">
+        <h1 className="text-xl font-semibold text-cacao">Coupon not found</h1>
+        <p className="text-sm text-taupe">
+          This coupon doesn&apos;t exist or was deleted.
+        </p>
+        <Button variant="outline" asChild>
+          <Link href="/promotions/coupons">Back to coupons</Link>
+        </Button>
+      </div>
+    );
   }
 
   if (isLoading) {
@@ -285,25 +308,29 @@ export default function EditCouponPage() {
           {(type === "percentage" || type === "fixed_amount") && (
             <div>
               <label className="block text-sm font-medium text-cacao mb-1">
-                {type === "percentage" ? "Discount %" : "Amount (fils)"}
+                {type === "percentage" ? "Discount %" : "Discount amount (AED)"}
               </label>
               <Input
                 type="number"
                 value={discountValue}
                 onChange={(e) => setDiscountValue(e.target.value)}
-                placeholder={type === "percentage" ? "20" : "5000"}
+                placeholder={type === "percentage" ? "20" : "50.00"}
+                step={type === "percentage" ? 1 : 0.01}
+                min={0}
               />
             </div>
           )}
 
           {type === "percentage" && (
             <div>
-              <label className="block text-sm font-medium text-cacao mb-1">Max Discount (fils)</label>
+              <label className="block text-sm font-medium text-cacao mb-1">Max discount (AED)</label>
               <Input
                 type="number"
                 value={maxDiscountAmount}
                 onChange={(e) => setMaxDiscountAmount(e.target.value)}
-                placeholder="Optional cap"
+                placeholder="Optional cap, e.g. 100.00"
+                step={0.01}
+                min={0}
               />
             </div>
           )}
@@ -423,12 +450,14 @@ export default function EditCouponPage() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-cacao mb-1">Minimum Order Amount (fils)</label>
+              <label className="block text-sm font-medium text-cacao mb-1">Minimum order (AED)</label>
               <Input
                 type="number"
                 value={minimumOrderAmount}
                 onChange={(e) => setMinimumOrderAmount(e.target.value)}
-                placeholder="0"
+                placeholder="0.00"
+                step={0.01}
+                min={0}
               />
             </div>
             <div>

@@ -22,7 +22,8 @@ export function useVendorProduct(id: string) {
 	return useQuery({
 		queryKey: ["vendor", "products", id],
 		queryFn: async () => {
-			const { data } = await api.get(`/products/${id}`);
+			// Vendor-scoped read: own products only, includes translations.
+			const { data } = await api.get(`/products/mine/${id}`);
 			return data.data;
 		},
 		enabled: !!id,
@@ -107,6 +108,41 @@ export function useAdjustInventory() {
 			queryClient.invalidateQueries({ queryKey: ["vendor", "products"] });
 			queryClient.invalidateQueries({ queryKey: ["vendor", "products", product_id] });
 		},
+	});
+}
+
+function useProductStatusMutation(run: (id: string) => Promise<unknown>) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: run,
+		onSuccess: (_data, id) => {
+			queryClient.invalidateQueries({ queryKey: ["vendor", "products"] });
+			queryClient.invalidateQueries({ queryKey: ["vendor", "products", id] });
+		},
+	});
+}
+
+/** PATCH /products/:id/publish — approved -> published (products.publish). */
+export function usePublishProduct() {
+	return useProductStatusMutation(async (id) => {
+		const { data } = await api.patch(`/products/${id}/publish`);
+		return data.data;
+	});
+}
+
+/** PATCH /products/:id/unpublish — published -> approved (products.publish). */
+export function useUnpublishProduct() {
+	return useProductStatusMutation(async (id) => {
+		const { data } = await api.patch(`/products/${id}/unpublish`);
+		return data.data;
+	});
+}
+
+/** draft / rejected -> pending_review via the normal product update. */
+export function useSubmitProductForReview() {
+	return useProductStatusMutation(async (id) => {
+		const { data } = await api.patch(`/products/${id}`, { status: "pending_review" });
+		return data.data;
 	});
 }
 

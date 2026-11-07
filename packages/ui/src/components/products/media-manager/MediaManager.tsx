@@ -12,6 +12,22 @@ import type { ImageMediaItem, MediaItem, MediaManagerProps } from "./types";
 
 type PendingDelete = { id: string; kind: "image" | "video" }[];
 
+/**
+ * Readable text for a failed media action. API errors carry `message`; a
+ * failed storage PUT or network drop only gives noise, so it becomes one
+ * plain sentence.
+ */
+export function mediaErrorMessage(err: unknown, action = "upload"): string {
+  const apiMessage = (err as { response?: { data?: { message?: unknown } } })?.response?.data
+    ?.message;
+  if (typeof apiMessage === "string" && apiMessage.trim()) return apiMessage;
+  const raw = err instanceof Error ? err.message : "";
+  if (!raw || /s3|upload failed|network|failed to fetch|load failed|status code \d+/i.test(raw)) {
+    return `The ${action} did not go through. Check your connection and try again; if it keeps failing, uploads may be unavailable right now.`;
+  }
+  return raw;
+}
+
 export function MediaManager({
   items,
   variants,
@@ -26,6 +42,7 @@ export function MediaManager({
   const [cropFor, setCropFor] = useState<ImageMediaItem | null>(null);
   const [aiFor, setAiFor] = useState<ImageMediaItem | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const replaceTarget = useRef<string | null>(null);
 
@@ -146,12 +163,37 @@ export function MediaManager({
         }
       }}
     >
-      <MediaUploadDropzone
-        compact={items.length > 0}
-        isUploading={isUploading}
-        remaining={remaining}
-        onFiles={(files) => actions.upload(files)}
-      />
+      {capabilities.upload === false ? null : (
+        <MediaUploadDropzone
+          compact={items.length > 0}
+          isUploading={isUploading}
+          remaining={remaining}
+          onFiles={async (files) => {
+            setError(null);
+            try {
+              await actions.upload(files);
+            } catch (err) {
+              setError(mediaErrorMessage(err));
+            }
+          }}
+        />
+      )}
+
+      {error ? (
+        <div
+          role="alert"
+          className="flex items-start justify-between gap-3 border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
+          <span>{error}</span>
+          <button
+            type="button"
+            className="shrink-0 text-xs underline"
+            onClick={() => setError(null)}
+          >
+            Dismiss
+          </button>
+        </div>
+      ) : null}
 
       {items.length > 0 && (
         <MediaGrid
@@ -212,9 +254,11 @@ export function MediaManager({
         onChange={(e) => {
           const f = e.target.files?.[0];
           if (f && replaceTarget.current) {
-            void actions.replace(replaceTarget.current, f);
+            const target = replaceTarget.current;
             replaceTarget.current = null;
             e.target.value = "";
+            setError(null);
+            actions.replace(target, f).catch((err) => setError(mediaErrorMessage(err, "replacement")));
           }
         }}
       />

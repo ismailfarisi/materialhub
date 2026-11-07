@@ -123,7 +123,7 @@ export default function CouponsPage() {
 					<Button variant="ghost" size="sm" asChild>
 						<Link href={`/coupons/${row.id}`}>
 							<Pencil size={14} className="mr-1" />
-							Pencil
+							Edit
 						</Link>
 					</Button>
 					<Button

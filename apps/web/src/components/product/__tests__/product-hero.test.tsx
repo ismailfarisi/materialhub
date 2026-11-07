@@ -40,6 +40,9 @@ vi.mock("@/hooks/use-scroll-past", () => ({
 	useScrollPast: () => ({ ref: { current: null }, isPast: false }),
 }));
 vi.mock("../seller-block", () => ({ SellerBlock: () => null }));
+vi.mock("@/hooks/use-sign-in-gate", () => ({
+	useSignInGate: () => ({ isAuthenticated: true, gate: (action: () => void) => action() }),
+}));
 vi.mock("../bnpl-strip", () => ({ BnplStrip: () => null }));
 vi.mock("@/lib/breadcrumb-jsonld", () => ({ buildBreadcrumbJsonLd: () => ({}) }));
 

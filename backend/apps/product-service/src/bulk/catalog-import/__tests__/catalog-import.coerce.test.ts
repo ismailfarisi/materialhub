@@ -12,14 +12,14 @@ describe("coerceProductRow", () => {
     const r = coerceProductRow(
       mk({
         sku: "T-1",
-        name: "Tee",
-        category_slug: "men",
+        name: "Linen Book Cloth",
+        category_slug: "kraft-papers",
         price: "9900",
         tags: "a|b|c",
         image_urls: "https://x/1.jpg|https://x/2.jpg",
         has_variants: "false",
         "attr.color": "red",
-        "attr.material": "cotton",
+        "attr.material": "linen",
       }),
     );
     expect(r.ok).toBe(true);
@@ -29,7 +29,7 @@ describe("coerceProductRow", () => {
       expect(r.value.imageUrls).toHaveLength(2);
       expect(r.value.attributes).toEqual([
         { slug: "color", value: "red" },
-        { slug: "material", value: "cotton" },
+        { slug: "material", value: "linen" },
       ]);
     }
   });
@@ -54,19 +54,19 @@ describe("coerceProductRow", () => {
     const r = coerceProductRow(
       mk({
         sku: "T-1",
-        name: "Serum",
-        category_slug: "skincare",
+        name: "Kraft Paper 120 gsm",
+        category_slug: "kraft-papers",
         price: "9900",
-        short_description: "Hydrating vitamin C serum",
-        ingredients: "Aqua, Sodium Ascorbyl Phosphate, Glycerin",
-        usage_instructions: "Apply 2-3 drops morning and night.",
+        short_description: "Unbleached 120 gsm kraft, A1 sheets",
+        ingredients: "100% virgin kraft pulp, FSC Mix",
+        usage_instructions: "Store flat and dry.",
       }),
     );
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.value.shortDescription).toBe("Hydrating vitamin C serum");
-      expect(r.value.ingredients).toBe("Aqua, Sodium Ascorbyl Phosphate, Glycerin");
-      expect(r.value.usageInstructions).toBe("Apply 2-3 drops morning and night.");
+      expect(r.value.shortDescription).toBe("Unbleached 120 gsm kraft, A1 sheets");
+      expect(r.value.ingredients).toBe("100% virgin kraft pulp, FSC Mix");
+      expect(r.value.usageInstructions).toBe("Store flat and dry.");
     }
   });
 
@@ -74,17 +74,17 @@ describe("coerceProductRow", () => {
     const r = coerceProductRow(
       mk({
         sku: "T-1",
-        name: "Serum",
-        category_slug: "skincare",
+        name: "Kraft Paper 120 gsm",
+        category_slug: "kraft-papers",
         price: "9900",
-        ingredients: "Aqua, Glycerin",
-        usage_instruction: "Apply after cleansing.",
+        ingredients: "Recycled fibre",
+        usage_instruction: "Fold along the grain.",
       }),
     );
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.value.ingredients).toBe("Aqua, Glycerin");
-      expect(r.value.usageInstructions).toBe("Apply after cleansing.");
+      expect(r.value.ingredients).toBe("Recycled fibre");
+      expect(r.value.usageInstructions).toBe("Fold along the grain.");
     }
   });
 

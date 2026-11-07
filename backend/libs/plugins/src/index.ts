@@ -20,6 +20,27 @@ export class BadRequestError extends HttpError {
   }
 }
 
+/**
+ * A list filter that must be one of an enum's values. An unknown value is a
+ * 400 naming the allowed values, not a Postgres enum cast error (500).
+ */
+export function assertEnumFilter<T extends string>(
+  value: string | undefined | null,
+  allowed: Record<string, T> | readonly T[],
+  name = "status",
+): T | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  const values = (Array.isArray(allowed) ? allowed : Object.values(allowed)) as readonly string[];
+  if (!values.includes(value)) {
+    throw new HttpError(
+      400,
+      `Invalid ${name} '${value}'. Use one of: ${values.join(", ")}`,
+      "INVALID_FILTER",
+    );
+  }
+  return value as T;
+}
+
 export class NotFoundError extends HttpError {
   constructor(message: string) {
     super(404, message, "NOT_FOUND");
@@ -67,7 +88,8 @@ export class ServiceUnavailableError extends HttpError {
 // initialized before any heavy submodule loads — avoids a "cannot access X before
 // initialization" TDZ race when many files import @materialhub/plugins concurrently.
 export { rateLimiter } from "./rate-limiter.ts";
-export { auditPlugin } from "./audit.ts";
+export { auditPlugin, redactSecrets } from "./audit.ts";
+export type { AuditContext } from "./audit.ts";
 
 /**
  * Request logging plugin — adds correlation ID and logs requests.
@@ -106,6 +128,19 @@ export const errorHandler = new Elysia({ name: "error-handler" }).onError(
         message: error.message,
         error: error.code,
         ...(error.details !== undefined ? { details: error.details } : {}),
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // File storage (S3) without credentials is a configuration gap, not a
+    // crash: say so instead of a raw "Internal server error" on every upload.
+    if ((error as { name?: string } | null)?.name === "CredentialsProviderError") {
+      console.error("[storage] AWS credentials are not configured:", (error as Error).message);
+      set.status = 503;
+      return {
+        statusCode: 503,
+        message: "File uploads are not available right now",
+        error: "STORAGE_NOT_CONFIGURED",
         timestamp: new Date().toISOString(),
       };
     }

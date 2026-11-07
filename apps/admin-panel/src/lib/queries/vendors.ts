@@ -58,6 +58,21 @@ export function useApproveVendor() {
 	});
 }
 
+/** suspended -> approved. Approve is for applications and would 422 here. */
+export function useReactivateVendor() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: async (id: string) => {
+			const { data } = await api.patch(`/admin/vendors/${id}/reactivate`);
+			return data.data;
+		},
+		onSuccess: (_data, id) => {
+			queryClient.invalidateQueries({ queryKey: ["admin", "vendors"] });
+			queryClient.invalidateQueries({ queryKey: ["admin", "vendors", id] });
+		},
+	});
+}
+
 export function useRejectVendor() {
 	const queryClient = useQueryClient();
 	return useMutation({

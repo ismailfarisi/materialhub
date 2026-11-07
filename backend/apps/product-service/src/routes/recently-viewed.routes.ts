@@ -27,13 +27,13 @@ export const recentlyViewedRoutes = new Elysia({ prefix: "/recently-viewed" })
       const data = await recentlyViewedController.list(
         user?.id ?? null,
         guestSessionId,
-        query.limit ? Number(query.limit) : undefined,
+        query.limit ? Math.max(1, Math.trunc(Number(query.limit)) || 1) : undefined,
       );
       return { statusCode: 200, data, timestamp: new Date().toISOString() };
     },
     {
       query: t.Object({
-        limit: t.Optional(t.Integer({ default: 20 })),
+        limit: t.Optional(t.Integer({ default: 20, minimum: 1 })),
       }),
     },
   );

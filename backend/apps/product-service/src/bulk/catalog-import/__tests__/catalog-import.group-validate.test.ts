@@ -9,7 +9,7 @@ function mkCtx(overrides: Partial<CatalogImportCtx> = {}): CatalogImportCtx {
     vendorId: "v-1",
     mode: BulkImportMode.Upsert,
     defaultWarehouseId: "w-1",
-    categoriesBySlug: new Map([["makeup", { id: "c-1", slug: "makeup" }]]),
+    categoriesBySlug: new Map([["kraft-papers", { id: "c-1", slug: "kraft-papers" }]]),
     brandsBySlug: new Map(),
     attributesBySlug: new Map([
       [
@@ -28,15 +28,15 @@ function mkCtx(overrides: Partial<CatalogImportCtx> = {}): CatalogImportCtx {
         },
       ],
       [
-        "gender",
+        "finish",
         {
-          id: "a-gender",
-          slug: "gender",
+          id: "a-finish",
+          slug: "finish",
           type: "select",
           isFilterable: true,
           isVariant: false,
           isGroupable: false,
-          valuesBySlug: new Map([["women", { id: "av-women", slug: "women", value: "Women" }]]),
+          valuesBySlug: new Map([["matte", { id: "av-matte", slug: "matte", value: "Matte" }]]),
         },
       ],
     ]),
@@ -61,7 +61,7 @@ function mkProd(over: Partial<CoercedProductRow>): CoercedProductRow {
     description: null,
     ingredients: null,
     usageInstructions: null,
-    categorySlug: "makeup",
+    categorySlug: "kraft-papers",
     brandSlug: null,
     status: null,
     price: 1000,
@@ -92,14 +92,14 @@ describe("crossValidate - product groups", () => {
   const redRow = mkProd({
     rowNumber: 1,
     externalId: "P-1",
-    groupName: "Velvet",
+    groupName: "Kraft Paper 120 gsm",
     groupAttribute: "color",
     attributes: [{ slug: "color", value: "red" }],
   });
   const pinkRow = mkProd({
     rowNumber: 2,
     externalId: "P-2",
-    groupName: "Velvet",
+    groupName: "Kraft Paper 120 gsm",
     groupAttribute: "color",
     attributes: [{ slug: "color", value: "pink" }],
   });
@@ -120,7 +120,7 @@ describe("crossValidate - product groups", () => {
     const { errors } = crossValidate(
       [
         mkProd({
-          groupName: "Velvet",
+          groupName: "Kraft Paper 120 gsm",
           groupAttribute: null,
           attributes: [{ slug: "color", value: "red" }],
         }),
@@ -136,8 +136,8 @@ describe("crossValidate - product groups", () => {
       [
         mkProd({
           groupName: "G",
-          groupAttribute: "gender",
-          attributes: [{ slug: "gender", value: "women" }],
+          groupAttribute: "finish",
+          attributes: [{ slug: "finish", value: "matte" }],
         }),
       ],
       [],
@@ -159,19 +159,19 @@ describe("crossValidate - product groups", () => {
     const r2 = mkProd({
       rowNumber: 2,
       externalId: "P-2",
-      groupName: "Velvet",
-      groupAttribute: "gender",
-      attributes: [{ slug: "gender", value: "women" }],
+      groupName: "Kraft Paper 120 gsm",
+      groupAttribute: "finish",
+      attributes: [{ slug: "finish", value: "matte" }],
     });
     const { errors } = crossValidate([redRow, r2], [], mkCtx());
     expect(errors.some((e) => e.errorCode === "inconsistent_group_attribute")).toBe(true);
   });
 
-  test("duplicate shade within a group errors", () => {
+  test("duplicate colour within a group errors", () => {
     const dup = mkProd({
       rowNumber: 2,
       externalId: "P-2",
-      groupName: "Velvet",
+      groupName: "Kraft Paper 120 gsm",
       groupAttribute: "color",
       attributes: [{ slug: "color", value: "red" }],
     });

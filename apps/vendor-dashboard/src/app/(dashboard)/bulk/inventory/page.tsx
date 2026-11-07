@@ -8,7 +8,7 @@ export default function BulkInventoryPage() {
 			<div>
 				<h1 className="text-2xl font-semibold">Bulk inventory update</h1>
 				<p className="text-sm text-gray-500">
-					UploadSimple a CSV or XLSX of SKU → new stock level. Strict validation: any
+					Upload a CSV or XLSX of SKU → new stock level. Strict validation: any
 					bad row rejects the whole file.
 				</p>
 			</div>

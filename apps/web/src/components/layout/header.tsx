@@ -27,6 +27,7 @@ interface HeaderProps {
 
 export function Header({ tabs }: HeaderProps) {
 	const t = useTranslations("common");
+	const tHeader = useTranslations("header");
 	const locale = useLocale();
 	const { isAuthenticated, user } = useAuthStore();
 	const { itemCount, toggleSlideOver } = useCartStore();
@@ -51,11 +52,13 @@ export function Header({ tabs }: HeaderProps) {
 					<div className="flex items-center gap-2 min-w-0">
 						<MapPin className="h-3.5 w-3.5 text-nl-amber shrink-0" strokeWidth={1.75} />
 						<span className="truncate">
-							<span className="hidden sm:inline">Delivering across the </span>
-							<span className="text-nl-pearl font-medium">UAE</span>
+							<span className="hidden sm:inline">{tHeader("deliveringAcross")} </span>
+							<span className="text-nl-pearl font-medium">{tHeader("uae")}</span>
 							<span className="hidden md:inline">
-								{" "}· free shipping over{" "}
-								<span className="text-nl-pearl font-medium">AED 150</span>
+								{" "}
+								{tHeader.rich("freeShipping", {
+									b: (chunks) => <span className="text-nl-pearl font-medium">{chunks}</span>,
+								})}
 							</span>
 						</span>
 					</div>
@@ -64,7 +67,7 @@ export function Header({ tabs }: HeaderProps) {
 							href={`/${locale}/contact`}
 							className="hidden lg:inline hover:text-nl-pearl transition-colors"
 						>
-							Bulk &amp; trade orders
+							{tHeader("bulkTrade")}
 						</Link>
 						<span className="hidden lg:block w-px h-3.5 bg-nl-pearl/20" />
 						<LocaleSwitcher />
@@ -111,7 +114,7 @@ export function Header({ tabs }: HeaderProps) {
 							type="button"
 							onClick={() => setMobileSearchOpen(!mobileSearchOpen)}
 							className="md:hidden h-10 w-10 inline-flex items-center justify-center rounded-md hover:bg-nl-cacao/[0.06] transition-colors"
-							aria-label="Search"
+							aria-label={t("searchLabel")}
 						>
 							<Search className="h-5 w-5" strokeWidth={1.75} />
 						</button>
@@ -122,13 +125,13 @@ export function Header({ tabs }: HeaderProps) {
 							className="hidden lg:inline-flex items-center gap-2 h-10 px-3.5 rounded-md hover:bg-nl-cacao/[0.06] transition-colors"
 						>
 							<Store className="h-[18px] w-[18px]" strokeWidth={1.75} />
-							Sell
+							{tHeader("sell")}
 						</Link>
 
 						{/* Wishlist */}
 						<Link
 							href={`/${locale}/account/wishlist`}
-							aria-label="Wishlist"
+							aria-label={t("wishlist")}
 							className="hidden sm:inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-nl-cacao/[0.06] transition-colors"
 						>
 							<Heart className="h-5 w-5" strokeWidth={1.75} />
@@ -179,7 +182,7 @@ export function Header({ tabs }: HeaderProps) {
 						<button
 							type="button"
 							onClick={openMobileNav}
-							aria-label="Menu"
+							aria-label={t("menu")}
 							className="lg:hidden h-10 w-10 inline-flex items-center justify-center rounded-md hover:bg-nl-cacao/[0.06] transition-colors"
 						>
 							<Menu className="h-5 w-5" strokeWidth={1.75} />

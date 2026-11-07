@@ -48,7 +48,7 @@ export const vendorIntegrationsRoutes = new Elysia({ prefix: "/vendor/integratio
               ...result.integration,
               inbound_secret_plaintext: result.inbound_secret_plaintext,
               outbound_secret_plaintext: result.outbound_secret_plaintext,
-              inbound_url: `/integrations/inbound/${result.integration.id}`,
+              inbound_url: `/integrations/inbound/${result.integration.id}/{event_type}`,
             },
             201,
           );

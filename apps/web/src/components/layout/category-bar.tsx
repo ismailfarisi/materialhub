@@ -29,6 +29,7 @@ export function CategoryBar({
 }) {
 	const locale = useLocale();
 	const t = useTranslations("home");
+	const tCommon = useTranslations("common");
 	const items: Category[] =
 		categories && categories.length > 0
 			? categories
@@ -39,7 +40,7 @@ export function CategoryBar({
 				}));
 
 	return (
-		<nav aria-label="Categories" className="border-b border-nl-cacao/10">
+		<nav aria-label={tCommon("categories")} className="border-b border-nl-cacao/10">
 			<ul className="mx-auto max-w-[1400px] flex gap-1 overflow-x-auto scrollbar-hide px-4 md:px-8 list-none m-0">
 				{items.map((cat) => {
 					const stock = stockFor(cat.slug || cat.name);

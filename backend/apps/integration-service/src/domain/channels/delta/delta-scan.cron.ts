@@ -109,6 +109,20 @@ export async function scheduleDeltaScanCron(queue: Queue): Promise<void> {
 }
 
 /**
+ * Stable push jobId per `(channelId, action, offerId)`. Joined with "_": BullMQ
+ * reserves ":" in custom ids (it only tolerates exactly two, for legacy
+ * repeatable jobs, and plans to reject any), so a ":" separator is one
+ * offer-id format change away from every push failing to enqueue.
+ */
+export function deltaPushJobId(
+  channelId: string,
+  action: "upsert" | "delete",
+  offerId: string,
+): string {
+  return `${channelId}_${action}_${offerId}`.replaceAll(":", "_");
+}
+
+/**
  * Pure handler — receives all deps as an argument so it can be unit-tested
  * without spinning up BullMQ or Redis. For each diff between newly-built feed
  * items and existing `channel_listings` rows, enqueues a push job onto the
@@ -157,14 +171,14 @@ export async function handleDeltaScan(
     await deps.deltaPushQueue.add(
       "push",
       { channelId: channel.id, offerId: item.offer_id, action: "upsert", item },
-      { jobId: `${channel.id}:upsert:${item.offer_id}`, removeOnComplete: 1000 },
+      { jobId: deltaPushJobId(channel.id, "upsert", item.offer_id), removeOnComplete: 1000 },
     );
   }
   for (const stale of diff.removed) {
     await deps.deltaPushQueue.add(
       "push",
       { channelId: channel.id, offerId: stale.offer_id, action: "delete", item: null },
-      { jobId: `${channel.id}:delete:${stale.offer_id}`, removeOnComplete: 1000 },
+      { jobId: deltaPushJobId(channel.id, "delete", stale.offer_id), removeOnComplete: 1000 },
     );
   }
 

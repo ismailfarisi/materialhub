@@ -1,3 +1,4 @@
+import { UserRole, UserStatus } from "@materialhub/database";
 import { jwtAuth, requireRole } from "@materialhub/guards";
 import { auditPlugin } from "@materialhub/plugins";
 import { Elysia, t } from "elysia";
@@ -38,8 +39,8 @@ export const adminUserRoutes = new Elysia({ prefix: "/admin/users" })
     {
       query: t.Object({
         search: t.Optional(t.String()),
-        role: t.Optional(t.String()),
-        status: t.Optional(t.String()),
+        role: t.Optional(t.Enum(UserRole)),
+        status: t.Optional(t.Enum(UserStatus)),
         page: t.Optional(t.Integer({ minimum: 1, default: 1 })),
         limit: t.Optional(t.Integer({ minimum: 1, maximum: 100, default: 20 })),
       }),
@@ -104,12 +105,9 @@ export const adminUserRoutes = new Elysia({ prefix: "/admin/users" })
     {
       params: t.Object({ id: t.String({ format: "uuid" }) }),
       body: t.Object({
-        role: t.Union([
-          t.Literal("customer"),
-          t.Literal("vendor"),
-          t.Literal("admin"),
-          t.Literal("super_admin"),
-        ]),
+        // The DB user_role enum is super_admin|admin|customer|guest; "vendor"
+        // (a store membership, not a user role) hit the enum and 500ed.
+        role: t.Union([t.Literal("customer"), t.Literal("admin"), t.Literal("super_admin")]),
       }),
     },
   )

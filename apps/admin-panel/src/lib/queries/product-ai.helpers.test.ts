@@ -20,9 +20,9 @@ describe("product AI query helpers", () => {
 
 	test("extracts product AI draft from nested response envelopes", () => {
 		const draft = {
-			product: { name: "Moon Serum" },
-			translations: [{ locale: "ar", name: "سيروم القمر" }],
-			attributes: [{ attribute_id: "attr-skin", value: "oily" }],
+			product: { name: "Kraft paper roll, 120 gsm" },
+			translations: [{ locale: "ar", name: "لفة ورق كرافت، 120 غم" }],
+			attributes: [{ attribute_id: "attr-finish", value: "matte" }],
 			warnings: [],
 		};
 

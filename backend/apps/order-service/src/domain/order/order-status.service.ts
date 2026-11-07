@@ -4,20 +4,48 @@ import type { VendorOrder } from "@materialhub/database";
 import type { OrderStatusHistory } from "@materialhub/database";
 import { CommissionStatus } from "@materialhub/database";
 import { OrderStatus } from "@materialhub/database/src/enums/order.enums.ts";
+import { HttpError } from "@materialhub/plugins";
 import type { Queue } from "bullmq";
 import { In, IsNull, Not, type Repository } from "typeorm";
 import type { DraftInvalidator } from "../commission/commission-reversal.service.ts";
 import type { CommissionService } from "../commission/commission.service.ts";
 import { IntegrationEventType, emitIfEnabled } from "../integration/emit.ts";
+import { shrinkCodOrderTotals } from "./item-cancellation-calc.ts";
 import { OrderAggregationService } from "./order-aggregation.service.ts";
 import type { OrderStatusChangedEvent } from "./order-event.job.ts";
 import { OrderStateMachine } from "./order-state-machine.ts";
 
 type Role = "buyer" | "vendor" | "admin" | "system";
 
-interface Actor {
-  userId: string;
+/**
+ * Who is acting on an order.
+ *
+ * `userId` is always a USER id (or null / "system" for jobs and webhooks): it
+ * is what lands in `order_status_history.changed_by`, an FK to `users`.
+ * A vendor acting on its own sub-order also carries `vendorId`, which is what
+ * vendor ownership is checked against. Passing the vendor id as `userId`
+ * violated the FK and 500'd every vendor-side order action.
+ */
+export interface Actor {
+  userId: string | null;
   role: Role;
+  vendorId?: string | null;
+}
+
+/**
+ * The vendor a vendor-role actor acts for. Legacy callers that put the vendor
+ * id into `userId` (no `vendorId`) are still honoured for the ownership
+ * check, but see `historyActorUserId`: that id is never written as a user.
+ */
+export function actorVendorId(actor: Actor): string | null {
+  if (actor.role !== "vendor") return null;
+  return actor.vendorId ?? actor.userId ?? null;
+}
+
+/** The user id to record in history for this actor (never a vendor id). */
+export function historyActorUserId(actor: Actor): string | null {
+  if (actor.role === "vendor" && !actor.vendorId) return null;
+  return historyActorId(actor.userId);
 }
 
 /**
@@ -104,11 +132,13 @@ export class OrderStatusService {
         where: { id: vendorOrderId } as any,
         relations: ["order"],
       });
-      if (!vendorOrder) throw new Error("Vendor order not found");
+      if (!vendorOrder) {
+        throw new HttpError(404, "Vendor order not found", "VENDOR_ORDER_NOT_FOUND");
+      }
 
       // Verify vendor ownership when role is vendor
-      if (actor.role === "vendor" && (vendorOrder as any).vendor_id !== actor.userId) {
-        throw new Error("Vendor order not found");
+      if (actor.role === "vendor" && (vendorOrder as any).vendor_id !== actorVendorId(actor)) {
+        throw new HttpError(404, "Vendor order not found", "VENDOR_ORDER_NOT_FOUND");
       }
 
       const fromStatus = vendorOrder.status;
@@ -137,6 +167,19 @@ export class OrderStatusService {
 
       vendorOrder.status = toStatus;
       await voRepo.save(vendorOrder);
+
+      // A vendor sub-order cancelled before delivery (vendor reject, admin,
+      // integration) gives back what it held: its stock reservations and its
+      // commissions. Until now only the master cancelOrder released anything,
+      // so a rejected sub-order kept its stock reserved and its commission
+      // held. Delivered -> cancelled is the admin reversal handled below.
+      const releasesHoldings =
+        toStatus === OrderStatus.cancelled &&
+        fromStatus !== OrderStatus.cancelled &&
+        fromStatus !== OrderStatus.delivered;
+      if (releasesHoldings) {
+        await this.releaseVendorOrderHoldings(tx, vendorOrder, reason);
+      }
 
       // Delivery starts the settlement clock. Both writes live in this
       // transaction so a crash can never leave a delivered order with no
@@ -268,7 +311,7 @@ export class OrderStatusService {
         vendor_order_id: vendorOrderId,
         from_status: fromStatus,
         to_status: toStatus,
-        changed_by: historyActorId(actor.userId),
+        changed_by: historyActorUserId(actor),
         changed_by_role: actor.role,
         is_customer_visible: this.isCustomerVisible(toStatus, actor.role),
         comment: reason || null,
@@ -288,6 +331,17 @@ export class OrderStatusService {
         where: { id: (vendorOrder as any).order_id } as any,
       });
       let parentOrderStatus: string | undefined;
+      // Cash on delivery: the courier no longer collects for a cancelled
+      // sub-order. When every sub-order is cancelled the COD payment is void.
+      if (releasesHoldings && order) {
+        await this.adjustCodForCancelledVendorOrder(
+          tx,
+          order,
+          vendorOrder,
+          newParentStatus === OrderStatus.cancelled,
+        );
+      }
+
       if (order && order.status !== newParentStatus) {
         const parentFrom = order.status;
         order.status = newParentStatus;
@@ -297,6 +351,9 @@ export class OrderStatusService {
         // payment webhook instead, so this only touches COD. Downstream refund
         // logic keys off this status to decide wallet-refund vs no-refund.
         if (newParentStatus === OrderStatus.delivered) {
+          // The return window and the storefront read the master's
+          // delivered_at; it was never stamped.
+          if (!(order as any).delivered_at) (order as any).delivered_at = new Date();
           const paymentRepo = tx.getRepository("Payment" as any) as Repository<any>;
           const codPayment = await paymentRepo.findOne({
             where: { order_id: (order as any).id, gateway: "cod" } as any,
@@ -330,10 +387,11 @@ export class OrderStatusService {
         type: "order.status.changed",
         orderId: (vendorOrder as any).order_id,
         vendorOrderId,
+        vendorId: (vendorOrder as any).vendor_id,
         fromStatus,
         toStatus,
         parentOrderStatus,
-        actorId: actor.userId,
+        actorId: actor.userId ?? "system",
         actorRole: actor.role,
         reason,
         metadata,
@@ -355,6 +413,22 @@ export class OrderStatusService {
     // by the vendor_integrations_outbound_enabled site setting. Skipped on
     // no-op transitions. Errors are swallowed so a failed enqueue never
     // blocks the order flow.
+    // Every sub-order cancelled: the master order ended cancelled through
+    // aggregation, so run the same post-commit hooks a master cancel runs
+    // (e.g. releasing net-terms credit held by the unpaid order).
+    if (txResult.transitioned && txResult.parentOrderStatus === OrderStatus.cancelled) {
+      for (const hook of this.cancellationHooks) {
+        try {
+          await hook(txResult.parentOrderId);
+        } catch (err) {
+          console.error("[order-status] cancellation hook failed", {
+            orderId: txResult.parentOrderId,
+            error: String(err),
+          });
+        }
+      }
+    }
+
     if (txResult.transitioned && this.integrationEventsQueue && this.siteSettingRepo) {
       try {
         await emitIfEnabled(this.integrationEventsQueue, this.siteSettingRepo, {
@@ -397,7 +471,7 @@ export class OrderStatusService {
       ) as Repository<OrderStatusHistory>;
 
       const order = await orderRepo.findOne({ where: { id: orderId } as any });
-      if (!order) throw new Error("Order not found");
+      if (!order) throw new HttpError(404, "Order not found", "ORDER_NOT_FOUND");
 
       const fromStatus = order.status;
       const smResult = this.stateMachine.validateMasterTransition(fromStatus, toStatus, actor.role);
@@ -410,7 +484,7 @@ export class OrderStatusService {
         order_id: orderId,
         from_status: fromStatus,
         to_status: toStatus,
-        changed_by: historyActorId(actor.userId),
+        changed_by: historyActorUserId(actor),
         changed_by_role: actor.role,
         is_customer_visible: this.isCustomerVisible(toStatus, actor.role),
         comment: reason || null,
@@ -423,7 +497,7 @@ export class OrderStatusService {
         orderId,
         fromStatus,
         toStatus,
-        actorId: actor.userId,
+        actorId: actor.userId ?? "system",
         actorRole: actor.role,
         reason,
         metadata,
@@ -452,13 +526,32 @@ export class OrderStatusService {
         "OrderStatusHistory" as any,
       ) as Repository<OrderStatusHistory>;
 
-      const order = await orderRepo.findOne({
+      // Lock the order row first: two concurrent cancels must not both pass
+      // the status check and release the same stock twice. (FOR UPDATE can't
+      // be combined with the outer join `relations` would add.)
+      const locked = await orderRepo
+        .createQueryBuilder("o")
+        .setLock("pessimistic_write")
+        .where("o.id = :orderId", { orderId })
+        .getOne();
+      // A buyer may only cancel their own order; anything else is the same
+      // 404 as an unknown id (no existence oracle).
+      if (!locked || (actor.role === "buyer" && (locked as any).user_id !== actor.userId)) {
+        throw new HttpError(404, "Order not found", "ORDER_NOT_FOUND");
+      }
+      const order = (await orderRepo.findOne({
         where: { id: orderId } as any,
         relations: ["vendorOrders"],
-      });
-      if (!order) throw new Error("Order not found");
+      })) as Order;
 
-      this.stateMachine.validateMasterTransition(order.status, OrderStatus.cancelled, actor.role);
+      const transition = this.stateMachine.validateMasterTransition(
+        order.status,
+        OrderStatus.cancelled,
+        actor.role,
+      );
+      // Already cancelled: nothing to do. Releasing again would decrement
+      // reserved stock a second time and write a cancelled→cancelled row.
+      if (transition.noop) return null;
 
       const fromStatus = order.status;
       order.status = OrderStatus.cancelled;
@@ -482,7 +575,7 @@ export class OrderStatusService {
           vendor_order_id: vo.id,
           from_status: voFrom,
           to_status: OrderStatus.cancelled,
-          changed_by: historyActorId(actor.userId),
+          changed_by: historyActorUserId(actor),
           changed_by_role: "system",
           is_customer_visible: true,
           comment: `Cancelled by buyer: ${reason}`,
@@ -591,25 +684,59 @@ export class OrderStatusService {
         }
       }
 
-      // Release reserved inventory for each order_item.
+      // Release the stock this order still holds. The reservation rows are the
+      // ledger: release what is `active`/`committed` and close those rows. Rows
+      // already `expired` were released by the reservation-expiry job (e.g. an
+      // abandoned checkout the reaper cancels later), so releasing per order
+      // item would free the same stock twice.
       if (this.inventoryRepo) {
-        const orderItemRepo = tx.getRepository("OrderItem" as any) as Repository<OrderItem>;
-        const orderItems = await orderItemRepo.find({
-          where: { order_id: orderId } as any,
-        });
-
         const inventoryRepo = tx.getRepository("Inventory" as any) as Repository<Inventory>;
-        for (const oi of orderItems) {
-          const where: any = {
-            product_id: (oi as any).product_id,
-            vendor_id: (oi as any).vendor_id,
-          };
-          if ((oi as any).variant_id) where.variant_id = (oi as any).variant_id;
-          const inv = await inventoryRepo.findOne({ where });
-          if (inv) {
-            const release = Math.min(inv.quantity_reserved, (oi as any).quantity);
-            inv.quantity_reserved = Math.max(0, inv.quantity_reserved - release);
-            await inventoryRepo.save(inv);
+        const held: Array<{ id: string; inventory_id: string; quantity: number }> = await tx.query(
+          `SELECT id, inventory_id, quantity FROM inventory_reservations
+            WHERE order_id = $1 AND status IN ('active', 'committed') FOR UPDATE`,
+          [orderId],
+        );
+        const [{ count: anyReservation }] = await tx.query(
+          "SELECT count(*)::int AS count FROM inventory_reservations WHERE order_id = $1",
+          [orderId],
+        );
+
+        if (held.length > 0) {
+          for (const r of held) {
+            const inv = await inventoryRepo
+              .createQueryBuilder("inv")
+              .setLock("pessimistic_write")
+              .where("inv.id = :id", { id: r.inventory_id })
+              .getOne();
+            if (inv) {
+              inv.quantity_reserved = Math.max(0, inv.quantity_reserved - Number(r.quantity));
+              await inventoryRepo.save(inv);
+            }
+          }
+          await tx.query(
+            `UPDATE inventory_reservations SET status = 'released', released_at = now()
+              WHERE id = ANY($1::uuid[])`,
+            [held.map((r) => r.id)],
+          );
+        } else if (anyReservation === 0) {
+          // Orders without reservation rows (created before reservations were
+          // recorded): fall back to releasing per order item.
+          const orderItemRepo = tx.getRepository("OrderItem" as any) as Repository<OrderItem>;
+          const orderItems = await orderItemRepo.find({ where: { order_id: orderId } as any });
+          for (const oi of orderItems) {
+            const where: any = {
+              product_id: (oi as any).product_id,
+              vendor_id: (oi as any).vendor_id,
+            };
+            // No variant means the product-level row; without IsNull() the lookup
+            // could match a variant row (e.g. the sample SKU).
+            where.variant_id = (oi as any).variant_id ?? IsNull();
+            const inv = await inventoryRepo.findOne({ where });
+            if (inv) {
+              const release = Math.min(inv.quantity_reserved, (oi as any).quantity);
+              inv.quantity_reserved = Math.max(0, inv.quantity_reserved - release);
+              await inventoryRepo.save(inv);
+            }
           }
         }
       }
@@ -618,7 +745,7 @@ export class OrderStatusService {
         order_id: orderId,
         from_status: fromStatus,
         to_status: OrderStatus.cancelled,
-        changed_by: historyActorId(actor.userId),
+        changed_by: historyActorUserId(actor),
         changed_by_role: actor.role,
         is_customer_visible: true,
         comment: reason,
@@ -631,7 +758,7 @@ export class OrderStatusService {
         orderId,
         fromStatus,
         toStatus: OrderStatus.cancelled,
-        actorId: actor.userId,
+        actorId: actor.userId ?? "system",
         actorRole: actor.role,
         reason,
         timestamp: new Date().toISOString(),
@@ -640,6 +767,29 @@ export class OrderStatusService {
 
       return order;
     });
+    // Repeat cancel: return the order as it is, and run no hooks.
+    if (!cancelled) {
+      return (await this.orderRepo.findOne({ where: { id: orderId } as any })) as Order;
+    }
+    // A cancelled cash-on-delivery order has nothing left to collect: void its
+    // pending COD payment. Post-commit and best-effort like the hooks below;
+    // a pending COD row on a cancelled order is inert either way.
+    try {
+      await this.orderRepo.manager.getRepository("Payment" as any).update(
+        { order_id: orderId, gateway: "cod", status: "pending" } as any,
+        {
+          status: "cancelled",
+        } as any,
+      );
+      // Nothing was collected, so the order itself isn't "payment pending"
+      // any more (the buyer saw "Payment Pending" on a cancelled order).
+      await this.orderRepo.update(
+        { id: orderId, payment_status: "pending" } as any,
+        { payment_status: "cancelled" } as any,
+      );
+    } catch (err) {
+      console.error("[order-status] voiding COD payment failed", { orderId, error: String(err) });
+    }
     // Post-commit hooks (workstream 3: release net-terms credit held by an
     // unpaid order). Best-effort; never undoes the committed cancellation.
     for (const hook of this.cancellationHooks) {
@@ -650,6 +800,170 @@ export class OrderStatusService {
       }
     }
     return cancelled;
+  }
+
+  /**
+   * Release what one cancelled vendor sub-order holds, inside the caller's
+   * transaction: its stock reservations (the reservation rows on this
+   * vendor's inventory — the ledger, as in cancelOrder) and its non-terminal
+   * commissions (voided; a draft claim on them is invalidated through the
+   * same sink cancelOrder uses).
+   */
+  private async releaseVendorOrderHoldings(
+    tx: any,
+    vendorOrder: VendorOrder,
+    reason?: string,
+  ): Promise<void> {
+    const vo = vendorOrder as any;
+    const orderId = vo.order_id as string;
+
+    if (this.inventoryRepo) {
+      const inventoryRepo = tx.getRepository("Inventory" as any) as Repository<Inventory>;
+      const held: Array<{ id: string; inventory_id: string; quantity: number }> = await tx.query(
+        `SELECT r.id, r.inventory_id, r.quantity
+           FROM inventory_reservations r
+           JOIN inventory i ON i.id = r.inventory_id
+          WHERE r.order_id = $1 AND i.vendor_id = $2 AND r.status IN ('active', 'committed')
+          FOR UPDATE OF r`,
+        [orderId, vo.vendor_id],
+      );
+      if (held.length > 0) {
+        for (const r of held) {
+          const inv = await inventoryRepo
+            .createQueryBuilder("inv")
+            .setLock("pessimistic_write")
+            .where("inv.id = :id", { id: r.inventory_id })
+            .getOne();
+          if (inv) {
+            inv.quantity_reserved = Math.max(0, inv.quantity_reserved - Number(r.quantity));
+            await inventoryRepo.save(inv);
+          }
+        }
+        await tx.query(
+          `UPDATE inventory_reservations SET status = 'released', released_at = now()
+            WHERE id = ANY($1::uuid[])`,
+          [held.map((r) => r.id)],
+        );
+      } else {
+        const [{ count: anyReservation }] = await tx.query(
+          "SELECT count(*)::int AS count FROM inventory_reservations WHERE order_id = $1",
+          [orderId],
+        );
+        if (anyReservation === 0) {
+          // Orders created before reservation rows were recorded: release
+          // per order item of this sub-order (minus what was already
+          // cancelled item by item, which released its own share).
+          const orderItemRepo = tx.getRepository("OrderItem" as any) as Repository<OrderItem>;
+          const items = await orderItemRepo.find({ where: { vendor_order_id: vo.id } as any });
+          for (const oi of items as any[]) {
+            const qty = Number(oi.quantity) - Number(oi.refunded_quantity ?? 0);
+            if (qty <= 0) continue;
+            const inv = await inventoryRepo.findOne({
+              where: {
+                product_id: oi.product_id,
+                vendor_id: oi.vendor_id,
+                variant_id: oi.variant_id ?? IsNull(),
+              } as any,
+            });
+            if (inv) {
+              inv.quantity_reserved = Math.max(0, inv.quantity_reserved - qty);
+              await inventoryRepo.save(inv);
+            }
+          }
+        }
+      }
+    }
+
+    const commissionRepo = tx.getRepository("Commission" as any) as Repository<any>;
+    await commissionRepo.update(
+      {
+        vendor_order_id: vo.id,
+        status: In([CommissionStatus.held, CommissionStatus.pending]),
+      } as any,
+      { status: CommissionStatus.cancelled, settle_after: null } as any,
+    );
+    if (this.draftInvalidator) {
+      const staleClaims = await commissionRepo.find({
+        where: {
+          vendor_order_id: vo.id,
+          status: CommissionStatus.cancelled,
+          payout_id: Not(IsNull()),
+        } as any,
+      });
+      const payoutIds = [...new Set(staleClaims.map((c: any) => c.payout_id as string))];
+      for (const payoutId of payoutIds) {
+        const result = await this.draftInvalidator.invalidateDraftForReversal(
+          tx,
+          payoutId,
+          `Superseded by vendor order cancellation (${vo.id})${reason ? `: ${reason}` : ""}`,
+        );
+        if (result.invalidated) continue;
+        for (const commission of staleClaims.filter((c: any) => c.payout_id === payoutId)) {
+          await this.draftInvalidator.recordUnreleasableClaim(tx, {
+            commissionId: (commission as any).id ?? null,
+            vendorId: (commission as any).vendor_id,
+            payoutId,
+            payoutStatus: result.payoutStatus,
+            clawbackAmount: Math.max(0, (commission as any).vendor_earning || 0),
+            sourceType: "order_cancellation",
+            sourceId: orderId,
+            reason: `Vendor order cancellation (${vo.id})${reason ? `: ${reason}` : ""}`.slice(
+              0,
+              255,
+            ),
+          });
+        }
+      }
+    }
+  }
+
+  /**
+   * COD side of a vendor sub-order cancel (vendor reject, admin/system cancel
+   * before delivery). Nothing was collected, so nothing is refunded — the
+   * order just got smaller:
+   *
+   * - some sub-orders remain: the pending COD payment AND the master order
+   *   totals (subtotal, VAT share, shipping, grand_total) lose the sub-order's
+   *   goods (`vendor_orders.subtotal`, already net of any earlier item
+   *   cancels) and its shipping (`vendor_orders.shipping_cost`). Same maths as
+   *   the admin item cancel (`shrinkCodOrderTotals`), so buyer, admin, receipt
+   *   and tax invoice all show what the courier collects.
+   * - every sub-order cancelled: the COD payment is cancelled outright and the
+   *   order's payment_status follows, as in cancelOrder; the totals stay as
+   *   the record of what was ordered.
+   *
+   * Either way the stored receipt is stale, so it is invalidated in the same
+   * transaction (regenerated lazily on the next download). Runs once per
+   * sub-order: a repeat cancel is a no-op transition and never gets here, and
+   * only a `pending` COD payment is touched.
+   */
+  private async adjustCodForCancelledVendorOrder(
+    tx: any,
+    order: Order,
+    vendorOrder: VendorOrder,
+    parentCancelled: boolean,
+  ): Promise<void> {
+    const o = order as any;
+    const paymentRepo = tx.getRepository("Payment" as any) as Repository<any>;
+    const cod = await paymentRepo.findOne({
+      where: { order_id: o.id, gateway: "cod", status: "pending" } as any,
+    });
+    if (!cod) return;
+    const vo = vendorOrder as any;
+    const goods = Math.max(0, Number(vo.subtotal ?? 0));
+    const shipping = Math.max(0, Number(vo.shipping_cost ?? 0));
+    if (parentCancelled) {
+      cod.status = "cancelled";
+      o.payment_status = "cancelled";
+    } else {
+      cod.amount = Math.max(0, Number(cod.amount ?? 0) - goods - shipping);
+      shrinkCodOrderTotals(o, { itemsGross: goods, shippingGross: shipping });
+    }
+    await paymentRepo.save(cod);
+    o.invoice_s3_key = null;
+    o.invoice_generated_at = null;
+    const orderRepo = tx.getRepository("Order" as any) as Repository<Order>;
+    await orderRepo.save(order);
   }
 
   private isCustomerVisible(toStatus: OrderStatus, _role: string): boolean {

@@ -56,8 +56,8 @@ export const inventoryRoutes = new Elysia({ prefix: "/inventory" })
     const data = await inventoryController.getMovements(
       member.vid,
       query.product_id,
-      query.page ? Number(query.page) : undefined,
-      query.limit ? Number(query.limit) : undefined,
+      query.page ? Math.max(1, Math.trunc(Number(query.page)) || 1) : undefined,
+      query.limit ? Math.max(1, Math.trunc(Number(query.limit)) || 1) : undefined,
     );
     return { statusCode: 200, data, timestamp: new Date().toISOString() };
   })

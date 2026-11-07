@@ -23,3 +23,14 @@ describe("normalizePhoneE164", () => {
     expect(normalizePhoneE164("043211234")).toBeNull();
   });
 });
+
+describe("normalizePhoneE164: UAE length", () => {
+  it("rejects a doubled UAE dial code", () => {
+    expect(normalizePhoneE164("+9719715012390")).toBeNull();
+  });
+  it("keeps valid UAE mobile and landline numbers", () => {
+    expect(normalizePhoneE164("+971501234567")).toBe("+971501234567");
+    expect(normalizePhoneE164("+97142345678")).toBe("+97142345678");
+    expect(normalizePhoneE164("0501234567")).toBe("+971501234567");
+  });
+});

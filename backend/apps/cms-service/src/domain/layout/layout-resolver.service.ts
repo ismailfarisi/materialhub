@@ -9,6 +9,7 @@ import {
   Vendor,
 } from "@materialhub/database";
 import { HttpError } from "@materialhub/plugins";
+import { serviceFetch } from "@materialhub/utils/src/service-fetch.ts";
 import { In, IsNull } from "typeorm";
 
 interface ResolvedSection {
@@ -25,6 +26,31 @@ interface ResolvedSection {
    */
   collection_slug?: string;
   data: { blocks?: unknown[]; items?: unknown[] };
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_MANUAL_PRODUCTS = 24;
+
+/** Product ids picked in a manual product_carousel, in order, de-duplicated. */
+export function manualProductIds(blocks: unknown): string[] {
+  if (!Array.isArray(blocks)) return [];
+  const ids: string[] = [];
+  for (const b of blocks) {
+    const id = (b as { data?: { product_id?: unknown } } | null)?.data?.product_id;
+    if (typeof id === "string" && UUID_RE.test(id) && !ids.includes(id)) ids.push(id);
+    if (ids.length >= MAX_MANUAL_PRODUCTS) break;
+  }
+  return ids;
+}
+
+/** Keep the editor's order; products that didn't come back (unpublished, deleted) drop out. */
+export function orderByIds<T>(items: T[], ids: string[]): T[] {
+  const byId = new Map<string, T>();
+  for (const item of items) {
+    const id = (item as { id?: unknown })?.id;
+    if (typeof id === "string") byId.set(id, item);
+  }
+  return ids.map((id) => byId.get(id)).filter((x): x is T => x !== undefined);
 }
 
 /** Reads the collection slug out of a section's data_source, if it has one. */
@@ -221,6 +247,11 @@ export class LayoutResolverService {
     switch (section.source_mode) {
       case SourceMode.manual:
         base.data = { blocks: section.blocks || [] };
+        // A hand-picked product rail stores product ids; the storefront renders
+        // product cards from `items`, so resolve the picks to live products.
+        if (section.section_type.name === "product_carousel") {
+          base.data.items = await this.resolveManualProducts(section.blocks, contextVendorId);
+        }
         break;
 
       case SourceMode.query:
@@ -275,19 +306,19 @@ export class LayoutResolverService {
       params.set(vendorScopeParam, contextVendorId);
     }
 
-    const productHost = config.serviceHost.product;
-    const vendorHost = config.serviceHost.vendor;
+    const productBase = config.serviceUrl.product;
+    const vendorBase = config.serviceUrl.vendor;
     const collectionSlug =
       typeof safeQuery.collection_slug === "string" ? safeQuery.collection_slug.trim() : "";
     const serviceMap: Record<string, string> = {
-      products: `http://${productHost}:${config.port.product}/products`,
-      categories: `http://${productHost}:${config.port.product}/categories/tree`,
-      vendors: `http://${vendorHost}:${config.port.vendor}/vendors`,
-      brands: `http://${productHost}:${config.port.product}/brands`,
-      brand_spotlight: `http://${productHost}:${config.port.product}/brands/spotlight`,
+      products: `${productBase}/products`,
+      categories: `${productBase}/categories/tree`,
+      vendors: `${vendorBase}/vendors`,
+      brands: `${productBase}/brands`,
+      brand_spotlight: `${productBase}/brands/spotlight`,
       ...(collectionSlug
         ? {
-            collection: `http://${productHost}:${config.port.product}/collections/${encodeURIComponent(collectionSlug)}`,
+            collection: `${productBase}/collections/${encodeURIComponent(collectionSlug)}`,
           }
         : {}),
     };
@@ -296,7 +327,7 @@ export class LayoutResolverService {
     if (!baseUrl) return [];
 
     try {
-      const res = await fetch(`${baseUrl}?${params.toString()}`);
+      const res = await serviceFetch(`${baseUrl}?${params.toString()}`);
       if (!res.ok) return [];
       const json = (await res.json()) as any;
       if (type === "collection") {
@@ -305,6 +336,26 @@ export class LayoutResolverService {
       }
       const items = json.data?.data ?? json.data ?? [];
       return Array.isArray(items) ? items : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private async resolveManualProducts(
+    blocks: unknown,
+    contextVendorId?: string,
+  ): Promise<unknown[]> {
+    const ids = manualProductIds(blocks);
+    if (ids.length === 0) return [];
+    const params = new URLSearchParams({ ids: ids.join(","), limit: String(ids.length) });
+    // On a vendor page, only that vendor's products may appear.
+    if (contextVendorId) params.set("vendorId", contextVendorId);
+    try {
+      const res = await serviceFetch(`${config.serviceUrl.product}/products?${params.toString()}`);
+      if (!res.ok) return [];
+      const json = (await res.json()) as any;
+      const items = json.data?.data ?? json.data ?? [];
+      return Array.isArray(items) ? orderByIds(items, ids) : [];
     } catch {
       return [];
     }
@@ -383,11 +434,10 @@ export class LayoutResolverService {
     );
     if (!productIds.length) return [];
 
-    const productHost = config.serviceHost.product;
-    const url = `http://${productHost}:${config.port.product}/products?ids=${productIds.join(",")}&limit=${productIds.length}`;
+    const url = `${config.serviceUrl.product}/products?ids=${productIds.join(",")}&limit=${productIds.length}`;
     let products: any[] = [];
     try {
-      const res = await fetch(url);
+      const res = await serviceFetch(url);
       if (!res.ok) return [];
       const json = (await res.json()) as any;
       products = json.data?.data ?? json.data ?? [];

@@ -20,6 +20,29 @@ export interface PaymentMethodThreshold {
 
 const LIST_KEY = ["admin", "payment-methods"] as const;
 
+const PROVIDER_LABELS: Record<string, string> = { cod: "COD", tabby: "Tabby", tamara: "Tamara" };
+
+/** "COD", "Tabby", "Tamara"; unknown providers are title-cased. */
+export function paymentProviderLabel(provider: string): string {
+  return PROVIDER_LABELS[provider] ?? provider.charAt(0).toUpperCase() + provider.slice(1);
+}
+
+export type PaymentMethodAmountField = "surcharge_fils" | "min_amount_fils" | "max_amount_fils";
+
+/** Client-side check matching the API: whole fils, 0 or more, min ≤ max. */
+export function validatePaymentMethodAmount(
+  row: Pick<PaymentMethodThreshold, "min_amount_fils" | "max_amount_fils">,
+  field: PaymentMethodAmountField,
+  fils: number,
+): string | null {
+  if (!Number.isSafeInteger(fils) || fils < 0) return "Enter an amount of 0 or more.";
+  if (field === "min_amount_fils" && fils > row.max_amount_fils)
+    return "The minimum can't be above the maximum.";
+  if (field === "max_amount_fils" && fils < row.min_amount_fils)
+    return "The maximum can't be below the minimum.";
+  return null;
+}
+
 export function usePaymentMethods() {
   return useQuery({
     queryKey: LIST_KEY,
@@ -54,6 +77,26 @@ export function useUpdateCodSurcharge() {
         surcharge_fils: args.surcharge_fils,
       });
       return data.data as Pick<PaymentMethodThreshold, "provider" | "surcharge_fils">;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: LIST_KEY });
+    },
+  });
+}
+
+/** Edit one amount (fils) on a payment method: COD surcharge, or min/max order totals. */
+export function useUpdatePaymentMethodAmount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: {
+      provider: PaymentMethodProvider;
+      field: PaymentMethodAmountField;
+      fils: number;
+    }) => {
+      const { data } = await api.patch(`/admin/payment-methods/${args.provider}`, {
+        [args.field]: args.fils,
+      });
+      return data.data as PaymentMethodThreshold;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: LIST_KEY });

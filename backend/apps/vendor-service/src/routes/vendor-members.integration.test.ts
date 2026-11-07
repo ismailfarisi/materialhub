@@ -351,7 +351,7 @@ describe("GET /vendors/:vendorId/members", () => {
     expect(stubCalls.list[0]).toEqual({ vendorId: "v-1" });
   });
 
-  test("manager forbidden — 403 for GET too (lacks team.write)", async () => {
+  test("manager can list — 200 (team.read is enough to see the team)", async () => {
     resetStub();
     const app = buildApp();
     const token = signMember({
@@ -359,6 +359,26 @@ describe("GET /vendors/:vendorId/members", () => {
       email: "mgr@x.com",
       vendorId: "v-1",
       role: "manager",
+    });
+
+    const res = await app.handle(
+      new Request("http://localhost/vendors/v-1/members", {
+        headers: { authorization: `Bearer ${token}` },
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(stubCalls.list).toHaveLength(1);
+  });
+
+  test("role without team.read — 403 for GET", async () => {
+    resetStub();
+    const app = buildApp();
+    const token = signMember({
+      userId: "u-stf",
+      email: "stf@x.com",
+      vendorId: "v-1",
+      role: "staff",
     });
 
     const res = await app.handle(

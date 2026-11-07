@@ -30,6 +30,7 @@ locals {
     "internal-service-secret",
     "stripe/secret-key",
     "stripe/connect-webhook",
+    "stripe/payment-webhook",
     "encryption/vendor-key",
     "encryption/key",
     "encryption/two-fa-key",

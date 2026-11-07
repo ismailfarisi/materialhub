@@ -67,12 +67,12 @@ interface AdminUserDetail {
   created_at: string;
 }
 
-// `vendor` intentionally omitted — DB UserRole enum is super_admin|admin|customer|guest.
+// The roles an admin may assign (PATCH /admin/users/:id/role). Vendors are
+// store memberships, not a user role; "guest" is for anonymous sessions only.
 const ROLE_OPTIONS = [
   { label: "Super Admin", value: "super_admin" },
   { label: "Admin", value: "admin" },
   { label: "Customer", value: "customer" },
-  { label: "Guest", value: "guest" },
 ];
 
 // PATCH /:id/status accepts only these three values.

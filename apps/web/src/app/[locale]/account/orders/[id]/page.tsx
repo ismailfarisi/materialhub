@@ -12,6 +12,8 @@ import {
 	StatusBadge,
 	ValueRow,
 } from "@/components/account/account-ui";
+import { OrderCancel } from "@/components/account/order-cancel";
+import { OrderDisputes } from "@/components/account/order-disputes";
 import { OrderLine, ReorderButton } from "@/components/account/order-parts";
 import { OrderTimeline } from "@/components/account/order-timeline";
 import { ReviewForm } from "@/components/account/review-form";
@@ -27,9 +29,19 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
+// A delivered shipment can be returned while some unit is neither refunded
+// nor cancelled; once every line is fully refunded there is nothing left.
+function canReturn(vo: VendorOrderRow): boolean {
+	if (vo.status !== "delivered") return false;
+	return (vo.items ?? []).some(
+		(i) => i.status !== "cancelled" && (i.quantity ?? 0) > (i.refunded_quantity ?? 0),
+	);
+}
+
 export default function OrderDetailPage() {
 	const t = useTranslations("account");
 	const tCommon = useTranslations("common");
+	const tCheckout = useTranslations("checkout");
 	const tOrderStatus = useTranslations("account.orderStatus");
 	const tPayStatus = useTranslations("account.paymentStatus");
 	const locale = useLocale();
@@ -130,7 +142,17 @@ export default function OrderDetailPage() {
 						<StatusBadge tone={orderTone(order.status)}>{statusLabel(tOrderStatus, order.status)}</StatusBadge>
 					</span>
 				}
-				action={<ReorderButton items={allItems} />}
+				action={
+					<div className="flex flex-wrap items-center gap-2">
+						<OrderCancel
+							orderId={order.id}
+							orderStatus={order.status}
+							vendorOrders={vendorOrders}
+							onCancelled={() => refetch()}
+						/>
+						<ReorderButton items={allItems} />
+					</div>
+				}
 			/>
 
 			<div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-6">
@@ -154,7 +176,11 @@ export default function OrderDetailPage() {
 								{vo.status && <OrderTimeline currentStatus={vo.status} />}
 								<ul className="m-0 list-none divide-y divide-nl-cacao/10 p-0">
 									{(vo.items || []).map((item) => {
-										const canReview = vo.status === "delivered" && !item.is_reviewed;
+										// A line cancelled in full was never received: nothing to review.
+										const fullyCancelled =
+											item.status === "cancelled" ||
+											((item.quantity ?? 0) > 0 && (item.cancelled_quantity ?? 0) >= (item.quantity ?? 0));
+										const canReview = vo.status === "delivered" && !item.is_reviewed && !fullyCancelled;
 										return (
 											<OrderLine
 												key={item.id}
@@ -176,8 +202,10 @@ export default function OrderDetailPage() {
 									})}
 								</ul>
 							</div>
-							{(vo.tracking_number || vo.status === "delivered") && (
-								<div className="flex flex-wrap items-center justify-between gap-3 border-t border-dashed border-nl-cacao/15 px-4 py-3 md:px-5">
+							{(vo.tracking_number || canReturn(vo)) && (
+								// pe-[4.5rem] below sm keeps "Request a return" clear of the
+								// floating support-chat launcher (fixed, end-4, 48px wide).
+								<div className="flex flex-wrap items-center justify-between gap-3 border-t border-dashed border-nl-cacao/15 px-4 py-3 pe-[4.5rem] sm:pe-4 md:px-5">
 									{vo.tracking_number ? (
 										<p className="m-0 flex min-w-0 items-center gap-2 text-[13px] text-nl-russet">
 											<Truck className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
@@ -192,7 +220,7 @@ export default function OrderDetailPage() {
 									) : (
 										<span />
 									)}
-									{vo.status === "delivered" && (
+									{canReturn(vo) && (
 										<Button asChild variant="outline" size="sm">
 											<Link href={`/${locale}/account/orders/${id}/return`}>{t("requestReturn")}</Link>
 										</Button>
@@ -218,7 +246,13 @@ export default function OrderDetailPage() {
 								label={t("shipping")}
 								value={order.shipping_total > 0 ? money(order.shipping_total) : tCommon("free")}
 							/>
-							<ValueRow label={t("tax")} value={money(order.tax_total)} />
+							{/* The payment-method fee (e.g. COD) is part of grand_total; without
+							    this row the summary didn't add up to the total. */}
+							{Number(order.surcharge_total ?? 0) > 0 && (
+								<ValueRow label={tCheckout("paymentFee")} value={money(order.surcharge_total)} />
+							)}
+							{/* Prices include VAT: show it as included, not as a line added on top. */}
+							<ValueRow label={tCheckout("vatIncluded")} value={money(order.tax_total)} />
 							{order.refund_total > 0 && <ValueRow label={t("refunded")} value={`−${money(order.refund_total)}`} />}
 							<ValueRow
 								strong
@@ -265,6 +299,8 @@ export default function OrderDetailPage() {
 							)}
 						</address>
 					</Panel>
+
+					<OrderDisputes orderId={order.id} orderStatus={order.status} vendorOrders={vendorOrders} />
 				</div>
 			</div>
 		</div>

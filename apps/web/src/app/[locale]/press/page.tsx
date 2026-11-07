@@ -3,66 +3,60 @@ import {
 	StaticSection,
 	contentsFrom,
 } from "@/components/layout/static-page-layout";
+import { staticRichTags } from "@/components/layout/static-rich-tags";
 import { MillLabel } from "@/components/swatch";
+import { buildAlternates } from "@/lib/seo/alternates";
 import type { Metadata } from "next";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 
-export const metadata: Metadata = {
-	title: "Press and media | MaterialHub",
-	description:
-		"Press contact, fact sheet and brand assets for journalists and partners writing about MaterialHub.",
-};
+interface Props {
+	params: Promise<{ locale: string }>;
+}
 
-const HEADINGS = ["The short version", "Fact sheet", "Press contact", "Brand assets"];
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+	const { locale } = await params;
+	const t = await getTranslations({ locale, namespace: "content.press" });
+	return {
+		title: t("meta.title"),
+		description: t("meta.description"),
+		alternates: buildAlternates(locale, "/press"),
+	};
+}
 
-const FACTS = [
-	{ label: "Company", value: "MaterialHub FZ-LLC" },
-	{ label: "Based in", value: "Dubai, UAE" },
-	{ label: "Market", value: "United Arab Emirates" },
-	{ label: "Model", value: "Multi-vendor marketplace, trade and retail" },
-	{ label: "Categories", value: "7" },
-	{ label: "Languages", value: "English, Arabic" },
-	{ label: "Payments", value: "Card, Tabby, Tamara, cash on delivery" },
-];
+const FACTS = ["company", "basedIn", "market", "model", "categories", "languages", "payments"] as const;
 
-export default function PressPage() {
-	const [short, facts, contact, assets] = HEADINGS;
+export default async function PressPage({ params }: Props) {
+	const { locale } = await params;
+	setRequestLocale(locale);
+	const t = await getTranslations({ locale, namespace: "content.press" });
+	const tags = staticRichTags(locale);
+	const headings = ["short", "facts", "contact", "assets"].map((k) => t(`headings.${k}`));
+	const [short, facts, contact, assets] = headings;
+
 	return (
 		<StaticPageLayout
-			contentLang="en"
-			eyebrow="Company"
-			title="Press and media"
-			intro="For interviews, fact checks, brand assets or partnership enquiries, email us and tell us your outlet and deadline."
-			contents={contentsFrom(HEADINGS)}
+			eyebrow={t("eyebrow")}
+			title={t("title")}
+			intro={t("intro")}
+			contents={contentsFrom(headings)}
 		>
 			<StaticSection heading={short}>
-				<p>
-					MaterialHub is a UAE marketplace for packaging, manufacturing,
-					finishing and craft materials. Suppliers list papers and boards, PU
-					and bonded leather, book cloth, hinges and magnets, adhesives, foils,
-					boxes and cartons, and ribbons and trims in one catalogue, by spec and
-					unit of measure. Trade buyers and craft shoppers compare suppliers and
-					order in one checkout.
-				</p>
+				<p>{t("short.p1")}</p>
 			</StaticSection>
 
 			<StaticSection heading={facts}>
-				<MillLabel specs={FACTS} className="max-w-[640px] [&_dd]:text-start md:[&_dd]:text-end" />
+				<MillLabel
+					specs={FACTS.map((k) => ({ label: t(`facts.${k}`), value: t(`facts.${k}Value`) }))}
+					className="max-w-[640px] [&_dd]:text-start md:[&_dd]:text-end"
+				/>
 			</StaticSection>
 
 			<StaticSection heading={contact}>
-				<p>
-					Press, interviews, industry commentary and partnerships:{" "}
-					<a href="mailto:info@materialhubuae.com">info@materialhubuae.com</a>
-				</p>
+				<p>{t.rich("contact.p1", tags)}</p>
 			</StaticSection>
 
 			<StaticSection heading={assets}>
-				<p>
-					The MaterialHub wordmark and approved imagery are available on
-					request. Email{" "}
-					<a href="mailto:info@materialhubuae.com">info@materialhubuae.com</a>{" "}
-					with your outlet and how you plan to use them.
-				</p>
+				<p>{t.rich("assets.p1", tags)}</p>
 			</StaticSection>
 		</StaticPageLayout>
 	);

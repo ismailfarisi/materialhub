@@ -46,24 +46,15 @@ jobs:
       - name: Test
         run: bash backend/scripts/test-ci.sh
 
-  # ----- Build all 9 services multi-arch, push to GHCR -----
+  # ----- Build the API image multi-arch, push to GHCR -----
+  # One image: the backend runs as one process (backend/apps/api: gateway +
+  # every module). It keeps the materialhub-api-gateway package name so the
+  # Netcup box's existing GHCR pull access (GHCR_TOKEN) keeps working.
   build:
-    name: Build ${{ matrix.service }}
+    name: Build api
     needs: backend-checks
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        service:
-          - api-gateway
-          - auth-service
-          - product-service
-          - order-service
-          - vendor-service
-          - notification-service
-          - cms-service
-          - integration-service
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -84,14 +75,14 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: backend/apps/${{ matrix.service }}/Dockerfile
+          file: backend/apps/api/Dockerfile
           platforms: linux/arm64,linux/amd64
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/materialhub-${{ matrix.service }}:${{ env.IMAGE_TAG }}
-            ghcr.io/${{ github.repository_owner }}/materialhub-${{ matrix.service }}:staging
-          cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+            ghcr.io/${{ github.repository_owner }}/materialhub-api-gateway:${{ env.IMAGE_TAG }}
+            ghcr.io/${{ github.repository_owner }}/materialhub-api-gateway:staging
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
 
   # ----- Deploy to Netcup VPS -----
   deploy:
@@ -139,24 +130,9 @@ jobs:
           REDIS_HOST=redis
           REDIS_PORT=6379
 
-          # Service ports
+          # API port. The backend is one process; its modules are called
+          # in-process, so no per-module host/port variables are needed.
           GATEWAY_PORT=3000
-          AUTH_PORT=3001
-          PRODUCT_PORT=3002
-          ORDER_PORT=3003
-          VENDOR_PORT=3004
-          NOTIFICATION_PORT=3005
-          CMS_PORT=3006
-          INTEGRATION_PORT=3008
-
-          # Service hostnames (docker-compose service names)
-          AUTH_HOST=auth-service
-          PRODUCT_HOST=product-service
-          ORDER_HOST=order-service
-          VENDOR_HOST=vendor-service
-          NOTIFICATION_HOST=notification-service
-          CMS_HOST=cms-service
-          INTEGRATION_HOST=integration-service
 
           # Auth + encryption
           JWT_ACCESS_SECRET=${{ secrets.STAGING_JWT_ACCESS_SECRET }}
@@ -175,6 +151,7 @@ jobs:
           # Stripe
           STRIPE_SECRET_KEY=${{ secrets.STAGING_STRIPE_SECRET_KEY }}
           STRIPE_CONNECT_WEBHOOK_SECRET=${{ secrets.STAGING_STRIPE_CONNECT_WEBHOOK_SECRET }}
+          STRIPE_WEBHOOK_SECRET=${{ secrets.STAGING_STRIPE_WEBHOOK_SECRET }}
 
           # Tamara
           TAMARA_API_TOKEN=${{ secrets.STAGING_TAMARA_API_TOKEN }}
@@ -281,7 +258,24 @@ jobs:
             docker compose -f docker-compose.netcup.yml --profile tools run --rm migrate
 
             echo "=== up -d ==="
+            # --remove-orphans also removes the former per-service containers
+            # (api-gateway, auth-service, ...) now that the file has only `api`.
             docker compose -f docker-compose.netcup.yml up -d --remove-orphans --force-recreate
+
+            echo "=== wait for api /health ==="
+            status=missing
+            for _ in $(seq 1 36); do
+              cid=$(docker compose -f docker-compose.netcup.yml ps -q api)
+              status=$(docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null || echo missing)
+              [ "$status" = "healthy" ] && break
+              sleep 5
+            done
+            if [ "$status" != "healthy" ]; then
+              echo "api not healthy after 180s (status: $status)" >&2
+              docker compose -f docker-compose.netcup.yml ps
+              docker compose -f docker-compose.netcup.yml logs --tail 100 api
+              exit 1
+            fi
 
             echo "=== prune dangling images ==="
             docker image prune -f

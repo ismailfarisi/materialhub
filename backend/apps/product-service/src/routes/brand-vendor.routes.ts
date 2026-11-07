@@ -1,4 +1,4 @@
-import { vendorMembership } from "@materialhub/guards";
+import { jwtAuth, vendorMembership } from "@materialhub/guards";
 import { Elysia, t } from "elysia";
 import { container } from "../container.ts";
 
@@ -20,6 +20,9 @@ import { container } from "../container.ts";
  */
 export const brandVendorRoutes = new Elysia({ prefix: "/vendor/brands" })
   .use(container)
+  // vendorMembership reads the `user` jwtAuth derives; without it every call
+  // was "Authentication required", even for the vendor owner.
+  .use(jwtAuth)
 
   .guard({}, (app) =>
     app.use(vendorMembership("products.read")).get(
@@ -28,7 +31,7 @@ export const brandVendorRoutes = new Elysia({ prefix: "/vendor/brands" })
       async ({ query, member, brandController }: any) => {
         const data = await brandController.listForVendor(member.vid, {
           q: query.q,
-          limit: query.limit ? Number(query.limit) : undefined,
+          limit: query.limit ? Math.max(1, Math.trunc(Number(query.limit)) || 1) : undefined,
         });
         return { statusCode: 200, data, timestamp: new Date().toISOString() };
       },

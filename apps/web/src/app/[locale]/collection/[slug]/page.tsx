@@ -17,6 +17,7 @@ import {
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
+import { type CollectionResponse, PER_PAGE, fetchCollection } from "./data";
 
 /**
  * Sort and page live in `searchParams`, so this route stays dynamically
@@ -26,61 +27,9 @@ import { notFound } from "next/navigation";
  */
 export const revalidate = 300;
 
-const PER_PAGE = 24;
-
-/**
- * Sorts the collection endpoint understands (ProductCollectionSort). The shared
- * SortToolbar also offers "relevance", which is a search-only concept — a
- * curated collection has a custom order instead. Anything unrecognised is
- * dropped so the collection falls back to its own default_sort rather than
- * pushing an unknown sortBy into Typesense.
- */
-const COLLECTION_SORTS = new Set([
-	"custom",
-	"price_asc",
-	"price_desc",
-	"newest",
-	"rating",
-]);
-
-function collectionSort(raw?: string): string | undefined {
-	return raw && COLLECTION_SORTS.has(raw) ? raw : undefined;
-}
-
 interface Props {
 	params: Promise<{ locale: string; slug: string }>;
 	searchParams: Promise<Record<string, string>>;
-}
-
-interface CollectionResponse {
-	// biome-ignore lint/suspicious/noExplicitAny: untyped API response shape
-	collection?: any;
-	// biome-ignore lint/suspicious/noExplicitAny: untyped API response shape
-	items?: any[];
-	total?: number;
-}
-
-function fetchCollection(
-	locale: string,
-	slug: string,
-	search: Record<string, string>,
-) {
-	const sort = collectionSort(search.sort);
-	const page = Number(search.page) || 1;
-
-	return publicGet<CollectionResponse>(
-		`/collections/${encodeURIComponent(slug)}`,
-		{
-			params: {
-				page,
-				perPage: PER_PAGE,
-				...(sort ? { sort } : {}),
-			},
-			revalidate: TTL.productListing,
-			tags: [`collection:${slug}`],
-			locale,
-		},
-	);
 }
 
 /**

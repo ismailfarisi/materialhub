@@ -7,6 +7,7 @@ import { ArrowRight, BadgeCheck, Check } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { useSignInGate } from "@/hooks/use-sign-in-gate";
 
 export type SellerBlockData = {
 	id: string;
@@ -48,7 +49,9 @@ interface SellerBlockProps {
 export function SellerBlock({ vendor, stock, stockLabel, storefrontHref }: SellerBlockProps) {
 	const t = useTranslations("pdp");
 	const locale = useLocale();
-	const followState = useFollowState(vendor.id);
+	const { isAuthenticated, gate } = useSignInGate();
+	// Guests follow nobody; asking the API would only 401 on every product page.
+	const followState = useFollowState(vendor.id, isAuthenticated);
 	const followMutation = useFollowVendor();
 	const unfollowMutation = useUnfollowVendor();
 	const following = followState.data ?? false;
@@ -110,7 +113,11 @@ export function SellerBlock({ vendor, stock, stockLabel, storefrontHref }: Selle
 					type="button"
 					variant={following ? "primary" : "outline"}
 					size="sm"
-					onClick={() => (following ? unfollowMutation.mutate(vendor.id) : followMutation.mutate(vendor.id))}
+					onClick={() =>
+						gate(() =>
+							following ? unfollowMutation.mutate(vendor.id) : followMutation.mutate(vendor.id),
+						)
+					}
 					disabled={isPending}
 					aria-pressed={following}
 					className={cn(isPending && "cursor-wait")}

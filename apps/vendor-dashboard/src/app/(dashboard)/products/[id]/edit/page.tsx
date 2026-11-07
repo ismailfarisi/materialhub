@@ -1,5 +1,6 @@
 "use client";
 
+import { ProductStatusControl } from "@/components/products/ProductStatusControl";
 import { VendorProductTabs } from "@/components/products/VendorProductTabs";
 import { useVendorProduct } from "@/lib/queries/products";
 import { Skeleton } from "@materialhub/ui";
@@ -103,15 +104,34 @@ export default function EditProductPage() {
       country_of_origin: product.country_of_origin ?? undefined,
       is_digital: product.is_digital ?? false,
       is_customizable: product.is_customizable ?? false,
+      // Arabic content (vendor-authored; GET /products/mine/:id returns it).
+      translation_ar: (() => {
+        const ar = Array.isArray(product.translations)
+          ? product.translations.find((t: any) => t.locale === "ar")
+          : null;
+        return {
+          name: ar?.name ?? "",
+          short_description: ar?.short_description ?? "",
+          description: ar?.description ?? "",
+        };
+      })(),
     };
   }, [product]);
 
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Pencil Product</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Edit product</h1>
         <p className="text-sm text-gray-500">Update your product details.</p>
       </div>
+
+      {product ? (
+        <ProductStatusControl
+          productId={id}
+          status={product.status}
+          rejectionReason={product.rejection_reason}
+        />
+      ) : null}
 
       {isLoading ? (
         <div className="space-y-4 max-w-3xl">
@@ -127,6 +147,7 @@ export default function EditProductPage() {
             product?.variants?.map((v: any) => ({
               id: v.id ?? "",
               name: v.name,
+              sku: v.sku ?? null,
             })) ?? []
           }
         />

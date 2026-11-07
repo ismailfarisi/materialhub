@@ -34,12 +34,14 @@ export const shipmentTrackingRoutes = new Elysia()
       .use(vendorMembership("orders.fulfill"))
       .post(
         "/:id/ship",
-        async ({ member, params, body, shipmentTrackingController }: any) => {
+        async ({ user, member, params, body, shipmentTrackingController, set }: any) => {
           const result = await shipmentTrackingController.createShipment(
             params.id,
             member.vid,
             body,
+            user?.id ?? null,
           );
+          set.status = 201;
           return { statusCode: 201, data: result, timestamp: new Date().toISOString() };
         },
         {
@@ -55,22 +57,27 @@ export const shipmentTrackingRoutes = new Elysia()
             weight_grams: t.Optional(t.Integer({ minimum: 0 })),
             shipping_cost: t.Optional(t.Integer({ minimum: 0 })),
             estimated_delivery_at: t.Optional(t.String()),
-            items: t.Array(
-              t.Object({
-                order_item_id: t.String({ format: "uuid" }),
-                quantity: t.Integer({ minimum: 1 }),
-              }),
-              { minItems: 1 },
+            // Optional: omitted ships every unshipped unit of the vendor
+            // order (the dashboard's Create Shipment form); pass lines for a
+            // split shipment.
+            items: t.Optional(
+              t.Array(
+                t.Object({
+                  order_item_id: t.String({ format: "uuid" }),
+                  quantity: t.Integer({ minimum: 1 }),
+                }),
+                { minItems: 1 },
+              ),
             ),
           }),
         },
       )
       .patch(
         "/:id/shipments/:shipmentId/status",
-        async ({ member, params, body, shipmentTrackingController }: any) => {
+        async ({ user, member, params, body, shipmentTrackingController }: any) => {
           const result = await shipmentTrackingController.transitionStatus(
             params.shipmentId,
-            { userId: member.vid, role: "vendor" },
+            { userId: user?.id ?? null, vendorId: member.vid, role: "vendor" },
             body,
           );
           return { statusCode: 200, data: result, timestamp: new Date().toISOString() };

@@ -26,7 +26,7 @@
  * exactly the class of bug the rest of this branch fixes: side effects commit
  * while the status transition rolls back. The `changed_by` uuid crash did
  * precisely that, and `markOrderPaid` has stranded `payment_status` before
- * (FKS-2026-815743). An order whose money was captured but whose `status` is
+ * (MH-2026-000123). An order whose money was captured but whose `status` is
  * stuck at `pending_payment` would then be invisible to the vendor — real
  * money in, nobody fulfilling it, and nothing surfacing it. Hiding an unpaid
  * order is a cosmetic error; hiding a PAID one is a fulfilment failure, so

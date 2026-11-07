@@ -1,9 +1,55 @@
 import { config } from "@materialhub/config";
+import { HttpError } from "@materialhub/plugins";
+import { serviceFetch } from "@materialhub/utils/src/service-fetch.ts";
+import type { VendorApplyData } from "../domain/types.ts";
 import type { VendorBankAccountService } from "../services/vendor-bank-account.service.ts";
 import type { VendorDocumentService } from "../services/vendor-document.service.ts";
 import type { VendorSettingsService } from "../services/vendor-settings.service.ts";
 import { withTrnStatus } from "../services/vendor.service.ts";
 import type { VendorService } from "../services/vendor.service.ts";
+
+/**
+ * Maps the snake_case POST /vendors/apply body onto the camelCase
+ * VendorApplyData the service reads. Documents arrive as `{ type, s3_key,
+ * file_name? }`; the service reads `s3Key` / `fileName`.
+ */
+export function toVendorApplyData(userId: string, body: any): VendorApplyData {
+  const addr = body.business_address ?? {};
+  const bank = body.bank_account;
+  return {
+    userId,
+    businessName: body.business_name,
+    businessNameAr: body.business_name_ar,
+    businessEmail: body.business_email,
+    businessPhone: body.business_phone,
+    businessAddress: {
+      street: addr.street ?? "",
+      city: addr.city ?? "",
+      state: addr.state ?? "",
+      country: addr.country ?? "AE",
+      postalCode: addr.postal_code ?? addr.postalCode ?? "",
+    },
+    taxRegistrationNumber: body.tax_registration_number || undefined,
+    documents: (body.documents ?? []).map((d: any) => {
+      const s3Key: string = d.s3_key ?? d.s3Key;
+      return {
+        type: d.type,
+        s3Key,
+        fileName: d.file_name ?? d.fileName ?? s3Key.split("/").pop() ?? "document",
+      };
+    }),
+    bankAccount: bank
+      ? {
+          bankName: bank.bank_name,
+          accountHolderName: bank.account_holder_name,
+          accountNumber: bank.account_number,
+          iban: bank.iban,
+          swiftCode: bank.swift_code,
+          currency: bank.currency,
+        }
+      : undefined,
+  };
+}
 
 export class VendorController {
   constructor(
@@ -14,27 +60,14 @@ export class VendorController {
   ) {}
 
   async apply(userId: string, body: any) {
-    const vendor = await this.vendorService.apply({
-      userId,
-      businessName: body.business_name,
-      businessNameAr: body.business_name_ar,
-      businessEmail: body.business_email,
-      businessPhone: body.business_phone,
-      businessAddress: body.business_address,
-      taxRegistrationNumber: body.tax_registration_number,
-      documents: body.documents,
-      bankAccount: body.bank_account,
-    });
+    const data = toVendorApplyData(userId, body);
+    const vendor = await this.vendorService.apply(data);
 
-    // Create initial bank account
-    await this.bankAccountService.create(vendor.id, {
-      bankName: body.bank_account.bank_name,
-      accountHolderName: body.bank_account.account_holder_name,
-      accountNumber: body.bank_account.account_number,
-      iban: body.bank_account.iban,
-      swiftCode: body.bank_account.swift_code,
-      currency: body.bank_account.currency,
-    });
+    // Bank details are optional at application time (they can be added later
+    // under Settings > Payouts); create the first account only when given.
+    if (data.bankAccount) {
+      await this.bankAccountService.create(vendor.id, data.bankAccount);
+    }
 
     return vendor;
   }
@@ -52,7 +85,21 @@ export class VendorController {
   }
 
   async approve(vendorId: string, adminId: string, message?: string) {
-    const _vendor = await this.vendorService.transition(vendorId, "under_review");
+    const vendor = await this.vendorService.findById(vendorId);
+    // pending -> under_review -> approved; an application already under review
+    // goes straight to approved. A suspended vendor is reactivated instead.
+    if (vendor.status !== "pending" && vendor.status !== "under_review") {
+      throw new HttpError(
+        422,
+        vendor.status === "suspended"
+          ? "Vendor is suspended; use reactivate"
+          : `Only a pending application can be approved (status is '${vendor.status}')`,
+        "INVALID_TRANSITION",
+      );
+    }
+    if (vendor.status === "pending") {
+      await this.vendorService.transition(vendorId, "under_review");
+    }
     const approved = await this.vendorService.transition(vendorId, "approved", adminId);
     // Phase 3b: owner identity is in vendor_members, not on the vendor row.
     const ownerUserId = await this.vendorService.findOwnerUserId(approved.id);
@@ -65,6 +112,15 @@ export class VendorController {
   async reject(vendorId: string, adminId: string, reason: string) {
     const vendor = await this.vendorService.findById(vendorId);
     // Auto-transition to under_review if still pending
+    if (vendor.status !== "pending" && vendor.status !== "under_review") {
+      throw new HttpError(
+        422,
+        vendor.status === "suspended"
+          ? "Vendor is suspended; use reactivate"
+          : `Only a pending application can be approved (status is '${vendor.status}')`,
+        "INVALID_TRANSITION",
+      );
+    }
     if (vendor.status === "pending") {
       await this.vendorService.transition(vendorId, "under_review");
     }
@@ -86,6 +142,19 @@ export class VendorController {
       });
     }
     return suspended;
+  }
+
+  /** suspended -> approved. Approval is for applications; this is for lifting a suspension. */
+  async reactivate(vendorId: string, adminId: string) {
+    const vendor = await this.vendorService.findById(vendorId);
+    if (vendor.status !== "suspended") {
+      throw new HttpError(
+        422,
+        `Only a suspended vendor can be reactivated (status is '${vendor.status}')`,
+        "VENDOR_NOT_SUSPENDED",
+      );
+    }
+    return this.vendorService.transition(vendorId, "approved", adminId);
   }
 
   async deactivate(userId: string) {
@@ -243,7 +312,7 @@ export class VendorController {
 
   // Fire-and-forget notification
   private notifyVendor(userId: string, type: string, data: Record<string, any>) {
-    fetch(`${config.internal.notificationServiceUrl}/notifications/send`, {
+    serviceFetch(`${config.internal.notificationServiceUrl}/notifications/send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

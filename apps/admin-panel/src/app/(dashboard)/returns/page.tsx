@@ -14,13 +14,16 @@ import {
   DialogTitle,
   DialogFooter,
   Input,
+  toast,
 } from "@materialhub/ui";
 import {
   useReturns,
   useApproveReturn,
   useRejectReturn,
+  useRetryReturnRefund,
   type ReturnRequest,
 } from "@/lib/queries/returns";
+import { apiErrorMessage } from "@/lib/business.helpers";
 
 const STATUS_OPTIONS = [
   { label: "Requested", value: "requested" },
@@ -54,7 +57,18 @@ function RejectDialog({ returnReq, onClose }: RejectDialogProps) {
 
   function handleSubmit() {
     if (!returnReq || !reason.trim()) return;
-    reject({ id: returnReq.id, reason: reason.trim() }, { onSuccess: onClose });
+    reject(
+      { id: returnReq.id, reason: reason.trim() },
+      {
+        onSuccess: onClose,
+        onError: (err) =>
+          toast({
+            variant: "destructive",
+            title: "Could not reject the return",
+            description: apiErrorMessage(err, "Try again."),
+          }),
+      },
+    );
   }
 
   return (
@@ -91,13 +105,35 @@ interface RefundDialogProps {
 
 function RefundDialog({ returnReq, onClose }: RefundDialogProps) {
   const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState("original_payment");
+  const [method, setMethod] = useState<"original_payment" | "wallet" | "manual">(
+    "original_payment",
+  );
   const { mutate: approve, isPending } = useApproveReturn();
 
   function handleSubmit() {
     if (!returnReq) return;
     const fils = amount ? Math.round(Number(amount) * 100) : undefined;
-    approve({ id: returnReq.id, refund_amount: fils, refund_method: method as any }, { onSuccess: onClose });
+    approve(
+      { id: returnReq.id, refund_amount: fils, refund_method: method },
+      {
+        onSuccess: (ret: { refund_method?: string } | undefined) => {
+          toast({
+            title: "Return approved",
+            description:
+              ret?.refund_method === "wallet" && method === "original_payment"
+                ? "Cash on delivery order: the refund will be credited to the buyer's wallet when the supplier receives the goods."
+                : "The refund is issued when the supplier marks the goods received.",
+          });
+          onClose();
+        },
+        onError: (err) =>
+          toast({
+            variant: "destructive",
+            title: "Could not approve the return",
+            description: apiErrorMessage(err, "Try again."),
+          }),
+      },
+    );
   }
 
   return (
@@ -105,19 +141,25 @@ function RefundDialog({ returnReq, onClose }: RefundDialogProps) {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            Process Refund — {returnReq?.return_number ?? returnReq?.id.slice(0, 8)}
+            Approve Return — {returnReq?.return_number ?? returnReq?.id.slice(0, 8)}
           </DialogTitle>
         </DialogHeader>
         <div className="py-2 space-y-3">
+          <p className="text-sm text-taupe">
+            The refund is issued when the supplier marks the goods received.
+          </p>
           <div>
             <label className="block text-sm font-medium text-cacao mb-1">Refund Method</label>
             <select
               value={method}
-              onChange={(e) => setMethod(e.target.value)}
+              onChange={(e) => setMethod(e.target.value as typeof method)}
               className="w-full h-9 rounded-md border border-sand bg-cream px-3 py-1 text-sm text-cacao shadow-xs focus:outline-none focus:ring-1 focus:ring-amber"
             >
-              <option value="original_payment">Original Payment Method</option>
-              <option value="store_credit">Store Credit</option>
+              <option value="original_payment">
+                Original payment method (cash on delivery: wallet)
+              </option>
+              <option value="wallet">Wallet credit</option>
+              <option value="manual">Manual (settled outside MaterialHub)</option>
             </select>
           </div>
           <div>
@@ -128,7 +170,7 @@ function RefundDialog({ returnReq, onClose }: RefundDialogProps) {
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 className="pl-12"
-                placeholder="0.00"
+                placeholder="Paid value of the returned lines"
                 type="number"
                 step="0.01"
                 min="0"
@@ -139,11 +181,38 @@ function RefundDialog({ returnReq, onClose }: RefundDialogProps) {
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={handleSubmit} disabled={isPending}>
-            {isPending ? "Processing..." : "Process Refund"}
+            {isPending ? "Approving..." : "Approve Return"}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function RetryRefundButton({ returnReq }: { returnReq: ReturnRequest }) {
+  const { mutate: retry, isPending } = useRetryReturnRefund();
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      disabled={isPending}
+      onClick={() =>
+        retry(
+          { id: returnReq.id },
+          {
+            onSuccess: () => toast({ title: "Refund issued" }),
+            onError: (err) =>
+              toast({
+                variant: "destructive",
+                title: "Refund failed",
+                description: apiErrorMessage(err, "Try again."),
+              }),
+          },
+        )
+      }
+    >
+      {isPending ? "Refunding..." : "Retry refund"}
+    </Button>
   );
 }
 
@@ -254,7 +323,7 @@ export default function ReturnsPage() {
                   className="text-green-600 border-green-300 hover:bg-green-50"
                   onClick={() => setRefundTarget(r)}
                 >
-                  Approve & Refund
+                  Approve
                 </Button>
                 <Button
                   size="sm"
@@ -266,6 +335,7 @@ export default function ReturnsPage() {
                 </Button>
               </>
             )}
+            {r.status === "received" && !r.refunded_at && <RetryRefundButton returnReq={r} />}
           </div>
         );
       },

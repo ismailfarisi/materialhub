@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { switchClassName } from "./login-form";
 import { PhoneAuthForm } from "./phone-auth-form";
+import { safeReturnTo } from "@/lib/safe-return-to";
 
 export function AuthModal() {
 	const { isOpen, mode, returnTo, close } = useAuthModalStore();
@@ -27,7 +28,7 @@ export function AuthModal() {
 
 	function handleAuthenticated() {
 		close();
-		router.push(returnTo || `/${locale}`);
+		router.push(safeReturnTo(returnTo, `/${locale}`));
 	}
 
 	const emailHref = `/${locale}/auth/${mode === "login" ? "login" : "register"}?method=email${

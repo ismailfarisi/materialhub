@@ -22,7 +22,11 @@ export function summariseEcoAttributes(rows: any[]): EcoAttributeSummary[] {
     if (!attr || !ECO_ATTRIBUTE_SLUGS.includes(attr.slug)) continue;
     const label = row.attributeValue?.display_value ?? row.attributeValue?.value ?? row.text_value;
     if (!label) continue;
-    const entry = bySlug.get(attr.slug) ?? { slug: attr.slug, name: attr.name, values: [] };
+    const entry: EcoAttributeSummary = bySlug.get(attr.slug) ?? {
+      slug: attr.slug,
+      name: attr.name,
+      values: [],
+    };
     entry.values.push(String(label));
     bySlug.set(attr.slug, entry);
   }

@@ -8,6 +8,7 @@ import type { VendorOrder } from "@materialhub/database";
 import type { OrderItem } from "@materialhub/database";
 import type { ShipmentStatusHistory } from "@materialhub/database";
 import { OrderStatus, ShipmentStatus } from "@materialhub/database/src/enums/order.enums.ts";
+import { HttpError } from "@materialhub/plugins";
 import type { Queue } from "bullmq";
 import type { Repository } from "typeorm";
 import { IntegrationEventType, emitIfEnabled } from "../integration/emit.ts";
@@ -18,7 +19,10 @@ import type { OrderStatusService } from "../order/order-status.service.ts";
 const BASE_CARRIER_COST_SETTING_KEY = "shipping.base_carrier_cost_fils";
 const BASE_CARRIER_COST_DEFAULT_FILS = 1300;
 
+// `confirmed` included: creating a shipment for an order the vendor has not
+// explicitly accepted yet accepts it (confirmed -> processing) on the way.
 const SHIPPABLE_STATUSES = new Set([
+  OrderStatus.confirmed,
   OrderStatus.processing,
   OrderStatus.ready_to_ship,
   OrderStatus.shipped,
@@ -37,10 +41,29 @@ const STATUS_ORDER: Record<string, number> = {
 
 type Role = "vendor" | "admin" | "system";
 
+/**
+ * `userId` is the acting USER (history `changed_by`, nullable for jobs and
+ * integrations). A vendor-role actor carries the vendor it acts for in
+ * `vendorId`; ownership is checked against that, never against `userId`.
+ */
 interface Actor {
-  userId: string;
+  userId: string | null;
   role: Role;
+  vendorId?: string | null;
 }
+
+/** Vendor a vendor-role actor acts for (legacy callers put it in userId). */
+function actorVendorId(actor: Actor): string | null {
+  return actor.vendorId ?? actor.userId ?? null;
+}
+
+/** User id safe to write into a `changed_by` uuid column. */
+function historyUserId(actor: Actor): string | null {
+  if (actor.role === "vendor" && !actor.vendorId) return null;
+  return actor.userId && UUID_RE.test(actor.userId) ? actor.userId : null;
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const VENDOR_ALLOWED_STATUSES = new Set([
   ShipmentStatus.picked_up,
@@ -84,7 +107,12 @@ interface CreateShipmentData {
   external_shipment_id?: string | null;
   warehouse_id?: string | null;
   auto_booked?: boolean;
-  items: { order_item_id: string; quantity: number }[];
+  /**
+   * Lines to put in this shipment. Omitted or empty means "everything of this
+   * vendor order not yet shipped" — the vendor dashboard's Create Shipment
+   * form ships the whole sub-order; split shipments pass explicit lines.
+   */
+  items?: { order_item_id: string; quantity: number }[];
 }
 
 interface WebhookEventData {
@@ -144,14 +172,22 @@ export class ShipmentTrackingService {
   ): Promise<string | null> {
     if (explicit) {
       if (!(await this.vendorCanUseWarehouse(explicit, vendorId))) {
-        throw new Error("Warehouse not available for this vendor");
+        throw new HttpError(
+          422,
+          "Warehouse not available for this vendor",
+          "WAREHOUSE_NOT_AVAILABLE",
+        );
       }
       return explicit;
     }
     const fromOrder = (vendorOrder as any).warehouse_id;
     if (fromOrder) {
       if (!(await this.vendorCanUseWarehouse(fromOrder, vendorId))) {
-        throw new Error("Warehouse not available for this vendor");
+        throw new HttpError(
+          422,
+          "Warehouse not available for this vendor",
+          "WAREHOUSE_NOT_AVAILABLE",
+        );
       }
       return fromOrder;
     }
@@ -188,6 +224,7 @@ export class ShipmentTrackingService {
     vendorOrderId: string,
     vendorId: string,
     data: CreateShipmentData,
+    actorUserId: string | null = null,
   ): Promise<Shipment> {
     // 1. Find vendor_order with items, verify ownership and shippable status
     const vendorOrder = await this.vendorOrderRepo.findOne({
@@ -196,11 +233,15 @@ export class ShipmentTrackingService {
     });
 
     if (!vendorOrder || (vendorOrder as any).vendor_id !== vendorId) {
-      throw new Error("Vendor order not found");
+      throw new HttpError(404, "Vendor order not found", "VENDOR_ORDER_NOT_FOUND");
     }
 
     if (!SHIPPABLE_STATUSES.has(vendorOrder.status)) {
-      throw new Error("Vendor order is not in a shippable status");
+      throw new HttpError(
+        409,
+        "Vendor order is not in a shippable status",
+        "VENDOR_ORDER_NOT_SHIPPABLE",
+      );
     }
 
     // 2. Query existing shipment items via QueryBuilder
@@ -222,11 +263,37 @@ export class ShipmentTrackingService {
       orderItemMap.set(item.id, item.quantity);
     }
 
-    for (const reqItem of data.items) {
+    // Default: every unshipped unit of every (non-cancelled) line.
+    const requestedItems =
+      data.items && data.items.length > 0
+        ? data.items
+        : ((vendorOrder as any).items as any[])
+            .filter((item) => item.status !== OrderStatus.cancelled)
+            .map((item) => ({
+              order_item_id: item.id as string,
+              quantity: Number(item.quantity) - (shippedByItem.get(item.id) || 0),
+            }))
+            .filter((item) => item.quantity > 0);
+    if (requestedItems.length === 0) {
+      throw new HttpError(409, "Nothing left to ship on this vendor order", "NOTHING_TO_SHIP");
+    }
+
+    for (const reqItem of requestedItems) {
+      if (!orderItemMap.has(reqItem.order_item_id)) {
+        throw new HttpError(
+          400,
+          "Order item does not belong to this vendor order",
+          "ORDER_ITEM_NOT_IN_VENDOR_ORDER",
+        );
+      }
       const alreadyShipped = shippedByItem.get(reqItem.order_item_id) || 0;
       const orderedQty = orderItemMap.get(reqItem.order_item_id) || 0;
       if (alreadyShipped + reqItem.quantity > orderedQty) {
-        throw new Error("Shipped quantity exceeds ordered quantity");
+        throw new HttpError(
+          400,
+          "Shipped quantity exceeds ordered quantity",
+          "SHIPPED_QUANTITY_EXCEEDS_ORDERED",
+        );
       }
     }
 
@@ -258,7 +325,7 @@ export class ShipmentTrackingService {
     const savedShipment = (await this.shipmentRepo.save(shipment)) as unknown as Shipment;
 
     // 5. Create ShipmentItem records
-    const shipmentItems = data.items.map((item) =>
+    const shipmentItems = requestedItems.map((item) =>
       this.shipmentItemRepo.create({
         shipment_id: (savedShipment as any).id,
         order_item_id: item.order_item_id,
@@ -268,11 +335,19 @@ export class ShipmentTrackingService {
     await this.shipmentItemRepo.save(shipmentItems as any);
 
     // 6. Sequential transitions based on current status
-    const actor = { userId: vendorId, role: "vendor" as const };
+    const actor = { userId: actorUserId, vendorId, role: "vendor" as const };
     const reason = "Shipment created";
 
     if (!isAutoBooked) {
-      if (vendorOrder.status === OrderStatus.processing) {
+      if (vendorOrder.status === OrderStatus.confirmed) {
+        for (const next of [
+          OrderStatus.processing,
+          OrderStatus.ready_to_ship,
+          OrderStatus.shipped,
+        ]) {
+          await this.orderStatusService.transitionVendorOrder(vendorOrderId, next, actor, reason);
+        }
+      } else if (vendorOrder.status === OrderStatus.processing) {
         await this.orderStatusService.transitionVendorOrder(
           vendorOrderId,
           OrderStatus.ready_to_ship,
@@ -346,19 +421,27 @@ export class ShipmentTrackingService {
     // Reject if delivered (terminal positive state)
     if (currentOrder === 4) {
       if (isExternalCarrierEvent) return;
-      throw new Error("Invalid status progression: shipment already delivered");
+      throw new HttpError(
+        409,
+        "Invalid status progression: shipment already delivered",
+        "INVALID_SHIPMENT_TRANSITION",
+      );
     }
 
     // For non-terminal branches (failed_delivery, returned), only allow from non-delivered
     if (newOrder === -1 && currentOrder === 4) {
       if (isExternalCarrierEvent) return;
-      throw new Error("Invalid status progression: shipment already delivered");
+      throw new HttpError(
+        409,
+        "Invalid status progression: shipment already delivered",
+        "INVALID_SHIPMENT_TRANSITION",
+      );
     }
 
     // Reject backward progression for forward statuses
     if (newOrder >= 0 && currentOrder >= 0 && newOrder <= currentOrder) {
       if (isExternalCarrierEvent) return;
-      throw new Error("Invalid status progression");
+      throw new HttpError(409, "Invalid status progression", "INVALID_SHIPMENT_TRANSITION");
     }
 
     // 3. Idempotent insert via raw query with ON CONFLICT
@@ -404,7 +487,7 @@ export class ShipmentTrackingService {
     await this.shipmentStatusHistoryRepo.save(historyEntry);
 
     // 5. Trigger vendor_order transitions (catch errors silently)
-    const systemActor = { userId: "system", role: "system" as const };
+    const systemActor = { userId: null, role: "system" as const };
 
     try {
       if (data.status === ShipmentStatus.picked_up || data.status === ShipmentStatus.in_transit) {
@@ -515,8 +598,11 @@ export class ShipmentTrackingService {
       relations: ["items"],
     });
 
-    if (!shipment || (actor.role === "vendor" && (shipment as any).vendor_id !== actor.userId)) {
-      throw new Error("Shipment not found");
+    if (
+      !shipment ||
+      (actor.role === "vendor" && (shipment as any).vendor_id !== actorVendorId(actor))
+    ) {
+      throw new HttpError(404, "Shipment not found", "SHIPMENT_NOT_FOUND");
     }
 
     const fromStatus = shipment.status;
@@ -526,17 +612,25 @@ export class ShipmentTrackingService {
     const newOrder = STATUS_ORDER[toStatus] ?? 0;
 
     if (currentOrder === 4) {
-      throw new Error("Invalid status progression: shipment already delivered");
+      throw new HttpError(
+        409,
+        "Invalid status progression: shipment already delivered",
+        "INVALID_SHIPMENT_TRANSITION",
+      );
     }
 
     if (newOrder >= 0 && currentOrder >= 0 && newOrder <= currentOrder) {
-      throw new Error("Invalid status progression");
+      throw new HttpError(409, "Invalid status progression", "INVALID_SHIPMENT_TRANSITION");
     }
 
     // Role-based permission check
     const allowed = actor.role === "admin" ? ADMIN_ALLOWED_STATUSES : VENDOR_ALLOWED_STATUSES;
     if (!allowed.has(toStatus)) {
-      throw new Error(`Role ${actor.role} cannot transition to ${toStatus}`);
+      throw new HttpError(
+        403,
+        `Role ${actor.role} cannot transition to ${toStatus}`,
+        "SHIPMENT_TRANSITION_FORBIDDEN",
+      );
     }
 
     // Update shipment status
@@ -565,7 +659,7 @@ export class ShipmentTrackingService {
       vendor_order_id: (shipment as any).vendor_order_id,
       from_status: fromStatus,
       to_status: toStatus,
-      changed_by: actor.userId,
+      changed_by: historyUserId(actor),
       changed_by_role: actor.role,
       is_customer_visible: CUSTOMER_VISIBLE_STATUSES.has(toStatus),
       reason,
@@ -573,13 +667,24 @@ export class ShipmentTrackingService {
     } as any);
     await this.shipmentStatusHistoryRepo.save(historyEntry);
 
-    // Trigger vendor_order transitions
+    // Trigger vendor_order transitions. The shipment change was already
+    // authorised above (vendor of this shipment, admin or carrier webhook),
+    // and the vendor-order hops it implies (shipped -> out_for_delivery ->
+    // delivered) are system transitions in the state machine. Cascading them
+    // as the vendor actor was rejected and swallowed, so a vendor-delivered
+    // shipment left its vendor order "shipped" forever (no reviews, stock
+    // still reserved). The acting user is kept for the history row.
+    const cascadeActor = {
+      userId: (actor as any).userId ?? null,
+      role: "system" as const,
+      vendorId: (actor as any).vendorId,
+    };
     try {
       if (toStatus === ShipmentStatus.picked_up || toStatus === ShipmentStatus.in_transit) {
         await this.orderStatusService.transitionVendorOrder(
           (shipment as any).vendor_order_id,
           OrderStatus.shipped,
-          { userId: actor.userId, role: actor.role as any },
+          cascadeActor as any,
           reason,
           metadata,
         );
@@ -587,7 +692,7 @@ export class ShipmentTrackingService {
         await this.orderStatusService.transitionVendorOrder(
           (shipment as any).vendor_order_id,
           OrderStatus.out_for_delivery,
-          { userId: actor.userId, role: actor.role as any },
+          cascadeActor as any,
           reason,
           metadata,
         );
@@ -595,13 +700,19 @@ export class ShipmentTrackingService {
         await this.orderStatusService.transitionVendorOrder(
           (shipment as any).vendor_order_id,
           OrderStatus.delivered,
-          { userId: actor.userId, role: actor.role as any },
+          cascadeActor as any,
           reason,
           metadata,
         );
       }
-    } catch {
-      // Silently catch transition errors (same pattern as processWebhookEvent)
+    } catch (err) {
+      // Never fail the shipment update, but don't hide a stuck vendor order.
+      console.error("[shipment] vendor order cascade failed", {
+        shipmentId,
+        vendorOrderId: (shipment as any).vendor_order_id,
+        toStatus,
+        error: String(err),
+      });
     }
 
     // Emit shipment.status_changed integration event after persistence,

@@ -21,7 +21,7 @@ describe("PaymentService", () => {
     findOne: mock((_args?: any) =>
       Promise.resolve({
         id: "order-1",
-        order_number: "NL-1001",
+        order_number: "MH-2026-001001",
         user_id: "user-1",
         status: "pending_payment",
         payment_status: "pending",
@@ -93,11 +93,12 @@ describe("PaymentService", () => {
     service = new PaymentService(mockPaymentRepo as any, mockStripe as any);
   });
 
-  it("creates a Stripe PaymentIntent and saves payment record", async () => {
+  it("charges the ORDER's grand_total for the caller's own payable order", async () => {
+    service = new PaymentService(mockPaymentRepo as any, mockStripe as any, mockOrderRepo as any);
     const result = await service.createStripePaymentIntent({
       orderId: "order-1",
       userId: "user-1",
-      amount: 15000,
+      amount: 1, // a tampered client amount is ignored
       currency: "aed",
     });
     expect(result.clientSecret).toBe("pi_test_secret_123");
@@ -108,7 +109,38 @@ describe("PaymentService", () => {
         metadata: expect.objectContaining({ order_id: "order-1" }),
       }),
     );
-    expect(mockPaymentRepo.save).toHaveBeenCalled();
+    expect(mockPaymentRepo.save).toHaveBeenCalledWith(expect.objectContaining({ amount: 15000 }));
+  });
+
+  it("refuses another user's order (404) without creating a PaymentIntent", async () => {
+    service = new PaymentService(mockPaymentRepo as any, mockStripe as any, mockOrderRepo as any);
+    mockStripe.paymentIntents.create.mockClear();
+    await expect(
+      service.createStripePaymentIntent({ orderId: "order-1", userId: "intruder", amount: 15000 }),
+    ).rejects.toThrow("Order not found");
+    expect(mockStripe.paymentIntents.create).not.toHaveBeenCalled();
+  });
+
+  it("refuses an order that is no longer payable (409)", async () => {
+    service = new PaymentService(mockPaymentRepo as any, mockStripe as any, mockOrderRepo as any);
+    mockOrderRepo.findOne.mockImplementationOnce(() =>
+      Promise.resolve({
+        id: "order-1",
+        user_id: "user-1",
+        status: "cancelled",
+        grand_total: 15000,
+      } as any),
+    );
+    await expect(
+      service.createStripePaymentIntent({ orderId: "order-1", userId: "user-1", amount: 15000 }),
+    ).rejects.toThrow("can no longer be paid");
+  });
+
+  it("is a 503 when Stripe isn't configured", async () => {
+    service = new PaymentService(mockPaymentRepo as any, undefined as any, mockOrderRepo as any);
+    await expect(
+      service.createStripePaymentIntent({ orderId: "order-1", userId: "user-1", amount: 15000 }),
+    ).rejects.toThrow("Card payments are not available");
   });
 
   it("uses a static Stripe shipping postal code when checkout address has none", async () => {
@@ -136,32 +168,12 @@ describe("PaymentService", () => {
     );
   });
 
-  it("creates a COD payment record with pending status", async () => {
-    const result = await service.createCodPayment({
-      orderId: "order-1",
-      userId: "user-1",
-      amount: 15000,
-    });
-    expect(result.status).toBe("pending");
-    expect(mockPaymentRepo.save).toHaveBeenCalledWith(
-      expect.objectContaining({
-        payment_method: "cash_on_delivery",
-        status: "pending",
-      }),
-    );
-  });
-
-  it("creates a Tabby BNPL session", async () => {
-    const result = await service.createTabbySession({
-      orderId: "order-1",
-      userId: "user-1",
-      amount: 15000,
-    });
-    expect(result.checkoutUrl).toContain("tabby");
-    expect(result.sessionId).toBeTruthy();
-    expect(mockPaymentRepo.save).toHaveBeenCalledWith(
-      expect.objectContaining({ payment_method: "tabby", gateway: "tabby" }),
-    );
+  it("refuses Tabby cleanly until it is integrated (no payment row, no placeholder URL)", async () => {
+    mockPaymentRepo.save.mockClear();
+    await expect(
+      service.createTabbySession({ orderId: "order-1", userId: "user-1", amount: 15000 }),
+    ).rejects.toThrow("Tabby is not available yet");
+    expect(mockPaymentRepo.save).not.toHaveBeenCalled();
   });
 
   it("creates a Tamara checkout session through Tamara and stores returned ids", async () => {
@@ -196,7 +208,7 @@ describe("PaymentService", () => {
     );
     const request = tamaraRequestBody();
     expect(request.order_reference_id).toBe("order-1");
-    expect(request.order_number).toBe("NL-1001");
+    expect(request.order_number).toBe("MH-2026-001001");
     expect(request.total_amount).toEqual({ amount: "150.00", currency: "AED" });
     expect(request.consumer).toEqual(
       expect.objectContaining({

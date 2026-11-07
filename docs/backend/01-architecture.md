@@ -2,14 +2,17 @@
 
 ## What this system is
 
-MaterialHub is a multi-vendor materials marketplace for the UAE. The backend is a **Bun** monorepo of eight
-**ElysiaJS** HTTP services behind one gateway, sharing a single PostgreSQL database, a single
-Redis instance, Typesense for search, and BullMQ for background work.
+MaterialHub is a multi-vendor materials marketplace for the UAE. The backend is a **Bun** monorepo
+that runs as **one process**: `backend/apps/api` boots the public **ElysiaJS** app (the former
+gateway) and mounts seven modules (auth, product, order, vendor, notification, cms,
+integration) in-process. They share a single PostgreSQL database, a single Redis instance,
+Typesense for search, and BullMQ for background work. One Docker image
+(`backend/apps/api/Dockerfile`), one container, one port (3000).
 
-It is "microservices" in deployment shape only. All services share one database and read each
-other's tables directly through the shared TypeORM entity library. Cross-service *writes* go
-through HTTP (`/internal/*` routes) or BullMQ queues; cross-service *reads* are frequently
-just a repository call against the same Postgres.
+Each module is still its own Elysia app (plugins, error handling, route table) and was a
+separate service until the monolith; module-to-module *writes* still go through HTTP-shaped
+calls (`/internal/*` routes, via `serviceFetch`, which resolves them in-process) or BullMQ
+queues; cross-module *reads* are frequently just a repository call against the same Postgres.
 
 > **Know this before you change anything:** there is no per-service schema ownership. If you
 > rename a column, grep the whole monorepo.
@@ -18,15 +21,15 @@ just a repository call against the same Postgres.
 
 ```
 backend/
-├── apps/                       # deployable services (one Elysia app each)
-│   ├── api-gateway/            # :3000 — the only public entry point
-│   ├── auth-service/           # :3001
-│   ├── product-service/        # :3002 — catalogue, search, inventory, media, bulk
-│   ├── order-service/          # :3003 — cart, checkout, orders, money, shipping
-│   ├── vendor-service/         # :3004 — vendors, members, KYC, Stripe Connect, warehouses
-│   ├── notification-service/   # :3005
-│   ├── cms-service/            # :3006 — pages, layouts, settings, support, audit
-│   └── integration-service/    # :3008 — vendor webhooks + sales channels
+├── apps/
+│   ├── api/                    # :3000 — the process: public app + every module + all jobs
+│   ├── auth-service/           # module (one Elysia app each, mounted by api)
+│   ├── product-service/        # module — catalogue, search, inventory, media, bulk
+│   ├── order-service/          # module — cart, checkout, orders, money, shipping
+│   ├── vendor-service/         # module — vendors, members, KYC, Stripe Connect, warehouses
+│   ├── notification-service/   # module
+│   ├── cms-service/            # module — pages, layouts, settings, support, audit
+│   └── integration-service/    # module — vendor webhooks + sales channels
 ├── libs/                       # shared workspace packages (@materialhub/*)
 │   ├── database/               # TypeORM data source, ~120 entities, enums, migrations
 │   ├── dto/                    # TypeBox request/response schemas
@@ -37,18 +40,18 @@ backend/
 │   ├── bulk-jobs/              # the generic bulk import engine (parser → validate → write)
 │   ├── integration-events/     # outbound event queue + payload schemas + inbound targets
 │   └── integration-mapper/     # the JSON mapping DSL used by integration-service
-├── docker/ , docker-compose*.yml
+├── docker-compose*.yml          # api's image: apps/api/Dockerfile
 └── turbo.json                  # build/test/lint pipeline
 ```
 
 Workspaces are declared in `backend/package.json` (`apps/*`, `libs/*`) and packages import each
 other by name: `@materialhub/database`, `@materialhub/guards`, and so on.
 
-## The eight services
+## The API and its modules
 
-| Service | Port | Owns | Key external deps |
+| App | Module origin | Owns | Key external deps |
 |---|---|---|---|
-| `api-gateway` | 3000 | Public HTTP surface, prefix routing, CORS, Swagger, global rate limit | — |
+| `api` | listens on 3000 | Public HTTP surface, prefix routing, CORS, Swagger, global rate limit; boots every module and job | — |
 | `auth-service` | 3001 | `users`, `user_sessions`, addresses, 2FA | SES (email), WhatsApp OTP |
 | `product-service` | 3002 | Catalogue, variants, inventory, media, search index, bulk jobs, collections, wishlist | Typesense, S3/CloudFront, Google Drive, Gemini |
 | `order-service` | 3003 | Cart, checkout, orders, payments, shipments, returns, disputes, reviews, commissions, payouts | Stripe, Tamara, Tabby, PostaPlus |
@@ -57,9 +60,11 @@ other by name: `@materialhub/database`, `@materialhub/guards`, and so on.
 | `cms-service` | 3006 | Pages, banners, layouts/sections, navigation, settings, support tickets, audit log | Slack, CloudFront invalidation |
 | `integration-service` | 3008 | Vendor integrations (webhooks in/out), sales-channel feeds & conversions | Google/Meta/TikTok APIs |
 
-Ports and hostnames come from `libs/config/src/index.ts` (`config.port.*`, `config.serviceHost.*`)
-and are overridable per environment. Ports 3007 and 3009 are intentionally unused (they belonged
-to services removed in the MaterialHub fork).
+Only the api listens (`GATEWAY_PORT`, default 3000). The module "ports" are the origins in
+`config.serviceUrl.*` (`libs/config/src/index.ts`) that the api registers in-process
+(`apps/api/src/modules.ts`, `serviceFetch` in `libs/utils/src/service-fetch.ts`); nothing listens
+on them and they only need to be distinct. 3007 and 3009 are unused (they belonged to services
+removed in the MaterialHub fork).
 
 ## Runtime topology
 
@@ -72,20 +77,20 @@ flowchart LR
         MOB[Flutter app]
     end
 
-    GW[api-gateway :3000]
+    GW[api :3000]
 
     WEB --> GW
     ADM --> GW
     VEN --> GW
     MOB --> GW
 
-    GW --> AUTH[auth :3001]
-    GW --> PROD[product :3002]
-    GW --> ORD[order :3003]
-    GW --> VND[vendor :3004]
-    GW --> NOT[notification :3005]
-    GW --> CMS[cms :3006]
-    GW --> INT[integration :3008]
+    GW -. in-process .-> AUTH[auth]
+    GW -. in-process .-> PROD[product]
+    GW -. in-process .-> ORD[order]
+    GW -. in-process .-> VND[vendor]
+    GW -. in-process .-> NOT[notification]
+    GW -. in-process .-> CMS[cms]
+    GW -. in-process .-> INT[integration]
 
     AUTH & PROD & ORD & VND & NOT & CMS & INT --> PG[(PostgreSQL)]
     AUTH & PROD & ORD & VND & NOT & CMS & INT --> RDS[(Redis / BullMQ)]
@@ -98,14 +103,15 @@ flowchart LR
 
 ## Request lifecycle
 
-Every public request enters the gateway. The gateway itself performs auth verification and
-rate limiting, then proxies to the owning service, which re-verifies auth locally.
+Every public request enters the api's public app (the former gateway). It performs auth
+verification and rate limiting, then dispatches the request in-process to the owning module's
+Elysia app, which re-verifies auth locally.
 
 ```mermaid
 sequenceDiagram
     participant C as Client
-    participant G as api-gateway
-    participant S as upstream service
+    participant G as api (public app)
+    participant S as module app
     participant DB as Postgres
 
     C->>G: HTTP request (Bearer token or app cookie)
@@ -113,7 +119,7 @@ sequenceDiagram
     G->>G: rateLimiter (Redis, 100/min per IP, 1000/min per user)
     G->>G: jwtAuth.derive → user | null | 401
     G->>G: resolveUpstream(path) → target
-    G->>S: fetch(target + path) + x-correlation-id, x-forwarded-*
+    G->>S: serviceFetch(target + path) in-process + x-correlation-id, x-forwarded-*
     S->>S: requestLogger → errorHandler → route plugins
     S->>S: jwtAuth (again) → requireRole / vendorMembership
     S->>DB: controller → service → repository
@@ -131,29 +137,31 @@ Notes:
   original pathname. A service's route paths are its full public paths.
 - Request bodies are streamed (`duplex: "half"`), so large uploads pass through without buffering.
 
-## The service skeleton
+## The module skeleton
 
-Every service follows the same four-file shape:
+Every module follows the same shape (modules have no `index.ts`; `apps/api` boots them):
 
 ```
 apps/<svc>/src/
-├── index.ts        # boot: ensureDatabase() → permissionMatrix.load() → app.listen(port)
+├── jobs.ts         # start<X>Jobs(): timers, BullMQ workers/repeatables, called by apps/api/src/jobs.ts
 ├── app.ts          # the Elysia app: plugins + .use(...) every route module
 ├── container.ts    # manual DI: repositories → services → controllers → decorate()
 └── domain/…        # or controllers/ + services/ in the older services
     routes/…        # Elysia route modules
 ```
 
-### `index.ts` — boot
+### `apps/api/src/index.ts` — boot (once, for the whole backend)
 
 ```ts
 await ensureDatabase();          // TypeORM DataSource.initialize(), idempotent
 await permissionMatrix.load();   // SELECT role, permission FROM role_permissions
 permissionMatrix.startPolling(); // re-reads when Redis `matrix_version` changes (≤30s)
-app.listen(config.port.order);
+registerModules();               // serve each module's origin in-process
+await startAllJobs();            // every module's jobs.ts
+app.listen({ port: config.port.gateway, idleTimeout: 255 });
 ```
 
-`api-gateway` additionally passes `idleTimeout: 255` so long proxied requests are not cut off.
+Run it with `cd backend/apps/api && bun run src/index.ts` (or `bun run dev` there for watch mode).
 
 ### `container.ts` — the DI pattern
 

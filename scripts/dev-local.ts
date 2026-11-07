@@ -2,23 +2,24 @@
 /**
  * One-command local dev launcher.
  *
- *   bun scripts/dev-local.ts            # infra + migrations + seed + search + all services + 3 web apps
+ *   bun scripts/dev-local.ts            # infra + migrations + seed + search + API + 3 web apps
  *   bun scripts/dev-local.ts --no-web   # backend only
  *   bun scripts/dev-local.ts --reindex  # force a full Typesense products reindex first
  *   bun scripts/dev-local.ts --stop     # stop the docker infra containers
  *
  * Steps:
- *  1. Load backend/.env. The services don't read it themselves, because Bun
- *     only loads .env from each app's own cwd.
+ *  1. Load backend/.env. The API doesn't read it itself, because Bun only
+ *     loads .env from each app's own cwd.
  *  2. docker compose up: postgres, redis, typesense, local-s3 (+ bucket init),
  *     Then wait until each one is healthy.
  *  3. Run TypeORM migrations and the idempotent seed.
  *  4. Create the Typesense `products` collection if it's missing. Nothing
  *     creates it at boot.
- *  5. Start every backend service and the web, vendor and admin apps through
- *     turbo with `--env-mode=loose`. Turbo 2's strict mode would drop
- *     undeclared vars such as DB_PORT.
- * Ctrl+C stops the services. The docker infra keeps running (use --stop).
+ *  5. Start the API (backend/apps/api: one process with every backend module,
+ *     on :3000) and the web, vendor and admin apps through turbo with
+ *     `--env-mode=loose`. Turbo 2's strict mode would drop undeclared vars
+ *     such as DB_PORT.
+ * Ctrl+C stops the API and the apps. The docker infra keeps running (use --stop).
  */
 import { existsSync, readFileSync } from "node:fs";
 import { connect } from "node:net";
@@ -138,10 +139,10 @@ if ((await run(["docker", "info"], { quiet: true })).code !== 0) {
 ok("docker is running");
 ok(`bun ${Bun.version}`);
 
-const servicePorts = [3000, 3001, 3002, 3003, 3004, 3005, 3006, 3008];
+const apiPort = Number(env.GATEWAY_PORT ?? 3000);
 const webPorts = args.has("--no-web") ? [] : [4000, 4001, 4002];
 const busy: number[] = [];
-for (const p of [...servicePorts, ...webPorts])
+for (const p of [apiPort, ...webPorts])
 	if (await portInUse(p)) busy.push(p);
 if (busy.length) {
 	fail(
@@ -149,7 +150,7 @@ if (busy.length) {
 		"Another copy of the app is probably running. Stop it first (Ctrl+C in its terminal).",
 	);
 }
-ok("service ports are free");
+ok("ports are free");
 
 // ── 2. Docker infra ───────────────────────────────────────────────────────
 step("Starting docker infra");
@@ -267,8 +268,8 @@ if (!products || args.has("--reindex")) {
 }
 
 // ── 5. Services ───────────────────────────────────────────────────────────
-step("Starting services (Ctrl+C to stop)");
-const filters = ["--filter=./backend/apps/*"];
+step("Starting the API and apps (Ctrl+C to stop)");
+const filters = ["--filter=@materialhub/api"];
 if (!args.has("--no-web")) {
 	filters.push(
 		"--filter=@materialhub/web",
@@ -294,10 +295,10 @@ const stop = () => services.kill();
 process.on("SIGINT", stop);
 process.on("SIGTERM", stop);
 
-// Announce once the gateway (and web apps) answer; turbo keeps streaming logs.
+// Announce once the API (and web apps) answer; turbo keeps streaming logs.
 (async () => {
 	const targets: [string, string][] = [
-		["API gateway", "http://localhost:3000/health"],
+		["API", `http://localhost:${apiPort}/health`],
 	];
 	if (!args.has("--no-web")) {
 		targets.push(

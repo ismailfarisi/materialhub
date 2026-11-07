@@ -6,9 +6,15 @@ import type { VendorOrder } from "@materialhub/database";
 import type { User } from "@materialhub/database";
 import type { WalletTransaction } from "@materialhub/database";
 import { DisputeStatus, OrderStatus } from "@materialhub/database/src/enums/order.enums.ts";
+import {
+  BadRequestError,
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+} from "@materialhub/plugins";
 import type { Queue } from "bullmq";
 // dispute.service.ts
-import type { Repository } from "typeorm";
+import type { EntityManager, Repository } from "typeorm";
 import type { CommissionReversalService } from "../commission/commission-reversal.service.ts";
 import type { OrderStatusService } from "../order/order-status.service.ts";
 import type { RefundService } from "../refund/refund.service.ts";
@@ -70,14 +76,14 @@ export class DisputeService {
       where: { id: orderId } as any,
     });
     if (!order || (order as any).user_id !== userId) {
-      throw new Error("Order not found");
+      throw new NotFoundError("Order not found");
     }
 
     // 2. Verify status: delivered (or shipped for item_not_received)
     const status = (order as any).status;
     const allowShipped = data.category === "item_not_received" && status === OrderStatus.shipped;
     if (status !== OrderStatus.delivered && !allowShipped) {
-      throw new Error("Order must be delivered to open a dispute");
+      throw new BadRequestError("Order must be delivered to open a dispute");
     }
 
     // 3. Derive vendor_id from vendor orders
@@ -90,14 +96,14 @@ export class DisputeService {
 
     if (data.vendor_order_id) {
       const match = vendorOrders.find((vo: any) => vo.id === data.vendor_order_id);
-      if (!match) throw new Error("Vendor order not found");
+      if (!match) throw new NotFoundError("Vendor order not found");
       vendorOrderId = (match as any).id;
       vendorId = (match as any).vendor_id;
     } else if (vendorOrders.length === 1) {
       vendorOrderId = (vendorOrders[0] as any).id;
       vendorId = (vendorOrders[0] as any).vendor_id;
     } else {
-      throw new Error("vendor_order_id is required when order has multiple vendors");
+      throw new BadRequestError("vendor_order_id is required when order has multiple vendors");
     }
 
     // 4. Generate dispute_number
@@ -144,17 +150,37 @@ export class DisputeService {
   /* ================================================================ */
   /*  assignDispute                                                   */
   /* ================================================================ */
+  /**
+   * Assign (or re-assign) a dispute to an admin. The first assignment moves an
+   * `opened` dispute into `under_review`; re-assigning an `under_review` or
+   * `escalated` dispute only changes the owner. The assignee must be a real
+   * admin account — the old UI posted placeholder ids that 400'd on uuid
+   * format, and a non-admin uuid would have been stored silently.
+   */
   async assignDispute(disputeId: string, _adminId: string, assigneeId: string): Promise<Dispute> {
     const dispute = await this.disputeRepo.findOne({
       where: { id: disputeId } as any,
     });
-    if (!dispute) throw new Error("Dispute not found");
-    if (dispute.status !== DisputeStatus.opened) {
-      throw new Error("Only opened disputes can be assigned");
+    if (!dispute) throw new NotFoundError("Dispute not found");
+    const assignable = [
+      DisputeStatus.opened,
+      DisputeStatus.under_review,
+      DisputeStatus.escalated,
+    ] as DisputeStatus[];
+    if (!assignable.includes(dispute.status)) {
+      throw new BadRequestError("Only open disputes can be assigned");
+    }
+
+    const assignee = await this.userRepo.findOne({ where: { id: assigneeId } as any });
+    const assigneeRole = (assignee as any)?.role;
+    if (!assignee || (assigneeRole !== "admin" && assigneeRole !== "super_admin")) {
+      throw new BadRequestError("Assignee must be an admin user");
     }
 
     dispute.assigned_to = assigneeId;
-    dispute.status = DisputeStatus.under_review;
+    if (dispute.status === DisputeStatus.opened) {
+      dispute.status = DisputeStatus.under_review;
+    }
 
     return this.disputeRepo.save(dispute);
   }
@@ -166,9 +192,9 @@ export class DisputeService {
     const dispute = await this.disputeRepo.findOne({
       where: { id: disputeId } as any,
     });
-    if (!dispute) throw new Error("Dispute not found");
+    if (!dispute) throw new NotFoundError("Dispute not found");
     if (dispute.status !== DisputeStatus.under_review) {
-      throw new Error("Only under_review disputes can be escalated");
+      throw new BadRequestError("Only under_review disputes can be escalated");
     }
 
     dispute.escalated_at = new Date();
@@ -180,95 +206,196 @@ export class DisputeService {
   /* ================================================================ */
   /*  resolveDispute                                                  */
   /* ================================================================ */
+  /**
+   * Resolve a dispute. Everything that writes money or ledger rows runs in ONE
+   * transaction that starts by locking the dispute row (`FOR UPDATE`):
+   *
+   *   lock dispute -> status check -> item refunded_amount + commission
+   *   reversal -> wallet credit (locks the user row) -> save dispute ->
+   *   card/BNPL refund (last, see below) -> COMMIT
+   *
+   * Before this, the wallet branch took `pessimistic_write` on the base
+   * manager, which TypeORM refuses outside a transaction ("open transaction
+   * is required for pessimistic lock"), so every buyer-favour resolution with
+   * an amount 500'd.
+   *
+   * Idempotency: the row lock serialises concurrent resolves, and a dispute
+   * already resolved the same way is returned as-is (no second credit or
+   * refund) — a retry after a timeout is safe. Resolving it the OTHER way is a
+   * 409. The gateway refund is the last statement inside the transaction, so
+   * any earlier failure rolls back with no money moved; the gateway call
+   * itself carries a deterministic idempotency key (`refund:dispute:<id>`).
+   *
+   * The order status transition runs after commit (OrderStatusService owns
+   * its own transaction); on a replay it is retried only while the order is
+   * still `disputed`, so a retry also completes a transition that failed the
+   * first time.
+   */
   async resolveDispute(
     disputeId: string,
     adminId: string,
     data: ResolveDisputeInput,
   ): Promise<Dispute> {
-    const dispute = await this.disputeRepo.findOne({
-      where: { id: disputeId } as any,
-    });
-    if (!dispute) throw new Error("Dispute not found");
-    if (
-      dispute.status !== DisputeStatus.under_review &&
-      dispute.status !== DisputeStatus.escalated
-    ) {
-      throw new Error("Dispute must be under_review or escalated to resolve");
-    }
+    const amount = data.decision === "buyer" ? (data.resolution_amount ?? 0) : 0;
 
-    dispute.resolution = data.resolution;
-    dispute.resolution_amount = data.resolution_amount ?? null;
-    dispute.resolved_at = new Date();
-    dispute.resolved_by = adminId;
+    const result: { dispute: Dispute; replay: boolean; order: Order | null } =
+      await this.disputeRepo.manager.transaction(async (tx) => {
+        const disputeRepo = tx.withRepository(this.disputeRepo);
+        const locked = await disputeRepo.findOne({
+          where: { id: disputeId } as any,
+          lock: { mode: "pessimistic_write" },
+        });
+        if (!locked) throw new NotFoundError("Dispute not found");
 
-    if (data.decision === "buyer") {
-      dispute.status = DisputeStatus.resolved_buyer;
+        const resolvedAs =
+          locked.status === DisputeStatus.resolved_buyer
+            ? "buyer"
+            : locked.status === DisputeStatus.resolved_seller
+              ? "seller"
+              : null;
+        if (resolvedAs) {
+          if (resolvedAs === data.decision) return { dispute: locked, replay: true, order: null };
+          throw new ConflictError(`Dispute is already resolved in the ${resolvedAs}'s favour`);
+        }
+        if (
+          locked.status !== DisputeStatus.under_review &&
+          locked.status !== DisputeStatus.escalated
+        ) {
+          throw new BadRequestError("Dispute must be under_review or escalated to resolve");
+        }
 
-      // Refund: default to wallet (existing behavior) unless caller asks for
-      // original_payment. The single sink for card / BNPL refunds lives in
-      // RefundService — same one returns use.
-      if (data.resolution_amount && data.resolution_amount > 0) {
-        if (data.refund_method === "original_payment") {
+        locked.resolution = data.resolution;
+        locked.resolution_amount =
+          data.decision === "buyer" ? (data.resolution_amount ?? null) : null;
+        locked.resolved_at = new Date();
+        locked.resolved_by = adminId;
+        locked.status =
+          data.decision === "buyer" ? DisputeStatus.resolved_buyer : DisputeStatus.resolved_seller;
+
+        const toOriginalPayment = amount > 0 && data.refund_method === "original_payment";
+        if (amount > 0) {
+          // Ledger first (item refunded_amount, then the commission reversal
+          // that re-reads it — same transaction, so it sees the new value).
+          await this.reverseDisputedCommission(tx, locked, disputeId, amount);
+          if (!toOriginalPayment) {
+            await this.creditWallet(tx, locked, disputeId, amount);
+          }
+        }
+
+        // The money went back to the buyer (wallet or card), so it is a refund
+        // on the order: add it to refund_total under the order row lock. Runs
+        // once per dispute — a replay returned above, before reaching here.
+        let order: Order | null = null;
+        if (amount > 0) {
+          const orderRepo = tx.withRepository(this.orderRepo);
+          order = await orderRepo.findOne({
+            where: { id: locked.order_id } as any,
+            lock: { mode: "pessimistic_write" },
+          });
+          if (order) {
+            const o = order as any;
+            o.refund_total = Number(o.refund_total ?? 0) + amount;
+            // The stored receipt shows the old refund; regenerate it lazily.
+            o.invoice_s3_key = null;
+            o.invoice_generated_at = null;
+            await orderRepo.save(order);
+          }
+        }
+
+        const saved = await disputeRepo.save(locked);
+
+        if (toOriginalPayment) {
           await this.refundService.refundToOriginalPayment({
-            orderId: dispute.order_id,
-            amount: data.resolution_amount,
+            orderId: locked.order_id,
+            amount,
             referenceType: "dispute",
             referenceId: disputeId,
             reason: "requested_by_customer",
           });
-        } else {
-          const qb = this.userRepo.createQueryBuilder("user");
-          const user = await qb
-            .where("user.id = :id", { id: dispute.opened_by })
-            .setLock("pessimistic_write")
-            .getOne();
-          if (!user) throw new Error("User not found");
-
-          const balanceBefore = (user as any).wallet_balance;
-          const balanceAfter = balanceBefore + data.resolution_amount;
-
-          const walletTx = this.walletTransactionRepo.create({
-            user_id: dispute.opened_by,
-            amount: data.resolution_amount,
-            balance_before: balanceBefore,
-            balance_after: balanceAfter,
-            transaction_type: "dispute_refund",
-            reference_type: "dispute",
-            reference_id: disputeId,
-          } as any);
-          await this.walletTransactionRepo.save(walletTx);
-
-          (user as any).wallet_balance = balanceAfter;
-          await this.userRepo.save(user);
         }
 
-        // Reverse the vendor's commission for the disputed vendor order —
-        // MUST run after the refund above (either branch) has actually
-        // moved the money, and after `reverseDisputedCommission` persists
-        // each order item's `refunded_amount`, since CommissionReversalService
-        // reads that column fresh from the DB to compute the surviving
-        // quantity. Calling it before the item save would silently no-op.
-        await this.reverseDisputedCommission(dispute, disputeId, data.resolution_amount);
-      }
+        return { dispute: saved, replay: false, order };
+      });
 
-      // Transition order to refund_requested
-      await this.orderStatusService.transitionOrder(
-        dispute.order_id,
-        OrderStatus.refund_requested,
-        { userId: adminId, role: "admin" },
-      );
-    } else {
-      // seller decision
-      dispute.status = DisputeStatus.resolved_seller;
-
-      // Transition order back to delivered
-      await this.orderStatusService.transitionOrder(dispute.order_id, OrderStatus.delivered, {
+    // Where the order goes: a seller decision puts it back to delivered; a
+    // buyer decision that returned money is a refund, partial or full by
+    // amount (refund_total against grand_total), like a return refund; a
+    // buyer decision with no money (an apology) stays refund_requested.
+    const { dispute, replay } = result;
+    let order: Order | null = result.order;
+    let shouldTransition = !replay;
+    if (replay) {
+      order = await this.orderRepo.findOne({ where: { id: dispute.order_id } as any });
+      shouldTransition = (order as any)?.status === OrderStatus.disputed;
+    }
+    const refunded = Number((dispute as any).resolution_amount ?? 0) > 0;
+    const target =
+      dispute.status !== DisputeStatus.resolved_buyer
+        ? OrderStatus.delivered
+        : refunded && order
+          ? Number((order as any).grand_total ?? 0) > 0 &&
+            Number((order as any).refund_total ?? 0) >= Number((order as any).grand_total)
+            ? OrderStatus.refunded
+            : OrderStatus.partially_refunded
+          : OrderStatus.refund_requested;
+    if (shouldTransition) {
+      await this.orderStatusService.transitionOrder(dispute.order_id, target, {
         userId: adminId,
         role: "admin",
       });
     }
 
-    return this.disputeRepo.save(dispute);
+    return dispute;
+  }
+
+  /* ================================================================ */
+  /*  creditWallet (private helper)                                   */
+  /* ================================================================ */
+  /** Wallet credit for a buyer-favour resolution, on the caller's transaction. */
+  private async creditWallet(
+    tx: EntityManager,
+    dispute: Dispute,
+    disputeId: string,
+    amount: number,
+  ): Promise<void> {
+    const walletRepo = tx.withRepository(this.walletTransactionRepo);
+    // Belt and braces next to the dispute row lock: never credit the same
+    // dispute twice, even if a row was left behind by an older code path.
+    const existing = await walletRepo.findOne({
+      where: {
+        reference_type: "dispute",
+        reference_id: disputeId,
+        transaction_type: "dispute_refund",
+      } as any,
+    });
+    if (existing) return;
+
+    const user = await tx
+      .withRepository(this.userRepo)
+      .createQueryBuilder("user")
+      .where("user.id = :id", { id: dispute.opened_by })
+      .setLock("pessimistic_write")
+      .getOne();
+    if (!user) throw new NotFoundError("Buyer account not found");
+
+    const balanceBefore = Number((user as any).wallet_balance ?? 0);
+    const balanceAfter = balanceBefore + amount;
+
+    const walletTx = walletRepo.create({
+      user_id: dispute.opened_by,
+      order_id: dispute.order_id,
+      amount,
+      balance_before: balanceBefore,
+      balance_after: balanceAfter,
+      transaction_type: "dispute_refund",
+      reference_type: "dispute",
+      reference_id: disputeId,
+      description: `Dispute ${(dispute as any).dispute_number ?? disputeId} resolved in your favour`,
+    } as any);
+    await walletRepo.save(walletTx);
+
+    (user as any).wallet_balance = balanceAfter;
+    await tx.withRepository(this.userRepo).save(user);
   }
 
   /* ================================================================ */
@@ -291,6 +418,7 @@ export class DisputeService {
   // DB to compute the surviving quantity/amount. Reversing the order is
   // what turns this into a silent no-op.
   private async reverseDisputedCommission(
+    tx: EntityManager,
     dispute: Dispute,
     disputeId: string,
     resolutionAmount: number | undefined,
@@ -299,7 +427,8 @@ export class DisputeService {
     const vendorOrderId = (dispute as any).vendor_order_id;
     if (!vendorOrderId) return;
 
-    const items = await this.orderItemRepo.find({
+    const itemRepo = tx.withRepository(this.orderItemRepo);
+    const items = await itemRepo.find({
       where: { vendor_order_id: vendorOrderId } as any,
     });
     if (!items || items.length === 0) return;
@@ -335,7 +464,7 @@ export class DisputeService {
       const oi = byId.get(share.orderItemId);
       if (!oi) continue;
       oi.refunded_amount = (oi.refunded_amount || 0) + share.amount;
-      await this.orderItemRepo.save(oi);
+      await itemRepo.save(oi);
       reversalItems.push({
         orderItemId: oi.id,
         refundedQuantity: 0,
@@ -344,19 +473,15 @@ export class DisputeService {
     }
     if (reversalItems.length === 0) return;
 
-    // R3-C5: transactional manager, not the base one — see the identical
-    // note in return.service.confirmRefund. `invalidateDraftForReversal`
-    // soft-deletes the draft and then releases its claims in separate
-    // statements; untransacted, a failure between them strands the vendor's
-    // entire balance for that draft permanently (unclaimable and
-    // unreachable), with the customer already refunded.
-    await this.orderItemRepo.manager.transaction(async (tx) => {
-      await this.commissionReversal.reverseForItems(tx, {
-        items: reversalItems,
-        sourceType: "dispute",
-        sourceId: disputeId,
-        reason: `Dispute ${disputeId}`,
-      });
+    // R3-C5: transactional manager, not the base one — the caller's
+    // resolve transaction. `invalidateDraftForReversal` soft-deletes the
+    // draft and then releases its claims in separate statements; it must
+    // commit or roll back together with the refund that caused it.
+    await this.commissionReversal.reverseForItems(tx, {
+      items: reversalItems,
+      sourceType: "dispute",
+      sourceId: disputeId,
+      reason: `Dispute ${disputeId}`,
     });
   }
 
@@ -367,12 +492,12 @@ export class DisputeService {
     const dispute = await this.disputeRepo.findOne({
       where: { id: disputeId } as any,
     });
-    if (!dispute) throw new Error("Dispute not found");
+    if (!dispute) throw new NotFoundError("Dispute not found");
     if (
       dispute.status !== DisputeStatus.resolved_buyer &&
       dispute.status !== DisputeStatus.resolved_seller
     ) {
-      throw new Error("Only resolved disputes can be closed");
+      throw new BadRequestError("Only resolved disputes can be closed");
     }
 
     dispute.status = DisputeStatus.closed;
@@ -392,15 +517,15 @@ export class DisputeService {
     const dispute = await this.disputeRepo.findOne({
       where: { id: disputeId } as any,
     });
-    if (!dispute) throw new Error("Dispute not found");
+    if (!dispute) throw new NotFoundError("Dispute not found");
     if (dispute.status === DisputeStatus.closed) {
-      throw new Error("Cannot add messages to a closed dispute");
+      throw new BadRequestError("Cannot add messages to a closed dispute");
     }
 
     // is_internal only allowed for admin/super_admin
     const isInternal = data.is_internal ?? false;
     if (isInternal && senderRole !== "admin" && senderRole !== "super_admin") {
-      throw new Error("Only admins can send internal messages");
+      throw new ForbiddenError("Only admins can send internal messages");
     }
 
     const message = this.disputeMessageRepo.create({
@@ -413,6 +538,41 @@ export class DisputeService {
     } as any);
 
     return this.disputeMessageRepo.save(message) as unknown as Promise<DisputeMessage>;
+  }
+
+  /* ================================================================ */
+  /*  assertParticipant                                               */
+  /* ================================================================ */
+  /**
+   * Resolve a dispute for a caller on the shared /disputes/:id/messages
+   * thread. Admins see any dispute; a customer only the disputes they
+   * opened. A customer asking for someone else's dispute gets the SAME
+   * NotFound as a non-existent id, so existence is not leaked.
+   */
+  async assertParticipant(disputeId: string, userId: string, role: string): Promise<Dispute> {
+    const dispute = await this.disputeRepo.findOne({
+      where: { id: disputeId } as any,
+    });
+    if (!dispute) throw new NotFoundError("Dispute not found");
+    if (role === "admin" || role === "super_admin") return dispute;
+    if (role === "customer" && (dispute as any).opened_by === userId) return dispute;
+    throw new NotFoundError("Dispute not found");
+  }
+
+  /**
+   * The vendor side of the thread: only the supplier the dispute is against
+   * (`dispute.vendor_id`, resolved from the caller's active vendor
+   * membership) may read or post. Anything else is the same 404 as an
+   * unknown id.
+   */
+  async assertVendorParticipant(disputeId: string, vendorId: string): Promise<Dispute> {
+    const dispute = await this.disputeRepo.findOne({
+      where: { id: disputeId } as any,
+    });
+    if (!dispute || (dispute as any).vendor_id !== vendorId) {
+      throw new NotFoundError("Dispute not found");
+    }
+    return dispute;
   }
 
   /* ================================================================ */
@@ -439,9 +599,9 @@ export class DisputeService {
   /* ================================================================ */
   async listForBuyer(
     userId: string,
-    query: PaginatedQuery,
+    query: PaginatedQuery & { order_id?: string },
   ): Promise<{ data: Dispute[]; total: number }> {
-    const page = query.page || 1;
+    const page = Math.max(1, Math.trunc(Number(query.page)) || 1);
     const limit = query.limit || 20;
 
     const qb = this.disputeRepo
@@ -454,6 +614,9 @@ export class DisputeService {
     if (query.status) {
       qb.andWhere("dispute.status = :status", { status: query.status });
     }
+    if (query.order_id) {
+      qb.andWhere("dispute.order_id = :orderId", { orderId: query.order_id });
+    }
 
     const [data, total] = await qb.getManyAndCount();
     return { data, total };
@@ -465,12 +628,42 @@ export class DisputeService {
     });
   }
 
-  async listForAdmin(query: PaginatedQuery): Promise<{ data: Dispute[]; total: number }> {
-    const page = query.page || 1;
+  /** Disputes raised against one supplier, newest first. */
+  async listForVendor(
+    vendorId: string,
+    query: PaginatedQuery & { order_id?: string },
+  ): Promise<{ data: DisputeSummary[]; total: number }> {
+    const page = Math.max(1, Math.trunc(Number(query.page)) || 1);
     const limit = query.limit || 20;
 
-    const qb = this.disputeRepo
-      .createQueryBuilder("dispute")
+    const qb = this.summaryQuery()
+      .where("dispute.vendor_id = :vendorId", { vendorId })
+      .orderBy("dispute.created_at", "DESC")
+      .skip((page - 1) * limit)
+      .take(limit);
+    if (query.status) qb.andWhere("dispute.status = :status", { status: query.status });
+    if (query.order_id) qb.andWhere("dispute.order_id = :orderId", { orderId: query.order_id });
+
+    const [rows, total] = await qb.getManyAndCount();
+    return { data: rows.map((d) => toDisputeSummary(d, "vendor")), total };
+  }
+
+  async getForVendor(disputeId: string, vendorId: string): Promise<DisputeSummary> {
+    const dispute = await this.summaryQuery()
+      .where("dispute.id = :disputeId", { disputeId })
+      .andWhere("dispute.vendor_id = :vendorId", { vendorId })
+      .getOne();
+    if (!dispute) throw new NotFoundError("Dispute not found");
+    return toDisputeSummary(dispute, "vendor");
+  }
+
+  async listForAdmin(
+    query: PaginatedQuery & { assigned_to?: string },
+  ): Promise<{ data: DisputeSummary[]; total: number }> {
+    const page = Math.max(1, Math.trunc(Number(query.page)) || 1);
+    const limit = query.limit || 20;
+
+    const qb = this.summaryQuery()
       .orderBy("dispute.created_at", "DESC")
       .skip((page - 1) * limit)
       .take(limit);
@@ -478,8 +671,140 @@ export class DisputeService {
     if (query.status) {
       qb.andWhere("dispute.status = :status", { status: query.status });
     }
+    if (query.assigned_to) {
+      qb.andWhere("dispute.assigned_to = :assignedTo", { assignedTo: query.assigned_to });
+    }
 
-    const [data, total] = await qb.getManyAndCount();
-    return { data, total };
+    const [rows, total] = await qb.getManyAndCount();
+    return { data: rows.map((d) => toDisputeSummary(d, "admin")), total };
   }
+
+  /** GET /admin/disputes/:id — the case file plus the full thread (internal notes included). */
+  async getForAdmin(disputeId: string): Promise<DisputeSummary & { messages: DisputeMessage[] }> {
+    const dispute = await this.summaryQuery()
+      .where("dispute.id = :disputeId", { disputeId })
+      .getOne();
+    if (!dispute) throw new NotFoundError("Dispute not found");
+    const messages = await this.getMessages(disputeId, "admin");
+    return { ...toDisputeSummary(dispute, "admin"), messages };
+  }
+
+  /**
+   * Dispute plus the display fields of its order, vendor order, supplier,
+   * buyer and assignee. Only named columns are selected from the joined
+   * users: a plain leftJoinAndSelect would ship password hashes and wallet
+   * balances to the panel.
+   */
+  private summaryQuery() {
+    return this.disputeRepo
+      .createQueryBuilder("dispute")
+      .leftJoin("dispute.order", "order")
+      .addSelect([
+        "order.id",
+        "order.order_number",
+        "order.status",
+        "order.grand_total",
+        "order.refund_total",
+        "order.currency",
+      ])
+      .leftJoin("dispute.vendorOrder", "vendorOrder")
+      .addSelect([
+        "vendorOrder.id",
+        "vendorOrder.vendor_order_number",
+        "vendorOrder.status",
+        "vendorOrder.vendor_total",
+      ])
+      .leftJoin("dispute.vendor", "vendor")
+      .addSelect(["vendor.id", "vendor.name"])
+      .leftJoin("dispute.openedByUser", "buyer")
+      .addSelect(["buyer.id", "buyer.first_name", "buyer.last_name", "buyer.email"])
+      .leftJoin("dispute.assignedToUser", "assignee")
+      .addSelect(["assignee.id", "assignee.first_name", "assignee.last_name", "assignee.email"]);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Response shape                                                    */
+/* ------------------------------------------------------------------ */
+export interface DisputeSummary {
+  id: string;
+  dispute_number: string;
+  status: string;
+  category: string;
+  description: string;
+  evidence_urls: string[];
+  order_id: string;
+  order_number: string | null;
+  order_status: string | null;
+  order_total: number | null;
+  order_refund_total: number | null;
+  currency: string;
+  vendor_order_id: string | null;
+  vendor_order_number: string | null;
+  vendor_order_total: number | null;
+  vendor_id: string;
+  vendor_name: string | null;
+  opened_by?: string;
+  buyer_name?: string | null;
+  buyer_email?: string | null;
+  assigned_to?: string | null;
+  assigned_to_name?: string | null;
+  resolution: string | null;
+  resolution_amount: number | null;
+  resolved_at: Date | null;
+  escalated_at: Date | null;
+  deadline_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+function personName(p: any): string | null {
+  if (!p) return null;
+  const name = `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim();
+  return name || p.email || null;
+}
+
+/**
+ * Flatten a dispute row (with the joins from `summaryQuery`) for the panels.
+ * The vendor view leaves out the buyer's email and the admin assignee: a
+ * supplier sees the buyer's name only, as on its order screens.
+ */
+export function toDisputeSummary(d: any, audience: "admin" | "vendor"): DisputeSummary {
+  const base: DisputeSummary = {
+    id: d.id,
+    dispute_number: d.dispute_number,
+    status: d.status,
+    category: d.category,
+    description: d.description,
+    evidence_urls: d.evidence_urls ?? [],
+    order_id: d.order_id,
+    order_number: d.order?.order_number ?? null,
+    order_status: d.order?.status ?? null,
+    order_total: d.order?.grand_total ?? null,
+    order_refund_total: d.order?.refund_total ?? null,
+    currency: d.order?.currency ?? "AED",
+    vendor_order_id: d.vendor_order_id ?? null,
+    vendor_order_number: d.vendorOrder?.vendor_order_number ?? null,
+    vendor_order_total: d.vendorOrder?.vendor_total ?? null,
+    vendor_id: d.vendor_id,
+    vendor_name: d.vendor?.name ?? null,
+    resolution: d.resolution ?? null,
+    resolution_amount: d.resolution_amount ?? null,
+    resolved_at: d.resolved_at ?? null,
+    escalated_at: d.escalated_at ?? null,
+    deadline_at: d.deadline_at ?? null,
+    created_at: d.created_at,
+    updated_at: d.updated_at,
+  };
+  if (audience === "vendor") {
+    return { ...base, buyer_name: d.openedByUser?.first_name ?? null };
+  }
+  return {
+    ...base,
+    opened_by: d.opened_by,
+    buyer_name: personName(d.openedByUser),
+    buyer_email: d.openedByUser?.email ?? null,
+    assigned_to: d.assigned_to ?? null,
+    assigned_to_name: personName(d.assignedToUser),
+  };
 }

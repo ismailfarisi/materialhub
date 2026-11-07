@@ -1,5 +1,6 @@
 "use client";
 
+import { ORDER_STATUS_OPTIONS } from "@/lib/order-status";
 import { useState, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -26,15 +27,7 @@ interface Order {
   created_at: string;
 }
 
-const STATUS_OPTIONS = [
-  { label: "Pending", value: "pending" },
-  { label: "Confirmed", value: "confirmed" },
-  { label: "Processing", value: "processing" },
-  { label: "Shipped", value: "shipped" },
-  { label: "Delivered", value: "delivered" },
-  { label: "Cancelled", value: "cancelled" },
-  { label: "Returned", value: "returned" },
-];
+const STATUS_OPTIONS = ORDER_STATUS_OPTIONS;
 
 function formatCurrency(fils: number) {
   return `AED ${(fils / 100).toLocaleString("en-AE", { minimumFractionDigits: 2 })}`;

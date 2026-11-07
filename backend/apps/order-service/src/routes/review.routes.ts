@@ -1,3 +1,4 @@
+import { ReviewStatus } from "@materialhub/database";
 import { jwtAuth, requireRole, vendorMembership } from "@materialhub/guards";
 import { Elysia, t } from "elysia";
 import { container } from "../container.ts";
@@ -14,8 +15,8 @@ export const reviewRoutes = new Elysia()
     {
       params: t.Object({ id: t.String({ format: "uuid" }) }),
       query: t.Object({
-        page: t.Optional(t.Integer({ default: 1 })),
-        limit: t.Optional(t.Integer({ default: 20 })),
+        page: t.Optional(t.Integer({ default: 1, minimum: 1 })),
+        limit: t.Optional(t.Integer({ default: 20, minimum: 1 })),
         sort: t.Optional(
           t.Union(
             [
@@ -68,12 +69,13 @@ export const reviewRoutes = new Elysia()
       )
       .post(
         "/:id/flag",
-        async ({ user, params, reviewController }: any) => {
-          const result = await reviewController.flag(params.id, user.id);
+        async ({ user, params, body, reviewController }: any) => {
+          const result = await reviewController.flag(params.id, user.id, body?.reason);
           return { statusCode: 200, data: result, timestamp: new Date().toISOString() };
         },
         {
           params: t.Object({ id: t.String({ format: "uuid" }) }),
+          body: t.Optional(t.Object({ reason: t.Optional(t.String({ maxLength: 500 })) })),
         },
       ),
   )
@@ -109,9 +111,12 @@ export const reviewRoutes = new Elysia()
         },
         {
           query: t.Object({
-            page: t.Optional(t.Integer({ default: 1 })),
-            limit: t.Optional(t.Integer({ default: 20 })),
-            status: t.Optional(t.String()),
+            page: t.Optional(t.Integer({ default: 1, minimum: 1 })),
+            limit: t.Optional(t.Integer({ default: 20, minimum: 1 })),
+            // Stored statuses plus the two moderation views the service understands.
+            status: t.Optional(
+              t.Union([t.Enum(ReviewStatus), t.Literal("needs_moderation"), t.Literal("reported")]),
+            ),
             product_id: t.Optional(t.String({ format: "uuid" })),
             vendor_id: t.Optional(t.String({ format: "uuid" })),
           }),

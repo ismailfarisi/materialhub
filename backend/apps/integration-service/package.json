@@ -4,9 +4,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun run --watch src/index.ts",
-    "start": "bun run src/index.ts",
-    "build": "bun build src/index.ts --target=bun --outdir=dist",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
@@ -30,5 +27,6 @@
     "@types/bun": "^1.4.3",
     "@types/jsonwebtoken": "^9.0.10",
     "typescript": "^5.7.0"
-  }
+  },
+  "description": "integration module of the MaterialHub API monolith (mounted by @materialhub/api)"
 }

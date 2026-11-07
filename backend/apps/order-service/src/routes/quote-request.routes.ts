@@ -1,3 +1,4 @@
+import { QuoteRequestStatus } from "@materialhub/database";
 // Request for quotation (RFQ) routes.
 //
 //   /buyer/quotes   customer: create, list, view, message, accept, decline, cancel
@@ -8,6 +9,7 @@
 import { QUOTE_EMIRATES, QUOTE_UNITS } from "@materialhub/database/src/enums/quote.enums.ts";
 import { jwtAuth, requireRole, vendorMembership } from "@materialhub/guards";
 import { auditPlugin } from "@materialhub/plugins";
+import { assertEnumFilter } from "@materialhub/plugins";
 import { Elysia, t } from "elysia";
 import { container } from "../container.ts";
 
@@ -262,6 +264,8 @@ export const quoteRequestRoutes = new Elysia()
       .get(
         "/",
         async ({ query, quoteRequestService }: any) => {
+          // A bogus status matched nothing and looked like "no quotes".
+          assertEnumFilter(query.status, QuoteRequestStatus);
           const result = await quoteRequestService.listForAdmin(query);
           return { statusCode: 200, ...result, timestamp: ts() };
         },

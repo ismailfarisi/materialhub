@@ -84,7 +84,7 @@ function BrandFormDialog({ open, brand, onClose }: BrandFormDialogProps) {
 						<Input
 							value={name}
 							onChange={(e) => setName(e.target.value)}
-							placeholder="e.g. Nike"
+							placeholder="e.g. Gulf Board Mills"
 						/>
 					</div>
 					<div>
@@ -94,7 +94,7 @@ function BrandFormDialog({ open, brand, onClose }: BrandFormDialogProps) {
 						<Input
 							value={slug}
 							onChange={(e) => setSlug(e.target.value)}
-							placeholder="e.g. nike"
+							placeholder="e.g. gulf-board-mills"
 						/>
 					</div>
 					<div>

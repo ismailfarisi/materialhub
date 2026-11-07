@@ -23,7 +23,7 @@ function formatDate(iso: string | null | undefined) {
 }
 
 export default function TeamPage() {
-	const { data: members = [], isLoading } = useTeamMembers();
+	const { data: members = [], isLoading, isError, error, refetch } = useTeamMembers();
 	const resend = useResendInvite();
 	const [inviteOpen, setInviteOpen] = useState(false);
 	const [changeRoleTarget, setChangeRoleTarget] = useState<string | null>(null);
@@ -37,14 +37,37 @@ export default function TeamPage() {
 		);
 	}
 
-	const activeVid = useActiveVendor.getState().activeVendorId;
 	const memberships =
 		typeof window !== "undefined" ? getMembershipsFromToken() : [];
+	// Single-store users have no picker selection; their only membership is active.
+	const activeVid =
+		useActiveVendor.getState().activeVendorId ??
+		(memberships.length === 1 ? memberships[0].vid : null);
 	const myRole = memberships.find((m) => m.vid === activeVid)?.r;
 	const isOwner = myRole === "owner";
 
 	if (isLoading) {
 		return <div className="p-8 text-sm text-zinc-500">Loading…</div>;
+	}
+
+	if (isError) {
+		const status = (error as { response?: { status?: number } } | null)?.response?.status;
+		return (
+			<div className="p-8 space-y-3">
+				<h1 className="text-2xl font-semibold">Team</h1>
+				<p role="alert" className="text-sm text-destructive">
+					{status === 403
+						? "Your role can't view the team for this store."
+						: ((error as { response?: { data?: { message?: string } } } | null)?.response
+								?.data?.message ?? "The team could not be loaded.")}
+				</p>
+				{status !== 403 ? (
+					<Button variant="outline" size="sm" onClick={() => void refetch()}>
+						Try again
+					</Button>
+				) : null}
+			</div>
+		);
 	}
 
 	return (

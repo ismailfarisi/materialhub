@@ -402,13 +402,19 @@ describe("GET /admin/sales-channels/:code/runs", () => {
     expect(res.data[0].id).toBe("run-2");
   });
 
-  it("returns [] for unknown channel", async () => {
+  it("returns [] for a valid channel code with no row", async () => {
     const { app } = buildApp();
     const res = (await app
-      .handle(new Request("http://localhost/admin/sales-channels/nope/runs"))
+      .handle(new Request("http://localhost/admin/sales-channels/tiktok/runs"))
       .then((r) => r.json())) as any;
     expect(res.statusCode).toBe(200);
     expect(res.data).toEqual([]);
+  });
+
+  it("returns 404 for a code outside sales_channels_code_enum", async () => {
+    const { app } = buildApp();
+    const res = await app.handle(new Request("http://localhost/admin/sales-channels/google/runs"));
+    expect(res.status).toBe(404);
   });
 });
 
@@ -447,7 +453,7 @@ describe("POST /admin/sales-channels/:code/rebuild", () => {
     );
     const body = (await res.json()) as any;
     expect(body.statusCode).toBe(202);
-    expect(body.data.jobId).toMatch(/^manual:google_merchant:/);
+    expect(body.data.jobId).toMatch(/^manual_google_merchant_/);
     expect(queueCalls).toHaveLength(1);
     expect(queueCalls[0]?.data).toEqual({ channelCode: "google_merchant", trigger: "manual" });
   });

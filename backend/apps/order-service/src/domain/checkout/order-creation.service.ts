@@ -12,6 +12,7 @@ import {
   type VendorOrder,
   Warehouse,
 } from "@materialhub/database";
+import { HttpError } from "@materialhub/plugins";
 import type { Queue } from "bullmq";
 // order-creation.service.ts
 import { type EntityManager, In, IsNull, type Repository } from "typeorm";
@@ -55,18 +56,80 @@ export class OrderCreationService {
     private shippingContributionTierRepo?: Repository<ShippingContributionTier>,
   ) {}
 
+  /**
+   * MH-<year>-<6+ digit sequence>, from the dedicated `order_number_seq`
+   * (migration OrderNumberSequence). No clock fallback: a timestamp-derived
+   * number collides under load, and `orders.order_number` is unique.
+   */
   private async generateOrderNumber(): Promise<string> {
-    // Use database sequence for unique, restart-safe order numbers
-    const result = await (this.orderRepo as any)
-      .query("SELECT nextval(pg_get_serial_sequence('orders', 'id')) AS seq")
-      .catch(() => [{ seq: Date.now() % 1000000 }]);
-    const seq = result[0]?.seq ?? Date.now() % 1000000;
+    const result = await (this.orderRepo as any).query("SELECT nextval('order_number_seq') AS seq");
+    const seq = result[0]?.seq;
+    if (seq == null) throw new Error("order_number_seq returned no value");
     const year = new Date().getFullYear();
-    return `FKS-${year}-${String(seq).padStart(6, "0")}`;
+    return `MH-${year}-${String(seq).padStart(6, "0")}`;
   }
 
   private generateVendorOrderNumber(orderNumber: string, index: number): string {
     return `${orderNumber}-V${index + 1}`;
+  }
+
+  /**
+   * The buyer's newest order that is still pending_payment, has no payment
+   * row, was created in the last 15 minutes and has exactly the cart's lines
+   * (product, variant, quantity, unit price) and grand total. Returned as the
+   * result of a repeated checkout instead of creating a duplicate order.
+   */
+  private async findReusablePendingOrder(
+    manager: EntityManager,
+    data: {
+      userId: string;
+      cartItems: any[];
+      discountTotal: number;
+      shippingTotal: number;
+      surchargeTotal?: number;
+    },
+  ): Promise<{ order: Order; vendorOrders: VendorOrder[] } | null> {
+    const [candidate] = await manager.query(
+      `SELECT o.id FROM orders o
+        WHERE o.user_id = $1 AND o.status = 'pending_payment' AND o.deleted_at IS NULL
+          AND o.created_at > now() - interval '15 minutes'
+          AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.order_id = o.id)
+        ORDER BY o.created_at DESC LIMIT 1`,
+      [data.userId],
+    );
+    if (!candidate) return null;
+
+    const lines: Array<{
+      product_id: string;
+      variant_id: string | null;
+      quantity: number;
+      unit_price: number;
+    }> = await manager.query(
+      "SELECT product_id, variant_id, quantity, unit_price FROM order_items WHERE order_id = $1",
+      [candidate.id],
+    );
+    const key = (l: {
+      product_id: string;
+      variant_id?: string | null;
+      quantity: number;
+      unit_price: number;
+    }) => `${l.product_id}|${l.variant_id ?? ""}|${Number(l.quantity)}|${Number(l.unit_price)}`;
+    const want = data.cartItems.map(key).sort();
+    const have = lines.map(key).sort();
+    if (want.length !== have.length || want.some((k, i) => k !== have[i])) return null;
+
+    const order = (await manager.getRepository(this.orderRepo.target).findOne({
+      where: { id: candidate.id } as any,
+    })) as Order;
+    const subtotal = data.cartItems.reduce((sum: number, item: any) => sum + item.line_total, 0);
+    const grandTotal =
+      subtotal - data.discountTotal + data.shippingTotal + (data.surchargeTotal ?? 0);
+    if (Number((order as any).grand_total) !== grandTotal) return null;
+
+    const vendorOrders = (await manager
+      .getRepository(this.vendorOrderRepo.target)
+      .find({ where: { order_id: candidate.id } as any })) as VendorOrder[];
+    return { order, vendorOrders };
   }
 
   async createOrder(data: {
@@ -80,6 +143,8 @@ export class OrderCreationService {
     buyerTrn?: string | null;
     taxTotal: number;
     shippingTotal: number;
+    /** Shipping per vendor (fils), adds up to shippingTotal (selectedShippingByVendor). */
+    shippingByVendor?: Record<string, number>;
     surchargeTotal?: number;
     discountTotal: number;
     couponId: string | null;
@@ -106,6 +171,14 @@ export class OrderCreationService {
 
     // Run everything inside a transaction for pessimistic locking and atomicity
     const result = await this.orderRepo.manager.transaction(async (manager: EntityManager) => {
+      // Idempotency: a double submit or client retry must not create a second
+      // order (and reserve stock twice). Serialize this buyer's checkouts, then
+      // reuse an identical unpaid order placed in the last 15 minutes.
+      await manager.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+        `checkout:${data.userId}`,
+      ]);
+      const reusable = await this.findReusablePendingOrder(manager, data);
+      if (reusable) return reusable;
       const orderRepo = manager.getRepository(this.orderRepo.target);
       const vendorOrderRepo = manager.getRepository(this.vendorOrderRepo.target);
       const orderItemRepo = manager.getRepository(this.orderItemRepo.target);
@@ -188,7 +261,10 @@ export class OrderCreationService {
           vendor_order_number: vendorOrderNumber,
           status: "confirmed",
           subtotal: vendorSubtotal,
-          shipping_cost: 0, // TODO: per-vendor shipping
+          // Per-vendor share of shipping (checkout's selectedShippingByVendor),
+          // so a rejected supplier's delivery charge can come off the order.
+          shipping_cost:
+            data.shippingByVendor?.[vendorId] ?? (groups.length === 1 ? data.shippingTotal : 0),
           shipping_contribution: shippingContribution,
           tax_total: 0, // TODO: per-vendor tax
           vendor_total: vendorSubtotal,
@@ -280,7 +356,10 @@ export class OrderCreationService {
               product_id: item.product_id,
               vendor_id: vendorId,
             };
-            if (item.variant_id) inventoryWhere.variant_id = item.variant_id;
+            // A line without a variant reserves the product-level row. Without
+            // IsNull() this matched any row of the product, e.g. its sample
+            // SKU, and checked (and reserved) the sample's stock instead.
+            inventoryWhere.variant_id = item.variant_id ?? IsNull();
 
             // Pessimistic lock on inventory row
             const inventory = await inventoryRepo
@@ -293,7 +372,17 @@ export class OrderCreationService {
               // Verify stock is still available
               const available = inventory.quantity_on_hand - inventory.quantity_reserved;
               if (available < item.quantity) {
-                throw new Error(`Insufficient stock for product ${item.product_id}`);
+                // A clean 409 the checkout can show ("only N left"), not a 500.
+                throw new HttpError(
+                  409,
+                  `Only ${Math.max(0, available)} left in stock for this item`,
+                  "INSUFFICIENT_STOCK",
+                  {
+                    product_id: item.product_id,
+                    variant_id: item.variant_id ?? null,
+                    available: Math.max(0, available),
+                  },
+                );
               }
 
               // Reserve inventory

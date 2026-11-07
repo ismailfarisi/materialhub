@@ -67,11 +67,11 @@ afterAll(async () => {
   if (!available) return;
   const ids = Object.values(users);
   await AppDataSource.query(
-    `DELETE FROM business_credit_accounts WHERE business_account_id IN (SELECT id FROM business_accounts WHERE created_by = ANY($1::uuid[]))`,
+    "DELETE FROM business_credit_accounts WHERE business_account_id IN (SELECT id FROM business_accounts WHERE created_by = ANY($1::uuid[]))",
     [ids],
   );
   await AppDataSource.query(
-    `DELETE FROM business_members WHERE business_account_id IN (SELECT id FROM business_accounts WHERE created_by = ANY($1::uuid[]))`,
+    "DELETE FROM business_members WHERE business_account_id IN (SELECT id FROM business_accounts WHERE created_by = ANY($1::uuid[]))",
     [ids],
   );
   await AppDataSource.query("DELETE FROM business_accounts WHERE created_by = ANY($1::uuid[])", [

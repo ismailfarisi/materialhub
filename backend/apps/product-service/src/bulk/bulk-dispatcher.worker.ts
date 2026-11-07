@@ -8,8 +8,23 @@ import { config } from "@materialhub/config";
 import { AppDataSource, BulkImportJob } from "@materialhub/database";
 import { getS3Client } from "@materialhub/utils";
 import { Worker } from "bullmq";
+import { type SearchSyncData, enqueueSearchSync } from "../domain/search/search-sync.job.ts";
 import { getJobType } from "./job-type-registry.ts";
 import { getBulkImageFetchQueue } from "./queues.ts";
+
+/**
+ * A bulk job's `search-reindex` follow-up goes through the same search-sync
+ * queue as single-product writes: the worker reloads the product and indexes
+ * it if published, or removes it from the index otherwise.
+ */
+export async function enqueueSearchReindexFollowUp(
+  payload: unknown,
+  enqueue: (d: SearchSyncData) => Promise<void> = enqueueSearchSync,
+): Promise<void> {
+  const productId = (payload as { productId?: unknown } | null)?.productId;
+  if (typeof productId !== "string" || !productId) return;
+  await enqueue({ type: "upsert_by_product_id", productId });
+}
 
 export interface DispatcherDeps {
   publisher: BulkJobEventPublisher;
@@ -92,8 +107,10 @@ export async function startBulkDispatcherWorker(deps: DispatcherDeps): Promise<W
           enqueueFollowUp: async (t: FollowUpTask) => {
             if (t.queue === "bulk-import-image-fetch") {
               await getBulkImageFetchQueue().add("fetch", t.payload);
+            } else if (t.queue === "search-reindex") {
+              await enqueueSearchReindexFollowUp(t.payload);
             }
-            // search-reindex / product-cache-invalidate wired by service-specific consumers
+            // product-cache-invalidate: no consumer yet.
           },
         },
         finalJobType,

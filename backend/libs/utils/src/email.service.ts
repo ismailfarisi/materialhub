@@ -32,7 +32,8 @@ function stripHtml(html: string): string {
 }
 
 const FROM_ADDRESS = process.env.SES_FROM_ADDRESS || "noreply@materialhubuae.com";
-const APP_URL = process.env.APP_URL || "http://localhost:3000";
+// The storefront origin: verify/reset/magic-link links open storefront pages.
+const APP_URL = process.env.APP_URL || "http://localhost:4000";
 // The unsubscribe endpoint is served by the API gateway, NOT the web app.
 const PUBLIC_API_URL = process.env.PUBLIC_API_URL || "http://localhost:3000";
 

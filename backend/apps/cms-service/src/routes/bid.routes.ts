@@ -1,3 +1,4 @@
+import { BidStatus } from "@materialhub/database";
 import { jwtAuth, requireRole, vendorMembership } from "@materialhub/guards";
 import { Elysia, t } from "elysia";
 import { container } from "../container.ts";
@@ -21,7 +22,7 @@ export const adminBidRoutes = new Elysia({ prefix: "/admin/bids" })
         limit: t.Optional(t.Number({ minimum: 1, maximum: 100 })),
         section_id: t.Optional(t.String({ format: "uuid" })),
         vendor_id: t.Optional(t.String({ format: "uuid" })),
-        status: t.Optional(t.String()),
+        status: t.Optional(t.Enum(BidStatus)),
       }),
     },
   )

@@ -44,6 +44,8 @@ const dbMockExports: Record<string, any> = {
 
 mock.module("@materialhub/database", () => dbMockExports);
 mock.module("@materialhub/plugins", () => ({
+  // List filters validate enum values; these tests don't exercise that.
+  assertEnumFilter: () => undefined,
   HttpError: class HttpError extends Error {
     constructor(
       public status: number,

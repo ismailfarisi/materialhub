@@ -22,7 +22,7 @@ describe("EditorialEditor", () => {
 		expect(screen.getByText(/short film/i)).toBeInTheDocument();
 		expect(screen.getByText(/maker letter/i)).toBeInTheDocument();
 		expect(screen.getByText(/lookbook/i)).toBeInTheDocument();
-		expect(screen.getByText(/ingredient origins/i)).toBeInTheDocument();
+		expect(screen.getByText(/material origins/i)).toBeInTheDocument();
 		expect(screen.getByText(/campaign/i)).toBeInTheDocument();
 	});
 

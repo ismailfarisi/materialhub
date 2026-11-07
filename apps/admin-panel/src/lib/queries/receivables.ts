@@ -110,10 +110,17 @@ export function useDownloadInvoiceXml() {
 export function useOpenInvoicePdf() {
 	return useMutation({
 		mutationFn: async (invoiceId: string) => {
-			const { data } = await api.get(
+			// A signed storage URL in the JSON envelope, or the PDF itself when
+			// the API has no object storage (then opened from a blob URL).
+			const { data } = await api.get<Blob>(
 				`/admin/receivables/invoices/${invoiceId}/pdf`,
+				{ responseType: "blob" },
 			);
-			return data.data as { url: string };
+			if (data.type === "application/pdf") {
+				return { url: URL.createObjectURL(data) };
+			}
+			const json = JSON.parse(await data.text());
+			return json.data as { url: string };
 		},
 	});
 }

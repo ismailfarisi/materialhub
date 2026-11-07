@@ -370,7 +370,8 @@ describe("ChannelService.enqueueRebuild", () => {
 
     expect(queueCalls).toHaveLength(1);
     expect(queueCalls[0]?.data).toEqual({ channelCode: "google_merchant", trigger: "manual" });
-    expect(queueCalls[0]?.opts.jobId).toMatch(/^manual:google_merchant:/);
+    expect(queueCalls[0]?.opts.jobId).toMatch(/^manual_google_merchant_/);
+    expect(queueCalls[0]?.opts.jobId).not.toContain(":");
     expect(result.jobId).toBe(queueCalls[0]?.opts.jobId);
   });
 

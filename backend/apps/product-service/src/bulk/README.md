@@ -65,7 +65,7 @@ Optional columns
 - `slug`
 - `description`
 - `brand_slug`
-- `status` — one of `draft`, `pending_review`, `active`, `archived`
+- `status` — one of `draft`, `pending_review`, `archived` (going live needs MaterialHub approval, then Publish in the dashboard; an import never demotes an approved or published product)
 - `compare_at_price`
 - `cost_price`
 - `currency`
@@ -76,7 +76,7 @@ Optional columns
 - `weight_grams`
 - `barcode`
 - `mpn`
-- `tags` — pipe-separated, e.g. `cotton|casual`
+- `tags` — pipe-separated, e.g. `kraft|wrapping`
 - `meta_title`
 - `meta_description`
 - `meta_keywords`
@@ -123,14 +123,14 @@ The actual `catalog_import` XLSX template includes the full column set shown abo
 
 ```csv
 external_id,sku,name,slug,description,category_slug,brand_slug,status,price,currency,has_variants,track_inventory,allow_backorder,requires_shipping,weight_grams,barcode,mpn,tags,meta_title,meta_description,meta_keywords,image_urls,initial_quantity,attr.color,attr.material
-ERP-1001,TS-RED-PARENT,Red T-Shirt,red-t-shirt,Soft cotton tee.,men-t-shirts,myawesomebrand,draft,9900,AED,true,true,false,true,180,1234567890123,TSRED123,cotton|casual,Red T-Shirt,Soft cotton tee for daily wear,red|cotton,https://cdn.example.com/img1.jpg|https://cdn.example.com/img2.jpg,,red,cotton
+ERP-1001,BC-LIN-PARENT,Linen Book Cloth Red,linen-book-cloth-red,Paper-backed linen for case binding.,linen-book-cloth,,draft,9900,AED,true,true,false,true,180,1234567890123,BCLIN123,linen|binding,Linen Book Cloth Red,Paper-backed linen book cloth for case binding,red|linen,https://cdn.example.com/img1.jpg|https://cdn.example.com/img2.jpg,,red,linen
 ```
 
 ### Variants sheet example
 
 ```csv
-product_external_id,product_sku,variant_external_id,variant_sku,name,option.color,option.size,price,compare_at_price,cost_price,weight_grams,length_cm,width_cm,height_cm,barcode,is_active,sort_order,initial_quantity,image_urls
-ERP-1001,TS-RED-PARENT,ERP-1001-RED-M,TS-RED-M,Red / M,red,m,9900,12900,6500,180,30,25,1,1234567890124,true,1,25,https://cdn.example.com/img1.jpg
+product_external_id,product_sku,variant_external_id,variant_sku,name,option.color,option.roll-width,price,compare_at_price,cost_price,weight_grams,length_cm,width_cm,height_cm,barcode,is_active,sort_order,initial_quantity,image_urls
+ERP-1001,BC-LIN-PARENT,ERP-1001-RED-100,BC-LIN-RED-100,Red / 100 cm roll,red,100cm,9900,12900,6500,180,30,25,1,1234567890124,true,1,25,https://cdn.example.com/img1.jpg
 ```
 
 ## Remote access

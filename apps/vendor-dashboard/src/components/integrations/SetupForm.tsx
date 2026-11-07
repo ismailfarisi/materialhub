@@ -17,6 +17,7 @@ import { AuthoritySelector } from "./AuthoritySelector";
 import { HelpDrawer } from "./HelpDrawer";
 import { IpAllowlistEditor } from "./IpAllowlistEditor";
 import { SecretRotationDialog } from "./SecretRotationDialog";
+import { inboundIntegrationUrl } from "@/lib/urls";
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
@@ -107,13 +108,9 @@ function SecretRow({
 // ─── Inbound URL row ──────────────────────────────────────────────────────────
 
 function InboundUrlRow({ id }: { id: string }) {
-	const [url, setUrl] = useState(`/integrations/inbound/${id}`);
-
-	useEffect(() => {
-		if (typeof window !== "undefined") {
-			setUrl(`${window.location.origin}/integrations/inbound/${id}`);
-		}
-	}, [id]);
+	// The API serves this (not the dashboard origin); the event type is the
+	// last path segment.
+	const url = inboundIntegrationUrl(id);
 
 	function handleCopy() {
 		navigator.clipboard.writeText(url).then(() => {

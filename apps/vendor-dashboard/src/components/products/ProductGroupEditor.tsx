@@ -423,7 +423,7 @@ export function ProductGroupEditor() {
 						<Input
 							value={name}
 							onChange={(e) => setName(e.target.value)}
-							placeholder="e.g. Velvet Matte Lip Collection"
+							placeholder="e.g. Linen Book Cloth Collection"
 							className={`mt-1 ${errors.name ? "border-red-300 focus-visible:ring-red-200" : ""}`}
 						/>
 					</div>
@@ -482,7 +482,7 @@ export function ProductGroupEditor() {
 						<Textarea
 							value={description}
 							onChange={(e) => setDescription(e.target.value)}
-							placeholder="Describe the collection — shared across all shades"
+							placeholder="Describe the collection — shared across all colours"
 							rows={3}
 							className="mt-1"
 						/>
@@ -608,7 +608,7 @@ export function ProductGroupEditor() {
 								)}
 							</div>
 							<p className="text-xs text-gray-500">
-								Each shade appears as its own listing — linked via "also
+								Each colour appears as its own listing — linked via "also
 								available in" swatches.
 							</p>
 						</button>
@@ -622,11 +622,11 @@ export function ProductGroupEditor() {
 					<CardHeader className="pb-3">
 						<CardTitle className="text-base flex items-center gap-2">
 							<Swatches size={16} />
-							Shades / Members
+							Colours / Members
 						</CardTitle>
 						<p className="text-xs text-gray-400 mt-1">
 							Each row becomes an individual product in this family. Set a price
-							per shade.
+							per colour.
 						</p>
 					</CardHeader>
 					<CardContent className="space-y-4">
@@ -707,7 +707,7 @@ export function ProductGroupEditor() {
 														onChange={(e) =>
 															updateMember(m._key, { name: e.target.value })
 														}
-														placeholder="Name for this shade"
+														placeholder="Name for this colour"
 														className="mt-1 text-sm"
 													/>
 												</div>
@@ -761,7 +761,7 @@ export function ProductGroupEditor() {
 											}
 										}}
 									>
-										<option value="">Add a shade…</option>
+										<option value="">Add a colour…</option>
 										{availableValues.map((v) => (
 											<option key={v.id} value={v.id}>
 												{v.value}

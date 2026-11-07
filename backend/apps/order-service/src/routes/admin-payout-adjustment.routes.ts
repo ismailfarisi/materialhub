@@ -24,7 +24,12 @@ export const adminPayoutAdjustmentRoutes = new Elysia()
   .use(container)
   .use(jwtAuth)
   .use(auditPlugin)
-  .group("/admin/payout-adjustments", (app) =>
+  // Type-only: `: any` on the group callback's RETURN stops tsc inferring the
+  // full chained Elysia type here, which (on top of the large container
+  // decorator type) blew the instantiation-depth limit (TS2589). Handlers are
+  // already `: any`-typed and nothing consumes this plugin's route types
+  // (no Eden client), so no type information is lost and runtime is unchanged.
+  .group("/admin/payout-adjustments", (app): any =>
     app
       .use(requireRole("admin", "super_admin"))
       .get(

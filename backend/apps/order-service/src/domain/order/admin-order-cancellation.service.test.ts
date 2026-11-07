@@ -254,6 +254,18 @@ describe("AdminOrderCancellationService", () => {
       create: mock((d: any) => ({ id: "wtx-3", ...d })),
       save: mock(async (e: any) => e),
     };
+    // The wallet credit runs in one transaction; route the transactional
+    // repositories back to these fakes by target.
+    (userRepo as any).target = "User";
+    (walletTransactionRepo as any).target = "WalletTransaction";
+    (orderRepo as any).target = "Order";
+    (userRepo as any).manager = {
+      transaction: async (cb: any) =>
+        cb({
+          getRepository: (t: string) =>
+            t === "User" ? userRepo : t === "WalletTransaction" ? walletTransactionRepo : orderRepo,
+        }),
+    };
 
     const service = new AdminOrderCancellationService(
       orderRepo as any,

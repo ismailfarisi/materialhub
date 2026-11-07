@@ -31,6 +31,20 @@ export const config = {
     cms: process.env.CMS_HOST || "localhost",
     integration: process.env.INTEGRATION_HOST || "localhost",
   },
+  /**
+   * Base URL of each backend module. In the monolith these origins are served
+   * in-process (see `serviceFetch` in @materialhub/utils), so they never hit
+   * the network; they only need to be stable and distinct.
+   */
+  serviceUrl: {
+    auth: `http://${process.env.AUTH_HOST || "localhost"}:${Number(process.env.AUTH_PORT) || 3001}`,
+    product: `http://${process.env.PRODUCT_HOST || "localhost"}:${Number(process.env.PRODUCT_PORT) || 3002}`,
+    order: `http://${process.env.ORDER_HOST || "localhost"}:${Number(process.env.ORDER_PORT) || 3003}`,
+    vendor: `http://${process.env.VENDOR_HOST || "localhost"}:${Number(process.env.VENDOR_PORT) || 3004}`,
+    notification: `http://${process.env.NOTIFICATION_HOST || "localhost"}:${Number(process.env.NOTIFICATION_PORT) || 3005}`,
+    cms: `http://${process.env.CMS_HOST || "localhost"}:${Number(process.env.CMS_PORT) || 3006}`,
+    integration: `http://${process.env.INTEGRATION_HOST || "localhost"}:${Number(process.env.INTEGRATION_PORT) || 3008}`,
+  },
   database: {
     host: process.env.DB_HOST || "127.0.0.1",
     port: Number(process.env.DB_PORT) || 5432,
@@ -96,6 +110,9 @@ export const config = {
   stripe: {
     secretKey: process.env.STRIPE_SECRET_KEY || "",
     connectWebhookSecret: process.env.STRIPE_CONNECT_WEBHOOK_SECRET || "",
+    // Signing secret of the platform PaymentIntent webhook endpoint
+    // (POST /webhooks/stripe). Unset → that endpoint fails closed with 503.
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",
   },
   tamara: {
     apiToken: process.env.TAMARA_API_TOKEN || "",

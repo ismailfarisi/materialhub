@@ -92,14 +92,14 @@ export function BasicInfoTab({
 				</div>
 				<div>
 					<label className="block text-sm font-medium text-cacao mb-1">
-						Ingredients
+						Material composition
 					</label>
 					{editing ? (
 						<Textarea
 							value={editIngredients}
 							onChange={(e) => setEditIngredients(e.target.value)}
 							rows={3}
-							placeholder="Aqua, Glycerin, Niacinamide..."
+							placeholder="e.g. 100% recycled board, water-based coating"
 						/>
 					) : (
 						<p className="text-sm text-taupe whitespace-pre-wrap">
@@ -109,14 +109,14 @@ export function BasicInfoTab({
 				</div>
 				<div>
 					<label className="block text-sm font-medium text-cacao mb-1">
-						Usage Instructions
+						Handling and use
 					</label>
 					{editing ? (
 						<Textarea
 							value={editUsageInstructions}
 							onChange={(e) => setEditUsageInstructions(e.target.value)}
 							rows={3}
-							placeholder="Store flat in a dry place; apply to a clean, dust-free surface..."
+							placeholder="e.g. Store flat and dry; score before folding"
 						/>
 					) : (
 						<p className="text-sm text-taupe whitespace-pre-wrap">
@@ -250,7 +250,7 @@ export function BasicInfoTab({
 					</div>
 					<div>
 						<label className="block text-xs font-medium text-taupe mb-1">
-							Ingredients (Arabic)
+							Material composition (Arabic)
 						</label>
 						{editing ? (
 							<Textarea
@@ -263,7 +263,7 @@ export function BasicInfoTab({
 								}
 								rows={3}
 								dir="rtl"
-								placeholder="المكونات باللغة العربية"
+								placeholder="تركيب الخامة باللغة العربية"
 							/>
 						) : (
 							<p className="text-sm text-taupe whitespace-pre-wrap" dir="rtl">
@@ -273,7 +273,7 @@ export function BasicInfoTab({
 					</div>
 					<div>
 						<label className="block text-xs font-medium text-taupe mb-1">
-							Usage Instructions (Arabic)
+							Handling and use (Arabic)
 						</label>
 						{editing ? (
 							<Textarea

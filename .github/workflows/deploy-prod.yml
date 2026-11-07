@@ -61,6 +61,7 @@ jobs:
           INTERNAL_SERVICE_SECRET: ${{ secrets.PROD_INTERNAL_SERVICE_SECRET }}
           STRIPE_SECRET_KEY: ${{ secrets.PROD_STRIPE_SECRET_KEY }}
           STRIPE_CONNECT_WEBHOOK_SECRET: ${{ secrets.PROD_STRIPE_CONNECT_WEBHOOK_SECRET }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.PROD_STRIPE_WEBHOOK_SECRET }}
           VENDOR_ENCRYPTION_KEY: ${{ secrets.PROD_VENDOR_ENCRYPTION_KEY }}
           ENCRYPTION_KEY: ${{ secrets.PROD_ENCRYPTION_KEY }}
           TWO_FA_ENCRYPTION_KEY: ${{ secrets.PROD_TWO_FA_ENCRYPTION_KEY }}
@@ -112,6 +113,7 @@ jobs:
             "internal-service-secret|INTERNAL_SERVICE_SECRET"
             "stripe/secret-key|STRIPE_SECRET_KEY"
             "stripe/connect-webhook|STRIPE_CONNECT_WEBHOOK_SECRET"
+            "stripe/payment-webhook|STRIPE_WEBHOOK_SECRET"
             "encryption/vendor-key|VENDOR_ENCRYPTION_KEY"
             "encryption/key|ENCRYPTION_KEY"
             "encryption/two-fa-key|TWO_FA_ENCRYPTION_KEY"
@@ -216,75 +218,13 @@ jobs:
           skipped=$(( ${#missing[@]} + ${#missing_required[@]} ))
           echo "✅ Synced $(( ${#PAIRS[@]} - skipped )) of ${#PAIRS[@]} secrets"
 
-  # ----- Build all services for prod (tag = full deploy) -----
-  build-api-gateway:
+  # ----- Build the API image for prod (tag = full deploy) -----
+  # One image: the backend runs as one process (backend/apps/api). It goes to
+  # the existing materialhub-api-gateway ECR repo; see build-service.yml.
+  build-api:
     needs: backend-checks
     uses: ./.github/workflows/build-service.yml
     with:
-      service: api-gateway
-      environment: production
-      image-tag: ${{ github.ref_name }}
-    secrets: inherit
-
-  build-auth-service:
-    needs: backend-checks
-    uses: ./.github/workflows/build-service.yml
-    with:
-      service: auth-service
-      environment: production
-      image-tag: ${{ github.ref_name }}
-    secrets: inherit
-
-  build-product-service:
-    needs: backend-checks
-    uses: ./.github/workflows/build-service.yml
-    with:
-      service: product-service
-      environment: production
-      image-tag: ${{ github.ref_name }}
-    secrets: inherit
-
-  build-order-service:
-    needs: backend-checks
-    uses: ./.github/workflows/build-service.yml
-    with:
-      service: order-service
-      environment: production
-      image-tag: ${{ github.ref_name }}
-    secrets: inherit
-
-  build-vendor-service:
-    needs: backend-checks
-    uses: ./.github/workflows/build-service.yml
-    with:
-      service: vendor-service
-      environment: production
-      image-tag: ${{ github.ref_name }}
-    secrets: inherit
-
-  build-notification-service:
-    needs: backend-checks
-    uses: ./.github/workflows/build-service.yml
-    with:
-      service: notification-service
-      environment: production
-      image-tag: ${{ github.ref_name }}
-    secrets: inherit
-
-  build-cms-service:
-    needs: backend-checks
-    uses: ./.github/workflows/build-service.yml
-    with:
-      service: cms-service
-      environment: production
-      image-tag: ${{ github.ref_name }}
-    secrets: inherit
-
-  build-integration-service:
-    needs: backend-checks
-    uses: ./.github/workflows/build-service.yml
-    with:
-      service: integration-service
       environment: production
       image-tag: ${{ github.ref_name }}
     secrets: inherit
@@ -293,14 +233,7 @@ jobs:
     name: Deploy Backend to Production
     needs:
       - sync-secrets-to-ssm
-      - build-api-gateway
-      - build-auth-service
-      - build-product-service
-      - build-order-service
-      - build-vendor-service
-      - build-notification-service
-      - build-cms-service
-      - build-integration-service
+      - build-api
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -340,10 +273,6 @@ jobs:
           chmod +x /opt/materialhub/refresh-env-from-ssm.sh
           AWS_REGION=ap-south-1 /opt/materialhub/refresh-env-from-ssm.sh \
             /opt/materialhub/.env materialhub production
-          if ! grep -q "TWILIO_VERIFY_SERVICE_SID" /opt/materialhub/docker-compose.yml; then
-            sed -i '/TWO_FA_ENCRYPTION_KEY=${TWO_FA_ENCRYPTION_KEY}/a\      - SMS_OTP_PROVIDER=${SMS_OTP_PROVIDER}\n      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}\n      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}\n      - TWILIO_VERIFY_SERVICE_SID=${TWILIO_VERIFY_SERVICE_SID}' \
-              /opt/materialhub/docker-compose.yml
-          fi
           cat > /opt/materialhub/config.alloy <<'ALLOYEOF'
           logging {
             level  = "info"
@@ -429,8 +358,68 @@ jobs:
             }
           }
           ALLOYEOF
-          if ! grep -q "^  alloy:" /opt/materialhub/docker-compose.yml; then
-            cat >> /opt/materialhub/docker-compose.yml <<'COMPOSEEOF'
+          # The box's docker-compose.yml is written here on every deploy (it
+          # used to come only from terraform user-data at first boot, patched
+          # in place). Keep it in step with terraform/production/user-data.sh.
+          # The backend is ONE container, `api` (gateway + every module); the
+          # former auth/product/order/vendor/notification/cms/integration
+          # containers and the old api-gateway container are removed by
+          # `up --remove-orphans` below. The previous file is kept as a backup.
+          cat > /opt/materialhub/docker-compose.yml.new <<'COMPOSEEOF'
+          services:
+            caddy:
+              image: caddy:2-alpine
+              restart: always
+              mem_limit: 128m
+              ports:
+                - "80:80"
+                - "443:443"
+              volumes:
+                - ./Caddyfile:/etc/caddy/Caddyfile:ro
+                - /data/caddy_data:/data
+                - /data/caddy_config:/config
+              depends_on:
+                - api
+
+            typesense:
+              image: typesense/typesense:27.1
+              restart: always
+              mem_limit: 1g
+              volumes:
+                - /data/typesense:/data
+              environment:
+                TYPESENSE_API_KEY: ${TYPESENSE_API_KEY}
+                TYPESENSE_DATA_DIR: /data
+
+            # The whole API in one process. Image repo name kept from the
+            # gateway (terraform-managed ECR repo).
+            api:
+              image: ${ECR_REGISTRY}/materialhub-api-gateway:production
+              restart: always
+              # 3g: this one process now runs every module. The former limits
+              # summed to ~4.25g (six services at 384m, product and integration
+              # at 1g after their Typesense reindex / feed builds OOM'd at
+              # 384m); one Bun runtime instead of eight saves the per-process
+              # baseline, and the box (t3a.large, 8g) also runs Typesense 1g,
+              # Alloy and Caddy.
+              mem_limit: 3g
+              expose:
+                - "3000"
+              env_file: .env
+              networks:
+                default:
+                  # The box's Caddyfile (written by user-data) proxies to
+                  # `api-gateway`; keep that name resolving.
+                  aliases:
+                    - api-gateway
+              healthcheck:
+                test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:'+(process.env.GATEWAY_PORT||3000)+'/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+                interval: 15s
+                timeout: 5s
+                retries: 5
+                start_period: 60s
+              depends_on:
+                - typesense
 
             alloy:
               image: grafana/alloy:latest
@@ -454,7 +443,23 @@ jobs:
                 - /dev/disk/:/dev/disk:ro
                 - /var/run:/var/run:ro
                 - /dev/kmsg:/dev/kmsg
+
+            # One-shot migration runner. profiles: ["tools"] keeps it out of `up`.
+            # Invoke:  docker-compose --profile tools run --rm migrate
+            migrate:
+              image: ${ECR_REGISTRY}/materialhub-api-gateway:production
+              command: bun run libs/database/src/run-migrations.ts
+              env_file: .env
+              profiles: ["tools"]
           COMPOSEEOF
+          if ! cmp -s /opt/materialhub/docker-compose.yml.new /opt/materialhub/docker-compose.yml; then
+            if [ -f /opt/materialhub/docker-compose.yml ]; then
+              cp /opt/materialhub/docker-compose.yml \
+                "/opt/materialhub/docker-compose.yml.bak-$(date +%Y%m%d%H%M%S)"
+            fi
+            mv /opt/materialhub/docker-compose.yml.new /opt/materialhub/docker-compose.yml
+          else
+            rm -f /opt/materialhub/docker-compose.yml.new
           fi
           ECR_REGISTRY="$(grep '^ECR_REGISTRY=' /opt/materialhub/.env | cut -d= -f2)"
           if [ -z "$ECR_REGISTRY" ]; then
@@ -467,6 +472,22 @@ jobs:
           docker-compose --profile tools run --rm migrate
           docker-compose up -d --remove-orphans --force-recreate
           docker-compose restart caddy
+
+          # Wait for the API to report healthy (GET /health); fail otherwise.
+          status=missing
+          for _ in $(seq 1 36); do
+            cid=$(docker-compose ps -q api)
+            status=$(docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null || echo missing)
+            [[ "$status" == "healthy" ]] && break
+            sleep 5
+          done
+          if [[ "$status" != "healthy" ]]; then
+            echo "api not healthy after 180s (status: $status)" >&2
+            docker-compose ps
+            docker-compose logs --tail 100 api
+            exit 1
+          fi
+          echo "api healthy"
           docker image prune -f
           EOS
 
@@ -484,7 +505,7 @@ jobs:
 
           # Poll until the command reaches a terminal state. The built-in
           # `aws ssm wait command-executed` waiter caps at ~100s — far too
-          # short for a multi-image pull + migrations + recreate, which makes
+          # short for an image pull + migrations + recreate, which makes
           # it report failure on a deploy that is still succeeding.
           STATUS=InProgress
           for _ in $(seq 1 90); do

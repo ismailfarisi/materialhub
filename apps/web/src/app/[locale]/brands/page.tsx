@@ -1,16 +1,25 @@
 import { Breadcrumb } from "@/components/product/breadcrumb";
 import { buttonVariants } from "@/components/swatch";
 import { apiServer } from "@/lib/api-server";
+import { buildAlternates } from "@/lib/seo/alternates";
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import Image from "next/image";
 import Link from "next/link";
 
-export const metadata: Metadata = {
-	title: "Brands",
-	description:
-		"Every brand on MaterialHub, A to Z: papers and boards, leather and book cloth, hardware and fittings, adhesives and finishing, boxes and packaging, ribbons and trims, decoration and craft.",
-};
+export async function generateMetadata({
+	params,
+}: {
+	params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+	const { locale } = await params;
+	const t = await getTranslations({ locale, namespace: "browse.brandsMeta" });
+	return {
+		title: t("title"),
+		description: t("description"),
+		alternates: buildAlternates(locale, "/brands"),
+	};
+}
 
 export const revalidate = 600;
 

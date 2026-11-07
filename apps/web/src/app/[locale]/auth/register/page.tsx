@@ -8,15 +8,16 @@ import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
+import { safeReturnTo } from "@/lib/safe-return-to";
 
 function RegisterContent() {
 	const t = useTranslations("auth");
 	const locale = useLocale();
 	const router = useRouter();
 	const searchParams = useSearchParams();
-	const returnTo = searchParams.get("returnTo");
+	const returnTo = safeReturnTo(searchParams.get("returnTo"), `/${locale}/account`);
 	const [method, setMethod] = useState<AuthMethod>(searchParams.get("method") === "email" ? "email" : "phone");
-	const onAuthenticated = () => router.push(returnTo || `/${locale}/account`);
+	const onAuthenticated = () => router.push(returnTo);
 
 	return (
 		<AuthShell

@@ -16,7 +16,11 @@ import type { CartHashItem } from "./quote/cart-hash.ts";
 import { computeCartHash } from "./quote/cart-hash.ts";
 import { getFxSnapshot } from "./quote/defaults.ts";
 import type { QuoteService } from "./quote/quote.service.ts";
-import { selectedShippingFils } from "./quote/shipping-total.ts";
+import {
+  reconcileVendorShipping,
+  selectedShippingByVendor,
+  selectedShippingFils,
+} from "./quote/shipping-total.ts";
 import type { TaxService } from "./tax.service.ts";
 
 export class CheckoutService {
@@ -162,6 +166,41 @@ export class CheckoutService {
       }
     }
 
+    // 3b. Ship-to must be one of the buyer's saved addresses. Saving an address
+    // requires a verified phone, and its area drives the shipping rate below;
+    // a free-form address skipped both (no phone check, shipping never
+    // charged). The saved record's fields win over the client snapshot, which
+    // only fills display extras (e.g. the area name).
+    if (!data.address_id) {
+      throw new HttpError(400, "Choose a saved delivery address", "ADDRESS_REQUIRED");
+    }
+    const savedAddress = await this.userAddressRepo.findOne({
+      where: { id: data.address_id, user_id: data.userId },
+    });
+    if (!savedAddress) {
+      throw new HttpError(404, "Delivery address not found", "ADDRESS_NOT_FOUND");
+    }
+    const a = savedAddress as any;
+    data.shippingAddress = {
+      ...(data.shippingAddress ?? {}),
+      first_name: a.first_name,
+      last_name: a.last_name,
+      full_name: [a.first_name, a.last_name].filter(Boolean).join(" "),
+      phone: a.phone,
+      building_name: a.building_name ?? null,
+      apartment: a.apartment ?? null,
+      floor: a.floor ?? null,
+      city: a.city,
+      state: a.state ?? null,
+      emirate: a.state ?? null,
+      postal_code: a.postal_code ?? null,
+      country_code: a.country_code ?? null,
+      area_id: a.area_id ?? null,
+      latitude: a.latitude ?? null,
+      longitude: a.longitude ?? null,
+      delivery_notes: a.delivery_notes ?? null,
+    };
+
     // 4. Tax — product prices are VAT-inclusive. Snapshot the extracted
     // VAT for the order record (informational; not added to grand_total).
     const taxTotal = (cart as any).subtotal - Math.round(((cart as any).subtotal || 0) / 1.05);
@@ -171,12 +210,11 @@ export class CheckoutService {
     // that here so a no-address initiate is never charged shipping.
     const vendorIds = Array.from(new Set(allItems.map((i: any) => i.vendor_id as string)));
     let shippingTotal = 0;
-    if (data.address_id) {
-      let zoneId: string | null = null;
-      const addr = await this.userAddressRepo.findOne({
-        where: { id: data.address_id, user_id: data.userId },
-      });
-      zoneId = addr?.area_id ?? null;
+    // The same shipping split per vendor sub-order (vendor_orders.shipping_cost);
+    // adds up to shippingTotal exactly.
+    let shippingByVendor: Record<string, number> = {};
+    {
+      const zoneId: string | null = savedAddress.area_id ?? null;
 
       const rateRows: ShippingRate[] = vendorIds.length
         ? await this.shippingRateRepo
@@ -221,14 +259,16 @@ export class CheckoutService {
           quantity: it.quantity,
           unit_price: it.unit_price,
         }));
-      shippingTotal = selectedShippingFils({
+      const shippingInput = {
         items: toShippingItems(allItems),
         rates: shippingRates,
         zoneId,
         vendorHolidays: onHoliday,
         subtotalFils: (cart as any).subtotal,
         sampleShipping,
-      });
+      };
+      shippingTotal = selectedShippingFils(shippingInput);
+      shippingByVendor = selectedShippingByVendor(shippingInput);
 
       // A free_shipping coupon waives the shipping of the delivery groups it
       // covers: the coupon's vendor group for vendor coupons, all groups for
@@ -247,7 +287,11 @@ export class CheckoutService {
           sampleShipping,
         });
         shippingTotal = Math.max(0, shippingTotal - waived);
+        for (const vendorId of Object.keys(shippingByVendor)) {
+          if (!coupon.vendorId || coupon.vendorId === vendorId) shippingByVendor[vendorId] = 0;
+        }
       }
+      shippingByVendor = reconcileVendorShipping(shippingByVendor, shippingTotal);
     }
 
     // 5b. Payment-method surcharge (COD only today; single source =
@@ -262,7 +306,10 @@ export class CheckoutService {
       if (!codRow) {
         throw new BadRequestError("Cash on delivery is not available");
       }
-      if ((cart as any).subtotal > codRow.max_amount_fils) {
+      if (
+        (cart as any).subtotal > codRow.max_amount_fils ||
+        (cart as any).subtotal < Number(codRow.min_amount_fils ?? 0)
+      ) {
         throw new BadRequestError("Cash on delivery is not available for this order amount");
       }
       surchargeTotal = codRow.surcharge_fils ?? 0;
@@ -293,7 +340,12 @@ export class CheckoutService {
     // 6. Create order
     let created: Awaited<ReturnType<OrderCreationService["createOrder"]>>;
     try {
-      created = await this.orderCreationService.createOrder({
+      // `shippingByVendor` is read by createOrder once it stamps
+      // vendor_orders.shipping_cost per vendor; passed through a typed
+      // variable so this compiles before and after that parameter exists.
+      const createInput: Parameters<OrderCreationService["createOrder"]>[0] & {
+        shippingByVendor?: Record<string, number>;
+      } = {
         userId: data.userId,
         cartItems: allItems,
         shippingAddress: data.shippingAddress,
@@ -312,7 +364,9 @@ export class CheckoutService {
         customerNotes: data.customerNotes,
         ipAddress: data.ipAddress,
         userAgent: data.userAgent,
-      });
+        shippingByVendor,
+      };
+      created = await this.orderCreationService.createOrder(createInput);
     } catch (err) {
       if (approvalId) await this.business?.approvals.release(approvalId);
       throw err;
@@ -387,10 +441,11 @@ export class CheckoutService {
     // `undefined` silently reaching a payment gateway or NOT NULL column.
     switch (paymentMethod) {
       case "cash_on_delivery": {
-        if (amount === undefined) {
-          throw new BadRequestError("amount is required for cash_on_delivery payments");
-        }
-        const result = await this.paymentService.createCodPayment({ orderId, userId, amount });
+        // `amount` is ignored: the order's own grand_total is what the courier
+        // collects (see PaymentService.createCodPayment).
+        const result = await this.paymentService.createCodPayment({ orderId, userId });
+        // A repeat call (double submit, retry) must not redo the side effects.
+        if (result.idempotent) return result;
         // COD has no async webhook; the customer is committed the moment they
         // pick COD. Count the coupon redemption and drain the cart now.
         // Prepaid providers (Stripe today, Tabby / Tamara tomorrow) do both

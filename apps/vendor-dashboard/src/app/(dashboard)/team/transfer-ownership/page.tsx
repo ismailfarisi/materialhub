@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@materialhub/ui";
+import { api } from "@/lib/api";
 import { useTeamMembers, useTransferOwnership } from "@/lib/queries/vendor-members";
 
 const FLAG_ENABLED = process.env.NEXT_PUBLIC_TEAM_MANAGEMENT_ENABLED !== "false";
@@ -11,11 +14,27 @@ export default function TransferOwnershipPage() {
   const transfer = useTransferOwnership();
   const [target, setTarget] = useState<string>("");
   const [confirm, setConfirm] = useState("");
+  const [newOwnerEmail, setNewOwnerEmail] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   if (!FLAG_ENABLED) {
     return (
       <div className="p-8 text-sm text-zinc-500">
         Team management is not yet available.
+      </div>
+    );
+  }
+
+  if (newOwnerEmail) {
+    return (
+      <div className="p-8 max-w-xl" role="status">
+        <h1 className="text-2xl font-semibold">Ownership transferred</h1>
+        <p className="mt-2 text-sm text-zinc-600">
+          {newOwnerEmail} is now the owner of this store. You are a manager.
+        </p>
+        <Link href="/team" className="mt-6 inline-block text-sm underline">
+          Back to Team
+        </Link>
       </div>
     );
   }
@@ -75,12 +94,22 @@ export default function TransferOwnershipPage() {
       )}
 
       <div className="mt-6 flex justify-end gap-3">
-        <a href="/team" className="text-sm self-center">
+        <Link href="/team" className="text-sm self-center">
           Cancel
-        </a>
+        </Link>
         <Button
           disabled={!ready || transfer.isPending}
-          onClick={() => transfer.mutate(target)}
+          onClick={() =>
+            transfer.mutate(target, {
+              onSuccess: async () => {
+                // Our role changed: re-issue the token so the vm claim says manager,
+                // then drop cached data that was fetched as owner.
+                await api.post("/auth/refresh", {}).catch(() => {});
+                void queryClient.invalidateQueries();
+                setNewOwnerEmail(candidates.find((c) => c.id === target)?.email ?? "The new owner");
+              },
+            })
+          }
           variant="destructive"
         >
           {transfer.isPending ? "Transferring…" : "Transfer ownership"}

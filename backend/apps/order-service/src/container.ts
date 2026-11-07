@@ -38,6 +38,7 @@ import {
   Return,
   ReturnItem,
   Review,
+  ReviewFlag,
   ReviewVote,
   RulesEpoch,
   Shipment,
@@ -399,7 +400,14 @@ const webhookService = new WebhookService(
   paymentRepo,
   orderConfirmationService,
   orderStatusService,
-  config.tamara,
+  // Production fails closed when TAMARA_NOTIFICATION_TOKEN is unset; dev stays permissive.
+  { ...config.tamara, requireNotificationToken: config.isProduction },
+  {
+    // The static helper verifies signatures without an API key, so the
+    // webhook still verifies (rather than crashing) when STRIPE_SECRET_KEY is unset.
+    webhooks: config.stripe.secretKey ? stripe.webhooks : Stripe.webhooks,
+    secret: config.stripe.webhookSecret,
+  },
 );
 const rulesEpochService = new RulesEpochService(rulesEpochRepo);
 const quoteSecret = process.env.QUOTE_TOKEN_KEY ?? "dev-only-quote-key";
@@ -540,8 +548,19 @@ const _orderEventBridge = new BullWorker(
       await autoShipmentQueue.add("auto-shipment", {
         orderId: job.data.orderId,
         vendorOrderId: job.data.vendorOrderId,
-        vendorId: job.data.actorId,
+        // actorId is the acting USER (or "system"), not the vendor.
+        vendorId: job.data.vendorId ?? job.data.actorId,
       });
+    }
+    // The master order just became delivered: a cash-on-delivery order's
+    // tax invoices are issued now that the cash is collected (see
+    // taxInvoiceDeferral). Idempotent for orders already invoiced.
+    if (job.data?.parentOrderStatus === "delivered" && job.data.orderId) {
+      await invoiceQueue.add(
+        "generate",
+        { orderId: job.data.orderId },
+        { jobId: `invoice_delivered_${job.data.orderId}` },
+      );
     }
     await notificationEventsQueue.add("notification-event", job.data);
   },
@@ -617,6 +636,7 @@ const reviewService = new ReviewService(
   productRepo,
   vendorRepo,
   reviewRatingQueue,
+  AppDataSource.getRepository(ReviewFlag),
 );
 const reviewController = new ReviewController(reviewService);
 

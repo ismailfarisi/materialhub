@@ -22,8 +22,8 @@ export const commissionRoutes = new Elysia()
         {
           query: t.Object({
             vendorId: t.Optional(t.String({ format: "uuid" })),
-            page: t.Optional(t.Integer({ default: 1 })),
-            limit: t.Optional(t.Integer({ default: 20 })),
+            page: t.Optional(t.Integer({ default: 1, minimum: 1 })),
+            limit: t.Optional(t.Integer({ default: 20, minimum: 1 })),
           }),
         },
       )

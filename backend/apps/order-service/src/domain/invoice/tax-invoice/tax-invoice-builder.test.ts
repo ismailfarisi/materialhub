@@ -8,6 +8,7 @@ import {
   makeLine,
   netOfVat,
   sellerCodeFor,
+  unitPriceExclFils,
 } from "./tax-invoice-builder.ts";
 
 const buyer = {
@@ -248,6 +249,157 @@ describe("order → tax invoices", () => {
       issuedAt: new Date(),
     });
     expect(d.some((x) => x.kind === "platform")).toBe(false);
+  });
+});
+
+describe("only what was supplied is invoiced", () => {
+  // MH-…-04: greyboard pack 4,500 + kraft liner sheet 500, the liner
+  // cancelled by admin before shipping (COD, invoiced at delivery).
+  const codOrder = {
+    ...order,
+    discount_total: 0,
+    shipping_total: 1500,
+    surcharge_total: 1000,
+    coupon_code: null,
+    vendorOrders: [
+      {
+        id: "vo-1",
+        vendor_id: "3f2a9c1b-0000-4000-8000-000000000001",
+        vendor_order_number: "MH-2026-000004-V1",
+        status: "delivered",
+        items: [
+          {
+            id: "gb",
+            product_name: "Greyboard 2 mm",
+            variant_name: "70 × 100 cm, pack of 10",
+            product_sku: "GB-2-P10",
+            quantity: 1,
+            line_total: 4500,
+          },
+          {
+            id: "kl",
+            product_name: "Kraft liner 125 gsm",
+            variant_name: "100 × 70 cm sheet",
+            product_sku: "KL-125",
+            quantity: 1,
+            line_total: 500,
+            status: "cancelled",
+          },
+        ],
+      },
+    ],
+  };
+  const build = (o: any, cancelled?: any) =>
+    buildInvoiceDrafts({
+      order: o,
+      sellers: {},
+      platform,
+      buyer,
+      paymentMethod: "cash_on_delivery",
+      issuedAt: new Date("2026-11-07T10:00:00Z"),
+      cancelled,
+    });
+
+  test("a cancelled line is left off the vendor invoice", () => {
+    const [v] = build(codOrder, { kl: { quantity: 1, amount: 500 } });
+    expect(v!.lines.map((l) => l.source_id)).toEqual(["gb"]);
+    expect(v!.totals.payable_fils).toBe(4500);
+  });
+
+  test("a partially cancelled line is invoiced for the units supplied", () => {
+    const o = {
+      ...codOrder,
+      vendorOrders: [
+        {
+          ...codOrder.vendorOrders[0]!,
+          items: [{ ...codOrder.vendorOrders[0]!.items[0]!, quantity: 3, line_total: 13500 }],
+        },
+      ],
+    };
+    const [v] = build(o, { gb: { quantity: 1, amount: 4500 } });
+    expect(v!.lines[0]!.quantity).toBe(2);
+    expect(v!.lines[0]!.line_gross_fils).toBe(9000);
+    expect(v!.totals.payable_fils).toBe(9000);
+  });
+
+  test("a rejected (cancelled) vendor sub-order gets no invoice", () => {
+    const o = {
+      ...codOrder,
+      vendorOrders: [
+        { ...codOrder.vendorOrders[0]!, id: "vo-rej", status: "cancelled" },
+        {
+          id: "vo-2",
+          vendor_id: "9c1b3f2a-0000-4000-8000-000000000002",
+          vendor_order_number: "MH-2026-000006-V2",
+          status: "delivered",
+          items: [
+            {
+              id: "kr",
+              product_name: "Brown kraft roll 80 gsm",
+              variant_name: null,
+              product_sku: null,
+              quantity: 1,
+              line_total: 3000,
+            },
+          ],
+        },
+      ],
+    };
+    const d = build(o);
+    expect(d.filter((x) => x.kind === "vendor").map((x) => x.vendor_order_id)).toEqual(["vo-2"]);
+  });
+
+  test("returns do not shrink the invoice (refunded_quantity is not a cancellation)", () => {
+    const o = {
+      ...codOrder,
+      vendorOrders: [
+        {
+          ...codOrder.vendorOrders[0]!,
+          items: [{ ...codOrder.vendorOrders[0]!.items[0]!, refunded_quantity: 1 }],
+        },
+      ],
+    };
+    const [v] = build(o, {});
+    expect(v!.totals.payable_fils).toBe(4500);
+  });
+
+  test("the discount is shared over the supplied goods only", () => {
+    const o = { ...order, vendorOrders: [order.vendorOrders[0]!, order.vendorOrders[1]!] };
+    const d = build(o, { i3: { quantity: 12, amount: 30600 } });
+    const vendors = d.filter((x) => x.kind === "vendor");
+    expect(vendors).toHaveLength(1);
+    expect(vendors[0]!.totals.payable_fils).toBe(103650 - 2500);
+  });
+});
+
+describe("unit price precision", () => {
+  test("never a raw float: 4 decimals of a fil, and price × quantity reproduces the line net", () => {
+    const line = makeLine({
+      line_no: 1,
+      source_id: "kp",
+      description: "Kraft paper 120 GSM",
+      sku: null,
+      quantity: 3,
+      gross_fils: 13500,
+    });
+    expect(line.line_net_fils).toBe(12857);
+    expect(line.unit_price_excl_fils).toBe(4285.6667);
+    expect(Math.round(line.unit_price_excl_fils * line.quantity)).toBe(line.line_net_fils);
+    expect(Number.isInteger(line.line_net_fils)).toBe(true);
+  });
+
+  test("whole-fil prices stay integers", () => {
+    expect(unitPriceExclFils(10000, 4)).toBe(2500);
+    expect(unitPriceExclFils(45714, 1)).toBe(45714);
+  });
+
+  test("price × quantity is exact for every line of the fixture order", () => {
+    for (const x of drafts()) {
+      for (const l of x.lines) {
+        expect(Math.round(l.unit_price_excl_fils * l.quantity)).toBe(l.line_net_fils);
+        expect(String(l.unit_price_excl_fils).split(".")[1]?.length ?? 0).toBeLessThanOrEqual(4);
+      }
+    }
   });
 });
 

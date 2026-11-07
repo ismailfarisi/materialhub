@@ -10,6 +10,7 @@ import { transform, validateSpec } from "@materialhub/integration-mapper";
 import type { EncryptionService } from "@materialhub/utils";
 import type { Repository } from "typeorm";
 import { verify } from "../dispatcher/signer.ts";
+import { isUuid } from "../ids.ts";
 import type { PendingWritesService } from "../pending-writes/pending-writes.service.ts";
 import { decideAuthority } from "./authority-gate.ts";
 import type { DomainDispatch } from "./domain-dispatch.ts";
@@ -43,9 +44,12 @@ export class InboundService {
   constructor(private deps: InboundDeps) {}
 
   async handle(input: InboundInput): Promise<InboundResult> {
-    const integration = await this.deps.integrationRepo.findOne({
-      where: { id: input.integrationId, is_active: true } as any,
-    });
+    // A malformed id would make Postgres raise 22P02 on the uuid column (a 500).
+    const integration = isUuid(input.integrationId)
+      ? await this.deps.integrationRepo.findOne({
+          where: { id: input.integrationId, is_active: true } as any,
+        })
+      : null;
     if (!integration || integration.deleted_at) {
       return { status: 404, body: { error: "not_found" } };
     }

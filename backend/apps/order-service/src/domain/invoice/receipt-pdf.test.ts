@@ -3,7 +3,8 @@ import { renderReceiptPdf } from "./receipt-pdf.ts";
 import type { ReceiptViewModel } from "./receipt-view-model.ts";
 
 const vm: ReceiptViewModel = {
-  reference: "NL-10234",
+  reference: "MH-10234",
+  statusLabel: null,
   dateLabel: "27 Jul 2026",
   address: { name: "Aisha Khan", lines: ["12 Marina Walk", "Dubai, AE"], phone: "+971500000000" },
   buyer: { legalName: "Gulf Rigid Box Workshop LLC", trn: "100234567800003" },
@@ -11,7 +12,7 @@ const vm: ReceiptViewModel = {
     {
       vendorName: "Vendor A",
       vendorTrn: "100987654300003",
-      vendorOrderNumber: "NL-10234-V1",
+      vendorOrderNumber: "MH-10234-V1",
       items: [
         {
           name: "Greyboard 2.0 mm",
@@ -31,6 +32,7 @@ const vm: ReceiptViewModel = {
     vat: "AED 9.75",
     grandTotal: "AED 204.75",
     refund: null,
+    paid: "AED 204.75",
   },
 };
 
@@ -54,10 +56,20 @@ describe("renderReceiptPdf", () => {
         vat: "AED 9.75",
         grandTotal: "AED 202.75",
         refund: "-AED 10.00",
+        paid: "AED 192.75",
       },
     };
     const buf = await renderReceiptPdf(withMoney);
     expect(buf.length).toBeGreaterThan(500);
+    expect(buf.subarray(0, 5).toString("latin1")).toBe("%PDF-");
+  });
+
+  test("renders a cancelled receipt", async () => {
+    const buf = await renderReceiptPdf({
+      ...vm,
+      statusLabel: "Cancelled",
+      totals: { ...vm.totals, paid: "AED 0.00" },
+    });
     expect(buf.subarray(0, 5).toString("latin1")).toBe("%PDF-");
   });
 });

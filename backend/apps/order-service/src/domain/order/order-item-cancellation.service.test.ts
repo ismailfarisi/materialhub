@@ -29,6 +29,7 @@ describe("OrderItemCancellationService", () => {
   let cancellationRepo: any;
   let historyRepo: any;
   let vendorPayoutAdjustmentRepo: any;
+  let reservationQuery: any;
   let refundService: any;
   let orderStatusService: any;
   let orderEventQueue: any;
@@ -46,6 +47,9 @@ describe("OrderItemCancellationService", () => {
     cancellationRepo = makeRepo();
     historyRepo = makeRepo();
     vendorPayoutAdjustmentRepo = makeRepo();
+    // Reservation rows of the order (raw SQL in the bookkeeping tx). Default:
+    // none — orders created before reservations were recorded.
+    reservationQuery = mock((_sql: string, _params?: any[]) => Promise.resolve([] as any[]));
 
     const reposByName: Record<string, any> = {
       Order: orderRepo,
@@ -57,6 +61,7 @@ describe("OrderItemCancellationService", () => {
       OrderItemCancellation: cancellationRepo,
       OrderStatusHistory: historyRepo,
       VendorPayoutAdjustment: vendorPayoutAdjustmentRepo,
+      Payment: paymentRepo,
     };
     // The service opens `orderRepo.manager.transaction` and does its writes via
     // `tx.getRepository(<EntityName>)`. Route those to the same injected mocks
@@ -68,6 +73,7 @@ describe("OrderItemCancellationService", () => {
       transaction: mock(async (cb: any) =>
         cb({
           getRepository: (n: any) => reposByName[typeof n === "string" ? n : n?.name],
+          query: reservationQuery,
         }),
       ),
     };
@@ -293,8 +299,12 @@ describe("OrderItemCancellationService", () => {
   /* ---------------------------------------------------------------- */
   /*  COD                                                             */
   /* ---------------------------------------------------------------- */
-  it("COD: no gateway refund call, refund_method=cod_uncollected, order.refund_total still bumped", async () => {
-    const { order } = seed({ payment: { gateway: "cod", status: "pending" } });
+  it("COD: no gateway refund call; the COD amount and order/vendor totals shrink instead of refund_total", async () => {
+    const { order, payment, vo } = seed({
+      payment: { gateway: "cod", status: "pending", amount: 32000 },
+      order: { subtotal: 30000, tax_total: 1500, grand_total: 32000 },
+      vo: { subtotal: 30000, vendor_total: 30000 },
+    });
 
     await call([{ order_item_id: "oi-1", quantity: 1 }]);
 
@@ -302,8 +312,57 @@ describe("OrderItemCancellationService", () => {
     expect(cancellationRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({ refund_method: "cod_uncollected", gateway_refund_id: null }),
     );
-    expect(order.refund_total).toBe(10000);
+    // Nothing was collected, so nothing is "refunded"; the order got smaller.
+    expect(order.refund_total).toBe(0);
+    expect(payment.amount).toBe(22000);
+    expect(paymentRepo.save).toHaveBeenCalledWith(expect.objectContaining({ amount: 22000 }));
+    expect(order.grand_total).toBe(22000);
+    expect(order.subtotal).toBe(20000);
+    expect(order.tax_total).toBe(1000);
+    expect(vo.subtotal).toBe(20000);
+    expect(vo.vendor_total).toBe(20000);
     expect(orderRepo.save).toHaveBeenCalled();
+  });
+
+  it("COD: emptying a vendor sub-order also takes its shipping off shipping_total", async () => {
+    const { order, payment } = seed({
+      payment: { gateway: "cod", status: "pending", amount: 32000 },
+      order: { subtotal: 30000, tax_total: 1500, shipping_total: 2000, grand_total: 32000 },
+      vo: { subtotal: 30000, vendor_total: 30000 },
+    });
+
+    await call([{ order_item_id: "oi-1", quantity: 3 }]);
+
+    expect(payment.amount).toBe(0);
+    expect(order.subtotal).toBe(0);
+    expect(order.shipping_total).toBe(0);
+    expect(order.grand_total).toBe(0);
+  });
+
+  it("shrinks the order's reservation row so a later full cancel cannot release the units twice", async () => {
+    seed();
+    reservationQuery.mockImplementation((sql: string) =>
+      Promise.resolve(sql.startsWith("SELECT") ? [{ id: "res-1", quantity: 3 }] : []),
+    );
+
+    await call([{ order_item_id: "oi-1", quantity: 1 }]);
+
+    const update = reservationQuery.mock.calls.find((c: any[]) => c[0].startsWith("UPDATE"));
+    expect(update?.[0]).toContain("quantity = quantity - $2");
+    expect(update?.[1]).toEqual(["res-1", 1]);
+  });
+
+  it("closes the reservation row when the whole line is cancelled", async () => {
+    seed();
+    reservationQuery.mockImplementation((sql: string) =>
+      Promise.resolve(sql.startsWith("SELECT") ? [{ id: "res-1", quantity: 3 }] : []),
+    );
+
+    await call([{ order_item_id: "oi-1", quantity: 3 }]);
+
+    const update = reservationQuery.mock.calls.find((c: any[]) => c[0].startsWith("UPDATE"));
+    expect(update?.[0]).toContain("status = 'released'");
+    expect(update?.[1]).toEqual(["res-1"]);
   });
 
   /* ---------------------------------------------------------------- */
@@ -742,7 +801,7 @@ describe("OrderItemCancellationService", () => {
     const codCall = (items: any[]) =>
       carrierService.cancelItems("order-1", "admin-1", { reason: "out of stock", items });
 
-    it("COD partial cancel on a booked postaplus shipment amends COD by originalCod - refund_total", async () => {
+    it("COD partial cancel on a booked postaplus shipment amends COD to the reduced COD amount", async () => {
       const { order } = seed({
         payment: { gateway: "cod", status: "pending", amount: 32000 },
         // shipping_address snapshot has NO email — must be backfilled from the
@@ -754,7 +813,7 @@ describe("OrderItemCancellationService", () => {
 
       expect(adapter.amendCodAmount).toHaveBeenCalledTimes(1);
       const [params] = adapter.amendCodAmount.mock.calls[0];
-      // originalCod 32000 - refund_total (now 10000 after this cancel) = 22000
+      // COD amount 32000 reduced by this cancel (10000) = 22000
       expect(params.codAmountFils).toBe(22000);
       expect(params.airWaybill).toBe("AWB-1");
       expect(adapter.cancelShipment).not.toHaveBeenCalled();
@@ -829,9 +888,9 @@ describe("OrderItemCancellationService", () => {
   });
 
   it("no carrierDeps: COD cancel runs no carrier calls (existing behaviour intact)", async () => {
-    const { order } = seed({ payment: { gateway: "cod", status: "pending", amount: 32000 } });
+    const { payment } = seed({ payment: { gateway: "cod", status: "pending", amount: 32000 } });
     // service built without carrierDeps in the outer beforeEach
     await call([{ order_item_id: "oi-1", quantity: 1 }]);
-    expect(order.refund_total).toBe(10000);
+    expect(payment.amount).toBe(22000);
   });
 });

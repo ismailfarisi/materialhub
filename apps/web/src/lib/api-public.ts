@@ -33,6 +33,8 @@ export const TTL = {
 	productDetail: 600,
 	categoryTree: 3600,
 	vendorProfile: 1800,
+	/** Published CMS pages and active banners: admin edits show within 5 minutes. */
+	cmsContent: 300,
 } as const;
 
 type QueryValue = string | number | boolean | undefined | null;
@@ -87,11 +89,21 @@ export async function publicGetRaw<T = unknown>(
 
 	const load = unstable_cache(
 		async () => {
-			const { data } = await axios.get(url, {
-				timeout: 15000,
-				...(locale ? { headers: { "Accept-Language": locale } } : {}),
-			});
-			return (data ?? null) as T | null;
+			try {
+				const { data } = await axios.get(url, {
+					timeout: 15000,
+					...(locale ? { headers: { "Accept-Language": locale } } : {}),
+				});
+				return (data ?? null) as T | null;
+			} catch (err) {
+				// A 404 is an answer, not a failure: cache "not found" so a page,
+				// product or category that was deleted/unpublished stops rendering
+				// once its entry expires. Throwing here kept the OLD cached copy
+				// forever (unstable_cache never replaced it). Network errors and
+				// 5xx still throw (see below).
+				if (axios.isAxiosError(err) && err.response?.status === 404) return null;
+				throw err;
+			}
 		},
 		["public-api", path, query, locale ?? "-"],
 		{ revalidate, tags },

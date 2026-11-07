@@ -1,6 +1,14 @@
 "use client";
 
-import { useChangePassword, useLogout, useMe } from "@/lib/queries/auth";
+import { api } from "@/lib/api";
+import { getBreadcrumbs } from "@/lib/breadcrumbs";
+import {
+	clearAuthSession,
+	isAdminRole,
+	useChangePassword,
+	useLogout,
+	useMe,
+} from "@/lib/queries/auth";
 import { useAuthStore } from "@/stores/auth";
 import {
 	ChangePasswordDialog,
@@ -43,7 +51,7 @@ import {
 	Wallet,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const navItems = [
 	{ label: "Dashboard", href: "/", icon: <LayoutDashboard size={20} /> },
@@ -258,61 +266,6 @@ const navItems = [
 	},
 ];
 
-const UUID_RE =
-	/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const SEGMENT_LABEL_OVERRIDES: Record<string, string> = {
-	cms: "CMS",
-	seo: "SEO",
-	kyc: "KYC",
-	bnpl: "BNPL",
-	"shipping-rates": "Shipping Rates",
-	"shipping-contribution-tiers": "Shipping Contribution Tiers",
-	"shipping-providers": "Shipping Providers",
-	"public-holidays": "Public Holidays",
-	"payment-methods": "Payment Methods",
-	"cart-abandonment": "Cart Abandonment",
-	"audit-log": "Audit Log",
-	"role-permissions": "Role Permissions",
-	"header-navigation": "Header Navigation",
-	"brand-submissions": "Brand Submissions",
-	"eco-declarations": "Plastic-ban Declarations",
-	"sales-channels": "Sales Channels",
-	"pending-writes": "Pending Writes",
-};
-
-function labelForSegment(seg: string, prev?: string) {
-	if (SEGMENT_LABEL_OVERRIDES[seg]) return SEGMENT_LABEL_OVERRIDES[seg];
-	if (UUID_RE.test(seg)) {
-		// Friendlier label than a raw UUID. Prev segment hints at the entity.
-		if (prev === "layouts") return "Layout";
-		if (prev === "pages") return "Page";
-		if (prev === "vendors") return "Vendor";
-		if (prev === "products") return "Product";
-		if (prev === "orders") return "Order";
-		if (prev === "business-accounts") return "Business account";
-		return "Detail";
-	}
-	return seg
-		.split("-")
-		.map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
-		.join(" ");
-}
-
-function getBreadcrumbs(pathname: string) {
-	const segments = pathname.split("/").filter(Boolean);
-	if (segments.length === 0) return [{ label: "Dashboard" }];
-	return [
-		{ label: "Dashboard", href: "/" },
-		...segments.map((seg, i) => ({
-			label: labelForSegment(seg, segments[i - 1]),
-			href:
-				i < segments.length - 1
-					? `/${segments.slice(0, i + 1).join("/")}`
-					: undefined,
-		})),
-	];
-}
-
 export default function DashboardLayout({
 	children,
 }: { children: React.ReactNode }) {
@@ -335,23 +288,26 @@ export default function DashboardLayout({
 
 	const isLoading = isQueryLoading || isStoreLoading;
 
+	// Set once we've decided to leave (non-admin, password changed) so the
+	// plain "not signed in" redirect below doesn't override the destination.
+	const leavingRef = useRef(false);
+
 	useEffect(() => {
+		if (leavingRef.current) return;
 		if (!isLoading && (!isAuthenticated || isError)) {
 			router.replace("/login");
 		}
 	}, [isLoading, isAuthenticated, isError, router]);
 
+	// A signed-in customer/vendor: end the session first, then go to /login.
+	// Redirecting with the session intact made /login bounce straight back.
 	useEffect(() => {
-		if (
-			!isLoading &&
-			isAuthenticated &&
-			user &&
-			user.role !== "admin" &&
-			user.role !== "super_admin"
-		) {
-			router.replace("/login");
-		}
-	}, [isLoading, isAuthenticated, user, router]);
+		if (isLoading || !isAuthenticated || !user || isAdminRole(user.role)) return;
+		leavingRef.current = true;
+		api.post("/auth/logout", {}).catch(() => {});
+		clearAuthSession(queryClient);
+		router.replace("/login?reason=no-admin");
+	}, [isLoading, isAuthenticated, user, queryClient, router]);
 
 	useEffect(() => {
 		if (user?.must_change_password) setPwOpen(true);
@@ -373,8 +329,12 @@ export default function DashboardLayout({
 				title: "Password changed",
 				description: "Please sign in again.",
 			});
-			useAuthStore.getState().logout();
-			queryClient.clear();
+			// The change revoked every session server-side; clear the cookies
+			// too, or the stale access token keeps the shell signed in.
+			leavingRef.current = true;
+			await api.post("/auth/logout", {}).catch(() => {});
+			clearAuthSession(queryClient);
+			setPwOpen(false);
 			router.replace("/login");
 		} catch (err: unknown) {
 			const e = err as {
@@ -397,7 +357,8 @@ export default function DashboardLayout({
 		);
 	}
 
-	if (!isAuthenticated || !user) {
+	// The shell never renders for an account that isn't platform staff.
+	if (!isAuthenticated || !user || !isAdminRole(user.role)) {
 		return null;
 	}
 

@@ -16,26 +16,30 @@ import {
   CardHeader,
   CardTitle,
   Skeleton,
+  toast,
 } from "@materialhub/ui";
 import { Pencil, Plus, ChevronDown, ChevronRight, Save } from "lucide-react";
 import {
   useCommissionConfig,
-  useUpdateCommission,
+  useUpdateCategoryCommission,
+  useUpdateVendorCommission,
   useGlobalCommissionRate,
   useUpdateGlobalCommissionRate,
   type CategoryCommission,
   type VendorCommission,
   type CommissionTier,
 } from "@/lib/queries/commissions";
+import { formatPercent, formatVendorRate, parsePercentInput } from "@/lib/commission.helpers";
+import { apiErrorMessage } from "@/lib/business.helpers";
+import { formatAedGrouped, parseAedInput } from "@/lib/money";
 
-function formatRate(rate: number) {
-  return `${(rate * 100).toFixed(1)}%`;
-}
-
-function parseRate(str: string): number {
-  const n = parseFloat(str);
-  if (isNaN(n)) return 0;
-  return n / 100;
+// Rates are stored and sent as percent (10 = 10%); see commission.helpers.ts.
+function saveFailed(err: unknown) {
+  toast({
+    title: "Commission not saved",
+    description: apiErrorMessage(err, "Try again."),
+    variant: "destructive",
+  });
 }
 
 // ---- Global Default ----
@@ -48,9 +52,12 @@ function GlobalDefaultCard() {
   const currentRate = rate ?? 10;
 
   function handleSave() {
-    const parsed = parseFloat(rateInput);
-    if (isNaN(parsed) || parsed < 0 || parsed > 100) return;
-    update(parsed, { onSuccess: () => setEditing(false) });
+    const parsed = parsePercentInput(rateInput);
+    if (parsed == null) {
+      toast({ title: "Enter a rate between 0 and 100%", variant: "destructive" });
+      return;
+    }
+    update(parsed, { onSuccess: () => setEditing(false), onError: saveFailed });
   }
 
   return (
@@ -82,7 +89,7 @@ function GlobalDefaultCard() {
           </div>
         ) : (
           <div className="flex items-center gap-4">
-            <span className="text-3xl font-bold text-cacao">{currentRate}%</span>
+            <span className="text-3xl font-bold tabular-nums text-cacao">{formatPercent(currentRate)}</span>
             <Button
               size="sm"
               variant="outline"
@@ -113,19 +120,16 @@ interface CategoryOverrideDialogProps {
 
 function CategoryOverrideDialog({ open, override, onClose }: CategoryOverrideDialogProps) {
   const [categoryId, setCategoryId] = useState(override?.category_id ?? "");
-  const [rate, setRate] = useState(override ? String((override.rate * 100).toFixed(1)) : "");
-  const { mutate: update, isPending } = useUpdateCommission();
+  const [rate, setRate] = useState(override ? String(Number(override.rate)) : "");
+  const { mutate: update, isPending } = useUpdateCategoryCommission();
 
   function handleSubmit() {
-    if (!categoryId.trim() || !rate) return;
-    update(
-      {
-        type: "category",
-        id: categoryId,
-        category_overrides: [{ id: override?.id ?? "", category_id: categoryId, category_name: override?.category_name ?? "", rate: parseRate(rate) }],
-      },
-      { onSuccess: onClose }
-    );
+    const parsed = parsePercentInput(rate);
+    if (!categoryId.trim() || parsed == null) {
+      toast({ title: "Enter a category and a rate between 0 and 100%", variant: "destructive" });
+      return;
+    }
+    update({ categoryId: categoryId.trim(), rate: parsed }, { onSuccess: onClose, onError: saveFailed });
   }
 
   return (
@@ -184,7 +188,7 @@ function CategoryOverridesTable({ overrides }: { overrides: CategoryCommission[]
       accessorKey: "rate",
       header: "Commission Rate",
       cell: ({ row }) => (
-        <span className="font-semibold text-indigo-600">{formatRate(row.original.rate)}</span>
+        <span className="font-semibold tabular-nums text-cacao">{formatPercent(row.original.rate)}</span>
       ),
     },
     {
@@ -233,29 +237,33 @@ function CategoryOverridesTable({ overrides }: { overrides: CategoryCommission[]
 function TiersSubTable({
   tiers,
   vendorId,
+  baseValue,
 }: {
   tiers: CommissionTier[];
   vendorId: string;
+  baseValue: number;
 }) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editMin, setEditMin] = useState("");
   const [editMax, setEditMax] = useState("");
   const [editRate, setEditRate] = useState("");
-  const { mutate: update, isPending } = useUpdateCommission();
+  const { mutate: update, isPending } = useUpdateVendorCommission();
 
   function handleSaveTier(index: number) {
+    // Inputs are AED and percent; the API stores fils and percent.
+    const min = parseAedInput(editMin || "0");
+    const max = editMax.trim() ? parseAedInput(editMax) : null;
+    const rate = parsePercentInput(editRate);
+    if (min == null || rate == null || (editMax.trim() && max == null) || (max != null && max < min)) {
+      toast({ title: "Check the tier: amounts in AED, rate between 0 and 100%", variant: "destructive" });
+      return;
+    }
     const updatedTiers = tiers.map((t, i) =>
-      i === index
-        ? {
-            min_amount: parseFloat(editMin) || 0,
-            max_amount: editMax ? parseFloat(editMax) : null,
-            rate: parseRate(editRate),
-          }
-        : t
+      i === index ? { min_amount: min, max_amount: max, rate } : t
     );
     update(
-      { type: "vendor_tiers", id: vendorId, vendor_overrides: [{ id: vendorId, vendor_id: vendorId, vendor_name: "", rate: 0, tiers: updatedTiers }] },
-      { onSuccess: () => setEditingIndex(null) }
+      { vendorId, type: "tiered", value: baseValue, tiers: updatedTiers },
+      { onSuccess: () => setEditingIndex(null), onError: saveFailed }
     );
   }
 
@@ -299,11 +307,11 @@ function TiersSubTable({
               </tr>
             ) : (
               <tr key={i} className="border-b border-gray-100 hover:bg-pearl/50 group">
-                <td className="px-3 py-2 text-cacao" data-label="Min Amount (AED)">{tier.min_amount.toLocaleString()}</td>
+                <td className="px-3 py-2 tabular-nums text-cacao" data-label="Min Amount (AED)">{formatAedGrouped(tier.min_amount)}</td>
                 <td className="px-3 py-2 text-cacao" data-label="Max Amount (AED)">
-                  {tier.max_amount != null ? tier.max_amount.toLocaleString() : "∞"}
+                  {tier.max_amount != null ? formatAedGrouped(tier.max_amount) : "No limit"}
                 </td>
-                <td className="px-3 py-2 font-semibold text-indigo-600" data-label="Rate">{formatRate(tier.rate)}</td>
+                <td className="px-3 py-2 font-semibold tabular-nums text-cacao" data-label="Rate">{formatPercent(tier.rate)}</td>
                 <td className="px-3 py-2">
                   <Button
                     size="sm"
@@ -311,9 +319,9 @@ function TiersSubTable({
                     className="h-6 opacity-0 group-hover:opacity-100"
                     onClick={() => {
                       setEditingIndex(i);
-                      setEditMin(String(tier.min_amount));
-                      setEditMax(tier.max_amount != null ? String(tier.max_amount) : "");
-                      setEditRate(String((tier.rate * 100).toFixed(1)));
+                      setEditMin((tier.min_amount / 100).toFixed(2));
+                      setEditMax(tier.max_amount != null ? (tier.max_amount / 100).toFixed(2) : "");
+                      setEditRate(String(Number(tier.rate)));
                     }}
                   >
                     <Pencil size={12} />
@@ -373,12 +381,12 @@ function VendorOverridesTable({ overrides }: { overrides: VendorCommission[] }) 
                     )}
                   </button>
                   <span className="font-medium text-cacao text-sm">{v.vendor_name}</span>
-                  <span className="font-semibold text-indigo-600">{formatRate(v.rate)}</span>
+                  <span className="font-semibold tabular-nums text-cacao">{formatVendorRate(v.commission_type, v.rate)}</span>
                   <span className="text-sm text-taupe">{v.tiers?.length ?? 0} tiers</span>
                 </div>
                 {expandedRows.has(v.id) && v.tiers && v.tiers.length > 0 && (
                   <div className="px-10 py-3 bg-pearl/50 border-b border-gray-200">
-                    <TiersSubTable tiers={v.tiers} vendorId={v.vendor_id} />
+                    <TiersSubTable tiers={v.tiers} vendorId={v.vendor_id} baseValue={v.rate} />
                   </div>
                 )}
               </div>

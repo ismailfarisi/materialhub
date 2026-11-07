@@ -32,7 +32,7 @@ interface Vendor {
 }
 
 const STATUS_OPTIONS = [
-  { label: "Active", value: "active" },
+  { label: "Active", value: "approved" },
   { label: "Pending", value: "pending" },
   { label: "Under Review", value: "under_review" },
   { label: "Rejected", value: "rejected" },

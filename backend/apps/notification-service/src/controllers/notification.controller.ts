@@ -8,7 +8,7 @@ export class NotificationController {
     user: AuthUser,
     query: { page?: number; limit?: number; type?: string; is_read?: boolean },
   ) {
-    const page = query.page ?? 1;
+    const page = Math.max(1, Math.trunc(Number(query.page)) || 1);
     const limit = query.limit ?? 20;
 
     const result = await this.notificationService.list(user.id, {

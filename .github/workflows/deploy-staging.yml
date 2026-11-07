@@ -24,45 +24,15 @@ jobs:
     name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
-      api-gateway: ${{ steps.filter.outputs.api-gateway }}
-      auth-service: ${{ steps.filter.outputs.auth-service }}
-      product-service: ${{ steps.filter.outputs.product-service }}
-      order-service: ${{ steps.filter.outputs.order-service }}
-      vendor-service: ${{ steps.filter.outputs.vendor-service }}
-      notification-service: ${{ steps.filter.outputs.notification-service }}
-      cms-service: ${{ steps.filter.outputs.cms-service }}
-      integration-service: ${{ steps.filter.outputs.integration-service }}
       any-backend: ${{ steps.filter.outputs.any-backend }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
         id: filter
         with:
+          # One backend image (backend/apps/api), so any backend change
+          # rebuilds it.
           filters: |
-            api-gateway:
-              - 'backend/apps/api-gateway/**'
-              - 'backend/libs/**'
-            auth-service:
-              - 'backend/apps/auth-service/**'
-              - 'backend/libs/**'
-            product-service:
-              - 'backend/apps/product-service/**'
-              - 'backend/libs/**'
-            order-service:
-              - 'backend/apps/order-service/**'
-              - 'backend/libs/**'
-            vendor-service:
-              - 'backend/apps/vendor-service/**'
-              - 'backend/libs/**'
-            notification-service:
-              - 'backend/apps/notification-service/**'
-              - 'backend/libs/**'
-            cms-service:
-              - 'backend/apps/cms-service/**'
-              - 'backend/libs/**'
-            integration-service:
-              - 'backend/apps/integration-service/**'
-              - 'backend/libs/**'
             any-backend:
               - 'backend/**'
 
@@ -83,7 +53,7 @@ jobs:
       - name: Test
         run: >-
           bunx turbo run test
-          --filter='@materialhub/api-gateway'
+          --filter='@materialhub/api'
           --filter='@materialhub/auth-service'
           --filter='@materialhub/product-service'
           --filter='@materialhub/order-service'
@@ -113,6 +83,7 @@ jobs:
           INTERNAL_SERVICE_SECRET: ${{ secrets.STAGING_INTERNAL_SERVICE_SECRET }}
           STRIPE_SECRET_KEY: ${{ secrets.STAGING_STRIPE_SECRET_KEY }}
           STRIPE_CONNECT_WEBHOOK_SECRET: ${{ secrets.STAGING_STRIPE_CONNECT_WEBHOOK_SECRET }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STAGING_STRIPE_WEBHOOK_SECRET }}
           VENDOR_ENCRYPTION_KEY: ${{ secrets.STAGING_VENDOR_ENCRYPTION_KEY }}
           ENCRYPTION_KEY: ${{ secrets.STAGING_ENCRYPTION_KEY }}
           TWO_FA_ENCRYPTION_KEY: ${{ secrets.STAGING_TWO_FA_ENCRYPTION_KEY }}
@@ -154,6 +125,7 @@ jobs:
             "internal-service-secret|INTERNAL_SERVICE_SECRET"
             "stripe/secret-key|STRIPE_SECRET_KEY"
             "stripe/connect-webhook|STRIPE_CONNECT_WEBHOOK_SECRET"
+            "stripe/payment-webhook|STRIPE_WEBHOOK_SECRET"
             "encryption/vendor-key|VENDOR_ENCRYPTION_KEY"
             "encryption/key|ENCRYPTION_KEY"
             "encryption/two-fa-key|TWO_FA_ENCRYPTION_KEY"
@@ -208,107 +180,13 @@ jobs:
           fi
           echo "✅ Synced $((${#PAIRS[@]} - ${#missing[@]})) of ${#PAIRS[@]} secrets"
 
-          # Static (non-secret) String params. Hardcoded values — they're
-          # docker-compose service names, ports, and derived URLs that don't
-          # change between runs. Mirrors the declarations in
-          # terraform/staging/ssm.tf::aws_ssm_parameter.static. Pushed here
-          # too so values land on every deploy without requiring a separate
-          # `terraform apply` step. Idempotent.
-          STATIC_PAIRS=(
-            "integration/host|integration-service"
-            "integration/port|3008"
-            "integration/service-url|http://integration-service:3008"
-          )
-          for pair in "${STATIC_PAIRS[@]}"; do
-            path_tail="${pair%%|*}"
-            value="${pair##*|}"
-            aws ssm put-parameter \
-              --name "${PREFIX}/${path_tail}" \
-              --value "$value" \
-              --type String \
-              --overwrite \
-              --no-cli-pager >/dev/null
-            echo "  ✓ ${PREFIX}/${path_tail} (static)"
-          done
-          echo "✅ Synced ${#STATIC_PAIRS[@]} static params"
-
-  # ----- Build & push each changed service -----
-  build-api-gateway:
+  # ----- Build & push the API image -----
+  # One image: the backend runs as one process (backend/apps/api). It goes to
+  # the existing materialhub-api-gateway ECR repo; see build-service.yml.
+  build-api:
     needs: [backend-checks, detect-changes]
-    if: needs.detect-changes.outputs.api-gateway == 'true'
     uses: ./.github/workflows/build-service.yml
     with:
-      service: api-gateway
-      environment: staging
-      image-tag: ${{ github.sha }}
-    secrets: inherit
-
-  build-auth-service:
-    needs: [backend-checks, detect-changes]
-    if: needs.detect-changes.outputs.auth-service == 'true'
-    uses: ./.github/workflows/build-service.yml
-    with:
-      service: auth-service
-      environment: staging
-      image-tag: ${{ github.sha }}
-    secrets: inherit
-
-  build-product-service:
-    needs: [backend-checks, detect-changes]
-    if: needs.detect-changes.outputs.product-service == 'true'
-    uses: ./.github/workflows/build-service.yml
-    with:
-      service: product-service
-      environment: staging
-      image-tag: ${{ github.sha }}
-    secrets: inherit
-
-  build-order-service:
-    needs: [backend-checks, detect-changes]
-    if: needs.detect-changes.outputs.order-service == 'true'
-    uses: ./.github/workflows/build-service.yml
-    with:
-      service: order-service
-      environment: staging
-      image-tag: ${{ github.sha }}
-    secrets: inherit
-
-  build-vendor-service:
-    needs: [backend-checks, detect-changes]
-    if: needs.detect-changes.outputs.vendor-service == 'true'
-    uses: ./.github/workflows/build-service.yml
-    with:
-      service: vendor-service
-      environment: staging
-      image-tag: ${{ github.sha }}
-    secrets: inherit
-
-  build-notification-service:
-    needs: [backend-checks, detect-changes]
-    if: needs.detect-changes.outputs.notification-service == 'true'
-    uses: ./.github/workflows/build-service.yml
-    with:
-      service: notification-service
-      environment: staging
-      image-tag: ${{ github.sha }}
-    secrets: inherit
-
-  build-cms-service:
-    needs: [backend-checks, detect-changes]
-    if: needs.detect-changes.outputs.cms-service == 'true'
-    uses: ./.github/workflows/build-service.yml
-    with:
-      service: cms-service
-      environment: staging
-      image-tag: ${{ github.sha }}
-    secrets: inherit
-
-  build-integration-service:
-    needs: [backend-checks, detect-changes]
-    if: needs.detect-changes.outputs.integration-service == 'true'
-    uses: ./.github/workflows/build-service.yml
-    with:
-      service: integration-service
       environment: staging
       image-tag: ${{ github.sha }}
     secrets: inherit
@@ -319,14 +197,7 @@ jobs:
     needs:
       - detect-changes
       - sync-secrets-to-ssm
-      - build-api-gateway
-      - build-auth-service
-      - build-product-service
-      - build-order-service
-      - build-vendor-service
-      - build-notification-service
-      - build-cms-service
-      - build-integration-service
+      - build-api
     if: |
       always() &&
       needs.detect-changes.outputs.any-backend == 'true' &&
@@ -352,7 +223,7 @@ jobs:
           # scalar produces a single string with embedded newlines that
           # drone-scp treats as one path and fails to find — see the
           # "tar: empty archive" error from run 25066011756.
-          source: "scripts/refresh-env-from-ssm.sh,scripts/compose-fragments/integration-service.staging.yml"
+          source: "scripts/refresh-env-from-ssm.sh"
           target: /tmp/
           strip_components: 1
           overwrite: true
@@ -375,19 +246,33 @@ jobs:
 
             cd /opt/materialhub
 
-            # Append the integration-service compose block if absent. The
-            # compose file at /opt/materialhub/docker-compose.yml was written by
-            # user-data on first boot and is patched here for service
-            # additions that postdate the original bootstrap. Idempotent —
-            # the fragment only lands when the service entry is missing.
-            # Aesthetic note: the block lands after the migrate (tools) block
-            # rather than between the services and migrate. Functionally
-            # equivalent — docker-compose ignores service order.
-            if ! sudo grep -q "^  integration-service:" /opt/materialhub/docker-compose.yml; then
-              cat /tmp/compose-fragments/integration-service.staging.yml \
-                | sudo tee -a /opt/materialhub/docker-compose.yml >/dev/null
-            fi
-            rm -rf /tmp/compose-fragments
+            # The backend is now ONE process, served by the api-gateway
+            # service (same image repo). This box's docker-compose.yml was
+            # written by the retired terraform/staging user-data and still
+            # lists the seven module services; a compose override parks them
+            # under an inactive profile so they no longer start, gives
+            # api-gateway the whole .env and raises its memory limit (it now
+            # holds every module).
+            # Idempotent; the base file is left untouched.
+            {
+              echo "# Written by deploy-staging.yml: backend runs as one process (api-gateway)."
+              echo "services:"
+              echo "  api-gateway:"
+              # env_file: the union of every module's environment (.env).
+              echo "    env_file: .env"
+              echo "    mem_limit: 2g"
+              for svc in auth-service product-service order-service vendor-service \
+                         notification-service cms-service integration-service; do
+                if sudo grep -q "^  ${svc}:" docker-compose.yml; then
+                  echo "  ${svc}:"
+                  echo "    profiles: [\"retired\"]"
+                fi
+              done
+            } | sudo tee docker-compose.override.yml >/dev/null
+            for svc in auth-service product-service order-service vendor-service \
+                       notification-service cms-service integration-service; do
+              docker ps -aq --filter "label=com.docker.compose.service=${svc}" | xargs -r docker rm -f
+            done
 
             # Refresh .env from SSM (idempotent; preserves non-SSM lines,
             # including the static entries appended above).
@@ -404,7 +289,7 @@ jobs:
             # even when image tags haven't changed (e.g., secret rotation only).
             docker-compose up -d --remove-orphans --force-recreate
             # Restart Caddy so it re-resolves the api-gateway DNS entry.
-            # When services are recreated they get new container IPs, but
+            # When the container is recreated it gets a new IP, but
             # Caddy caches the old IP and returns 502 until restarted.
             docker-compose restart caddy
             docker image prune -f

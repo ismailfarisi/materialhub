@@ -1,4 +1,5 @@
-import { AppDataSource, User } from "@materialhub/database";
+import { AppDataSource, User, UserSession } from "@materialhub/database";
+import { bumpTokenVersion } from "@materialhub/guards";
 import { HttpError } from "@materialhub/plugins";
 import type { Repository } from "typeorm";
 
@@ -16,7 +17,7 @@ export class UserAdminService {
     page?: number;
     limit?: number;
   }) {
-    const page = query.page || 1;
+    const page = Math.max(1, Math.trunc(Number(query.page)) || 1);
     const limit = query.limit || 20;
 
     const qb = this.userRepo
@@ -94,6 +95,15 @@ export class UserAdminService {
       user.login_attempts = 0;
     }
     await this.userRepo.save(user);
+    // A status change must take effect on live sessions now, not when the
+    // current access token expires (up to 15 min): suspended users were
+    // still served with their old token.
+    if (status !== previousStatus) {
+      await this.userRepo.manager
+        .getRepository(UserSession)
+        .update({ user_id: userId, is_revoked: false } as any, { is_revoked: true } as any);
+      await bumpTokenVersion(userId);
+    }
     return { id: user.id, status: user.status, previous_status: previousStatus };
   }
 
@@ -103,6 +113,9 @@ export class UserAdminService {
     const previousRole = user.role;
     user.role = role as any;
     await this.userRepo.save(user);
+    // Access tokens carry the role: a demoted admin kept admin access with
+    // their old token. Force re-authentication with the new role.
+    if (role !== previousRole) await bumpTokenVersion(userId);
     return { id: user.id, role: user.role, previous_role: previousRole };
   }
 }

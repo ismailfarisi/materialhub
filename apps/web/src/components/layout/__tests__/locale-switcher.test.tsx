@@ -4,6 +4,7 @@ import { LocaleSwitcher } from "../locale-switcher";
 
 vi.mock("next-intl", () => ({
   useLocale: () => "en",
+  useTranslations: () => (key: string) => key,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -26,7 +27,7 @@ describe("LocaleSwitcher path handling", () => {
   it("swaps only the leading locale segment", async () => {
     const replace = vi.fn();
     vi.resetModules();
-    vi.doMock("next-intl", () => ({ useLocale: () => "en" }));
+    vi.doMock("next-intl", () => ({ useLocale: () => "en", useTranslations: () => (key: string) => key }));
     vi.doMock("next/navigation", () => ({
       usePathname: () => "/en/c/papers-boards/en-route",
       useRouter: () => ({ replace }),

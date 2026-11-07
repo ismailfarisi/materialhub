@@ -14,6 +14,7 @@ import { useLocale, useTranslations } from "next-intl";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSignInGate } from "@/hooks/use-sign-in-gate";
 
 interface Product {
 	id: string;
@@ -74,6 +75,7 @@ export function ProductCard({
 	const { openSlideOver } = useCartStore();
 	const addToCart = useAddToCart();
 	const toggleWishlist = useToggleWishlist();
+	const { gate } = useSignInGate();
 	const { data: wishlistItems } = useWishlist();
 
 	const isWishlisted = (wishlistItems || []).some(
@@ -127,7 +129,7 @@ export function ProductCard({
 	function handleWishlist(e: React.MouseEvent) {
 		e.preventDefault();
 		e.stopPropagation();
-		toggleWishlist.mutate(product.id);
+		gate(() => toggleWishlist.mutate(product.id));
 	}
 
 	const stock = stockFor(product.category_name);
@@ -160,7 +162,7 @@ export function ProductCard({
 				)}
 				{rank == null && isNew && (
 					<span className="absolute top-2.5 start-2.5 z-[1] h-6 px-2 inline-flex items-center rounded-sm bg-nl-amber text-white mill-label">
-						New
+						{t("new")}
 					</span>
 				)}
 
@@ -174,7 +176,7 @@ export function ProductCard({
 							type="button"
 							onClick={handleWishlist}
 							disabled={toggleWishlist.isPending}
-							aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+							aria-label={isWishlisted ? t("removeFromWishlist") : t("addToWishlist")}
 							aria-pressed={isWishlisted}
 							className="absolute top-1.5 end-1.5 z-[2] w-10 h-10 rounded-full bg-white/90 hover:bg-white flex items-center justify-center transition-colors"
 						>
@@ -257,7 +259,7 @@ export function ProductCard({
 							type="button"
 							onClick={handleAdd}
 							disabled={addToCart.isPending || outOfStock}
-							aria-label={hasPriceRange ? "Select options" : needsPage ? tTrade("chooseQuantity") : t("addToCart")}
+							aria-label={hasPriceRange ? t("selectOptions") : needsPage ? tTrade("chooseQuantity") : t("addToCart")}
 							className="relative z-[2] shrink-0 h-9 w-9 rounded-md bg-nl-cacao text-white inline-flex items-center justify-center hover:bg-nl-amber transition-colors disabled:opacity-40"
 						>
 							<Plus className="h-4 w-4" strokeWidth={2} />

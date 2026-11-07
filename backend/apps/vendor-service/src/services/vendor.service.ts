@@ -5,15 +5,17 @@ import {
   UserStatus,
   Vendor,
   VendorDocument,
+  VendorDocumentType,
   VendorStatus,
   VendorTranslation,
   Warehouse,
 } from "@materialhub/database";
 import { bumpTokenVersion } from "@materialhub/guards";
-import { HttpError } from "@materialhub/plugins";
+import { HttpError, assertEnumFilter } from "@materialhub/plugins";
 import { checkTrn, isValidTrn } from "@materialhub/utils";
 import { generateSlug } from "@materialhub/utils";
 import { type VendorApplyData, isValidTransition } from "../domain/types.ts";
+import { returningRows } from "../lib/returning-rows.ts";
 import type { PaymentProviderAdapter } from "../providers/payment/payment-provider.interface.ts";
 
 export class VendorService {
@@ -66,6 +68,27 @@ export class VendorService {
           [data.userId],
         )) as Array<{ id: string }>);
     const reuseVendorId = rejectedRows[0]?.id ?? null;
+
+    const validDocTypes = new Set<string>(Object.values(VendorDocumentType));
+    const badDoc = data.documents.find((d) => !validDocTypes.has(d.type) || !d.s3Key);
+    if (badDoc) {
+      throw new HttpError(
+        400,
+        `Invalid document: type must be one of ${[...validDocTypes].join(", ")} and s3_key is required`,
+        "INVALID_DOCUMENT",
+      );
+    }
+    // Documents are uploaded with the user-scoped `business_licence` presign,
+    // so each key must sit under the applicant's own prefix: an applicant must
+    // not attach someone else's upload.
+    const ownPrefix = `private/business/${data.userId}/`;
+    if (data.documents.some((d) => !d.s3Key.startsWith(ownPrefix))) {
+      throw new HttpError(
+        400,
+        "Documents must be uploaded by the applicant",
+        "INVALID_DOCUMENT_KEY",
+      );
+    }
 
     // Generate unique slug
     let slug = generateSlug(data.businessName);
@@ -139,7 +162,7 @@ export class VendorService {
             vendor_id: vendor.id,
             type: doc.type as any,
             file_url: doc.s3Key,
-            file_name: doc.s3Key.split("/").pop() ?? "document",
+            file_name: doc.fileName || (doc.s3Key.split("/").pop() ?? "document"),
             is_verified: false,
           }),
         );
@@ -204,7 +227,6 @@ export class VendorService {
         "description",
         "rating_avg",
         "rating_count",
-        "total_sales",
         "follower_count",
         "created_at",
       ],
@@ -225,7 +247,6 @@ export class VendorService {
         "description",
         "rating_avg",
         "rating_count",
-        "total_sales",
         "follower_count",
         "created_at",
       ],
@@ -250,14 +271,16 @@ export class VendorService {
       vendor.verified_at = new Date();
       // Phase 3b: applicant is the user_id on the pending owner membership row
       // (created in apply()). Activate that row; no need to read vendor.user_id.
-      const ownerRows = (await AppDataSource.query(
-        `UPDATE vendor_members
+      const ownerRows = returningRows<{ user_id: string | null }>(
+        await AppDataSource.query(
+          `UPDATE vendor_members
             SET status = 'active', accepted_at = NOW(), updated_at = NOW()
           WHERE vendor_id = $1 AND role = 'owner' AND deleted_at IS NULL
             AND status IN ('pending', 'active')
         RETURNING user_id`,
-        [vendor.id],
-      )) as Array<{ user_id: string | null }>;
+          [vendor.id],
+        ),
+      );
       const ownerUserId = ownerRows[0]?.user_id ?? null;
       if (!ownerUserId) {
         throw new HttpError(
@@ -299,6 +322,7 @@ export class VendorService {
   }
 
   async listForAdmin(status?: string, page = 1, limit = 20, search?: string) {
+    assertEnumFilter(status, VendorStatus);
     const qb = this.vendorRepo.createQueryBuilder("v").withDeleted();
     if (status) qb.where("v.status = :status", { status });
     if (search) {

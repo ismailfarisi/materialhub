@@ -91,7 +91,7 @@ export function RequestBrandModal({
 							value={name}
 							onChange={(e) => setName(e.target.value)}
 							maxLength={200}
-							placeholder="The Ordinary"
+							placeholder="e.g. your mill or house brand"
 							className="mt-1 w-full rounded border px-3 py-2 text-sm"
 						/>
 					</div>

@@ -85,3 +85,17 @@ export function useDeleteBankAccount() {
     },
   });
 }
+
+/** PATCH /vendors/me/bank-accounts/:id/primary — payouts go to this account. */
+export function useSetPrimaryBankAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await api.patch(`/vendors/me/bank-accounts/${id}/primary`);
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vendor", "bank-accounts"] });
+    },
+  });
+}

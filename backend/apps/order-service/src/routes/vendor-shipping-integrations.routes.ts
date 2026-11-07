@@ -1,6 +1,7 @@
 import { jwtAuth, vendorMembership } from "@materialhub/guards";
 import { Elysia, t } from "elysia";
 import { container } from "../container.ts";
+import { shouldBecomeDefaultAccount } from "../domain/shipment/default-shipping-account.ts";
 
 function mask(row: any) {
   if (!row) return row;
@@ -129,6 +130,7 @@ export const vendorShippingIntegrationsRoutes = new Elysia({
       params,
       member,
       vendorCarrierAccountRepo,
+      vendorRepo,
       shippingProviderRepo,
       encryption,
       shippingProviderRegistry,
@@ -163,6 +165,21 @@ export const vendorShippingIntegrationsRoutes = new Elysia({
         account.last_verify_error = result.message ?? "Verification failed";
       }
       await vendorCarrierAccountRepo.save(account);
+
+      // The first verified integration becomes the vendor's default (or
+      // replaces a default that is no longer usable), so auto-booking finds it.
+      if (result.ok) {
+        const vendor = await vendorRepo.findOne({ where: { id: member.vid } });
+        const currentDefault = vendor?.default_shipping_account_id
+          ? await vendorCarrierAccountRepo.findOne({
+              where: { id: vendor.default_shipping_account_id },
+              withDeleted: true,
+            })
+          : null;
+        if (shouldBecomeDefaultAccount(vendor, account, currentDefault)) {
+          await vendorRepo.update(member.vid, { default_shipping_account_id: account.id });
+        }
+      }
       return ok(result);
     },
     { params: t.Object({ id: t.String() }) },

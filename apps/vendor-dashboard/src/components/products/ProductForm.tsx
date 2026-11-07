@@ -52,7 +52,11 @@ import {
 } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { buildSimpleProductInventoryPayload } from "./ProductForm.helpers";
+import {
+  type ArabicTranslationDraft,
+  buildArabicTranslationsPayload,
+  buildSimpleProductInventoryPayload,
+} from "./ProductForm.helpers";
 import { RequestBrandModal } from "./RequestBrandModal";
 import { VendorMediaTab } from "./VendorMediaTab";
 
@@ -148,6 +152,7 @@ interface ProductFormProps {
     meta_title?: string;
     meta_description?: string;
     meta_keywords?: string;
+    translation_ar?: ArabicTranslationDraft;
     editorial?: ProductEditorial | null;
     attributeValues?: Array<{
       attribute_id: string;
@@ -258,6 +263,12 @@ export function ProductForm({ productId, defaultValues, forceStep }: ProductForm
   const [editorial, setEditorial] = useState<ProductEditorial | null>(
     defaultValues?.editorial ?? null,
   );
+  // ─── Arabic content ────────────────────────────────────────────────
+  const emptyArabic: ArabicTranslationDraft = { name: "", short_description: "", description: "" };
+  const [arabic, setArabic] = useState<ArabicTranslationDraft>(
+    defaultValues?.translation_ar ?? emptyArabic,
+  );
+  const hadStoredArabic = !!defaultValues?.translation_ar?.name;
 
   // ─── Variants ───────────────────────────────────────────────────────
   const [variantMatrix, setVariantMatrix] = useState<VariantMatrixValue>(EMPTY_VARIANT_MATRIX);
@@ -412,6 +423,7 @@ export function ProductForm({ productId, defaultValues, forceStep }: ProductForm
     setMetaDescription(defaultValues.meta_description ?? "");
     setMetaKeywords(defaultValues.meta_keywords ?? "");
     setShortDescription(defaultValues.short_description ?? "");
+    setArabic(defaultValues.translation_ar ?? { name: "", short_description: "", description: "" });
     setRichDescription(defaultValues.rich_description ?? "");
     setIngredients(defaultValues.ingredients ?? "");
     setUsageInstructions(defaultValues.usage_instructions ?? "");
@@ -457,7 +469,7 @@ export function ProductForm({ productId, defaultValues, forceStep }: ProductForm
       if (combos.length > MAX_VARIANT_COMBINATIONS) {
         errs.variants = `Variant combinations exceed the limit of ${MAX_VARIANT_COMBINATIONS}`;
       } else if (!isEdit && existingVariants.length === 0 && newRows.length === 0) {
-        errs.variants = "Add at least one variant option value (e.g. Size: 30ml, 50ml)";
+        errs.variants = "Add at least one variant option value (e.g. Sheet size: A1, A2)";
       } else {
         const unpriced = rowsMissingPrice(variantMatrix, existingKeys);
         if (unpriced.length > 0) {
@@ -564,6 +576,8 @@ export function ProductForm({ productId, defaultValues, forceStep }: ProductForm
     payload.is_customizable = isCustomizable;
     payload.editorial = editorial;
     payload.attributes = buildProductAttributesPayload();
+    const ar = buildArabicTranslationsPayload(arabic, hadStoredArabic);
+    if (ar.translations) payload.translations = ar.translations;
 
     return payload;
   }
@@ -592,6 +606,12 @@ export function ProductForm({ productId, defaultValues, forceStep }: ProductForm
         description: `Saving anyway — please set: ${missingAttrs.join(", ")}`,
         variant: "destructive",
       });
+    }
+
+    const arabicCheck = buildArabicTranslationsPayload(arabic, hadStoredArabic);
+    if (arabicCheck.error) {
+      toast({ title: "Arabic content", description: arabicCheck.error, variant: "destructive" });
+      return;
     }
 
     const variantRows = hasVariants
@@ -725,7 +745,7 @@ export function ProductForm({ productId, defaultValues, forceStep }: ProductForm
                 </p>
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {["Books", "Electronics", "Art", "Single items"].map((ex) => (
+                {["Greyboard sheet", "Kraft roll", "Adhesive", "Craft kit"].map((ex) => (
                   <span
                     key={ex}
                     className="text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-100"
@@ -768,7 +788,7 @@ export function ProductForm({ productId, defaultValues, forceStep }: ProductForm
                 </p>
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {["Clothing", "Shoes", "Jewelry", "Furniture"].map((ex) => (
+                {["Paper by gsm", "Box by size", "Ribbon by colour", "Leather by finish"].map((ex) => (
                   <span
                     key={ex}
                     className="text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-full bg-violet-50 text-violet-600 border border-violet-100"
@@ -916,7 +936,7 @@ export function ProductForm({ productId, defaultValues, forceStep }: ProductForm
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Premium Cotton T-Shirt"
+                  placeholder="e.g. Greyboard 2 mm, 70 × 100 cm"
                   className={`mt-1 ${errors.name ? "border-red-300 focus-visible:ring-red-200" : ""}`}
                 />
               </div>
@@ -954,26 +974,72 @@ export function ProductForm({ productId, defaultValues, forceStep }: ProductForm
               </div>
 
               <div>
-                <Label className="text-sm font-medium text-gray-700">Ingredients</Label>
+                <Label className="text-sm font-medium text-gray-700">Material composition</Label>
                 <Textarea
                   value={ingredients}
                   onChange={(e) => setIngredients(e.target.value)}
-                  placeholder="Water, Glycerin, Vitamin E…"
+                  placeholder="e.g. 100% recycled board, water-based coating"
                   rows={3}
                   className="mt-1"
                 />
               </div>
 
               <div>
-                <Label className="text-sm font-medium text-gray-700">Usage Instructions</Label>
+                <Label className="text-sm font-medium text-gray-700">Handling and use</Label>
                 <Textarea
                   value={usageInstructions}
                   onChange={(e) => setUsageInstructions(e.target.value)}
-                  placeholder="Apply twice daily after cleansing…"
+                  placeholder="e.g. Store flat and dry; score before folding"
                   rows={3}
                   className="mt-1"
                 />
               </div>
+
+              <fieldset className="space-y-3 rounded-lg border border-gray-200 p-3" dir="rtl" lang="ar">
+                <legend className="px-1 text-sm font-medium text-gray-700" dir="ltr">
+                  Arabic (العربية) — optional
+                </legend>
+                <div>
+                  <Label htmlFor="ar-name" className="text-sm font-medium text-gray-700">
+                    اسم المنتج
+                  </Label>
+                  <Input
+                    id="ar-name"
+                    value={arabic.name}
+                    onChange={(e) => setArabic((a) => ({ ...a, name: e.target.value }))}
+                    placeholder="مثال: كرتون رمادي 2 مم، 70 × 100 سم"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="ar-short" className="text-sm font-medium text-gray-700">
+                    وصف مختصر
+                  </Label>
+                  <Input
+                    id="ar-short"
+                    value={arabic.short_description}
+                    onChange={(e) =>
+                      setArabic((a) => ({ ...a, short_description: e.target.value }))
+                    }
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="ar-desc" className="text-sm font-medium text-gray-700">
+                    الوصف
+                  </Label>
+                  <Textarea
+                    id="ar-desc"
+                    value={arabic.description}
+                    onChange={(e) => setArabic((a) => ({ ...a, description: e.target.value }))}
+                    rows={4}
+                    className="mt-1"
+                  />
+                </div>
+                <p className="text-xs text-gray-500" dir="ltr">
+                  Shown on the Arabic storefront. Leave blank to show the English text.
+                </p>
+              </fieldset>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>

@@ -74,11 +74,18 @@ export async function ListingSeoContent({
 
 						<div className="mt-4 grid max-w-[65ch] gap-3 text-[15px] leading-relaxed text-nl-russet">
 							<p className="m-0">
-								{t(INTRO_KEY[variant], {
+								{t(
+									// "from 0 brands" reads as broken; with no brand facets use
+									// the sentence that doesn't count brands.
+									variant === "category" && facts.brands.length === 0
+										? INTRO_KEY.brand
+										: INTRO_KEY[variant],
+									{
 									entity: entityName,
 									count: facts.total,
 									brandCount: facts.brands.length,
-								})}
+									},
+								)}
 							</p>
 
 							{facts.minPriceFils !== null && (

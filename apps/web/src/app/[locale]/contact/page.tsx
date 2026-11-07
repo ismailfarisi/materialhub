@@ -1,14 +1,23 @@
 import { ContactForm } from "@/components/content/contact-form";
 import { StaticPageLayout } from "@/components/layout/static-page-layout";
+import { buildAlternates } from "@/lib/seo/alternates";
 import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
 import Link from "next/link";
 
-export const metadata: Metadata = {
-	title: "Contact MaterialHub",
-	description:
-		"Contact MaterialHub customer care about an order, a material spec or a trade enquiry, by message, phone, WhatsApp or email.",
-};
+export async function generateMetadata({
+	params,
+}: {
+	params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+	const { locale } = await params;
+	const t = await getTranslations({ locale, namespace: "content.contact" });
+	return {
+		title: t("meta.title"),
+		description: t("meta.description"),
+		alternates: buildAlternates(locale, "/contact"),
+	};
+}
 
 const PHONE = "+971 50 301 9357";
 const LINES = [

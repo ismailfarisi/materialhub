@@ -27,11 +27,17 @@ export class ProductController {
   async publish(productId: string, vendorId: string) {
     return this.productService.publish(productId, vendorId);
   }
+  async unpublish(productId: string, vendorId: string) {
+    return this.productService.unpublish(productId, vendorId);
+  }
+  async getByIdForVendor(id: string, vendorId: string) {
+    return this.productService.getByIdForVendor(id, vendorId);
+  }
   async bulkAction(vendorId: string, data: any) {
     return this.productService.bulkAction(vendorId, data.action, data.ids);
   }
-  async getBySlug(slug: string) {
-    return this.productService.getBySlug(slug);
+  async getBySlug(slug: string, locale?: string) {
+    return this.productService.getBySlug(slug, locale);
   }
   async getGroupBySlug(slug: string) {
     return this.productService.getGroupBySlug(slug);

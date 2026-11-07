@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { CategoryService } from "./category.service.ts";
+import { CategoryService, applyCategoryTranslation, categoryLocale } from "./category.service.ts";
 
 const buildCat = (id: string, parent_id: string | null = null) => ({
   id,
@@ -241,5 +241,150 @@ describe("CategoryService.upsertTranslations", () => {
     expect(rows).toHaveLength(1); // revived in place, not duplicated
     expect(rows[0].name).toBe("fresh");
     expect(rows[0].deleted_at).toBeNull();
+  });
+});
+
+describe("CategoryService.getBySlug (public)", () => {
+  function serviceWith(rows: any[], translations: any[] = []) {
+    const service = new CategoryService();
+    const calls: any[] = [];
+    Object.defineProperty(service, "repo", {
+      get: () => ({
+        findOne: async ({ where }: any) => {
+          calls.push(where);
+          return (
+            rows.find((r) => Object.entries(where).every(([k, v]) => (r as any)[k] === v)) ?? null
+          );
+        },
+        find: async ({ where }: any) =>
+          rows.filter((r) => r.parent_id === where.parent_id && r.is_active === where.is_active),
+      }),
+      configurable: true,
+    });
+    Object.defineProperty(service, "translationRepo", {
+      get: () => ({ find: async () => translations }),
+      configurable: true,
+    });
+    return { service, calls };
+  }
+
+  const papers = {
+    ...buildCat("papers"),
+    name: "Papers",
+    description: "All papers",
+    meta_title: null,
+    meta_description: null,
+  };
+  const kraft = {
+    ...buildCat("kraft", "papers"),
+    name: "Kraft paper",
+    description: "Brown kraft",
+    meta_title: "Kraft",
+    meta_description: null,
+  };
+  const hidden = { ...buildCat("hidden", "papers"), name: "Hidden", is_active: false };
+
+  test("404s an inactive category", async () => {
+    const { service } = serviceWith([papers, hidden]);
+    await expect(service.getBySlug("hidden")).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  test("serves English without loading translations", async () => {
+    const { service } = serviceWith([papers, kraft]);
+    const res: any = await service.getBySlug("kraft", { locale: "en-US,en;q=0.9" });
+    expect(res.name).toBe("Kraft paper");
+    expect(res.locale).toBe("en");
+    expect(res.breadcrumb.map((b: any) => b.name)).toEqual(["Papers", "Kraft paper"]);
+  });
+
+  test("serves the Arabic translation for locale ar, falling back per field", async () => {
+    const { service } = serviceWith(
+      [papers, kraft],
+      [
+        {
+          category_id: "kraft",
+          locale: "ar",
+          name: "ورق كرافت",
+          description: "",
+          meta_title: "كرافت",
+          meta_description: null,
+        },
+        {
+          category_id: "papers",
+          locale: "ar",
+          name: "الورق",
+          description: null,
+          meta_title: null,
+          meta_description: null,
+        },
+      ],
+    );
+    const res: any = await service.getBySlug("kraft", { locale: "ar-AE,ar;q=0.9" });
+    expect(res.name).toBe("ورق كرافت");
+    expect(res.description).toBe("Brown kraft");
+    expect(res.meta_title).toBe("كرافت");
+    expect(res.locale).toBe("ar");
+    expect(res.breadcrumb.map((b: any) => b.name)).toEqual(["الورق", "ورق كرافت"]);
+  });
+
+  test("locale parsing", () => {
+    expect(categoryLocale("ar")).toBe("ar");
+    expect(categoryLocale("AR-ae, en;q=0.5")).toBe("ar");
+    expect(categoryLocale(undefined)).toBe("en");
+    expect(categoryLocale("*")).toBe("en");
+    expect(applyCategoryTranslation({ name: "A" }, null)).toEqual({ name: "A" });
+  });
+});
+
+describe("CategoryService.getTree locale", () => {
+  const rows = [
+    { id: "papers", name: "Papers & Boards", slug: "papers", parent_id: null, is_active: true },
+    { id: "kraft", name: "Kraft paper", slug: "kraft", parent_id: "papers", is_active: true },
+    { id: "foils", name: "Foils", slug: "foils", parent_id: null, is_active: true },
+  ];
+  function build(capture: { locales: string[] }) {
+    const service = new CategoryService();
+    Object.defineProperty(service, "repo", {
+      get: () => ({ find: async () => rows.map((r) => ({ ...r })) }),
+      configurable: true,
+    });
+    Object.defineProperty(service, "translationRepo", {
+      get: () => ({
+        find: async ({ where }: any) => {
+          capture.locales.push(where.locale);
+          return where.locale === "ar"
+            ? [
+                { category_id: "papers", name: "الورق والألواح", description: null },
+                { category_id: "kraft", name: "ورق كرافت", description: null },
+                { category_id: "foils", name: " ", description: null },
+              ]
+            : [];
+        },
+      }),
+      configurable: true,
+    });
+    return service;
+  }
+
+  test("an Arabic tree carries translated names, English where none (or blank)", async () => {
+    const capture = { locales: [] as string[] };
+    const tree: any[] = await build(capture).getTree({ locale: "ar-AE,ar;q=0.9" });
+    expect(capture.locales).toEqual(["ar"]);
+    const papers = tree.find((n) => n.id === "papers");
+    expect(papers.name).toBe("الورق والألواح");
+    expect(papers.children[0].name).toBe("ورق كرافت");
+    expect(papers.slug).toBe("papers");
+    expect(tree.find((n) => n.id === "foils").name).toBe("Foils");
+  });
+
+  test("English and the admin tree never look up locale translations", async () => {
+    const capture = { locales: [] as string[] };
+    const service = build(capture);
+    (service as any).loadTranslations = async () => new Map();
+    const en: any[] = await service.getTree({ locale: "en" });
+    expect(en.find((n) => n.id === "papers").name).toBe("Papers & Boards");
+    const admin: any[] = await service.getTree({ includeInactive: true, locale: "ar" });
+    expect(admin.find((n) => n.id === "papers").name).toBe("Papers & Boards");
+    expect(capture.locales).toEqual([]);
   });
 });

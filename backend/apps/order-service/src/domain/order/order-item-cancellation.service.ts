@@ -30,6 +30,7 @@ import { BadRequestError, HttpError, NotFoundError } from "@materialhub/plugins"
 import type { EncryptionService } from "@materialhub/utils";
 import type { Queue } from "bullmq";
 import type { Repository } from "typeorm";
+import { IsNull } from "typeorm";
 import type { CommissionReversalService } from "../commission/commission-reversal.service.ts";
 import {
   resolveOriginWarehouse,
@@ -37,7 +38,7 @@ import {
   warehouseToCarrierAddress,
 } from "../shipment/auto-shipment.job.ts";
 import type { ShippingProviderRegistry } from "../shipment/shipping-provider-adapter.ts";
-import { computeItemRefund } from "./item-cancellation-calc.ts";
+import { computeItemRefund, shrinkCodOrderTotals } from "./item-cancellation-calc.ts";
 import type { OrderStatusService } from "./order-status.service.ts";
 
 // Mirrors OrderItemCancellation.items — the entity's exported interface is not
@@ -376,7 +377,8 @@ export class OrderItemCancellationService {
 
         // 7c. Release the inventory reservation + audit trail.
         const where: any = { product_id: oi.product_id, vendor_id: oi.vendor_id };
-        if (oi.variant_id) where.variant_id = oi.variant_id;
+        // No variant means the product-level row, never a variant (sample) row.
+        where.variant_id = oi.variant_id ?? IsNull();
         const inv = (await invRepo.findOne({ where })) as any;
         if (inv) {
           const onHand = inv.quantity_on_hand;
@@ -395,6 +397,35 @@ export class OrderItemCancellationService {
             reference_id: cancellationId,
           } as any);
           await movRepo.save(movement);
+
+          // Shrink this order's reservation row on that stock by the same
+          // amount, so a later cancel of the whole order (which releases the
+          // order's active/committed reservation rows) cannot release these
+          // units a second time.
+          const resRows: Array<{ id: string; quantity: number }> = await tx.query(
+            `SELECT id, quantity FROM inventory_reservations
+              WHERE order_id = $1 AND inventory_id = $2 AND status IN ('active', 'committed')
+              ORDER BY created_at FOR UPDATE`,
+            [orderId, inv.id],
+          );
+          let toRelease = p.cancelQty;
+          for (const r of resRows ?? []) {
+            if (toRelease <= 0) break;
+            const take = Math.min(Number(r.quantity), toRelease);
+            toRelease -= take;
+            if (take >= Number(r.quantity)) {
+              await tx.query(
+                `UPDATE inventory_reservations SET status = 'released', released_at = now()
+                  WHERE id = $1`,
+                [r.id],
+              );
+            } else {
+              await tx.query(
+                "UPDATE inventory_reservations SET quantity = quantity - $2 WHERE id = $1",
+                [r.id, take],
+              );
+            }
+          }
         }
       }
 
@@ -428,7 +459,25 @@ export class OrderItemCancellationService {
       // `completed` cancellation always implies the receipt was invalidated.
       // The next download lazily regenerates a fresh PDF via
       // InvoiceService.resolveDownload.
-      (order as any).refund_total = Number((order as any).refund_total ?? 0) + totalRefund;
+      if (isCod) {
+        // Cash on delivery: nothing was collected, so nothing is refunded.
+        // The order simply got smaller — the COD amount the courier collects,
+        // the vendor sub-order totals and the order totals all shrink by the
+        // cancelled value. `refund_total` stays as it is; `resolveCodAmountFils`
+        // and the carrier amendment net `refund_total` off `payments.amount`,
+        // so bumping both would subtract the cancelled value twice.
+        await this.shrinkCodOrder(tx, {
+          order,
+          payment,
+          plan,
+          voById,
+          emptiedVoIds,
+          totalRefund,
+          itemsRefund,
+        });
+      } else {
+        (order as any).refund_total = Number((order as any).refund_total ?? 0) + totalRefund;
+      }
       (order as any).invoice_s3_key = null;
       (order as any).invoice_generated_at = null;
       await ordRepo.save(order);
@@ -474,6 +523,7 @@ export class OrderItemCancellationService {
     /*  bumped inside the tx above, so it reflects this cancel.        */
     /* -------------------------------------------------------------- */
     if (refundMethod === "cod_uncollected" && this.carrierDeps) {
+      // Already reduced by this cancel (shrinkCodOrder); refund_total is not.
       const originalCodFils = Number((payment as any)?.amount ?? 0);
       await this.applyCodCarrierEffects({
         order,
@@ -498,6 +548,53 @@ export class OrderItemCancellationService {
     });
 
     return savedCancellation;
+  }
+
+  /**
+   * COD item cancel: reduce what the courier collects and the order / vendor
+   * sub-order totals by the cancelled value (items, plus shipping of a vendor
+   * sub-order that is now empty). Runs inside the bookkeeping transaction.
+   */
+  private async shrinkCodOrder(
+    tx: any,
+    params: {
+      order: Order;
+      payment: Payment | null;
+      plan: Array<{ oi: OrderItem; itemRefund: number }>;
+      voById: Map<string, VendorOrder>;
+      emptiedVoIds: Set<string>;
+      totalRefund: number;
+      itemsRefund: number;
+    },
+  ): Promise<void> {
+    const { order, payment, plan, voById, emptiedVoIds, totalRefund, itemsRefund } = params;
+    const o = order as any;
+
+    if (payment) {
+      const payRepo = tx.getRepository("Payment" as any) as Repository<Payment>;
+      (payment as any).amount = Math.max(0, Number((payment as any).amount ?? 0) - totalRefund);
+      await payRepo.save(payment);
+    }
+
+    // Goods and the emptied sub-orders' shipping come off the master totals
+    // (shipping_total too, so the platform invoice and receipt match what the
+    // courier collects).
+    shrinkCodOrderTotals(o, { itemsGross: itemsRefund, shippingGross: totalRefund - itemsRefund });
+
+    const voRepo = tx.getRepository("VendorOrder" as any) as Repository<VendorOrder>;
+    const byVo = new Map<string, number>();
+    for (const p of plan) {
+      const voId = (p.oi as any).vendor_order_id as string;
+      byVo.set(voId, (byVo.get(voId) ?? 0) + p.itemRefund);
+    }
+    for (const [voId, amount] of byVo) {
+      const vo = voById.get(voId) as any;
+      if (!vo) continue;
+      vo.subtotal = Math.max(0, Number(vo.subtotal ?? 0) - amount);
+      vo.vendor_total = Math.max(0, Number(vo.vendor_total ?? 0) - amount);
+      if (emptiedVoIds.has(voId)) vo.shipping_cost = 0;
+      await voRepo.save(vo);
+    }
   }
 
   // True when a pre-persisted pending row covers EXACTLY this request's

@@ -3,8 +3,13 @@ import type { ShipmentTrackingService } from "./shipment-tracking.service.ts";
 export class ShipmentTrackingController {
   constructor(private shipmentService: ShipmentTrackingService) {}
 
-  async createShipment(vendorOrderId: string, vendorId: string, body: any) {
-    return this.shipmentService.createShipment(vendorOrderId, vendorId, body);
+  async createShipment(
+    vendorOrderId: string,
+    vendorId: string,
+    body: any,
+    actorUserId: string | null = null,
+  ) {
+    return this.shipmentService.createShipment(vendorOrderId, vendorId, body, actorUserId);
   }
 
   async processWebhook(body: any) {
@@ -17,7 +22,7 @@ export class ShipmentTrackingController {
 
   async transitionStatus(
     shipmentId: string,
-    actor: { userId: string; role: "vendor" | "admin" },
+    actor: { userId: string | null; role: "vendor" | "admin"; vendorId?: string | null },
     body: { status: string; reason: string; metadata?: Record<string, unknown> },
   ) {
     return this.shipmentService.transitionShipmentStatus(

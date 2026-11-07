@@ -31,6 +31,7 @@ import {
   S3ImageUploadField,
   Skeleton,
   Badge,
+  toast,
 } from "@materialhub/ui";
 import { s3UploadClient } from "@/lib/s3-upload-client";
 import { TaxRegistrationPanel } from "@/components/settings/tax-registration-panel";
@@ -42,12 +43,13 @@ import {
   useCreateBankAccount,
   useUpdateBankAccount,
   useDeleteBankAccount,
+  useSetPrimaryBankAccount,
 } from "@/lib/queries/settings";
 
 // ─── Profile Tab ───────────────────────────────────────────────────────────────
 
 const profileSchema = z.object({
-  store_name: z.string().min(1, "Store name is required"),
+  store_name: z.string().trim().min(2, "Store name is required"),
   description: z.string().optional(),
   return_policy: z.string().optional(),
   shipping_policy: z.string().optional(),
@@ -74,7 +76,7 @@ function ProfileTab() {
   useEffect(() => {
     if (profile) {
       form.reset({
-        store_name: profile.store_name ?? "",
+        store_name: profile.name ?? "",
         description: profile.description ?? "",
         return_policy: profile.return_policy ?? "",
         shipping_policy: profile.shipping_policy ?? "",
@@ -85,10 +87,21 @@ function ProfileTab() {
   }, [profile, form]);
 
   function onSubmit(values: ProfileFormValues) {
-    const payload: Record<string, unknown> = { ...values };
+    // The API field is `name` (the store name buyers see); the legal
+    // business name is set at application and changed by MaterialHub.
+    const { store_name, ...rest } = values;
+    const payload: Record<string, unknown> = { ...rest, name: store_name.trim() };
     if (logoUrl) payload.logo_url = logoUrl;
     if (bannerUrl) payload.banner_url = bannerUrl;
-    updateProfile(payload);
+    updateProfile(payload, {
+      onSuccess: () => toast({ title: "Store profile saved" }),
+      onError: (err: any) =>
+        toast({
+          title: "Could not save",
+          description: err?.response?.data?.message ?? "Try again.",
+          variant: "destructive",
+        }),
+    });
   }
 
   if (isLoading) {
@@ -111,7 +124,7 @@ function ProfileTab() {
             <FormItem>
               <FormLabel>Store Name *</FormLabel>
               <FormControl>
-                <Input placeholder="My Awesome Store" {...field} />
+                <Input placeholder="e.g. Al Quoz Board & Paper" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -208,18 +221,32 @@ function ProfileTab() {
 
 // ─── Bank Details Tab ──────────────────────────────────────────────────────────
 
+/** GET /vendors/me/bank-accounts row. Numbers arrive masked; full ones never leave the API. */
+interface BankAccountView {
+  id: string;
+  bankName: string;
+  accountHolderName: string;
+  accountNumberMasked: string;
+  ibanMasked: string | null;
+  swiftCode: string | null;
+  currency: string;
+  isPrimary: boolean;
+}
+
 const bankSchema = z.object({
-  account_holder_name: z.string().min(1, "Account holder name is required"),
-  bank_name: z.string().min(1, "Bank name is required"),
-  iban: z.string().min(15, "IBAN is required"),
-  swift_code: z.string().optional(),
+  account_holder_name: z.string().trim().min(1, "Account holder name is required"),
+  bank_name: z.string().trim().min(1, "Bank name is required"),
+  account_number: z.string().trim(),
+  iban: z.string().trim(),
+  swift_code: z.string().trim().optional(),
 });
 
 type BankFormValues = z.infer<typeof bankSchema>;
 
-function maskIban(iban: string) {
-  if (!iban || iban.length < 8) return iban;
-  return iban.slice(0, 4) + " •••• •••• " + iban.slice(-4);
+const compact = (v: string) => v.replace(/\s+/g, "").toUpperCase();
+
+function bankErrorMessage(err: any): string {
+  return err?.response?.data?.message ?? "Could not save the bank account. Try again.";
 }
 
 function BankDetailsTab() {
@@ -227,15 +254,18 @@ function BankDetailsTab() {
   const { mutate: createAccount, isPending: creating } = useCreateBankAccount();
   const { mutate: updateAccount, isPending: updating } = useUpdateBankAccount();
   const { mutate: deleteAccount } = useDeleteBankAccount();
+  const { mutate: setPrimary, isPending: settingPrimary } = useSetPrimaryBankAccount();
 
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingAccount, setEditingAccount] = useState<any>(null);
+  const [editingAccount, setEditingAccount] = useState<BankAccountView | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const form = useForm<BankFormValues>({
     resolver: zodResolver(bankSchema),
     defaultValues: {
       account_holder_name: "",
       bank_name: "",
+      account_number: "",
       iban: "",
       swift_code: "",
     },
@@ -243,39 +273,65 @@ function BankDetailsTab() {
 
   function openAdd() {
     setEditingAccount(null);
-    form.reset({ account_holder_name: "", bank_name: "", iban: "", swift_code: "" });
+    setFormError(null);
+    form.reset({ account_holder_name: "", bank_name: "", account_number: "", iban: "", swift_code: "" });
     setDialogOpen(true);
   }
 
-  function openEdit(account: any) {
+  function openEdit(account: BankAccountView) {
     setEditingAccount(account);
+    setFormError(null);
+    // Numbers stay blank: we only ever hold the masked value. Blank = keep.
     form.reset({
-      account_holder_name: account.account_holder_name,
-      bank_name: account.bank_name,
-      iban: account.iban,
-      swift_code: account.swift_code ?? "",
+      account_holder_name: account.accountHolderName,
+      bank_name: account.bankName,
+      account_number: "",
+      iban: "",
+      swift_code: account.swiftCode ?? "",
     });
     setDialogOpen(true);
   }
 
   function onSubmit(values: BankFormValues) {
+    const accountNumber = compact(values.account_number);
+    const iban = compact(values.iban);
+    if (!editingAccount && accountNumber.length < 4) {
+      form.setError("account_number", { message: "Account number is required" });
+      return;
+    }
+    if ((!editingAccount || iban) && !/^AE\d{21}$/.test(iban)) {
+      form.setError("iban", { message: "A UAE IBAN is AE followed by 21 digits" });
+      return;
+    }
+    setFormError(null);
+    const payload: Record<string, unknown> = {
+      account_holder_name: values.account_holder_name.trim(),
+      bank_name: values.bank_name.trim(),
+      swift_code: values.swift_code?.trim() || undefined,
+    };
+    if (accountNumber) payload.account_number = accountNumber;
+    if (iban) payload.iban = iban;
+    const done = {
+      onSuccess: () => {
+        setDialogOpen(false);
+        toast({ title: editingAccount ? "Bank account updated" : "Bank account added" });
+      },
+      onError: (err: any) => setFormError(bankErrorMessage(err)),
+    };
     if (editingAccount) {
-      updateAccount(
-        { id: editingAccount.id, payload: values },
-        { onSuccess: () => setDialogOpen(false) }
-      );
+      updateAccount({ id: editingAccount.id, payload }, done);
     } else {
-      createAccount(values, { onSuccess: () => setDialogOpen(false) });
+      createAccount(payload, done);
     }
   }
 
-  const bankAccounts: any[] = accounts ?? [];
+  const bankAccounts: BankAccountView[] = accounts ?? [];
 
   return (
     <div className="space-y-4 max-w-2xl">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <p className="text-sm text-muted-foreground">
-          Bank accounts used for receiving payouts.
+          Bank accounts used for receiving payouts. Payouts go to the primary account.
         </p>
         <Button size="sm" onClick={openAdd}>
           <Plus size={14} className="mr-1" /> Add Account
@@ -297,32 +353,68 @@ function BankDetailsTab() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {bankAccounts.map((account: any) => (
+          {bankAccounts.map((account) => (
             <Card key={account.id}>
-              <CardContent className="flex items-center gap-4 py-4">
-                <div className="flex-1">
+              <CardContent className="flex flex-wrap items-center gap-4 py-4">
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium">{account.account_holder_name}</p>
-                    {account.is_primary && (
+                    <p className="text-sm font-medium">{account.accountHolderName}</p>
+                    {account.isPrimary && (
                       <Badge variant="secondary" className="text-xs">Primary</Badge>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground">{account.bank_name}</p>
-                  <p className="text-xs font-mono text-muted-foreground mt-0.5">
-                    {maskIban(account.iban)}
+                  <p className="text-sm text-muted-foreground">
+                    {account.bankName} · {account.currency}
+                  </p>
+                  <p className="text-xs font-mono text-muted-foreground mt-0.5 break-all">
+                    Account {account.accountNumberMasked}
+                    {account.ibanMasked ? ` · IBAN ${account.ibanMasked}` : ""}
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => openEdit(account)}>
+                  {!account.isPrimary && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={settingPrimary}
+                      onClick={() =>
+                        setPrimary(account.id, {
+                          onSuccess: () => toast({ title: "Primary account updated" }),
+                          onError: (err: any) =>
+                            toast({
+                              title: "Could not set primary",
+                              description: bankErrorMessage(err),
+                              variant: "destructive",
+                            }),
+                        })
+                      }
+                    >
+                      Make primary
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label="Edit bank account"
+                    onClick={() => openEdit(account)}
+                  >
                     <Pencil size={14} />
                   </Button>
                   <Button
                     variant="ghost"
                     size="sm"
+                    aria-label="Delete bank account"
                     className="text-destructive hover:text-destructive"
                     onClick={() => {
                       if (confirm("Delete this bank account?")) {
-                        deleteAccount(account.id);
+                        deleteAccount(account.id, {
+                          onError: (err: any) =>
+                            toast({
+                              title: "Could not delete",
+                              description: bankErrorMessage(err),
+                              variant: "destructive",
+                            }),
+                        });
                       }
                     }}
                   >
@@ -338,7 +430,7 @@ function BankDetailsTab() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingAccount ? "Pencil Bank Account" : "Add Bank Account"}</DialogTitle>
+            <DialogTitle>{editingAccount ? "Edit Bank Account" : "Add Bank Account"}</DialogTitle>
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -370,14 +462,42 @@ function BankDetailsTab() {
               />
               <FormField
                 control={form.control}
+                name="account_number"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Account Number</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder={
+                          editingAccount
+                            ? `Leave blank to keep ${editingAccount.accountNumberMasked}`
+                            : "e.g. 1012345678901"
+                        }
+                        className="font-mono"
+                        autoComplete="off"
+                        inputMode="numeric"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
                 name="iban"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>IBAN</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="AE07 0331 2345 6789 0123 456"
+                        placeholder={
+                          editingAccount?.ibanMasked
+                            ? `Leave blank to keep ${editingAccount.ibanMasked}`
+                            : "AE07 0331 2345 6789 0123 456"
+                        }
                         className="font-mono"
+                        autoComplete="off"
                         {...field}
                       />
                     </FormControl>
@@ -398,6 +518,11 @@ function BankDetailsTab() {
                   </FormItem>
                 )}
               />
+              {formError ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {formError}
+                </p>
+              ) : null}
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   Cancel
@@ -417,7 +542,7 @@ function BankDetailsTab() {
 // ─── Processing Tab ────────────────────────────────────────────────────────────
 
 const processingSchema = z.object({
-  processing_time_days: z.coerce.number().int().min(0, "Must be 0 or more"),
+  processing_time_days: z.coerce.number().int().min(0, "Must be 0 or more").max(30, "At most 30 days"),
 });
 
 type ProcessingFormValues = z.infer<typeof processingSchema>;
@@ -438,7 +563,18 @@ function ProcessingTab() {
   }, [profile, form]);
 
   function onSubmit(values: ProcessingFormValues) {
-    updateProfile({ processing_time_days: values.processing_time_days });
+    updateProfile(
+      { processing_time_days: values.processing_time_days },
+      {
+        onSuccess: () => toast({ title: "Processing time saved" }),
+        onError: (err: any) =>
+          toast({
+            title: "Could not save",
+            description: err?.response?.data?.message ?? "Try again.",
+            variant: "destructive",
+          }),
+      },
+    );
   }
 
   if (isLoading) {

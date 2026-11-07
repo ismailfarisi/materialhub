@@ -69,28 +69,10 @@ REDIS_PORT=6379
 TYPESENSE_HOST=typesense
 TYPESENSE_PORT=8108
 
-# ─── Service ports ────────────────────────────────────────────
+# ─── API port ─────────────────────────────────────────────────
+# The backend is one process (backend/apps/api) that calls its modules
+# in-process, so no per-module host/port/URL variables are needed.
 GATEWAY_PORT=3000
-AUTH_PORT=3001
-PRODUCT_PORT=3002
-ORDER_PORT=3003
-VENDOR_PORT=3004
-NOTIFICATION_PORT=3005
-CMS_PORT=3006
-INTEGRATION_PORT=3008
-
-# ─── Service hosts (docker-compose service names) ────────────
-AUTH_HOST=auth-service
-PRODUCT_HOST=product-service
-ORDER_HOST=order-service
-VENDOR_HOST=vendor-service
-NOTIFICATION_HOST=notification-service
-CMS_HOST=cms-service
-INTEGRATION_HOST=integration-service
-
-# ─── Inter-service URLs ───────────────────────────────────────
-NOTIFICATION_SERVICE_URL=http://notification-service:3005
-INTEGRATION_SERVICE_URL=http://integration-service:3008
 
 # ─── Media (S3 + CloudFront) ──────────────────────────────────
 S3_MEDIA_BUCKET=${s3_media_bucket}
@@ -101,7 +83,7 @@ VENDOR_DASHBOARD_URL=${vendor_dashboard_url}
 ADMIN_PANEL_URL=${admin_panel_url}
 
 # ─── Storefront URLs (CORS allowlist / Tamara redirect allowlist) ─────
-# Same literal fallback api-gateway/src/app.ts already hardcodes for prod
+# Same literal fallback backend/apps/api/src/app.ts already hardcodes for prod
 # CORS and libs/config/src/index.ts now hardcodes for the Tamara
 # merchant-redirect allowlist — seeded here too (rather than left
 # code-default-only) so it's explicit in the deployed env, same as
@@ -114,7 +96,7 @@ WEB_WWW_URL=https://www.materialhubuae.com
 # SES is region-scoped via SES_REGION (separate from AWS_REGION so S3/media
 # region is independent). materialhubuae.com is the verified SES identity, with
 # production access, in ap-south-1. APP_URL backs verify/reset/magic-link
-# emails; PUBLIC_API_URL backs the newsletter unsubscribe link (API gateway).
+# emails; PUBLIC_API_URL backs the newsletter unsubscribe link (the API).
 SES_REGION=ap-south-1
 SES_FROM_ADDRESS=noreply@materialhubuae.com
 APP_URL=https://materialhubuae.com
@@ -136,7 +118,7 @@ AWS_REGION=${aws_region} /opt/materialhub/refresh-env-from-ssm.sh \
 cat > /opt/materialhub/Caddyfile <<'CADDYEOF'
 ${api_domain} {
   reverse_proxy {
-    dynamic a api-gateway 3000
+    dynamic a api 3000
   }
 }
 CADDYEOF
@@ -228,6 +210,7 @@ prometheus.remote_write "grafana_cloud" {
 ALLOYEOF
 
 # ─── docker-compose.yml ──────────────────────────────────────
+# Keep in step with the copy deploy-prod.yml writes on every deploy.
 cat > /opt/materialhub/docker-compose.yml <<'COMPOSEEOF'
 services:
   caddy:
@@ -242,7 +225,7 @@ services:
       - /data/caddy_data:/data
       - /data/caddy_config:/config
     depends_on:
-      - api-gateway
+      - api
 
   typesense:
     image: typesense/typesense:27.1
@@ -254,70 +237,36 @@ services:
       TYPESENSE_API_KEY: $${TYPESENSE_API_KEY}
       TYPESENSE_DATA_DIR: /data
 
-  api-gateway:
+  # The whole API (gateway + every module) in one process. The image keeps
+  # the gateway's ECR repo name (terraform/shared/ecr.tf).
+  api:
     image: $${ECR_REGISTRY}/materialhub-api-gateway:production
     restart: always
-    mem_limit: 384m
+    # 3g: one process runs every module (the former per-service limits summed
+    # to ~4.25g; product and integration needed 1g each for the Typesense
+    # reindex and feed builds).
+    mem_limit: 3g
     expose:
       - "3000"
     env_file: .env
-
-  auth-service:
-    image: $${ECR_REGISTRY}/materialhub-auth-service:production
-    restart: always
-    mem_limit: 384m
-    env_file: .env
-
-  product-service:
-    image: $${ECR_REGISTRY}/materialhub-product-service:production
-    restart: always
-    # 1g (not 384m): product-service runs the Typesense reindex + incremental
-    # search-sync workers, which load batches of products with all relations.
-    # At 384m the reindex OOM-killed the bun process after the first batch,
-    # leaving the search index permanently stale (only the oldest ~100
-    # products visible on the storefront). The box has ample headroom.
-    mem_limit: 1g
-    env_file: .env
+    networks:
+      default:
+        aliases:
+          - api-gateway
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:'+(process.env.GATEWAY_PORT||3000)+'/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
     depends_on:
       - typesense
 
-  order-service:
-    image: $${ECR_REGISTRY}/materialhub-order-service:production
-    restart: always
-    mem_limit: 384m
-    env_file: .env
-
-  vendor-service:
-    image: $${ECR_REGISTRY}/materialhub-vendor-service:production
-    restart: always
-    mem_limit: 384m
-    env_file: .env
-
-  notification-service:
-    image: $${ECR_REGISTRY}/materialhub-notification-service:production
-    restart: always
-    mem_limit: 384m
-    env_file: .env
-
-  cms-service:
-    image: $${ECR_REGISTRY}/materialhub-cms-service:production
-    restart: always
-    mem_limit: 384m
-    env_file: .env
-
-  integration-service:
-    image: $${ECR_REGISTRY}/materialhub-integration-service:production
-    restart: always
-    # 1g: integration-service owns sales-channel feed generation. The feed
-    # builder hydrates product relations and runs alongside BullMQ workers; 384m
-    # OOM-killed Bun during Google Merchant feed builds.
-    mem_limit: 1g
-    env_file: .env
-
   alloy:
     image: grafana/alloy:latest
+    privileged: true
     restart: unless-stopped
-    mem_limit: 256m
+    mem_limit: 384m
     command:
       - run
       - --server.http.listen-addr=0.0.0.0:12345
@@ -328,6 +277,13 @@ services:
       - ./config.alloy:/etc/alloy/config.alloy:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /data/alloy:/var/lib/alloy/data
+      # cAdvisor (per-container metrics) needs host fs access; cgroup v2 on AL2023
+      - /:/rootfs:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+      - /var/run:/var/run:ro
+      - /dev/kmsg:/dev/kmsg
 
   # One-shot migration runner. profiles: ["tools"] keeps it out of `up`.
   # Invoke:  docker-compose --profile tools run --rm migrate

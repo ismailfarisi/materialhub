@@ -76,18 +76,51 @@ export function onHandForWarehouse(
     .reduce((sum, r) => sum + (r.quantity_on_hand ?? 0), 0);
 }
 
+export interface InventoryVariant {
+  id: string;
+  name: string;
+  sku?: string | null;
+}
+
+/**
+ * Stock rows for one sellable: the product itself (`variantId` null) or one
+ * variant. A product with variants keeps its stock on the variant rows.
+ */
+export function rowsForSellable(
+  records: InventoryRecord[],
+  variantId: string | null,
+): InventoryRecord[] {
+  return records.filter((r) => (variantId ? r.variant_id === variantId : !r.variant_id));
+}
+
+/** Display name for a variant option: "A1 / pack of 100 (KRF-120-A1)". */
+export function variantLabel(v: InventoryVariant): string {
+  const name = v.name?.trim() || "Unnamed variant";
+  return v.sku ? `${name} (${v.sku})` : name;
+}
+
 export function InventoryPanel({
   productId,
   inventoryRecords,
+  variants = [],
 }: {
   productId: string;
   inventoryRecords: InventoryRecord[];
+  variants?: InventoryVariant[];
 }) {
   const { data: warehouses } = useVendorWarehouses();
   const { mutateAsync: restock, isPending: restocking } = useRestockInventory();
   const { mutateAsync: adjust, isPending: adjusting } = useAdjustInventory();
 
-  const rows = inventoryRecords.filter((r) => !r.variant_id);
+  const hasVariants = variants.length > 0;
+  const [selectedVariantId, setSelectedVariantId] = useState<string>("");
+  // With variants, stock lives per variant; default to the first one.
+  const variantId = hasVariants
+    ? variants.some((v) => v.id === selectedVariantId)
+      ? selectedVariantId
+      : variants[0].id
+    : null;
+  const rows = rowsForSellable(inventoryRecords, variantId);
   const defaultWarehouseId = warehouses?.find((w) => w.is_default)?.id ?? "";
 
   const [warehouseId, setWarehouseId] = useState("");
@@ -111,12 +144,14 @@ export function InventoryPanel({
       if (action === "restock") {
         await restock({
           product_id: productId,
+          ...(variantId ? { variant_id: variantId } : {}),
           warehouse_id: targetWarehouse,
           quantity: Math.abs(amount),
         });
       } else {
         await adjust({
           product_id: productId,
+          ...(variantId ? { variant_id: variantId } : {}),
           warehouse_id: targetWarehouse,
           quantity: amount,
           reason: reason.trim() || "Vendor stock adjustment",
@@ -136,6 +171,7 @@ export function InventoryPanel({
     try {
       await adjust({
         product_id: productId,
+        ...(variantId ? { variant_id: variantId } : {}),
         warehouse_id: targetWarehouse,
         quantity: -targetOnHand,
         reason: "Marked out of stock",
@@ -155,6 +191,34 @@ export function InventoryPanel({
         </CardTitle>
       </CardHeader>
       <CardContent>
+        {hasVariants ? (
+          <div className="mb-4">
+            <Label htmlFor="inventory-variant" className="text-sm font-medium text-gray-700">
+              Variant
+            </Label>
+            <select
+              id="inventory-variant"
+              value={variantId ?? ""}
+              onChange={(e) => setSelectedVariantId(e.target.value)}
+              className="mt-1 w-full max-w-md rounded-md border border-gray-200 bg-white px-3 py-2 text-sm"
+            >
+              {variants.map((v) => {
+                const onHand = rowsForSellable(inventoryRecords, v.id).reduce(
+                  (sum, r) => sum + (r.quantity_on_hand ?? 0),
+                  0,
+                );
+                return (
+                  <option key={v.id} value={v.id}>
+                    {variantLabel(v)} · {onHand} on hand
+                  </option>
+                );
+              })}
+            </select>
+            <p className="mt-1 text-xs text-gray-500">
+              Stock is kept per variant. Pick one to see and change its stock.
+            </p>
+          </div>
+        ) : null}
         {rows.length === 0 ? (
           <p className="text-sm text-gray-500">
             No stock recorded yet. Restock below to create the first record.

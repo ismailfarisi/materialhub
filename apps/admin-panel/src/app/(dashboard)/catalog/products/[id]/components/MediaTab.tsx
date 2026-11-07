@@ -135,6 +135,10 @@ export function MediaTab({ product, editing, processImage, deleteImage }: Props)
   };
 
   return (
+    <div className="space-y-3">
+    {!editing && (
+      <p className="text-sm text-taupe">Select Edit to add, replace or remove images and videos.</p>
+    )}
     <MediaManager
       items={items}
       variants={product.variants}
@@ -155,5 +159,6 @@ export function MediaTab({ product, editing, processImage, deleteImage }: Props)
             }
       }
     />
+    </div>
   );
 }

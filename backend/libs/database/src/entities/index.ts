@@ -100,6 +100,7 @@ export { PaymentMethodThreshold } from "./payment-method-threshold.entity.ts";
 // Promos & Reviews
 export { Review } from "./review.entity.ts";
 export { ReviewVote } from "./review-vote.entity.ts";
+export { ReviewFlag } from "./review-flag.entity.ts";
 export { Coupon } from "./coupon.entity.ts";
 export { CouponProduct } from "./coupon-product.entity.ts";
 export { CouponCategory } from "./coupon-category.entity.ts";

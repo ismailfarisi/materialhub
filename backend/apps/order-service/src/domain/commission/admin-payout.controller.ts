@@ -129,11 +129,9 @@ export class AdminPayoutController {
 
   async get(id: string) {
     const payout = await this.payoutService.findByIdWithVendor(id);
-    if (!payout) {
-      const err: any = new Error("Payout not found");
-      err.statusCode = 404;
-      throw err;
-    }
+    // A plain Error carrying `statusCode` is NOT honoured by errorHandler
+    // (only HttpError subclasses are) — that used to surface as a 500.
+    if (!payout) throw new NotFoundError("Payout not found");
     return payout;
   }
 
@@ -185,7 +183,11 @@ export class AdminPayoutController {
   }
 
   async addNote(id: string, adminUserId: string, note: string) {
-    return this.payoutService.appendNote(id, adminUserId, note);
+    try {
+      return await this.payoutService.appendNote(id, adminUserId, note);
+    } catch (err: any) {
+      throw translatePayoutError(err);
+    }
   }
 
   async approve(id: string, adminUserId: string, rail: PayoutRail) {

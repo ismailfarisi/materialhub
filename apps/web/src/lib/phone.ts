@@ -18,10 +18,13 @@ const MAX_LOCAL_DIGITS = 10;
  * Returns "" for empty input (so an untouched field doesn't store a bare "+971").
  */
 export function toUaeE164(local: string): string {
-  const digits = local
-    .replace(/\D/g, "")
-    .replace(/^0+/, "")
-    .slice(0, MAX_LOCAL_DIGITS);
+  let digits = local.replace(/\D/g, "").replace(/^0+/, "");
+  // A typed or autofilled full number ("+971 50…", "00971 50…") already
+  // carries the country code; prefixing it again stored "+971971…". UAE
+  // local numbers are at most 9 digits, so 971 followed by 8+ digits is the
+  // dial code, not part of the local number.
+  if (digits.startsWith("971") && digits.length >= 11) digits = digits.slice(3);
+  digits = digits.slice(0, MAX_LOCAL_DIGITS);
   return digits ? `${UAE_DIAL_CODE}${digits}` : "";
 }
 

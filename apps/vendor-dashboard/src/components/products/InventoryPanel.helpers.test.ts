@@ -3,6 +3,8 @@ import {
   type InventoryRecord,
   inventoryButtonState,
   onHandForWarehouse,
+  rowsForSellable,
+  variantLabel,
   warehouseLabel,
 } from "./InventoryPanel";
 
@@ -104,5 +106,30 @@ describe("onHandForWarehouse", () => {
   it("returns 0 when no warehouse is targeted", () => {
     expect(onHandForWarehouse(rows, "")).toBe(0);
     expect(onHandForWarehouse(rows, null)).toBe(0);
+  });
+});
+
+describe("rowsForSellable", () => {
+  const records = [
+    { id: "p", variant_id: null, warehouse_id: "w1", quantity_on_hand: 5, quantity_reserved: 0 },
+    { id: "v1", variant_id: "var-1", warehouse_id: "w1", quantity_on_hand: 7, quantity_reserved: 1 },
+    { id: "v2", variant_id: "var-2", warehouse_id: "w1", quantity_on_hand: 2, quantity_reserved: 0 },
+  ];
+
+  it("product-level rows when no variant is selected", () => {
+    expect(rowsForSellable(records, null).map((r) => r.id)).toEqual(["p"]);
+  });
+
+  it("only the selected variant's rows", () => {
+    expect(rowsForSellable(records, "var-1").map((r) => r.id)).toEqual(["v1"]);
+  });
+});
+
+describe("variantLabel", () => {
+  it("includes the SKU when there is one", () => {
+    expect(variantLabel({ id: "1", name: "A1 / pack of 100", sku: "KRF-120-A1" })).toBe(
+      "A1 / pack of 100 (KRF-120-A1)",
+    );
+    expect(variantLabel({ id: "1", name: " " })).toBe("Unnamed variant");
   });
 });

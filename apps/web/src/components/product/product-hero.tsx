@@ -32,6 +32,7 @@ import {
 	normaliseVariants,
 	resolveUnit,
 } from "./pdp-data";
+import { useSignInGate } from "@/hooks/use-sign-in-gate";
 
 interface ProductHeroProps {
 	// biome-ignore lint/suspicious/noExplicitAny: untyped API response shape
@@ -87,6 +88,7 @@ export function ProductHero({
 	const { openSlideOver } = useCartStore();
 	const addToCart = useAddToCart();
 	const toggleWishlist = useToggleWishlist();
+	const { gate } = useSignInGate();
 	const { data: wishlistItems } = useWishlist();
 	const { ref: ctaRef, isPast: ctaOutOfView } = useScrollPast<HTMLDivElement>();
 
@@ -305,7 +307,7 @@ export function ProductHero({
 									variant="outline"
 									size="icon"
 									className="h-12 w-12 shrink-0"
-									onClick={() => toggleWishlist.mutate(product.id)}
+									onClick={() => gate(() => toggleWishlist.mutate(product.id))}
 									disabled={toggleWishlist.isPending}
 									aria-pressed={isWishlisted}
 									aria-label={isWishlisted ? t("removeFromWishlist") : t("addToWishlist")}

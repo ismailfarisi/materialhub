@@ -28,6 +28,7 @@ export function useOrder(id: string, options?: { refetchInterval?: number | fals
 }
 
 export function useCancelOrder() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({
       orderId,
@@ -38,6 +39,10 @@ export function useCancelOrder() {
     }) => {
       const { data } = await api.post(`/orders/${orderId}/cancel`, { reason });
       return data.data;
+    },
+    onSuccess: (_data, { orderId }) => {
+      queryClient.invalidateQueries({ queryKey: ["order", orderId] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
     },
   });
 }

@@ -32,18 +32,7 @@ interface Props {
 	searchParams: Promise<Record<string, string>>;
 }
 
-// biome-ignore lint/suspicious/noExplicitAny: untyped API response shape
-type Brand = any;
-
-function fetchBrand(slug: string, locale: string): Promise<Brand | null> {
-	// Brands are catalogue taxonomy and change about as often as categories do,
-	// so they share the category-tree lifetime rather than the listing one.
-	return publicGet<Brand>(`/brands/${slug}`, {
-		revalidate: TTL.categoryTree,
-		tags: [`brand:${slug}`],
-		locale,
-	});
-}
+import { type Brand, fetchBrand } from "./data";
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
 	const { locale, slug } = await params;

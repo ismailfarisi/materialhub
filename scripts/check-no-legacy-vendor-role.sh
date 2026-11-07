@@ -53,12 +53,10 @@ ALLOWED_AUDIT_LABEL_FILES=(
   "integration.service.ts"
   "mapping.service.ts"
   "order-status.service.ts"
-  # booking-service: `BookingActorRole` is a service-local union
-  # ("customer" | "vendor" | "admin" | "system"), not `UserRole` — same
-  # out-of-Phase-3a-scope case as the shipment/order audit files above.
-  # `actor_role` is a varchar audit column on booking_status_history.
-  "manual-booking.service.ts"
-  "manage-booking-actions.controller.ts"
+  # RFQ thread authorship: who wrote a quote message (buyer/vendor/admin),
+  # not a user role; the vendor id comes from the active membership.
+  "quote-request.routes.ts"
+  "quote-request.service.ts"
 )
 
 # Use the binary `rg` — explicitly avoid shell aliases/functions.

@@ -488,3 +488,89 @@ describe("VendorService.createByAdmin", () => {
     }
   });
 });
+
+// ── apply() — documents ───────────────────────────────────────────────────────
+
+describe("VendorService.apply — documents", () => {
+  const baseData = {
+    userId: USER_ID,
+    businessName: "E2E fix Gulf Board Supplies",
+    businessEmail: "sales@gulfboard.example",
+    businessPhone: "+971501234567",
+    businessAddress: {
+      street: "Al Quoz 3",
+      city: "Dubai",
+      state: "Dubai",
+      country: "AE",
+      postalCode: "",
+    },
+  };
+
+  function applyService() {
+    return makeService({
+      vendorRepo: { findOne: mock(async () => null) },
+      userRepo: { findOne: mock(async () => ({ id: USER_ID, email: APPLICANT_EMAIL })) },
+    });
+  }
+
+  test("saves each document with its s3 key and file name (no 500 on mapped input)", async () => {
+    clearCalls();
+    const vendor = await applyService().apply({
+      ...baseData,
+      documents: [
+        {
+          type: "trade_license",
+          s3Key: `private/business/${USER_ID}/licence.pdf`,
+          fileName: "licence.pdf",
+        },
+      ],
+    });
+    expect(vendor.id).toBe("generated-id");
+    expect((vendor as any).status).toBe("pending");
+  });
+
+  test("rejects an unknown document type with 400 instead of a DB enum error", async () => {
+    clearCalls();
+    await expect(
+      applyService().apply({
+        ...baseData,
+        documents: [{ type: "selfie", s3Key: "k", fileName: "k" }],
+      }),
+    ).rejects.toMatchObject({ statusCode: 400, code: "INVALID_DOCUMENT" });
+  });
+
+  test("rejects a document key outside the applicant's own upload prefix", async () => {
+    clearCalls();
+    await expect(
+      applyService().apply({
+        ...baseData,
+        documents: [
+          {
+            type: "trade_license",
+            s3Key: "private/business/someone-else/licence.pdf",
+            fileName: "licence.pdf",
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({ statusCode: 400, code: "INVALID_DOCUMENT_KEY" });
+  });
+});
+
+describe("VendorService.transition — approve with the real pg UPDATE result shape", () => {
+  test("reads the owner from [rows, count] (TypeORM UPDATE ... RETURNING)", async () => {
+    clearCalls();
+    appDataSourceQueryReturns.set("RETURNING user_id", [[{ user_id: USER_ID }], 1] as any);
+    const vendor: any = { id: VENDOR_ID, status: "under_review", address: {} };
+    const service = makeService({
+      vendorRepo: { findOne: mock(async () => vendor), save: mock(async (v: any) => v) },
+      warehouseRepo: {
+        findOne: mock(async () => ({ id: "wh" })),
+        create: mock((d: any) => d),
+        save: mock(async (v: any) => v),
+      },
+    });
+    const saved: any = await service.transition(VENDOR_ID, "approved");
+    expect(saved.status).toBe("approved");
+    expect(bumpTokenVersionCalls).toEqual([USER_ID]);
+  });
+});

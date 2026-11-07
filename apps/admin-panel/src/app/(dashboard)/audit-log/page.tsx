@@ -9,13 +9,16 @@ import {
   Input,
   Skeleton,
 } from "@materialhub/ui";
-import { useAuditLog } from "@/lib/queries/audit";
+import { useAuditFacets, useAuditLog } from "@/lib/queries/audit";
+import { entityTypeLabel } from "./audit-labels";
 import { Search, ChevronDown, ChevronRight, ArrowRight } from "lucide-react";
 
 interface AuditEntry {
   id: string;
   created_at: string;
   actor?: { id?: string; first_name?: string; last_name?: string; email?: string } | null;
+  actor_id?: string | null;
+  actor_role?: string | null;
   action: string;
   entity_type: string;
   entity_id?: string;
@@ -24,6 +27,8 @@ interface AuditEntry {
   metadata?: Record<string, unknown>;
 }
 
+// Verbs match "<entity>.<verb>" on any entity server-side ("create" finds
+// "categories.create", "login" finds "user.login" and "user.login_2fa").
 const ACTION_OPTIONS = [
   { label: "Create", value: "create" },
   { label: "Update", value: "update" },
@@ -33,19 +38,6 @@ const ACTION_OPTIONS = [
   { label: "Approve", value: "approve" },
   { label: "Reject", value: "reject" },
   { label: "Export", value: "export" },
-];
-
-const ENTITY_TYPE_OPTIONS = [
-  { label: "User", value: "user" },
-  { label: "Vendor", value: "vendor" },
-  { label: "Product", value: "product" },
-  { label: "Order", value: "order" },
-  { label: "Page", value: "page" },
-  { label: "Banner", value: "banner" },
-  { label: "Setting", value: "setting" },
-  { label: "Category", value: "category" },
-  { label: "Brand", value: "brand" },
-  { label: "Ticket", value: "ticket" },
 ];
 
 function formatDateTime(iso: string) {
@@ -165,6 +157,14 @@ export default function AuditLogPage() {
     return () => clearTimeout(t);
   }, [actorSearch, actorSearchParam, updateParam]);
 
+  const { data: facets } = useAuditFacets();
+  // Options are the entity types actually stored, so a filter always matches rows.
+  const entityTypeOptions = useMemo(
+    () =>
+      (facets?.entity_types ?? []).map((value) => ({ label: entityTypeLabel(value), value })),
+    [facets],
+  );
+
   const { data, isLoading } = useAuditLog({
     actor: actorSearchParam || undefined,
     action: actionFilter === "__all__" ? undefined : actionFilter,
@@ -218,7 +218,14 @@ export default function AuditLogPage() {
       header: "Actor",
       cell: ({ row }) => {
         const a = row.original.actor;
-        if (!a) return <span className="text-taupe text-sm italic">System</span>;
+        if (!a) {
+          // No user row: a system job, or an account that no longer exists.
+          const role = row.original.actor_role;
+          const label = row.original.actor_id
+            ? `Deleted user${role ? ` (${role})` : ""}`
+            : "System";
+          return <span className="text-taupe text-sm italic">{label}</span>;
+        }
         const name =
           `${a.first_name ?? ""} ${a.last_name ?? ""}`.trim() || a.email || "—";
         return (
@@ -245,7 +252,7 @@ export default function AuditLogPage() {
       header: "Entity",
       cell: ({ row }) => (
         <div>
-          <span className="text-sm font-medium text-cacao">{row.original.entity_type}</span>
+          <span className="text-sm font-medium text-cacao">{entityTypeLabel(row.original.entity_type)}</span>
           {row.original.entity_id && (
             <p className="text-xs text-taupe font-mono">{row.original.entity_id.slice(0, 12)}…</p>
           )}
@@ -292,7 +299,7 @@ export default function AuditLogPage() {
             {
               key: "entity_type",
               label: "Entity Type",
-              options: ENTITY_TYPE_OPTIONS,
+              options: entityTypeOptions,
               value: entityTypeFilter,
               onChange: (v) => updateParam({ entity_type: v }),
             },

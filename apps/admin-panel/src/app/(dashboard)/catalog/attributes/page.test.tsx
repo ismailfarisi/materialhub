@@ -24,8 +24,20 @@ vi.mock("@/lib/queries/attributes", () => ({
 					value_count: 2,
 					created_at: "2026-06-19T00:00:00.000Z",
 				},
+				{
+					id: "attr-2",
+					name: "Plastic-ban ready",
+					ar_label: null,
+					type: "boolean",
+					is_variant: false,
+					is_filterable: true,
+					is_groupable: false,
+					filter_input_type: "toggle",
+					value_count: 0,
+					created_at: "2026-06-19T00:00:00.000Z",
+				},
 			],
-			total: 1,
+			total: 2,
 			page: 1,
 			limit: 20,
 		},
@@ -66,5 +78,16 @@ describe("AttributesPage", () => {
 		render(<AttributesPage />);
 
 		expect(screen.getByText("الخامة")).toBeTruthy();
+	});
+
+	test("boolean, multi-select and date attributes keep their type in the editor", () => {
+		render(<AttributesPage />);
+		// The list labels the stored type…
+		expect(screen.getAllByText("Yes / no").length).toBeGreaterThan(0);
+		// …and editing a seeded boolean attribute opens with that type selected, not blank.
+		const editButtons = screen.getAllByRole("button").filter((b) => b.querySelector("svg.lucide-pencil"));
+		fireEvent.click(editButtons[1]);
+		const dialog = screen.getByRole("dialog");
+		expect(dialog.textContent).toContain("Yes / no");
 	});
 });

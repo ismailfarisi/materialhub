@@ -2,11 +2,11 @@
 
 import type { Integration } from "@/lib/integrations/api";
 import { useIntegration } from "@/lib/integrations/hooks";
+import { inboundIntegrationUrl } from "@/lib/urls";
 import { Skeleton } from "@materialhub/ui";
 import { ArrowLeft } from "@phosphor-icons/react";
 import axios from "axios";
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { PulseDot, type PulseState } from "./PulseDot";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -36,13 +36,8 @@ interface IntegrationDetailHeaderProps {
 
 export function IntegrationDetailHeader({ id }: IntegrationDetailHeaderProps) {
   const { data: integration, isLoading, isError, error } = useIntegration(id);
-  const [inboundUrl, setInboundUrl] = useState<string>(`/integrations/inbound/${id}`);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      setInboundUrl(`${window.location.origin}/integrations/inbound/${id}`);
-    }
-  }, [id]);
+  // Inbound events are received by the API, not by this dashboard's origin.
+  const inboundUrl = inboundIntegrationUrl(id);
 
   // 404 handling
   if (isError && axios.isAxiosError(error) && error.response?.status === 404) {

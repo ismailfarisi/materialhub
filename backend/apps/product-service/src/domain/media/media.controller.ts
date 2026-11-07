@@ -164,6 +164,11 @@ export class MediaController {
       throw new ForbiddenError("Only admins can view KYC documents");
     }
 
+    // Vendor applications upload their trade licence with the user-scoped
+    // business_licence presign (the applicant has no vendor id yet).
+    if (key.startsWith("private/business/")) {
+      return this.mediaService.getBusinessDocSignedUrl(key);
+    }
     return this.mediaService.getKycSignedUrl(key);
   }
 

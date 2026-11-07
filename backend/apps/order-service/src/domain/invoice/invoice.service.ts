@@ -1,6 +1,7 @@
 import type { Order } from "@materialhub/database";
 import type { MediaService } from "@materialhub/utils";
 import type { Repository } from "typeorm";
+import { type CancelledByItem, loadCancelledByItem } from "./cancelled-quantities.ts";
 import { renderReceiptPdf } from "./receipt-pdf.ts";
 import { buildReceiptViewModel } from "./receipt-view-model.ts";
 import type { TaxInvoiceService } from "./tax-invoice/tax-invoice.service.ts";
@@ -8,6 +9,8 @@ import type { TaxInvoiceService } from "./tax-invoice/tax-invoice.service.ts";
 export function receiptKey(orderId: string): string {
   return `private/receipts/${orderId}.pdf`;
 }
+
+const UNPLACED_STATUSES = new Set(["draft", "pending_payment", "payment_failed"]);
 
 const RECEIPT_RELATIONS = ["vendorOrders", "vendorOrders.vendor", "vendorOrders.items"];
 
@@ -25,6 +28,16 @@ export class InvoiceService {
       where: { id: orderId } as any,
       relations: RECEIPT_RELATIONS,
     });
+  }
+
+  /** Item cancellations of the order; never fails the receipt. */
+  private async cancelledFor(orderId: string): Promise<CancelledByItem> {
+    try {
+      return await loadCancelledByItem((this.orderRepo as any).manager, orderId);
+    } catch (err) {
+      console.error("[invoice] loading item cancellations failed", { orderId, error: String(err) });
+      return {};
+    }
   }
 
   /**
@@ -62,7 +75,7 @@ export class InvoiceService {
 
     const key = receiptKey(o.id);
     try {
-      const vm = buildReceiptViewModel(order as any);
+      const vm = buildReceiptViewModel(order as any, await this.cancelledFor(o.id));
       const pdf = await renderReceiptPdf(vm);
       await this.mediaService.uploadBuffer(key, pdf, "application/pdf");
       o.invoice_s3_key = key;
@@ -86,21 +99,46 @@ export class InvoiceService {
     orderId: string,
     userId: string,
     role?: string,
-  ): Promise<{ url: string } | { notFound: true } | { forbidden: true }> {
+  ): Promise<
+    { url: string } | { pdf: Buffer; filename: string } | { notFound: true } | { forbidden: true }
+  > {
     const order = await this.loadOrder(orderId);
     if (!order) return { notFound: true };
     const isAdmin = role === "admin" || role === "super_admin";
     // Return notFound (not forbidden) for a non-owner so the endpoint is not an order-existence oracle (matches GET /buyer/orders/:id).
     if (!isAdmin && (order as any).user_id !== userId) return { notFound: true };
+    // No receipt for an order that was never placed (abandoned or failed checkout).
+    if (UNPLACED_STATUSES.has(String((order as any).status))) return { notFound: true };
 
     let key = (order as any).invoice_s3_key as string | null;
     if (!key) {
       const gen = await this.generateFor(order);
       if ("key" in gen) key = gen.key;
-      else return { notFound: true };
     }
 
-    const { url } = await this.mediaService.getReceiptSignedUrl(key);
-    return { url };
+    if (key) {
+      try {
+        const { url } = await this.mediaService.getReceiptSignedUrl(key);
+        return { url };
+      } catch (err) {
+        console.error("[invoice] signing receipt URL failed; serving inline", {
+          orderId,
+          error: String(err),
+        });
+      }
+    }
+
+    // Storage unavailable (no S3 credentials locally, an outage, ...): the
+    // receipt is a pure render of the order, so serve it directly instead of
+    // a 404 JSON body the browser opens as a page.
+    try {
+      const pdf = await renderReceiptPdf(
+        buildReceiptViewModel(order as any, await this.cancelledFor(orderId)),
+      );
+      return { pdf, filename: `receipt-${(order as any).order_number ?? orderId}.pdf` };
+    } catch (err) {
+      console.error("[invoice] inline receipt render failed", { orderId, error: String(err) });
+      return { notFound: true };
+    }
   }
 }

@@ -21,6 +21,18 @@ export const vendorMembersRoutes = new Elysia({ prefix: "/vendors/:id/members" }
       };
     }
   })
+  // team.read — every role can see who is on the team.
+  .guard({}, (app) =>
+    app.use(vendorMembership("team.read")).get(
+      "/",
+      async ({ params, member, vendorMemberService }: any) => {
+        assertVendorIdMatches(params.id, member.vid);
+        const data = await vendorMemberService.list({ vendorId: member.vid });
+        return { statusCode: 200, data, timestamp: new Date().toISOString() };
+      },
+      { params: t.Object({ id: t.String() }) },
+    ),
+  )
   .guard({}, (app) =>
     app
       .use(vendorMembership("team.write"))
@@ -44,15 +56,6 @@ export const vendorMembersRoutes = new Elysia({ prefix: "/vendors/:id/members" }
             role: t.Union([t.Literal("manager"), t.Literal("staff"), t.Literal("viewer")]),
           }),
         },
-      )
-      .get(
-        "/",
-        async ({ params, member, vendorMemberService }: any) => {
-          assertVendorIdMatches(params.id, member.vid);
-          const data = await vendorMemberService.list({ vendorId: member.vid });
-          return { statusCode: 200, data, timestamp: new Date().toISOString() };
-        },
-        { params: t.Object({ id: t.String() }) },
       )
       .patch(
         "/:memberId",

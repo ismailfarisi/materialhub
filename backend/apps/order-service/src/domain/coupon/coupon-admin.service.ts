@@ -66,7 +66,7 @@ export class CouponAdminService {
   async list(
     filters: ListFilters,
   ): Promise<{ items: Coupon[]; total: number; page: number; limit: number }> {
-    const page = filters.page ?? 1;
+    const page = Math.max(1, Math.trunc(Number(filters.page)) || 1);
     const limit = filters.limit ?? 20;
     const now = new Date();
 
@@ -77,6 +77,10 @@ export class CouponAdminService {
       .leftJoinAndSelect("coupon.couponVendors", "couponVendors")
       .leftJoinAndSelect("coupon.couponExcludedProducts", "couponExcludedProducts")
       .leftJoinAndSelect("coupon.couponUserRestrictions", "couponUserRestrictions")
+      // Owner of a vendor coupon (null = platform coupon); the promotions
+      // overview labels rows with it.
+      .leftJoin("coupon.vendor", "vendor")
+      .addSelect(["vendor.id", "vendor.name", "vendor.business_name"])
       .where("coupon.deleted_at IS NULL");
 
     if (filters.search) {

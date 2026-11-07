@@ -50,6 +50,22 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Requests whose 401 is an answer, not an expired access token: refreshing and
+// resending them would be wrong (a bad password, a bad 2FA code, logout).
+const NO_REFRESH_PATHS = [
+  "/auth/refresh",
+  "/auth/login",
+  "/auth/logout",
+  "/auth/2fa/login-verify",
+  "/auth/2fa/backup-verify",
+  "/auth/change-password",
+];
+
+export function isNoRefreshUrl(url: string | undefined): boolean {
+  if (!url) return false;
+  return NO_REFRESH_PATHS.some((p) => url.includes(p));
+}
+
 // Silent token refresh on 401, then redirect if refresh also fails
 let isRefreshing = false;
 let failedQueue: Array<{
@@ -73,9 +89,7 @@ api.interceptors.response.use(
     if (
       error.response?.status === 401 &&
       !originalRequest._retry &&
-      !originalRequest.url?.includes("/auth/refresh") &&
-      !originalRequest.url?.includes("/auth/login") &&
-      !originalRequest.url?.includes("/auth/logout")
+      !isNoRefreshUrl(originalRequest.url)
     ) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {

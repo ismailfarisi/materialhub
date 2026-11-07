@@ -52,7 +52,7 @@ export function isPublicRoute(path: string, method: string): boolean {
   if (path.startsWith("/categories/")) return true;
   if (path === "/brands" || path.startsWith("/brands/")) return true;
   // Products: public read routes only (list, detail, slug lookup, suggest,
-  // questions, recommendations). Recommendations powers the PDP rails and
+  // questions, recommendations, reviews). Recommendations powers the PDP rails and
   // must be reachable from the unauthenticated browser.
   const isRead = method === "GET" || method === "HEAD";
   if (
@@ -60,7 +60,7 @@ export function isPublicRoute(path: string, method: string): boolean {
     (path === "/products" ||
       path === "/products/suggest" ||
       path.startsWith("/products/by-slug/") ||
-      /^\/products\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(\/questions|\/recommendations)?$/.test(
+      /^\/products\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(\/questions|\/recommendations|\/reviews)?$/.test(
         path,
       ))
   )
@@ -91,12 +91,25 @@ export function isPublicRoute(path: string, method: string): boolean {
   // BNPL provider thresholds power the PDP installment strip — published
   // numbers Tabby/Tamara show on their own marketing pages.
   if (isRead && path === "/checkout/bnpl-thresholds") return true;
+  // Trending searches power the empty search box for guests too.
+  if (isRead && path === "/search/trending") return true;
   // Delivery promise (product page, cart, checkout) — read-only estimates
   // for guests too. The batch form is a POST that changes nothing.
   if (isRead && path === "/shipping/delivery-estimate") return true;
   if (method === "POST" && path === "/shipping/delivery-estimate/batch") return true;
   if (path.startsWith("/vendors/") && path.endsWith("/profile")) return true;
   if (path.startsWith("/vendors/by-slug/")) return true;
+  // Vendor team invite preview: the invitee opens the emailed link before
+  // signing in. Accept/decline (POST) stay authenticated.
+  if (isRead && /^\/vendor-members\/invite\/[^/]+$/.test(path)) return true;
+  // Declining needs only the emailed token (the invitee may have no account).
+  // Accepting stays authenticated.
+  if (method === "POST" && path === "/vendor-members/decline") return true;
+  // Inbound vendor-integration webhooks: authenticated by the integration's
+  // HMAC signature inside the handler (InboundService), not by JWT. Without
+  // this, partners could never deliver and the handler's own "inbound
+  // disabled" 503 never ran.
+  if (method === "POST" && /^\/integrations\/inbound\/[^/]+\/[^/]+$/.test(path)) return true;
   // Section-type registry is public metadata (read-only)
   if (path === "/section-types" || path.startsWith("/section-types/")) return true;
   if (path.startsWith("/webhooks/")) return true;
@@ -118,6 +131,13 @@ export function isPublicRoute(path: string, method: string): boolean {
   // Public open-brief board (GET /reels/briefs/open) — non-sensitive fields only.
   // CMS public routes
   if (path.startsWith("/layouts/")) return true;
+  // Published CMS pages, active banners and allow-listed public settings.
+  // The handlers filter (published / is_active / PUBLIC_SETTING_KEYS); the
+  // admin list (GET /pages/) and /pages/admin/:id stay authenticated.
+  if (isRead && path === "/pages/published") return true;
+  if (isRead && /^\/pages\/(?!admin$)[^/]+$/.test(path)) return true;
+  if (isRead && path === "/banners/active") return true;
+  if (isRead && path === "/settings/public") return true;
   // Header navigation (public mega-menu data)
   if (path === "/navigation/header" || path.startsWith("/navigation/header")) return true;
   // Newsletter — token unsubscribe link from marketing emails (no user context

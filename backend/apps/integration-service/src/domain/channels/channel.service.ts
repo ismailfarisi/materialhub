@@ -1,8 +1,24 @@
-import type { ChannelDelivery, ChannelFeedRun, SalesChannel } from "@materialhub/database";
+import {
+  type ChannelDelivery,
+  type ChannelFeedRun,
+  type SalesChannel,
+  SalesChannelCode,
+} from "@materialhub/database";
 import { NotFoundError } from "@materialhub/plugins";
 import type { EncryptionService } from "@materialhub/utils";
 import type { Queue } from "bullmq";
 import type { Repository } from "typeorm";
+
+const CHANNEL_CODES = new Set<string>(Object.values(SalesChannelCode));
+
+/**
+ * True when `code` is a member of `sales_channels_code_enum`. Querying the
+ * enum column with anything else makes Postgres raise 22P02, so callers must
+ * reject unknown codes before they reach the repository.
+ */
+export function isSalesChannelCode(code: unknown): code is SalesChannelCode {
+  return typeof code === "string" && CHANNEL_CODES.has(code);
+}
 
 export interface ChannelView {
   id: string;
@@ -170,7 +186,8 @@ export class ChannelService {
     // jobId is unique enough that two same-second manual rebuilds get distinct
     // BullMQ jobs (microsecond noise via toString(36) is fine — collisions don't
     // corrupt anything since the worker handler is idempotent on the channel).
-    const jobId = `manual:${code}:${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
+    // "_" not ":" — BullMQ reserves ":" in custom ids.
+    const jobId = `manual_${code}_${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
     await queue.add(
       `feed-build:${code}:manual`,
       { channelCode: code, trigger: "manual" },
@@ -181,6 +198,7 @@ export class ChannelService {
 
   /** Internal — returns the raw row including encrypted credentials. */
   private async findRow(code: string): Promise<SalesChannel | null> {
-    return this.repo.findOne({ where: { code: code as any, deleted_at: null as any } });
+    if (!isSalesChannelCode(code)) return null;
+    return this.repo.findOne({ where: { code, deleted_at: null as any } });
   }
 }

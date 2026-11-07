@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { EcoDeclarationStatus } from "@materialhub/database";
 import {
   type EcoDeclarationRow,
   EcoDeclarationService,
@@ -36,7 +37,7 @@ function setup(initial?: Partial<EcoDeclarationRow>) {
     findById: async (id) => (row && row.id === id ? { ...row } : null),
     save: async (r) => {
       saves += 1;
-      row = { id: "d1", ...(r as EcoDeclarationRow) };
+      row = { ...(r as EcoDeclarationRow), id: r.id ?? "d1" };
       return { ...row };
     },
     productOwner: async (id) => (id === PRODUCT ? VENDOR : null),
@@ -123,7 +124,7 @@ describe("EcoDeclarationService — vendor", () => {
       reviewed_at: NOW,
     });
     await service.declare(PRODUCT, VENDOR, "u1", { confirm: true, statement: "Paper, new glue" });
-    expect(current()?.status).toBe("pending");
+    expect(current()?.status).toBe(EcoDeclarationStatus.pending);
     expect(current()?.reviewed_by).toBeNull();
     expect(reindexed).toEqual([PRODUCT]);
   });
@@ -145,7 +146,7 @@ describe("EcoDeclarationService — vendor", () => {
   it("withdraws, reindexing only if the badge was live", async () => {
     const a = setup({ status: "approved" as any });
     await a.service.withdraw(PRODUCT, VENDOR);
-    expect(a.current()?.status).toBe("withdrawn");
+    expect(a.current()?.status).toBe(EcoDeclarationStatus.withdrawn);
     expect(a.reindexed).toEqual([PRODUCT]);
     const b = setup({ status: "pending" as any });
     await b.service.withdraw(PRODUCT, VENDOR);

@@ -77,8 +77,30 @@ describe("ReturnService", () => {
     };
     inventoryRepo = makeMockRepo();
     inventoryMovementRepo = makeMockRepo();
+    // markReceived restocks and saves the return in one transaction; the tx
+    // manager hands back the same mocks so assertions keep working.
+    returnRepo.manager = {
+      transaction: mock((cb: any) =>
+        cb({
+          getRepository: (name: string) =>
+            ({
+              Inventory: inventoryRepo,
+              InventoryMovement: inventoryMovementRepo,
+              Return: returnRepo,
+            })[name],
+        }),
+      ),
+    };
     userRepo = makeMockRepo();
     walletTransactionRepo = makeMockRepo();
+    // The wallet credit runs in its own transaction (it locks the user row);
+    // hand the same fakes back from the transactional manager.
+    userRepo.target = "User";
+    walletTransactionRepo.target = "WalletTransaction";
+    userRepo.manager = {
+      transaction: async (cb: any) =>
+        cb({ getRepository: (t: string) => (t === "User" ? userRepo : walletTransactionRepo) }),
+    };
     orderStatusService = {
       transitionOrder: mock(() => Promise.resolve({})),
     };
@@ -86,6 +108,7 @@ describe("ReturnService", () => {
       add: mock(() => Promise.resolve()),
     };
     refundService = {
+      getCapturedGateway: mock(() => Promise.resolve("stripe")),
       refundToOriginalPayment: mock(() =>
         Promise.resolve({ gateway: "stripe", gatewayRefundId: "re_test", amount: 5000 }),
       ),
@@ -539,6 +562,276 @@ describe("ReturnService", () => {
           sourceId: "ret-2",
         }),
       );
+    });
+  });
+  /* ================================================================ */
+  /*  COD refunds, retryable refunds                                  */
+  /* ================================================================ */
+  describe("refund method resolution and retry", () => {
+    const receivedReturn = (over: Record<string, any> = {}) => ({
+      id: "ret-cod",
+      vendor_id: "vendor-1",
+      refunded_at: null,
+      refund_amount: 4000,
+      refund_method: "original_payment",
+      order_id: "order-cod",
+      user_id: "user-1",
+      status: ReturnStatus.received,
+      returnItems: [{ id: "ri-1", order_item_id: "oi-1", quantity: 1, refund_amount: 4000 }],
+      ...over,
+    });
+    const primeRefundSideEffects = () => {
+      const qb = makeQb();
+      qb.getOne.mockResolvedValueOnce({ id: "user-1", wallet_balance: 0 });
+      userRepo.createQueryBuilder.mockReturnValueOnce(qb);
+      orderRepo.findOne.mockResolvedValueOnce({
+        id: "order-cod",
+        grand_total: 9000,
+        refund_total: 0,
+      });
+      orderItemRepo.find.mockResolvedValueOnce([
+        { id: "oi-1", refunded_quantity: 0, refunded_amount: 0 },
+      ]);
+    };
+
+    it("approve: original payment on a COD order is stored as a wallet refund", async () => {
+      refundService.getCapturedGateway.mockResolvedValueOnce("cod");
+      returnRepo.findOne.mockResolvedValueOnce({
+        id: "ret-cod",
+        order_id: "order-cod",
+        status: ReturnStatus.requested,
+        returnItems: [],
+      });
+      const result = await service.approveReturn("ret-cod", "admin-1", {
+        refund_amount: 4000,
+        refund_method: "original_payment",
+        items: [],
+      });
+      expect(result.refund_method).toBe("wallet");
+    });
+
+    it("approve: store_credit is the wallet; omitted amount defaults to the lines' paid value", async () => {
+      returnRepo.findOne.mockResolvedValueOnce({
+        id: "ret-1",
+        order_id: "order-1",
+        status: ReturnStatus.requested,
+        returnItems: [{ id: "ri-1", order_item_id: "oi-1", quantity: 1 }],
+      });
+      orderItemRepo.findOne.mockResolvedValueOnce({ id: "oi-1", quantity: 4, line_total: 10000 });
+      const result = await service.approveReturn("ret-1", "admin-1", {
+        refund_method: "store_credit",
+        items: [],
+      });
+      expect(result.refund_method).toBe("wallet");
+      expect(result.refund_amount).toBe(2500);
+      expect(refundService.getCapturedGateway).not.toHaveBeenCalled();
+    });
+
+    it("approve: with only a total, the refund is shared across the lines pro rata", async () => {
+      const returnItems = [
+        // 1 of 2 kraft liner sheets (line 1,000) and 1 of 1 book cloth roll (2,000).
+        {
+          id: "ri-1",
+          order_item_id: "oi-1",
+          quantity: 1,
+          orderItem: { quantity: 2, line_total: 1000 },
+        },
+        {
+          id: "ri-2",
+          order_item_id: "oi-2",
+          quantity: 1,
+          orderItem: { quantity: 1, line_total: 2000 },
+        },
+      ];
+      returnRepo.findOne.mockResolvedValueOnce({
+        id: "ret-1",
+        order_id: "order-1",
+        status: ReturnStatus.requested,
+        returnItems,
+      });
+
+      const result = await service.approveReturn("ret-1", "admin-1", {
+        refund_method: "store_credit",
+        items: [],
+      });
+
+      expect(result.refund_amount).toBe(2500);
+      expect(returnItems.map((ri: any) => ri.refund_amount)).toEqual([500, 2000]);
+      expect(returnItemRepo.save).toHaveBeenCalledTimes(2);
+    });
+
+    it("approve: a reduced total keeps admin-priced lines and shares the rest", async () => {
+      const returnItems = [
+        {
+          id: "ri-1",
+          order_item_id: "oi-1",
+          quantity: 1,
+          orderItem: { quantity: 1, line_total: 3000 },
+        },
+        {
+          id: "ri-2",
+          order_item_id: "oi-2",
+          quantity: 1,
+          orderItem: { quantity: 1, line_total: 1000 },
+        },
+        {
+          id: "ri-3",
+          order_item_id: "oi-3",
+          quantity: 1,
+          orderItem: { quantity: 1, line_total: 3000 },
+        },
+      ];
+      returnRepo.findOne.mockResolvedValueOnce({
+        id: "ret-1",
+        order_id: "order-1",
+        status: ReturnStatus.requested,
+        returnItems,
+      });
+
+      await service.approveReturn("ret-1", "admin-1", {
+        refund_amount: 4001,
+        refund_method: "store_credit",
+        items: [{ return_item_id: "ri-2", refund_amount: 1000 }],
+      });
+
+      expect(returnItems.map((ri: any) => ri.refund_amount)).toEqual([1500, 1000, 1501]);
+    });
+
+    it("processRefund: a return whose lines were never priced credits each order line its share", async () => {
+      refundService.getCapturedGateway.mockResolvedValueOnce("cod");
+      returnRepo.findOne.mockResolvedValueOnce(
+        receivedReturn({
+          returnItems: [
+            {
+              id: "ri-1",
+              order_item_id: "oi-1",
+              quantity: 1,
+              refund_amount: null,
+              orderItem: { quantity: 1, line_total: 4000 },
+            },
+          ],
+        }),
+      );
+      primeRefundSideEffects();
+
+      await service.processRefund("ret-cod");
+
+      expect(orderItemRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "oi-1", refunded_quantity: 1, refunded_amount: 4000 }),
+      );
+      expect(commissionReversal.reverseForItems).toHaveBeenCalledWith(
+        reversalTxManager,
+        expect.objectContaining({
+          items: [{ orderItemId: "oi-1", refundedQuantity: 1, refundedAmount: 4000 }],
+        }),
+      );
+    });
+
+    it("processRefund: a COD return approved as original_payment credits the wallet", async () => {
+      refundService.getCapturedGateway.mockResolvedValueOnce("cod");
+      returnRepo.findOne.mockResolvedValueOnce(receivedReturn());
+      primeRefundSideEffects();
+
+      await service.processRefund("ret-cod");
+
+      expect(refundService.refundToOriginalPayment).not.toHaveBeenCalled();
+      expect(walletTransactionRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          amount: 4000,
+          reference_type: "return",
+          reference_id: "ret-cod",
+        }),
+      );
+      expect(returnRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ status: ReturnStatus.refunded, refund_method: "wallet" }),
+      );
+    });
+
+    it("processRefund: a wallet credit from an earlier attempt is not repeated", async () => {
+      returnRepo.findOne.mockResolvedValueOnce(receivedReturn({ refund_method: "wallet" }));
+      walletTransactionRepo.findOne.mockResolvedValueOnce({ id: "wt-1" });
+      orderRepo.findOne.mockResolvedValueOnce({
+        id: "order-cod",
+        grand_total: 9000,
+        refund_total: 0,
+      });
+      orderItemRepo.find.mockResolvedValueOnce([
+        { id: "oi-1", refunded_quantity: 0, refunded_amount: 0 },
+      ]);
+
+      await service.processRefund("ret-cod");
+
+      expect(walletTransactionRepo.create).not.toHaveBeenCalled();
+      expect(returnRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ status: ReturnStatus.refunded }),
+      );
+    });
+
+    it("processRefund: manual refunds move no money", async () => {
+      returnRepo.findOne.mockResolvedValueOnce(receivedReturn({ refund_method: "manual" }));
+      orderRepo.findOne.mockResolvedValueOnce({
+        id: "order-cod",
+        grand_total: 9000,
+        refund_total: 0,
+      });
+
+      await service.processRefund("ret-cod");
+
+      expect(refundService.refundToOriginalPayment).not.toHaveBeenCalled();
+      expect(walletTransactionRepo.create).not.toHaveBeenCalled();
+      expect(returnRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ status: ReturnStatus.refunded }),
+      );
+    });
+
+    it("processRefund: refuses a return that has not been received", async () => {
+      returnRepo.findOne.mockResolvedValueOnce(receivedReturn({ status: ReturnStatus.approved }));
+      await expect(service.processRefund("ret-cod")).rejects.toThrow(
+        "Only received returns can be refunded",
+      );
+    });
+
+    it("markReceived: a failed refund keeps the receive and leaves the return retryable", async () => {
+      returnRepo.findOne.mockResolvedValueOnce(
+        receivedReturn({ status: ReturnStatus.shipped_back, returnItems: [] }),
+      );
+      returnRepo.findOne.mockResolvedValueOnce(receivedReturn({ returnItems: [] }));
+      refundService.refundToOriginalPayment.mockRejectedValueOnce(new Error("gateway down"));
+
+      const result = await service.markReceived("ret-cod", "vendor-1", false);
+
+      expect(result.status).toBe(ReturnStatus.received);
+      expect(result.refunded_at).toBeFalsy();
+      expect(returnRepo.manager.transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it("markReceived again on a received, unrefunded return retries the refund without restocking", async () => {
+      // markReceived lookup, retryRefund lookup, processRefund lookup, final read
+      returnRepo.findOne.mockResolvedValueOnce(receivedReturn({ refund_method: "wallet" }));
+      returnRepo.findOne.mockResolvedValueOnce(receivedReturn({ refund_method: "wallet" }));
+      returnRepo.findOne.mockResolvedValueOnce(receivedReturn({ refund_method: "wallet" }));
+      primeRefundSideEffects();
+      returnRepo.findOne.mockResolvedValueOnce(
+        receivedReturn({ status: ReturnStatus.refunded, refunded_at: new Date() }),
+      );
+
+      const result = await service.markReceived("ret-cod", "vendor-1", true);
+
+      expect(result.status).toBe(ReturnStatus.refunded);
+      expect(returnRepo.manager.transaction).not.toHaveBeenCalled();
+      expect(inventoryRepo.save).not.toHaveBeenCalled();
+      expect(walletTransactionRepo.save).toHaveBeenCalled();
+    });
+
+    it("retryRefund reports a gateway failure as 409 REFUND_FAILED", async () => {
+      returnRepo.findOne.mockResolvedValueOnce(receivedReturn());
+      returnRepo.findOne.mockResolvedValueOnce(receivedReturn());
+      refundService.refundToOriginalPayment.mockRejectedValueOnce(new Error("Tabby down"));
+
+      await expect(service.retryRefund("ret-cod")).rejects.toMatchObject({
+        statusCode: 409,
+        code: "REFUND_FAILED",
+      });
     });
   });
 });

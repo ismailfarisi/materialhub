@@ -16,7 +16,7 @@ export const brandRoutes = new Elysia({ prefix: "/brands" })
       const data = await brandController.listPublic({
         q: query.q,
         ids,
-        limit: query.limit ? Number(query.limit) : undefined,
+        limit: query.limit ? Math.max(1, Math.trunc(Number(query.limit)) || 1) : undefined,
       });
       return { statusCode: 200, data, timestamp: new Date().toISOString() };
     },

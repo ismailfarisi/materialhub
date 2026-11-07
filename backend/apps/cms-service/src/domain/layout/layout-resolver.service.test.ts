@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { BidStatus, SourceMode } from "@materialhub/database";
-import { LayoutResolverService } from "./layout-resolver.service.ts";
+import { LayoutResolverService, manualProductIds, orderByIds } from "./layout-resolver.service.ts";
 
 describe("LayoutResolverService.resolveBidded with previewBidId", () => {
   test("hot-swaps a pending bid into the top slot when its bid_id matches the section", async () => {
@@ -680,5 +680,45 @@ describe("LayoutResolverService.resolveSection — collection_slug exposure", ()
       ),
     );
     expect(resolved.data_source).toBeUndefined();
+  });
+});
+
+describe("manual product_carousel picks", () => {
+  const a = "0b8f7c56-6c5f-4b6a-9d7e-2a1b3c4d5e6f";
+  const b = "1c9f7c56-6c5f-4b6a-9d7e-2a1b3c4d5e70";
+
+  test("reads product ids in order, skipping junk and duplicates", () => {
+    const blocks = [
+      { id: "x", type: "product", data: { product_id: b } },
+      { id: "y", type: "product", data: { product_id: "not-a-uuid" } },
+      { id: "z", type: "product", data: { product_id: a } },
+      { id: "w", type: "product", data: { product_id: b } },
+      null,
+    ];
+    expect(manualProductIds(blocks)).toEqual([b, a]);
+    expect(manualProductIds(undefined)).toEqual([]);
+  });
+
+  test("keeps the picked order and drops products that didn't resolve", () => {
+    const items = [{ id: a, name: "Greyboard 2 mm" }, { id: "other" }];
+    expect(orderByIds(items, [b, a])).toEqual([{ id: a, name: "Greyboard 2 mm" }]);
+  });
+
+  test("resolveSection fills data.items for a manual product_carousel", async () => {
+    const service = new LayoutResolverService();
+    (service as any).resolveManualProducts = async (blocks: unknown) =>
+      manualProductIds(blocks).map((id: string) => ({ id }));
+    const section: any = {
+      id: "s1",
+      position: 0,
+      settings: {},
+      source_mode: SourceMode.manual,
+      section_type: { name: "product_carousel" },
+      blocks: [{ id: "p", type: "product", data: { product_id: a } }],
+      data_source: null,
+    };
+    const resolved = await (service as any).resolveSection(section);
+    expect(resolved.data.items).toEqual([{ id: a }]);
+    expect(resolved.data.blocks).toHaveLength(1);
   });
 });

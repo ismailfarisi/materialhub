@@ -1,6 +1,9 @@
+import { AxiosError, type InternalAxiosRequestConfig } from "axios";
 import { afterEach, describe, expect, test } from "vitest";
 import {
+  api,
   isInvalidOtpError,
+  isSessionGoneError,
   markAuthSessionGuest,
   setAuthSessionHint,
   shouldAttemptAuthRefresh,
@@ -64,5 +67,64 @@ describe("isInvalidOtpError", () => {
     expect(isInvalidOtpError({ response: {} })).toBe(false);
     expect(isInvalidOtpError({})).toBe(false);
     expect(isInvalidOtpError(undefined)).toBe(false);
+  });
+});
+
+describe("guest classification after a failed refresh", () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    api.defaults.adapter = undefined;
+  });
+
+  function reply(status: number, data: unknown, config: InternalAxiosRequestConfig) {
+    const err = new AxiosError(`HTTP ${status}`, String(status), config, null, {
+      status,
+      statusText: String(status),
+      headers: {},
+      config,
+      data,
+    });
+    return Promise.reject(err);
+  }
+
+  test("isSessionGoneError: 401/403 and a 400 from /auth/refresh are definitive", () => {
+    expect(isSessionGoneError({ response: { status: 401 }, config: { url: "/auth/me" } })).toBe(true);
+    expect(isSessionGoneError({ response: { status: 403 }, config: { url: "/auth/me" } })).toBe(true);
+    expect(isSessionGoneError({ response: { status: 400 }, config: { url: "/auth/refresh" } })).toBe(true);
+    expect(isSessionGoneError({ response: { status: 400 }, config: { url: "/cart" } })).toBe(false);
+    expect(isSessionGoneError({ response: { status: 503 }, config: { url: "/auth/refresh" } })).toBe(false);
+    expect(isSessionGoneError(new Error("Network Error"))).toBe(false);
+  });
+
+  test("a guest whose refresh 400s (no refresh cookie) stops being probed", async () => {
+    api.defaults.adapter = (config) =>
+      config.url === "/auth/refresh"
+        ? reply(400, { code: "MISSING_REFRESH_TOKEN" }, config)
+        : reply(401, { code: "UNAUTHORIZED" }, config);
+    expect(shouldProbeAuthSession()).toBe(true);
+    const err = await api.get("/auth/me").catch((e) => e);
+    expect(isSessionGoneError(err)).toBe(true);
+    expect(shouldProbeAuthSession()).toBe(false);
+  });
+
+  test("a revoked refresh token (401) also marks the browser as a guest", async () => {
+    api.defaults.adapter = (config) =>
+      reply(401, { code: config.url === "/auth/refresh" ? "TOKEN_REVOKED" : "UNAUTHORIZED" }, config);
+    await api.get("/auth/me").catch(() => undefined);
+    expect(shouldProbeAuthSession()).toBe(false);
+  });
+
+  test("a transient refresh failure (5xx) keeps probing", async () => {
+    setAuthSessionHint();
+    api.defaults.adapter = (config) =>
+      config.url === "/auth/refresh" ? reply(503, {}, config) : reply(401, {}, config);
+    await api.get("/auth/me").catch(() => undefined);
+    expect(shouldProbeAuthSession()).toBe(true);
+  });
+
+  test("a real login (session hint) re-enables probing", () => {
+    markAuthSessionGuest();
+    setAuthSessionHint();
+    expect(shouldProbeAuthSession()).toBe(true);
   });
 });

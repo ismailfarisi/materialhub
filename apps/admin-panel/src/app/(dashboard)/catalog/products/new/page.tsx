@@ -597,23 +597,23 @@ export default function NewProductPage() {
 						</div>
 						<div>
 							<label className="block text-sm font-medium text-cacao mb-1">
-								Ingredients
+								Material composition
 							</label>
 							<Textarea
 								value={ingredients}
 								onChange={(e) => setIngredients(e.target.value)}
-								placeholder="Aqua, Glycerin, Niacinamide..."
+								placeholder="e.g. 100% recycled board, water-based coating"
 								rows={3}
 							/>
 						</div>
 						<div>
 							<label className="block text-sm font-medium text-cacao mb-1">
-								Usage Instructions
+								Handling and use
 							</label>
 							<Textarea
 								value={usageInstructions}
 								onChange={(e) => setUsageInstructions(e.target.value)}
-								placeholder="Store flat in a dry place; apply to a clean, dust-free surface..."
+								placeholder="e.g. Store flat and dry; score before folding"
 								rows={3}
 							/>
 						</div>

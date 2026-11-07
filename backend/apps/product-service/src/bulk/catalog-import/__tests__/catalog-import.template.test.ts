@@ -8,27 +8,27 @@ describe("buildCatalogImportTemplateForCategories", () => {
   test("adds selected category attributes and an attribute guide sheet", () => {
     const template = buildCatalogImportTemplateForCategories([
       {
-        categorySlug: "skincare",
-        categoryName: "Skincare",
+        categorySlug: "kraft-papers",
+        categoryName: "Kraft Papers",
         attributes: [
           {
-            slug: "skin-type",
-            name: "Skin type",
+            slug: "finish",
+            name: "Finish",
             isRequired: true,
             isVariant: false,
             values: [
-              { slug: "dry", value: "Dry" },
-              { slug: "oily", value: "Oily" },
+              { slug: "smooth", value: "Smooth" },
+              { slug: "ribbed", value: "Ribbed" },
             ],
           },
           {
-            slug: "size",
-            name: "Size",
+            slug: "sheet-size",
+            name: "Sheet size",
             isRequired: false,
             isVariant: true,
             values: [
-              { slug: "30ml", value: "30ml" },
-              { slug: "50ml", value: "50ml" },
+              { slug: "a1", value: "A1" },
+              { slug: "a2", value: "A2" },
             ],
           },
         ],
@@ -42,8 +42,8 @@ describe("buildCatalogImportTemplateForCategories", () => {
 
     expect(productColumnKeys).toContain("ingredients");
     expect(productColumnKeys).toContain("usage_instruction");
-    expect(products?.columns.some((column) => column.key === "attr.skin-type")).toBe(true);
-    expect(variants?.columns.some((column) => column.key === "option.size")).toBe(true);
+    expect(products?.columns.some((column) => column.key === "attr.finish")).toBe(true);
+    expect(variants?.columns.some((column) => column.key === "option.sheet-size")).toBe(true);
     expect(guide?.columns.map((column) => column.key)).toEqual([
       "category_slug",
       "category_name",
@@ -53,13 +53,11 @@ describe("buildCatalogImportTemplateForCategories", () => {
       "example",
     ]);
     expect(guide?.exampleRows).toEqual([
-      ["skincare", "Skincare", "attr.skin-type", "no", "dry|oily", "dry"],
-      ["skincare", "Skincare", "option.size", "no", "30ml|50ml", "30ml"],
+      ["kraft-papers", "Kraft Papers", "attr.finish", "no", "smooth|ribbed", "smooth"],
+      ["kraft-papers", "Kraft Papers", "option.sheet-size", "no", "a1|a2", "a1"],
     ]);
-    expect(products?.columns.find((column) => column.key === "attr.skin-type")?.required).toBe(
-      false,
-    );
-    expect(template.readme.some((line) => line.includes("Selected categories: skincare"))).toBe(
+    expect(products?.columns.find((column) => column.key === "attr.finish")?.required).toBe(false);
+    expect(template.readme.some((line) => line.includes("Selected categories: kraft-papers"))).toBe(
       true,
     );
   });
@@ -70,36 +68,36 @@ describe("buildCatalogImportTemplateForCategories", () => {
         {
           id: "leaf",
           parentId: "domain",
-          categorySlug: "face-serums",
-          categoryName: "Face Serums",
+          categorySlug: "brown-kraft-rolls",
+          categoryName: "Brown Kraft Rolls",
         },
       ],
       allCategories: [
         {
           id: "domain",
           parentId: "root",
-          categorySlug: "skincare",
-          categoryName: "Skincare",
+          categorySlug: "kraft-papers",
+          categoryName: "Kraft Papers",
         },
         {
           id: "leaf",
           parentId: "domain",
-          categorySlug: "face-serums",
-          categoryName: "Face Serums",
+          categorySlug: "brown-kraft-rolls",
+          categoryName: "Brown Kraft Rolls",
         },
       ],
       categoryAttributes: [
         {
           categoryId: "domain",
-          slug: "skin-type",
-          name: "Skin type",
+          slug: "finish",
+          name: "Finish",
           isRequired: true,
           isVariant: false,
-          values: [{ slug: "dry", value: "Dry" }],
+          values: [{ slug: "smooth", value: "Smooth" }],
         },
       ],
     });
 
-    expect(category?.attributes.map((attribute) => attribute.slug)).toEqual(["skin-type"]);
+    expect(category?.attributes.map((attribute) => attribute.slug)).toEqual(["finish"]);
   });
 });

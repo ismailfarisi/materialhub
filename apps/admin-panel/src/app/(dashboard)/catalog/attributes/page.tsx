@@ -35,11 +35,16 @@ import { ChevronDown, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ReindexSearchButton } from "./reindex-button";
 
+// Every AttributeType the API stores (product.enums.ts); a missing one opened
+// existing attributes (e.g. the seeded eco attributes) with a blank Type.
 const ATTRIBUTE_TYPES = [
 	{ label: "Text", value: "text" },
 	{ label: "Number", value: "number" },
+	{ label: "Yes / no", value: "boolean" },
+	{ label: "Select (one value)", value: "select" },
+	{ label: "Multi-select", value: "multi_select" },
 	{ label: "Color", value: "color" },
-	{ label: "Select", value: "select" },
+	{ label: "Date", value: "date" },
 ];
 
 const FILTER_INPUT_OPTIONS_BY_TYPE: Record<
@@ -417,7 +422,8 @@ function AttributeFormDialog({
 			ar_label: arLabel.trim() || null,
 			type,
 			is_variant: isVariant,
-			is_groupable: type === "select" || type === "color" ? isGroupable : false,
+			is_groupable:
+				type === "select" || type === "multi_select" || type === "color" ? isGroupable : false,
 			is_filterable: isFilterable,
 			filter_input_type: isFilterable ? filterInputType : null,
 		};
@@ -499,7 +505,7 @@ function AttributeFormDialog({
 						<input
 							type="checkbox"
 							checked={isGroupable}
-							disabled={type !== "select" && type !== "color"}
+							disabled={type !== "select" && type !== "multi_select" && type !== "color"}
 							onChange={(e) => setIsGroupable(e.target.checked)}
 							className="rounded border-gray-300"
 						/>
@@ -739,8 +745,8 @@ export default function AttributesPage() {
 											</div>
 										)}
 									</div>
-									<span className="capitalize text-sm text-taupe">
-										{attr.type}
+									<span className="text-sm text-taupe">
+										{ATTRIBUTE_TYPES.find((o) => o.value === attr.type)?.label ?? attr.type}
 									</span>
 									<span className="text-sm text-taupe">
 										{attr.filter_input_type
