@@ -2,13 +2,13 @@ import "reflect-metadata";
 import { IsNull } from "typeorm";
 import { AppDataSource } from "../data-source.ts";
 import { Category } from "../entities/category.entity.ts";
-import { PaymentMethodThreshold } from "../entities/payment-method-threshold.entity.ts";
 import { SiteSetting } from "../entities/site-setting.entity.ts";
 import { TaxRate } from "../entities/tax-rate.entity.ts";
 import { User } from "../entities/user.entity.ts";
 import { Warehouse } from "../entities/warehouse.entity.ts";
 import { UserRole, UserStatus } from "../enums/user.enums.ts";
 import { seedEcoCatalogue } from "./eco-catalogue.seed.ts";
+import { seedPaymentMethodThresholds, seedRolePermissions } from "./reference-data.seed.ts";
 
 async function seed() {
   const ds = await AppDataSource.initialize();
@@ -178,33 +178,13 @@ async function seed() {
     console.log("  – Categories already seeded, skipping");
   }
 
-  // ── BNPL payment thresholds (checkout quote rules) ──────────────
-  const thresholdRepo = ds.getRepository(PaymentMethodThreshold);
-  const thresholdCount = await thresholdRepo.count();
-  if (thresholdCount === 0) {
-    await thresholdRepo.save([
-      thresholdRepo.create({
-        provider: "tabby",
-        min_amount_fils: 10000,
-        max_amount_fils: 500000,
-        plans: [
-          { installments: 4, interval_days: 30 },
-          { installments: 3, interval_days: 30 },
-        ],
-        is_active: true,
-      }),
-      thresholdRepo.create({
-        provider: "tamara",
-        min_amount_fils: 5000,
-        max_amount_fils: 300000,
-        plans: [{ installments: 3, interval_days: 30 }],
-        is_active: true,
-      }),
-    ]);
-    console.log("  ✓ Created BNPL thresholds (Tabby, Tamara)");
-  } else {
-    console.log("  – BNPL thresholds already seeded, skipping");
-  }
+  // ── Payment method thresholds (Tabby, Tamara, COD) ─────────────
+  // Per provider, so a DB seeded before COD was added still gets its row.
+  await seedPaymentMethodThresholds(ds);
+
+  // ── Vendor role → permission matrix ─────────────────────────────
+  // Without it every vendorMembership(...)-guarded route 403s, owners included.
+  await seedRolePermissions(ds);
 
   // ── Tax rates (UAE VAT) ─────────────────────────────────────────
   const taxRepo = ds.getRepository(TaxRate);

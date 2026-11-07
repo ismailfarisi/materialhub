@@ -278,7 +278,8 @@ describe("handleDeltaScan — happy path enqueues per-item push jobs", () => {
     expect(upserts).toHaveLength(2);
     expect(upserts.map((u) => u.data.offerId).sort()).toEqual(["prod-changed", "prod-new"]);
     for (const u of upserts) {
-      expect(u.opts.jobId).toBe(`${channel.id}:upsert:${u.data.offerId}`);
+      expect(u.opts.jobId).toBe(`${channel.id}_upsert_${u.data.offerId}`);
+      expect(u.opts.jobId).not.toContain(":");
       expect(u.data.item).not.toBeNull();
     }
 
@@ -286,7 +287,7 @@ describe("handleDeltaScan — happy path enqueues per-item push jobs", () => {
     const deletes = harness.state.queueAdds.filter((q) => q.data.action === "delete");
     expect(deletes).toHaveLength(1);
     expect(deletes[0]?.data.offerId).toBe("prod-gone");
-    expect(deletes[0]?.opts.jobId).toBe(`${channel.id}:delete:prod-gone`);
+    expect(deletes[0]?.opts.jobId).toBe(`${channel.id}_delete_prod-gone`);
     expect(deletes[0]?.data.item).toBeNull();
 
     // No job for the unchanged item.

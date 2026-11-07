@@ -14,12 +14,25 @@ export function getMembershipRefreshQueue(): Queue {
   return membershipRefreshQueue;
 }
 
+/**
+ * Stable jobId for a single-collection refresh: one id per collection, so a
+ * burst of edits collapses into one queued job. BullMQ rejects custom ids that
+ * contain ":" (it reserves the separator for its own keys), so use "_".
+ */
+export function membershipRefreshJobId(collectionId: string): string {
+  return `refresh_${collectionId}`;
+}
+
 /** Enqueue a single-collection refresh (deduped by jobId). */
 export async function enqueueMembershipRefresh(queue: Queue, collectionId: string): Promise<void> {
   await queue.add(
     "refresh",
     { collectionId },
-    { jobId: `refresh:${collectionId}`, removeOnComplete: true, removeOnFail: 50 },
+    {
+      jobId: membershipRefreshJobId(collectionId),
+      removeOnComplete: true,
+      removeOnFail: 50,
+    },
   );
 }
 

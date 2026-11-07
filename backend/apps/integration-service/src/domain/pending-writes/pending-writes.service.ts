@@ -1,5 +1,7 @@
 import type { VendorIntegrationPendingWrite } from "@materialhub/database";
+import { ConflictError, NotFoundError } from "@materialhub/plugins";
 import type { Repository } from "typeorm";
+import { isUuid } from "../ids.ts";
 
 export class PendingWritesService {
   constructor(private repo: Repository<VendorIntegrationPendingWrite>) {}
@@ -21,16 +23,15 @@ export class PendingWritesService {
     } as any) as Promise<VendorIntegrationPendingWrite>;
   }
 
-  list(integrationId: string, status?: string) {
+  async list(integrationId: string, status?: string): Promise<VendorIntegrationPendingWrite[]> {
+    if (!isUuid(integrationId)) return [];
     const where: any = { integration_id: integrationId };
     if (status) where.status = status;
     return this.repo.find({ where, order: { created_at: "DESC" } as any });
   }
 
   async approve(id: string, adminUserId: string): Promise<VendorIntegrationPendingWrite> {
-    const row = await this.repo.findOne({ where: { id } as any });
-    if (!row) throw new Error("not found");
-    if (row.status !== "pending") throw new Error(`cannot approve from status ${row.status}`);
+    const row = await this.findPending(id, "approve");
     row.status = "approved";
     row.reviewed_by = adminUserId;
     row.reviewed_at = new Date();
@@ -43,9 +44,7 @@ export class PendingWritesService {
   }
 
   async reject(id: string, adminUserId: string): Promise<VendorIntegrationPendingWrite> {
-    const row = await this.repo.findOne({ where: { id } as any });
-    if (!row) throw new Error("not found");
-    if (row.status !== "pending") throw new Error(`cannot reject from status ${row.status}`);
+    const row = await this.findPending(id, "reject");
     row.status = "rejected";
     row.reviewed_by = adminUserId;
     row.reviewed_at = new Date();
@@ -54,6 +53,19 @@ export class PendingWritesService {
       reviewed_by: adminUserId,
       reviewed_at: new Date(),
     } as any);
+    return row;
+  }
+
+  /** 404 for an unknown (or malformed) id, 409 when the write was already reviewed. */
+  private async findPending(
+    id: string,
+    action: "approve" | "reject",
+  ): Promise<VendorIntegrationPendingWrite> {
+    const row = isUuid(id) ? await this.repo.findOne({ where: { id } as any }) : null;
+    if (!row) throw new NotFoundError("Pending write not found");
+    if (row.status !== "pending") {
+      throw new ConflictError(`cannot ${action} from status ${row.status}`);
+    }
     return row;
   }
 

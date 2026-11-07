@@ -1,7 +1,9 @@
 import { randomBytes } from "node:crypto";
 import type { AuditLog, VendorIntegration } from "@materialhub/database";
+import { NotFoundError } from "@materialhub/plugins";
 import type { EncryptionService } from "@materialhub/utils";
 import type { Repository } from "typeorm";
+import { isUuid } from "../ids.ts";
 
 export interface CreateIntegrationInput {
   vendor_id: string;
@@ -57,6 +59,7 @@ export class IntegrationService {
   }
 
   async getById(id: string, vendorId: string): Promise<VendorIntegration | null> {
+    if (!isUuid(id)) return null;
     const row = await this.repo.findOne({ where: { id, vendor_id: vendorId } as any });
     return row && !row.deleted_at ? row : null;
   }
@@ -127,7 +130,7 @@ export class IntegrationService {
     direction: "outbound" | "inbound",
   ): Promise<{ plaintext: string }> {
     const existing = await this.getById(id, vendorId);
-    if (!existing) throw new Error("not found");
+    if (!existing) throw new NotFoundError("Integration not found");
     const fresh = randomBytes(32).toString("hex");
     if (direction === "outbound") {
       await this.repo.save({

@@ -17,7 +17,7 @@ function buildApp({ flagEnabled = true } = {}) {
   };
 
   const integ = {
-    id: "i1",
+    id: "5c8e2a14-7b3d-4e9f-a1c6-0d2b4f6e8a13",
     vendor_id: "v1",
     inbound_secret_encrypted: `enc(${SECRET})`,
     inbound_ip_allowlist: [] as string[],
@@ -96,7 +96,7 @@ describe("POST /integrations/inbound/:id/:event_type", () => {
   it("returns 401 on bad signature", async () => {
     const { app } = buildApp();
     const res = await app.handle(
-      new Request("http://localhost/integrations/inbound/i1/order.accept", {
+      new Request("http://localhost/integrations/inbound/5c8e2a14-7b3d-4e9f-a1c6-0d2b4f6e8a13/order.accept", {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -115,7 +115,7 @@ describe("POST /integrations/inbound/:id/:event_type", () => {
     const ts = Math.floor(Date.now() / 1000).toString();
     const sig = `sha256=${sign(SECRET, ts, body)}`;
     const res = await app.handle(
-      new Request("http://localhost/integrations/inbound/i1/order.accept", {
+      new Request("http://localhost/integrations/inbound/5c8e2a14-7b3d-4e9f-a1c6-0d2b4f6e8a13/order.accept", {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -132,7 +132,7 @@ describe("POST /integrations/inbound/:id/:event_type", () => {
   it("returns 503 when inbound flag is disabled", async () => {
     const { app } = buildApp({ flagEnabled: false });
     const res = await app.handle(
-      new Request("http://localhost/integrations/inbound/i1/order.accept", {
+      new Request("http://localhost/integrations/inbound/5c8e2a14-7b3d-4e9f-a1c6-0d2b4f6e8a13/order.accept", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ ext_id: "VO-1" }),
