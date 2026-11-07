@@ -208,6 +208,27 @@ export class WebhookService {
     const orderId = payload.metadata?.order_id;
     if (!orderId) return;
 
+    // Only a PaymentIntent we created for this order, for at least the amount
+    // we asked, confirms it. (The event is signature-verified, but amounts and
+    // the order link are checked against our own payment row, not trusted.)
+    const payment = await this.paymentRepo.findOne({
+      where: { gateway_payment_id: payload.id } as any,
+    });
+    const received = Number(payload.amount_received ?? payload.amount ?? 0);
+    if (
+      !payment ||
+      (payment as any).order_id !== orderId ||
+      received < Number((payment as any).amount ?? Number.POSITIVE_INFINITY)
+    ) {
+      console.error("[webhook] stripe payment does not match its order; not confirming", {
+        orderId,
+        paymentIntent: payload.id,
+        received,
+        expected: (payment as any)?.amount ?? null,
+      });
+      return;
+    }
+
     // Update Stripe-specific payment row (lookup by gateway_payment_id is
     // provider-specific, so this stays here rather than in
     // OrderConfirmationService).

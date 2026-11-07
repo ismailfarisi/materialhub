@@ -3,7 +3,7 @@ import { renderReceiptPdf } from "./receipt-pdf.ts";
 import type { ReceiptViewModel } from "./receipt-view-model.ts";
 
 const vm: ReceiptViewModel = {
-  reference: "NL-10234",
+  reference: "MH-10234",
   dateLabel: "27 Jul 2026",
   address: { name: "Aisha Khan", lines: ["12 Marina Walk", "Dubai, AE"], phone: "+971500000000" },
   buyer: { legalName: "Gulf Rigid Box Workshop LLC", trn: "100234567800003" },
@@ -11,7 +11,7 @@ const vm: ReceiptViewModel = {
     {
       vendorName: "Vendor A",
       vendorTrn: "100987654300003",
-      vendorOrderNumber: "NL-10234-V1",
+      vendorOrderNumber: "MH-10234-V1",
       items: [
         {
           name: "Greyboard 2.0 mm",

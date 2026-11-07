@@ -6,7 +6,7 @@ function makeOrder(overrides: any = {}) {
   return {
     id: "ord-1",
     user_id: "user-1",
-    order_number: "NL-1",
+    order_number: "MH-1",
     created_at: new Date("2026-07-27T00:00:00Z"),
     currency: "AED",
     subtotal: 1000,
@@ -23,7 +23,7 @@ function makeOrder(overrides: any = {}) {
     updated_at: new Date("2026-07-27T00:00:00Z"),
     vendorOrders: [
       {
-        vendor_order_number: "NL-1-V1",
+        vendor_order_number: "MH-1-V1",
         vendor: { business_name: "V" },
         items: [
           {
@@ -181,7 +181,7 @@ describe("InvoiceService.resolveDownload", () => {
 
     expect(result.pdf).toBeInstanceOf(Buffer);
     expect(result.pdf.subarray(0, 5).toString()).toBe("%PDF-");
-    expect(result.filename).toBe("receipt-NL-1.pdf");
+    expect(result.filename).toBe("receipt-MH-1.pdf");
     expect(media.getReceiptSignedUrl).not.toHaveBeenCalled();
   });
 

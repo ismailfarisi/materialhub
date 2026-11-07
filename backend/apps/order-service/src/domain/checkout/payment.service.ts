@@ -61,14 +61,32 @@ export class PaymentService {
     amount: number;
     currency?: string;
   }): Promise<{ clientSecret: string; paymentIntentId: string }> {
-    // Fetch order for shipping address (required by Stripe for Indian export regulations)
-    const order = this.orderRepo
-      ? await this.orderRepo.findOne({ where: { id: data.orderId } })
-      : null;
+    if (!this.stripe || !this.orderRepo) {
+      throw new HttpError(
+        503,
+        "Card payments are not available",
+        "PAYMENT_PROVIDER_NOT_CONFIGURED",
+      );
+    }
+    // The caller's own, still-payable order; the amount charged is the order's
+    // grand_total. The client amount was trusted before, so any buyer could
+    // pay 1 fils for someone else's (or their own) order and the webhook
+    // marked it paid.
+    const order = await this.orderRepo.findOne({ where: { id: data.orderId } });
+    if (!order || (order as any).user_id !== data.userId) {
+      throw new HttpError(404, "Order not found", "ORDER_NOT_FOUND");
+    }
+    if (
+      (order as any).status !== OrderStatus.pending_payment ||
+      (order as any).payment_status === PaymentStatus.captured
+    ) {
+      throw new HttpError(409, "This order can no longer be paid", "ORDER_NOT_PAYABLE");
+    }
+    const amount = Number((order as any).grand_total);
     const addr = (order as any)?.shipping_address || {};
 
     const pi = await this.stripe.paymentIntents.create({
-      amount: data.amount,
+      amount,
       currency: data.currency || "aed",
       description: `MaterialHub order ${(order as any)?.order_number || data.orderId}`,
       metadata: { order_id: data.orderId, user_id: data.userId },
@@ -93,7 +111,7 @@ export class PaymentService {
       user_id: data.userId,
       status: "pending",
       payment_method: "stripe",
-      amount: data.amount,
+      amount,
       currency: data.currency || "AED",
       gateway: "stripe",
       gateway_payment_id: pi.id,
@@ -169,24 +187,11 @@ export class PaymentService {
     amount: number;
     returnUrl?: string;
   }): Promise<{ checkoutUrl: string; sessionId: string }> {
-    // Tabby BNPL: create a checkout session via Tabby API
-    // In production, this calls Tabby's /api/v2/checkout endpoint
-    // For now, store the payment record and return a placeholder URL
-    await this.paymentRepo.save({
-      order_id: data.orderId,
-      user_id: data.userId,
-      status: "pending",
-      payment_method: "tabby",
-      amount: data.amount,
-      currency: "AED",
-      gateway: "tabby",
-    } as any);
-
-    // TODO: Replace with actual Tabby API call when API key is configured
-    return {
-      checkoutUrl: `https://checkout.tabby.ai/placeholder?order=${data.orderId}`,
-      sessionId: `tabby_${data.orderId}`,
-    };
+    // Tabby is not integrated yet: this used to write a pending payment row
+    // and hand back a placeholder checkout URL, so a buyer choosing Tabby got
+    // a dead link. Refuse cleanly until the real /api/v2/checkout call exists.
+    void data;
+    throw new HttpError(503, "Tabby is not available yet", "PAYMENT_PROVIDER_NOT_CONFIGURED");
   }
 
   async createTamaraSession(data: {
@@ -195,19 +200,16 @@ export class PaymentService {
     amount?: number;
     redirectUrls?: TamaraRedirectUrls;
   }): Promise<{ checkoutUrl: string; orderId: string; checkoutId: string; status: string }> {
-    if (!this.tamaraConfig?.apiToken) {
-      throw new Error("Tamara API token is not configured");
-    }
-    if (!this.orderRepo) {
-      throw new Error("Order repository is required for Tamara checkout");
+    if (!this.tamaraConfig?.apiToken || !this.orderRepo) {
+      throw new HttpError(503, "Tamara is not available", "PAYMENT_PROVIDER_NOT_CONFIGURED");
     }
 
     const order = await this.orderRepo.findOne({
       where: { id: data.orderId } as any,
       relations: { items: true, user: true } as any,
     });
-    if (!order) {
-      throw new Error("Order not found");
+    if (!order || (order as any).user_id !== data.userId) {
+      throw new HttpError(404, "Order not found", "ORDER_NOT_FOUND");
     }
 
     // C2 final-review fix: creating a Tamara session used to check only that

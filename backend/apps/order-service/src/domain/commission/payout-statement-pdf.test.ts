@@ -23,7 +23,7 @@ const vm: PayoutStatementViewModel = {
   lines: [
     {
       dateLabel: "12 Jul 2026",
-      reference: "NL-10234",
+      reference: "MH-10234",
       description: "Rose Serum — 30ml × 2",
       gross: "AED 50.00",
       commission: "AED 0.50",

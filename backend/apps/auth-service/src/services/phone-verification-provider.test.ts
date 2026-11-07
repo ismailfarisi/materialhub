@@ -76,3 +76,21 @@ describe("createPhoneVerificationProvider", () => {
     ).not.toThrow();
   });
 });
+
+describe("console OTP provider (local development)", () => {
+  test("is refused in production", async () => {
+    const provider = createPhoneVerificationProvider({
+      SMS_OTP_PROVIDER: "console",
+      NODE_ENV: "production",
+    } as any);
+    await expect(provider.sendCode("+971500000000")).rejects.toThrow("Phone OTP is not configured");
+  });
+
+  test("is a working provider outside production", () => {
+    const provider = createPhoneVerificationProvider({
+      SMS_OTP_PROVIDER: "console",
+      NODE_ENV: "development",
+    } as any);
+    expect(provider.constructor.name).toBe("ConsoleOtpProvider");
+  });
+});

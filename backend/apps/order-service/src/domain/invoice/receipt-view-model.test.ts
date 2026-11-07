@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { buildReceiptViewModel } from "./receipt-view-model.ts";
 
 const baseOrder = {
-  order_number: "NL-10234",
+  order_number: "MH-10234",
   created_at: new Date("2026-07-27T10:00:00Z"),
   currency: "AED",
   subtotal: 18000,
@@ -22,7 +22,7 @@ const baseOrder = {
   },
   vendorOrders: [
     {
-      vendor_order_number: "NL-10234-V1",
+      vendor_order_number: "MH-10234-V1",
       vendor: { business_name: "Vendor A" },
       items: [
         {
@@ -40,7 +40,7 @@ const baseOrder = {
 describe("buildReceiptViewModel", () => {
   test("maps order_number, formatted date, and grand total", () => {
     const vm = buildReceiptViewModel(baseOrder);
-    expect(vm.reference).toBe("NL-10234");
+    expect(vm.reference).toBe("MH-10234");
     expect(vm.dateLabel).toBe("27 Jul 2026");
     expect(vm.totals.grandTotal).toBe("AED 204.75");
   });

@@ -40,7 +40,7 @@ function source(over: Partial<PayoutStatementSource> = {}): PayoutStatementSourc
         commission_amount: 48,
         tax_on_commission: 2,
         vendor_earning: 4712,
-        order: { order_number: "NL-10234" },
+        order: { order_number: "MH-10234" },
         order_item: { product_name: "Rose Serum", variant_name: "30ml", quantity: 2 },
       },
       {
@@ -49,7 +49,7 @@ function source(over: Partial<PayoutStatementSource> = {}): PayoutStatementSourc
         commission_amount: 48,
         tax_on_commission: 2,
         vendor_earning: 4712,
-        order: { order_number: "NL-10240" },
+        order: { order_number: "MH-10240" },
         order_item: { product_name: "Oud Mist", variant_name: null, quantity: 1 },
       },
     ],
@@ -142,7 +142,7 @@ describe("buildPayoutStatementViewModel", () => {
             commission_amount: 1,
             tax_on_commission: 0,
             vendor_earning: 90,
-            order: { order_number: "NL-1" },
+            order: { order_number: "MH-1" },
             order_item: { product_name: "Rose Serum", variant_name: "30ml", quantity: 3 },
           },
           {

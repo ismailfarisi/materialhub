@@ -25,8 +25,9 @@ const webhookRepo = {
     return saved;
   }),
 };
+// The PaymentIntent the server created for ord-1 (amount checked on success).
 const paymentRepo = {
-  findOne: mock(async () => null),
+  findOne: mock(async () => ({ id: "pay-1", order_id: "ord-1", amount: 15000 })),
   save: mock(async (p: any) => p),
 };
 const orderConfirmation = { markOrderPaid: mock(async () => ({ confirmed: true })) };
@@ -56,7 +57,14 @@ const event = {
   id: "evt_route_1",
   object: "event",
   type: "payment_intent.succeeded",
-  data: { object: { id: "pi_route", object: "payment_intent", metadata: { order_id: "ord-1" } } },
+  data: {
+    object: {
+      id: "pi_route",
+      object: "payment_intent",
+      amount_received: 15000,
+      metadata: { order_id: "ord-1" },
+    },
+  },
 };
 
 async function postStripe(body: string, signature?: string) {

@@ -16,7 +16,10 @@ describe("WebhookService", () => {
     save: mock((o: any) => Promise.resolve(o)),
   };
   const mockPaymentRepo = {
-    findOne: mock((_args?: any): Promise<any> => Promise.resolve({ id: "pay-1", order_id: "o1" })),
+    findOne: mock(
+      (_args?: any): Promise<any> =>
+        Promise.resolve({ id: "pay-1", order_id: "o1", amount: 15000 }),
+    ),
     save: mock((p: any) => Promise.resolve(p)),
   };
   const mockOrderConfirmation = {
@@ -59,11 +62,12 @@ describe("WebhookService", () => {
 
   it("processes payment_intent.succeeded by delegating to OrderConfirmationService", async () => {
     mockWebhookRepo.findOne.mockResolvedValueOnce(null); // not processed yet
-    mockPaymentRepo.findOne.mockResolvedValueOnce({ id: "pay-1", order_id: "o1" });
+    mockPaymentRepo.findOne.mockResolvedValueOnce({ id: "pay-1", order_id: "o1", amount: 15000 });
 
     const payload = {
       id: "pi_test",
       metadata: { order_id: "o1" },
+      amount_received: 15000,
     };
     const result = await service.handleStripeWebhook("evt_1", "payment_intent.succeeded", payload);
 
@@ -74,11 +78,12 @@ describe("WebhookService", () => {
 
   it("updates Stripe-specific payment row with captured_at on success", async () => {
     mockWebhookRepo.findOne.mockResolvedValueOnce(null);
-    mockPaymentRepo.findOne.mockResolvedValueOnce({ id: "pay-1", order_id: "o1" });
+    mockPaymentRepo.findOne.mockResolvedValueOnce({ id: "pay-1", order_id: "o1", amount: 15000 });
 
     await service.handleStripeWebhook("evt_1", "payment_intent.succeeded", {
       id: "pi_test",
       metadata: { order_id: "o1" },
+      amount_received: 15000,
     });
 
     expect(mockPaymentRepo.save).toHaveBeenCalledWith(
@@ -108,6 +113,7 @@ describe("WebhookService", () => {
     await service.handleStripeWebhook("evt_fail", "payment_intent.payment_failed", {
       id: "pi_order_failed",
       metadata: { order_id: "o1" },
+      amount_received: 15000,
     });
 
     expect(mockOrderStatusService.cancelOrder).toHaveBeenCalledWith(
@@ -135,12 +141,16 @@ describe("WebhookService", () => {
       },
     );
     mockWebhookRepo.findOne.mockResolvedValueOnce(null);
-    mockPaymentRepo.findOne.mockResolvedValueOnce({ id: "pay-1", order_id: "order-1" });
+    mockPaymentRepo.findOne.mockResolvedValueOnce({
+      id: "pay-1",
+      order_id: "order-1",
+      amount: 15000,
+    });
 
     const result = await service.handleTamaraWebhook(tamaraToken, `Bearer ${tamaraToken}`, {
       order_id: "tamara-order-1",
       order_reference_id: "order-1",
-      order_number: "NL-1001",
+      order_number: "MH-1001",
       event_type: "order_approved",
       data: [],
     });
@@ -461,7 +471,14 @@ describe("WebhookService", () => {
       id: "evt_signed_1",
       object: "event",
       type: "payment_intent.succeeded",
-      data: { object: { id: "pi_signed", object: "payment_intent", metadata: { order_id: "o1" } } },
+      data: {
+        object: {
+          id: "pi_signed",
+          object: "payment_intent",
+          metadata: { order_id: "o1" },
+          amount_received: 15000,
+        },
+      },
     };
 
     it("processes an event with a valid signature using the verified event fields", async () => {
@@ -556,5 +573,29 @@ describe("WebhookService", () => {
       });
       expect(mockOrderConfirmation.markOrderPaid).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it("does not confirm an order when Stripe received less than the order's payment amount", async () => {
+    mockWebhookRepo.findOne.mockResolvedValueOnce(null);
+    mockPaymentRepo.findOne.mockResolvedValueOnce({ id: "pay-1", order_id: "o1", amount: 15000 });
+    (mockOrderConfirmation.markOrderPaid as any).mockClear?.();
+    await service.handleStripeWebhook("evt_underpaid", "payment_intent.succeeded", {
+      id: "pi_underpaid",
+      metadata: { order_id: "o1" },
+      amount_received: 1,
+    });
+    expect(mockOrderConfirmation.markOrderPaid).not.toHaveBeenCalled();
+  });
+
+  it("does not confirm an order from a PaymentIntent created for another order", async () => {
+    mockWebhookRepo.findOne.mockResolvedValueOnce(null);
+    mockPaymentRepo.findOne.mockResolvedValueOnce({ id: "pay-9", order_id: "other", amount: 100 });
+    (mockOrderConfirmation.markOrderPaid as any).mockClear?.();
+    await service.handleStripeWebhook("evt_mismatch", "payment_intent.succeeded", {
+      id: "pi_other",
+      metadata: { order_id: "o1" },
+      amount_received: 15000,
+    });
+    expect(mockOrderConfirmation.markOrderPaid).not.toHaveBeenCalled();
   });
 });
