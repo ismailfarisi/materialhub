@@ -1,12 +1,21 @@
-import { getTranslations } from "next-intl/server";
+"use client";
+
+import { useTranslations } from "next-intl";
 
 /**
  * Root loading state: a quiet Swatch Book skeleton. A board-coloured band for
  * the hero, then a row of blank swatch cards with grey tabs. No shimmer; the
  * blocks breathe slowly and stay still with reduced motion.
+ *
+ * A client component on purpose: Next renders loading.tsx apart from the
+ * layout, so the server-side `getTranslations` here could not see the locale
+ * set by the layout and fell back to reading request headers. That made every
+ * statically rendered (ISR) page under it, e.g. every product page, fail with
+ * DYNAMIC_SERVER_USAGE (HTTP 500). The client hook reads the messages the
+ * layout already passes to NextIntlClientProvider.
  */
-export default async function Loading() {
-	const t = await getTranslations("content.loading");
+export default function Loading() {
+	const t = useTranslations("content.loading");
 	return (
 		<div
 			aria-busy="true"

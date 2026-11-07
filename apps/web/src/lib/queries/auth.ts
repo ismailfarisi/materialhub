@@ -17,11 +17,16 @@ async function runPostAuthEffects(
   // fields) so the store/cache carry the full user immediately after login.
   queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
 
-  // Merge the pre-login guest cart into the user's account. The guest session token is attached automatically by
-  // the axios interceptor via the `x-guest-session` header.
+  // Merge the pre-login guest cart into the user's account. This is the one
+  // call that needs BOTH identities: the access token (attached by the axios
+  // interceptor) and the guest session it merges from. The interceptor only
+  // adds `x-guest-session` when there is no access-token cookie, which is
+  // never the case right after login, so it is passed explicitly here.
   const guestToken = getGuestSessionToken();
   if (guestToken) {
-    const results = await Promise.allSettled([api.post("/cart/merge", {})]);
+    const results = await Promise.allSettled([
+      api.post("/cart/merge", {}, { headers: { "x-guest-session": guestToken } }),
+    ]);
     // Only clear the token when the merge succeeds. If it fails, preserve the
     // token so a subsequent login/request can retry without losing the cart.
     if (results.every((r) => r.status === "fulfilled")) {

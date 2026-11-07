@@ -9,7 +9,7 @@ import { getLocale } from "next-intl/server";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-	title: "Frequently asked questions | MaterialHub",
+	title: "Frequently asked questions",
 	description:
 		"Answers to common MaterialHub questions: ordering materials, delivery, returns, payment, accounts and selling on the marketplace.",
 };

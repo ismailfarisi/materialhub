@@ -166,26 +166,26 @@
     "emptyHint": "حاول إزالة بعض الفلاتر.",
     "seo": {
       "titleTemplate": "{entity} — شراء أونلاين في الإمارات",
-      "descriptionWithPrice": "تسوق {count} من منتجات {entity} أونلاين في الإمارات بأسعار تبدأ من {price}. جميع الأسعار تشمل ضريبة القيمة المضافة بنسبة 5%، معروضة من بائعي متجر نورلونا.",
-      "descriptionFallback": "تسوق {entity} أونلاين في الإمارات على نورلونا. قارن بين منتجات البائعين، وجميع الأسعار تشمل ضريبة القيمة المضافة بنسبة 5%.",
+      "descriptionWithPrice": "تسوق {count} من منتجات {entity} أونلاين في الإمارات بأسعار تبدأ من {price}. جميع الأسعار تشمل ضريبة القيمة المضافة بنسبة 5%، معروضة من بائعي MaterialHub.",
+      "descriptionFallback": "تسوق {entity} أونلاين في الإمارات على MaterialHub. قارن بين منتجات البائعين، وجميع الأسعار تشمل ضريبة القيمة المضافة بنسبة 5%.",
       "aboutHeading": "عن {entity}",
-      "aboutIntro": "يتوفر {count} من منتجات {entity} من {brandCount} علامة تجارية على نورلونا، تُشحن من بائعين في مختلف أنحاء الإمارات.",
+      "aboutIntro": "يتوفر {count} من منتجات {entity} من {brandCount} علامة تجارية على MaterialHub، تُشحن من بائعين في مختلف أنحاء الإمارات.",
       "aboutPrice": "تبدأ أسعار {entity} من {price}.",
       "aboutVat": "جميع الأسعار المعروضة تشمل ضريبة القيمة المضافة الإماراتية بنسبة 5%، ويُحسب التوصيل بشكل منفصل عند إتمام الشراء.",
       "brandsHeading": "علامات تجارية مميزة",
       "faqHeading": "الأسئلة الشائعة",
       "faqPriceQ": "كم يبلغ سعر {entity} في الإمارات؟",
-      "faqPriceA": "تبدأ أسعار {entity} على نورلونا من {price}، من بين {count} منتج متوفر حالياً.",
+      "faqPriceA": "تبدأ أسعار {entity} على MaterialHub من {price}، من بين {count} منتج متوفر حالياً.",
       "faqBrandsQ": "ما هي علامات {entity} المتوفرة؟",
-      "faqBrandsA": "تعرض {brandCount} علامة تجارية منتجات {entity} حالياً على نورلونا، منها {brands}.",
+      "faqBrandsA": "تعرض {brandCount} علامة تجارية منتجات {entity} حالياً على MaterialHub، منها {brands}.",
       "faqVatQ": "هل الأسعار تشمل ضريبة القيمة المضافة؟",
-      "faqVatA": "نعم — جميع أسعار {entity} على نورلونا تشمل ضريبة القيمة المضافة الإماراتية بنسبة 5%. ويُحسب التوصيل بشكل منفصل عند إتمام الشراء.",
+      "faqVatA": "نعم — جميع أسعار {entity} على MaterialHub تشمل ضريبة القيمة المضافة الإماراتية بنسبة 5%. ويُحسب التوصيل بشكل منفصل عند إتمام الشراء.",
       "faqReturnsQ": "هل يمكنني إرجاع {entity}؟",
       "faqReturnsA": "يمكن إرجاع طلبات {entity} المؤهلة خلال {days} يوماً من الاستلام. قد يحدد بعض البائعين سياسة إرجاع خاصة تظهر في صفحة المنتج.",
-      "aboutIntroBrand": "يتوفر {count} من منتجات {entity} على نورلونا، تُشحن من بائعين في مختلف أنحاء الإمارات.",
-      "aboutIntroCollection": "تحتوي مجموعة {entity} على {count} منتج على نورلونا، تُشحن من بائعين في مختلف أنحاء الإمارات.",
+      "aboutIntroBrand": "يتوفر {count} من منتجات {entity} على MaterialHub، تُشحن من بائعين في مختلف أنحاء الإمارات.",
+      "aboutIntroCollection": "تحتوي مجموعة {entity} على {count} منتج على MaterialHub، تُشحن من بائعين في مختلف أنحاء الإمارات.",
       "titleTemplateCollection": "{entity} — تسوق المجموعة في الإمارات",
-      "descriptionCollection": "تسوق مجموعة {entity} على نورلونا — {count} منتج مختار بعناية، وجميع الأسعار تشمل ضريبة القيمة المضافة بنسبة 5%."
+      "descriptionCollection": "تسوق مجموعة {entity} على MaterialHub — {count} منتج مختار بعناية، وجميع الأسعار تشمل ضريبة القيمة المضافة بنسبة 5%."
     }
   },
   "product": {
@@ -642,13 +642,13 @@
     }
   },
   "footer": {
-    "about": "عن نورلونا",
+    "about": "عن MaterialHub",
     "help": "مركز المساعدة",
-    "sell": "البيع على نورلونا",
+    "sell": "البيع على MaterialHub",
     "categories": "الفئات",
     "privacy": "سياسة الخصوصية",
     "terms": "شروط الخدمة",
-    "copyright": "© {year} نورلونا. جميع الحقوق محفوظة."
+    "copyright": "© {year} MaterialHub. جميع الحقوق محفوظة."
   },
   "vendor": {
     "authorized_retailer": "بائع معتمد",

@@ -12,8 +12,14 @@ export class ReviewController {
   }
 
   /** GET /products/:id/reviews (the route's name for getProductReviews). */
+  /**
+   * Public (guest-readable) product reviews. Mapped to an explicit shape so
+   * internal ids and moderation fields (user_id, order_item_id, approved_by,
+   * rejection_reason, status, ...) never leave the server.
+   */
   async listForProduct(productId: string, query: any) {
-    return this.reviewService.getProductReviews(productId, query);
+    const { data, total } = await this.reviewService.getProductReviews(productId, query);
+    return { data: data.map(toPublicReview), total };
   }
 
   async vendorReply(reviewId: string, vendorId: string, body: any) {
@@ -45,4 +51,34 @@ export class ReviewController {
   async listForAdmin(query: any) {
     return this.reviewService.listForAdmin(query);
   }
+}
+
+/** Fields a guest may see for an approved review. */
+export function toPublicReview(r: any) {
+  return {
+    id: r.id,
+    product_id: r.product_id,
+    variant_id: r.variant_id ?? null,
+    rating: r.rating,
+    quality_rating: r.quality_rating ?? null,
+    value_rating: r.value_rating ?? null,
+    shipping_rating: r.shipping_rating ?? null,
+    title: r.title ?? null,
+    body: r.body ?? null,
+    media_urls: r.media_urls ?? [],
+    is_verified_purchase: r.is_verified_purchase ?? false,
+    is_featured: r.is_featured ?? false,
+    helpful_count: r.helpful_count ?? 0,
+    not_helpful_count: r.not_helpful_count ?? 0,
+    vendor_reply: r.vendor_reply ?? null,
+    vendor_replied_at: r.vendor_replied_at ?? null,
+    created_at: r.created_at,
+    user: r.user
+      ? {
+          first_name: r.user.first_name ?? null,
+          last_name: r.user.last_name ?? null,
+          avatar_url: r.user.avatar_url ?? null,
+        }
+      : null,
+  };
 }

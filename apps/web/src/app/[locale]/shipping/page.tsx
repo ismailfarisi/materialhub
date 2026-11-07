@@ -9,7 +9,7 @@ import { getLocale } from "next-intl/server";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-	title: "Shipping and delivery | MaterialHub",
+	title: "Shipping and delivery",
 	description:
 		"How MaterialHub delivers across the UAE: delivery options, free standard shipping over AED 150, multi-supplier orders and tracking.",
 };

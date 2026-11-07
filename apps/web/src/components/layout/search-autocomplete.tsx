@@ -30,7 +30,7 @@ export function SearchAutocompleteFallback() {
 			<input
 				type="text"
 				disabled
-				placeholder={`${t("search")}...`}
+				placeholder={t("search")}
 				className={INPUT_CLASS}
 			/>
 		</div>
@@ -150,7 +150,7 @@ export function SearchAutocomplete() {
 					onFocus={() => setIsOpen(true)}
 					onBlur={() => setTimeout(() => setIsOpen(false), 200)}
 					onKeyDown={handleKeyDown}
-					placeholder={`${t("search")}...`}
+					placeholder={t("search")}
 					className={INPUT_CLASS}
 				/>
 			</form>

@@ -8,7 +8,7 @@ import { getLocale } from "next-intl/server";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-	title: "Terms of service | MaterialHub",
+	title: "Terms of service",
 	description:
 		"The terms that govern your use of MaterialHub — orders, payments, vendor responsibilities, intellectual property and dispute resolution.",
 };

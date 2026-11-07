@@ -14,6 +14,7 @@ import { useLocale, useTranslations } from "next-intl";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSignInGate } from "@/hooks/use-sign-in-gate";
 
 interface Product {
 	id: string;
@@ -74,6 +75,7 @@ export function ProductCard({
 	const { openSlideOver } = useCartStore();
 	const addToCart = useAddToCart();
 	const toggleWishlist = useToggleWishlist();
+	const { gate } = useSignInGate();
 	const { data: wishlistItems } = useWishlist();
 
 	const isWishlisted = (wishlistItems || []).some(
@@ -127,7 +129,7 @@ export function ProductCard({
 	function handleWishlist(e: React.MouseEvent) {
 		e.preventDefault();
 		e.stopPropagation();
-		toggleWishlist.mutate(product.id);
+		gate(() => toggleWishlist.mutate(product.id));
 	}
 
 	const stock = stockFor(product.category_name);

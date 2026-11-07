@@ -6,7 +6,7 @@ import {
 } from "@/components/layout/static-page-layout";
 
 export const metadata: Metadata = {
-	title: "Privacy policy | MaterialHub",
+	title: "Privacy policy",
 	description:
 		"How MaterialHub collects, uses, stores and protects your personal data, in line with UAE Federal Decree-Law No. 45 of 2021.",
 };

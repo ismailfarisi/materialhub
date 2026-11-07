@@ -9,7 +9,7 @@ import { getLocale } from "next-intl/server";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-	title: "Returns and refunds | MaterialHub",
+	title: "Returns and refunds",
 	description:
 		"Request a return within 7 days of delivery: what qualifies, how to start a return, what happens next and how refunds are paid.",
 };

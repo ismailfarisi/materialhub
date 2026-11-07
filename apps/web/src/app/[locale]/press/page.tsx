@@ -7,7 +7,7 @@ import { MillLabel } from "@/components/swatch";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-	title: "Press and media | MaterialHub",
+	title: "Press and media",
 	description:
 		"Press contact, fact sheet and brand assets for journalists and partners writing about MaterialHub.",
 };
